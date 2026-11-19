@@ -859,6 +859,190 @@ void main() {
       expect(model('a2'), 'claude-sonnet-5-5');
     });
 
+    group('a skill run in a subagent of its own (context: fork)', () {
+      Map<String, Object?> started(String task, {String? call}) => {
+        'type': 'system',
+        'subtype': 'task_started',
+        'task_id': task,
+        'tool_use_id': ?call,
+        'description': '/count-lines',
+        'subagent_type': 'general-purpose',
+        'is_backgrounded': false,
+        'task_type': 'local_agent',
+        'prompt': 'Run `wc -l a.py`, then answer with the number.',
+      };
+      Map<String, Object?> ended(String task, {String? call}) => {
+        'type': 'system',
+        'subtype': 'task_notification',
+        'task_id': task,
+        'tool_use_id': ?call,
+        'status': 'completed',
+        'summary': '/count-lines',
+      };
+      Map<String, Object?> said(String? parent, String text) => {
+        'type': 'assistant',
+        'parent_tool_use_id': parent,
+        'message': {
+          'id': 'msg-${parent ?? 'main'}-$text',
+          'role': 'assistant',
+          'content': [
+            {'type': 'text', 'text': text},
+          ],
+        },
+      };
+      AgentItem card(Transcript transcript) =>
+          [for (final (_, item) in transcript.liveItems) item]
+              .whereType<AgentItem>()
+              .single;
+
+      test('called by the model: the Skill call is a subagent\'s card, its '
+          'messages in it as they come', () {
+        final transcript = Transcript();
+        var seq = 0;
+        final translator = ClaudeTranslator(
+          emit: transcript.apply,
+          nextSeq: () => ++seq,
+        )..turnId = '11111111-1111-4111-8111-111111111111';
+        translator.translate({
+          'type': 'assistant',
+          'parent_tool_use_id': null,
+          'message': {
+            'id': 'msg-1',
+            'role': 'assistant',
+            'content': [
+              {
+                'type': 'tool_use',
+                'id': 'toolu_1',
+                'name': 'Skill',
+                'input': {'skill': 'count-lines'},
+              },
+            ],
+          },
+        });
+        translator
+          ..translate(started('a1', call: 'toolu_1'))
+          ..translate(said('toolu_1', 'Counting'));
+        expect(shown(transcript), ['agent: /count-lines']);
+        expect(card(transcript).status, CommandStatus.running);
+        expect(card(transcript).agentType, 'general-purpose');
+        expect(card(transcript).children, hasLength(1));
+
+        translator
+          ..translate(ended('a1', call: 'toolu_1'))
+          ..translate({
+            'type': 'user',
+            'parent_tool_use_id': null,
+            'message': {
+              'role': 'user',
+              'content': [
+                {
+                  'type': 'tool_result',
+                  'tool_use_id': 'toolu_1',
+                  'content':
+                      'Skill "count-lines" completed (forked execution).'
+                      '\n\nResult:\n7',
+                },
+              ],
+            },
+            'tool_use_result': {
+              'success': true,
+              'commandName': 'count-lines',
+              'status': 'forked',
+              'agentId': 'a1',
+              'result': '7',
+            },
+          });
+        expect(shown(transcript), ['agent: /count-lines']);
+        expect(card(transcript).status, CommandStatus.succeeded);
+        expect(card(transcript).result, '7');
+      });
+
+      test('run from a slash command: a card from the start, its messages in '
+          'it once done, as the CLI gives them only then', () {
+        final transcript = Transcript();
+        var seq = 0;
+        final translator = ClaudeTranslator(
+          emit: transcript.apply,
+          nextSeq: () => ++seq,
+        )..turnId = '11111111-1111-4111-8111-111111111111';
+        translator.translate(started('a2'));
+        expect(shown(transcript), ['agent: /count-lines']);
+        expect(card(transcript).status, CommandStatus.running);
+        expect(card(transcript).startedAt, isNotNull);
+
+        translator
+          ..translate(ended('a2'))
+          ..translate(said('forked-command-count-lines', 'Counting'))
+          ..translate(said('forked-command-count-lines', '7'))
+          ..translate(said(null, 'a.py has 7 lines.'));
+        expect(shown(transcript), [
+          'agent: /count-lines',
+          'text: a.py has 7 lines.',
+        ]);
+        expect(card(transcript).status, CommandStatus.succeeded);
+        expect(card(transcript).children, hasLength(2));
+      });
+
+      test(
+        'a subagent\'s task no call or slash command started gets no card',
+        () {
+          final transcript = Transcript();
+          var seq = 0;
+          ClaudeTranslator(emit: transcript.apply, nextSeq: () => ++seq)
+            ..turnId = '11111111-1111-4111-8111-111111111111'
+            ..translate({
+              ...started('a3'),
+              'description': 'Watch',
+              'is_backgrounded': true,
+            });
+          expect(shown(transcript), isEmpty);
+        },
+      );
+
+      test('kept: a Skill call run forked shows as a subagent\'s card', () {
+        final transcript = Transcript();
+        var seq = 0;
+        final translator = ClaudeTranslator(
+          emit: transcript.apply,
+          nextSeq: () => ++seq,
+        )..turnId = '11111111-1111-4111-8111-111111111111';
+        translator
+          ..translate({
+            'type': 'assistant',
+            'parent_tool_use_id': null,
+            'message': {
+              'id': 'msg-1',
+              'role': 'assistant',
+              'content': [
+                {
+                  'type': 'tool_use',
+                  'id': 'toolu_2',
+                  'name': 'Skill',
+                  'input': {'skill': 'count-lines'},
+                },
+              ],
+            },
+          })
+          ..translate({
+            'type': 'user',
+            'parent_tool_use_id': null,
+            'message': {
+              'role': 'user',
+              'content': [
+                {
+                  'type': 'tool_result',
+                  'tool_use_id': 'toolu_2',
+                  'content': '',
+                },
+              ],
+            },
+            'toolUseResult': {'status': 'forked', 'result': '7'},
+          });
+        expect(shown(transcript), ['agent: /count-lines']);
+        expect(card(transcript).result, '7');
+      });
+    });
+
     test('a subagent\'s model reads as people read it', () {
       final providers = ModelProviders.memory(
         providers: [

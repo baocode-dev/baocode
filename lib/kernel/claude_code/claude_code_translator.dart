@@ -142,6 +142,11 @@ class ClaudeTranslator {
   /// task's): one continued (`SendMessage`) runs again on a call of its
   /// own, and goes on in the card of the first.
   final Map<String, String> _agentCalls = {};
+
+  /// The card of each skill run from a slash command in a subagent of its
+  /// own (`context: fork`), by the id its messages give as their parent
+  /// (`forked-command-<name>`): no call started it (see [_forkedSkill]).
+  final Map<String, String> _forkedCommands = {};
   final Set<String> _denied = {};
 
   /// Calls made and not answered yet: those of a stopped turn never are.
@@ -349,7 +354,8 @@ class ClaudeTranslator {
   }
 
   void translate(Map<String, Object?> message) {
-    final parent = message['parent_tool_use_id'] as String?;
+    final given = message['parent_tool_use_id'] as String?;
+    final parent = _forkedCommands[given] ?? given;
     switch (message['type']) {
       case 'stream_event' when parent == null:
         _streamEvent(
@@ -1444,6 +1450,24 @@ class ClaudeTranslator {
         );
         _putAgent(id);
         return;
+      // A skill run in a subagent of its own: its card (a kept session's
+      // has none yet), with what the subagent answered.
+      case 'Skill'
+          when _agents.containsKey(id) || structured?['status'] == 'forked':
+        final agent = _agents[id] ??= _Agent(
+          AgentItem(
+            description: '/${_string(tool.input['skill']) ?? ''}',
+            id: id,
+          ),
+        );
+        agent.item = agent.item.copyWith(
+          status: outcome == _Outcome.done
+              ? CommandStatus.succeeded
+              : CommandStatus.failed,
+          result: _string(structured?['result']) ?? text,
+        );
+        _putAgent(id);
+        return;
       // Launched, it reports in a notification; one that failed to start
       // says why.
       case 'Workflow':
@@ -1887,8 +1911,11 @@ class ClaudeTranslator {
         final workflow = message['task_type'] == 'local_workflow';
         final call = message['tool_use_id'] as String?;
         // A subagent's task is its card's, continued or not; a workflow's
-        // too.
-        final card = agent || workflow ? _agentCard(taskId, call) : null;
+        // too; a skill's run in a subagent of its own, a card of its own.
+        final card = agent || workflow
+            ? _agentCard(taskId, call) ??
+                  (agent ? _forkedSkill(taskId, call, message) : null)
+            : null;
         if (card != null) _agentCalls[taskId] = card;
         if (_agents[card] case final run? when workflow) {
           run.item = run.item.copyWith(
@@ -1991,6 +2018,41 @@ class ClaudeTranslator {
   /// by the call [toolUseId]; null when it runs none we know of.
   String? _agentCard(String? taskId, String? toolUseId) =>
       _agents.containsKey(toolUseId) ? toolUseId : _agentCalls[taskId];
+
+  /// A skill run in a subagent of its own (`context: fork`), as the task
+  /// [started] says: a subagent's card, the one of the Skill call [call]
+  /// that ran it, else (run from a slash command, `/code-review`) one of
+  /// its own, which its messages go in once it is done (the CLI gives
+  /// them only then). Null for a task that is no such skill's.
+  String? _forkedSkill(
+    String taskId,
+    String? call,
+    Map<String, Object?> started,
+  ) {
+    final skill = call == null ? null : _tools[call];
+    final description = _string(started['description']);
+    final String id;
+    if (call == null) {
+      if (description == null || !description.startsWith('/')) return null;
+      id = taskId;
+      _forkedCommands['forked-command-${description.substring(1)}'] = id;
+    } else if (skill?.name == 'Skill') {
+      id = call;
+    } else {
+      return null;
+    }
+    _agents[id] = _Agent(
+      AgentItem(
+        description: description ?? '/${_string(skill?.input['skill']) ?? ''}',
+        id: id,
+        agentType: _string(started['subagent_type']),
+        prompt: _string(started['prompt']),
+        startedAt: skill?.startedAt ?? DateTime.now(),
+      ),
+    );
+    _putAgent(id);
+    return id;
+  }
 
   /// The subagent [toolUseId] started, if one did, now runs on its own.
   void _agentToBackground(String? toolUseId) {
