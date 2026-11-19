@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
@@ -11,6 +12,7 @@ class ChatColumnInset extends InheritedWidget {
     super.key,
     this.right = 0,
     this.left = 0,
+    this.rail,
     required super.child,
   });
 
@@ -19,6 +21,15 @@ class ChatColumnInset extends InheritedWidget {
   /// As [right], at the left: what floats there with the side panel at the
   /// conversations' left.
   final double left;
+
+  /// Where what floats there is on screen (in global coordinates), as
+  /// last painted: what of the chat's margin it is over (the minimap's)
+  /// keeps below it. None where nothing floats.
+  final ValueListenable<Rect?>? rail;
+
+  /// [rail] where [context] is; none outside any.
+  static ValueListenable<Rect?>? railOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<ChatColumnInset>()?.rail;
 
   /// The inset at the right where [context] is; none outside any.
   static double of(BuildContext context) =>
@@ -30,7 +41,9 @@ class ChatColumnInset extends InheritedWidget {
 
   @override
   bool updateShouldNotify(ChatColumnInset oldWidget) =>
-      oldWidget.right != right || oldWidget.left != left;
+      oldWidget.right != right ||
+      oldWidget.left != left ||
+      oldWidget.rail != rail;
 }
 
 /// [child] no wider than [maxWidth], in the middle of the width it has (as
@@ -43,7 +56,9 @@ class ChatColumnInset extends InheritedWidget {
 /// It keeps [room] clear at its left (for the conversation's minimap) as
 /// long as it is still at least [roomFrom] wide that way, narrower than
 /// [maxWidth] if need be; in less width it gives the room up. Its right
-/// keeps none: only [right] there, for what floats over it.
+/// keeps none: only [right] there, for what floats over it. With the
+/// minimap at its right ([roomRight]), the room is kept there too, its
+/// left still level with the composer.
 class ChatColumn extends SingleChildRenderObjectWidget {
   const ChatColumn({
     super.key,
@@ -52,6 +67,7 @@ class ChatColumn extends SingleChildRenderObjectWidget {
     this.left = 0,
     this.room = 0,
     this.roomFrom = 0,
+    this.roomRight = false,
     super.child,
   });
 
@@ -62,13 +78,15 @@ class ChatColumn extends SingleChildRenderObjectWidget {
   final double left;
   final double room;
   final double roomFrom;
+  final bool roomRight;
 
   @override
   RenderChatColumn createRenderObject(BuildContext context) =>
       RenderChatColumn(maxWidth, right)
         ..left = left
         ..room = room
-        ..roomFrom = roomFrom;
+        ..roomFrom = roomFrom
+        ..roomRight = roomRight;
 
   @override
   void updateRenderObject(BuildContext context, RenderChatColumn renderObject) {
@@ -77,7 +95,8 @@ class ChatColumn extends SingleChildRenderObjectWidget {
       ..right = right
       ..left = left
       ..room = room
-      ..roomFrom = roomFrom;
+      ..roomFrom = roomFrom
+      ..roomRight = roomRight;
   }
 }
 
@@ -89,6 +108,14 @@ class RenderChatColumn extends RenderShiftedBox {
   set room(double value) {
     if (value == _room) return;
     _room = value;
+    markNeedsLayout();
+  }
+
+  bool get roomRight => _roomRight;
+  bool _roomRight = false;
+  set roomRight(bool value) {
+    if (value == _roomRight) return;
+    _roomRight = value;
     markNeedsLayout();
   }
 
@@ -132,13 +159,16 @@ class RenderChatColumn extends RenderShiftedBox {
     double left = 0,
     double room = 0,
     double roomFrom = 0,
+    bool roomRight = false,
   }) {
     final centered = math.max(0.0, math.min(maxWidth, width));
     // In the middle, unless that comes within [left] (or the minimap's
-    // [room]) of the left edge.
-    final clear = room > 0 && width - room >= roomFrom
-        ? math.max(left, room)
-        : left;
+    // [room]) of the left edge; or, the minimap at the right, within its
+    // room of either edge: its left level with the composer's, which keeps
+    // the room either side.
+    final roomy = room > 0 && width - (roomRight ? 2 : 1) * room >= roomFrom;
+    final clear = roomy ? math.max(left, room) : left;
+    if (roomy && roomRight) right = math.max(right, room);
     final start = math.max((width - centered) / 2, math.min(clear, width));
     final end = math.max(start, (width + centered) / 2);
     return (
@@ -168,6 +198,7 @@ class RenderChatColumn extends RenderShiftedBox {
     left: _left,
     room: _room,
     roomFrom: _roomFrom,
+    roomRight: _roomRight,
   );
 
   BoxConstraints _childConstraints(BoxConstraints constraints) =>

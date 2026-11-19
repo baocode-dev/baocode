@@ -200,6 +200,17 @@ class AppearanceSettingsPage extends StatelessWidget {
     _keep(ChatMinimap.settingKey, ChatMinimap.setting(on));
   }
 
+  void _selectMinimapSide(ChatMinimapSide side) {
+    ChatMinimap.side.value = side;
+    _keep(ChatMinimap.sideKey, ChatMinimap.sideSetting(side));
+  }
+
+  static String _minimapSideName(BuildContext context, ChatMinimapSide side) =>
+      switch (side) {
+        ChatMinimapSide.left => context.l10n.minimapSideLeft,
+        ChatMinimapSide.right => context.l10n.minimapSideRight,
+      };
+
   void _selectMinimapGlass(double opacity) {
     ChatMinimap.glass.value = opacity;
     _keep(ChatMinimap.glassKey, ChatMinimap.glassSetting(opacity));
@@ -387,6 +398,7 @@ class AppearanceSettingsPage extends StatelessWidget {
         ChatMinimap.enabled,
         ChatMinimap.glass,
         ChatMinimap.elasticity,
+        ChatMinimap.side,
         SidebarTimes.shown,
         WindowBlur.enabled,
         for (final role in PixelLoaderRole.values) ...[role.style, role.speed],
@@ -409,6 +421,10 @@ class AppearanceSettingsPage extends StatelessWidget {
         final replyScrollShown = _replyScrollName(
           context,
           ReplyScroll.current.value,
+        );
+        final minimapSideShown = _minimapSideName(
+          context,
+          ChatMinimap.side.value,
         );
         final glass = ChatMinimap.glass.value;
         final glassShown = '${(glass * 100).round()}%';
@@ -559,6 +575,28 @@ class AppearanceSettingsPage extends StatelessWidget {
                   value: ChatMinimap.enabled.value,
                   onChanged: _selectMinimap,
                 ),
+                if (ChatMinimap.enabled.value)
+                  SettingsRow(
+                    label: l10n.appearanceSettingsMinimapSide,
+                    description: l10n.appearanceSettingsMinimapSideDescription,
+                    trailing: SettingsDropdown(
+                      current: minimapSideShown,
+                      width: 220,
+                      semanticLabel: l10n.appearanceSettingsMinimapSideLabel(
+                        minimapSideShown,
+                      ),
+                      entries: () => ideMenuGroups([
+                        [
+                          for (final side in ChatMinimapSide.values)
+                            IdeMenuAction(
+                              _minimapSideName(context, side),
+                              checked: side == ChatMinimap.side.value,
+                              onSelected: () => _selectMinimapSide(side),
+                            ),
+                        ],
+                      ]),
+                    ),
+                  ),
                 if (ChatMinimap.enabled.value)
                   SettingsRow(
                     label: l10n.appearanceSettingsMinimapGlass,

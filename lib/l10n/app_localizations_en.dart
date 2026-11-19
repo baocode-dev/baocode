@@ -7969,7 +7969,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appearanceSettingsMinimapDescription =>
-      'A minimap of the whole conversation at the left of its column, where you are in it shown as you scroll; click or drag it to get somewhere. It stands in for the scrollbar, and is not shown in a window too narrow for it. Off: the scrollbar.';
+      'A minimap of the whole conversation beside its column, where you are in it shown as you scroll; click or drag it to get somewhere. It stands in for the scrollbar, and is not shown in a window too narrow for it. Off: the scrollbar.';
 
   @override
   String get appearanceSettingsWindowBlur => 'Native Window Blur';
@@ -8020,6 +8020,24 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get minimapElasticityBouncy => 'Bouncy';
+
+  @override
+  String get appearanceSettingsMinimapSide => 'Minimap Position';
+
+  @override
+  String get appearanceSettingsMinimapSideDescription =>
+      'Which side of the conversation\'s column the minimap is on. At the right it takes the scrollbar\'s place, below the side panel\'s buttons.';
+
+  @override
+  String appearanceSettingsMinimapSideLabel(String side) {
+    return 'Minimap position: $side';
+  }
+
+  @override
+  String get minimapSideLeft => 'Left';
+
+  @override
+  String get minimapSideRight => 'Right';
 
   @override
   String get appearanceSettingsCodeFont => 'Code Font';
