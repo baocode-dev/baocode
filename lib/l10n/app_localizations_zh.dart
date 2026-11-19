@@ -1604,6 +1604,7 @@ class AppLocalizationsZh extends AppLocalizations {
       'stop': '停下了',
       'changes': '查看了改动',
       'list': '列出了对话',
+      'models': '看了可用模型',
       'other': '统筹了',
     });
     return '$_temp0';
@@ -1619,6 +1620,7 @@ class AppLocalizationsZh extends AppLocalizations {
       'stop': '正在停下',
       'changes': '正在查看改动',
       'list': '正在列出对话',
+      'models': '正在看可用模型',
       'other': '正在统筹',
     });
     return '$_temp0';

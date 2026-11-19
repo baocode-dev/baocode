@@ -1642,6 +1642,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'stop': 'Stopped',
       'changes': 'Checked the changes of',
       'list': 'Listed the conversations',
+      'models': 'Checked the models',
       'other': 'Coordinated',
     });
     return '$_temp0';
@@ -1657,6 +1658,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'stop': 'Stopping',
       'changes': 'Checking the changes of',
       'list': 'Listing the conversations',
+      'models': 'Checking the models',
       'other': 'Coordinating',
     });
     return '$_temp0';
