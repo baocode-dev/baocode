@@ -361,8 +361,29 @@ String _fork(
     };
   }
   if (chain.isEmpty) throw StateError('Nothing to fork in session $id');
+  // Tools called at once are a reply of a line each, and their results
+  // hang off those lines, not one after another: the chain passes by all
+  // but one. The CLI takes them back as it resumes; so must the copy, else
+  // its history is not the original's (nor is its prompt cache).
+  final replies = {
+    for (final entry in chain)
+      if (entry['type'] == 'assistant') ?_messageId(entry),
+  };
+  final calls = <String>{};
+  final copied = <Map<String, Object?>>[];
+  for (final entry in entries) {
+    final uuid = entry['uuid'];
+    if (uuid is! String || entry['isSidechain'] == true) continue;
+    final keep =
+        seen.contains(uuid) ||
+        (entry['type'] == 'assistant' && replies.contains(_messageId(entry))) ||
+        (entry['type'] == 'user' && _toolResults(entry).any(calls.contains));
+    if (!keep) continue;
+    copied.add(entry);
+    calls.addAll(_toolUses(entry));
+  }
   final out = StringBuffer();
-  for (final entry in chain.reversed) {
+  for (final entry in copied) {
     out.writeln(jsonEncode({...entry, 'sessionId': into}));
   }
   if (title != null && title.trim().isNotEmpty) {
@@ -441,6 +462,24 @@ Map<String, Object?>? _decode(String line) {
     return null;
   }
 }
+
+/// The id of the model's reply [entry] is (a line of).
+String? _messageId(Map<String, Object?> entry) => switch (entry['message']) {
+  {'id': final String id} => id,
+  _ => null,
+};
+
+/// The ids of the tools [entry] calls.
+Iterable<String> _toolUses(Map<String, Object?> entry) => [
+  for (final block in _blocks(entry))
+    if (block case {'type': 'tool_use', 'id': final String id}) id,
+];
+
+/// The ids of the tool calls [entry] answers.
+Iterable<String> _toolResults(Map<String, Object?> entry) => [
+  for (final block in _blocks(entry))
+    if (block case {'type': 'tool_result', 'tool_use_id': final String id}) id,
+];
 
 /// Removes the session [id]: its conversation and what is kept beside it
 /// (subagent logs, file checkpoints, environment, task output). Whatever

@@ -7417,6 +7417,81 @@ exec /usr/bin/env "\$@"
       expect(storage.fork('../p', into), throwsArgumentError);
     });
 
+    test('a fork keeps tools called at once, each with its result', () async {
+      final root = await Directory.systemTemp.createTemp('baocode-storage-');
+      addTearDown(() => root.delete(recursive: true));
+      final config = '${root.path}/config';
+      const id = 'aaaaaaaa-1111-4111-8111-111111111111';
+      const into = 'bbbbbbbb-2222-4222-8222-222222222222';
+      Map<String, Object?> call(String uuid, String parent, String tool) => {
+        'type': 'assistant',
+        'uuid': uuid,
+        'parentUuid': parent,
+        'message': {
+          'id': 'msg_1',
+          'role': 'assistant',
+          'content': [
+            {'type': 'tool_use', 'id': tool, 'name': 'Read'},
+          ],
+        },
+      };
+      Map<String, Object?> result(String uuid, String parent, String tool) => {
+        'type': 'user',
+        'uuid': uuid,
+        'parentUuid': parent,
+        'sourceToolAssistantUUID': parent,
+        'message': {
+          'role': 'user',
+          'content': [
+            {'type': 'tool_result', 'tool_use_id': tool},
+          ],
+        },
+      };
+      // As the CLI writes two reads at once: the second result hangs off
+      // the second call, the first off the first, and the turn goes on
+      // from the first's.
+      File('$config/projects/-p/$id.jsonl')
+        ..createSync(recursive: true)
+        ..writeAsStringSync(
+          [
+            {
+              'type': 'user',
+              'uuid': 'u1',
+              'parentUuid': null,
+              'message': {'role': 'user', 'content': 'read both'},
+            },
+            call('c1', 'u1', 't1'),
+            call('c2', 'c1', 't2'),
+            result('r2', 'c2', 't2'),
+            result('r1', 'c1', 't1'),
+            {
+              'type': 'assistant',
+              'uuid': 'a2',
+              'parentUuid': 'r1',
+              'message': {'id': 'msg_2', 'role': 'assistant', 'content': 'ok'},
+            },
+            // A subagent's line: not the conversation's.
+            {
+              'type': 'assistant',
+              'uuid': 'side',
+              'parentUuid': 'u1',
+              'isSidechain': true,
+              'message': {'id': 'msg_1', 'role': 'assistant', 'content': []},
+            },
+          ].map((line) => '${jsonEncode(line)}\n').join(),
+        );
+      final storage = ClaudeStorage(configDir: config);
+
+      final path = await storage.fork(id, into);
+      expect(
+        [
+          for (final line in File(path).readAsLinesSync())
+            (jsonDecode(line) as Map)['uuid'],
+        ],
+        ['u1', 'c1', 'c2', 'r2', 'r1', 'a2'],
+      );
+    });
+
     test('a folder\'s sessions move to another\'s, with what is kept beside '
         'them and its memory; a folder dashed alike keeps its own', () async {
       final root = await Directory.systemTemp.createTemp('baocode-move-');
