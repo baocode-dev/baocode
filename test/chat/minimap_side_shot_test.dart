@@ -134,7 +134,8 @@ Future<void> _shoot(
   if (rail != _Rail.none) {
     chat = AgentSidePanelArea(
       panel: panel,
-      railTop: 12,
+      // Under the title bar, as the window's panes have it.
+      railTop: ChatScreen.cardHeaderHeight + AgentSidePanelArea.railRight,
       rail: SidePanelRail(onSelect: (_) {}, session: session),
       builder: (context) => const SizedBox(),
       child: chat,
