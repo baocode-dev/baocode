@@ -83,9 +83,53 @@ class LspRange {
   String toString() => '[$start-$end]';
 }
 
+/// A read-only source document supplied by a language server, not a file on
+/// either the local or remote host. [path] is its editor identity; [uri] is
+/// kept verbatim for requests to the server that supplied it.
+class LspVirtualDocument {
+  const LspVirtualDocument({
+    required this.path,
+    required this.uri,
+    required this.name,
+    this.languageId = 'java',
+  });
+
+  final String path;
+  final String uri;
+  final String name;
+  final String languageId;
+}
+
+/// A definition exists, but its source could not be read. Kept distinct from
+/// an empty navigation result so the UI can explain the actual failure.
+class LspSourceException implements Exception {
+  const LspSourceException(this.name, {this.cause});
+
+  final String name;
+  final Object? cause;
+
+  @override
+  String toString() =>
+      'Cannot read library source $name${cause == null ? '' : ': $cause'}';
+}
+
+class LspVirtualDocumentContent {
+  const LspVirtualDocumentContent(this.text, this.version);
+
+  final String text;
+
+  /// Changes when the owning server restarts or its source attachments change.
+  final int version;
+}
+
 /// A document location: `Location`, or a `LocationLink`'s target.
 class LspLocation {
-  const LspLocation(this.uri, this.range, {this.selectionRange});
+  const LspLocation(
+    this.uri,
+    this.range, {
+    this.selectionRange,
+    this.virtualDocument,
+  });
 
   factory LspLocation.fromJson(JsonMap json) {
     if (json['targetUri'] case final String uri) {
@@ -112,6 +156,9 @@ class LspLocation {
 
   final String uri;
   final LspRange range;
+
+  /// Client-only routing metadata; never serialized into LSP messages.
+  final LspVirtualDocument? virtualDocument;
 
   /// Where to put the caret (a link's name, not its whole declaration).
   final LspRange? selectionRange;

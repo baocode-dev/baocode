@@ -4745,6 +4745,14 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String langSourceReadFailed(String name) {
+    return '无法获取“$name”的库源码。';
+  }
+
+  @override
+  String get langSourceUnavailable => '语言服务器未提供源码或反编译内容。';
+
+  @override
   String get langNavigationUnavailable => '此文件没有可用于代码跳转的语言服务器。';
 
   @override

@@ -392,6 +392,7 @@ class IdeEditorState extends State<IdeEditor> {
     if (debug == null ||
         !widget.nativeEditorEnabled ||
         _nativeController == null ||
+        widget.active.virtualDocument != null ||
         _diffOf(widget.active) != null) {
       return null;
     }
@@ -413,7 +414,11 @@ class IdeEditorState extends State<IdeEditor> {
   List<EditorDecoration> _debugDecorations() {
     final debug = widget.debug;
     final controller = _nativeController;
-    if (debug == null || controller == null) return const [];
+    if (debug == null ||
+        controller == null ||
+        widget.active.virtualDocument != null) {
+      return const [];
+    }
     final snapshot = controller.document.snapshot;
     return debugEditorDecorations(
       debug,
@@ -459,9 +464,11 @@ class IdeEditorState extends State<IdeEditor> {
         controller.setSelections(kept);
       }
       controller.viewState = view.editor;
-      // Its lines pasted into the chat go in as a reference to them; not
-      // so a revision's, whose lines are not the file's.
-      if (doc.readRevision == null) {
+      // Its lines pasted into the chat go in as a file reference; not
+      // a revision's or a language server's virtual source.
+      if (doc.virtualDocument != null) {
+        controller.onCopy = (_, _, _) => CopiedCode.clear();
+      } else if (doc.readRevision == null) {
         controller.onCopy = (text, start, end) => CopiedCode.record(
           path: doc.path,
           start: start,
@@ -506,7 +513,7 @@ class IdeEditorState extends State<IdeEditor> {
     if (languages == null ||
         controller == null ||
         !widget.nativeEditorEnabled ||
-        doc.readOnly ||
+        (doc.readOnly && doc.virtualDocument == null) ||
         doc.isUntitled) {
       _disposeLanguageSession();
       return;
@@ -535,7 +542,10 @@ class IdeEditorState extends State<IdeEditor> {
       onNavigationUnavailable: _navigationUnavailable,
       paths: widget.workspace.paths,
       semanticTokenStyler: _semanticTokenStyler,
-      languageId: _textMateDocuments[doc]?.$2.languageId ?? 'plaintext',
+      languageId:
+          doc.virtualDocument?.languageId ??
+          _textMateDocuments[doc]?.$2.languageId ??
+          'plaintext',
       semanticSource: _semanticSources[doc],
     )..addListener(_languageChanged);
     _language!.l10n = _l10n;
@@ -851,7 +861,7 @@ class IdeEditorState extends State<IdeEditor> {
     return switch (id) {
       'editor.action.marker.next' ||
       'editor.action.marker.prev' => widget.workspace.languages != null,
-      'editor.action.format' => _language != null,
+      'editor.action.format' => _language != null && !widget.active.readOnly,
       'editor.action.showContextMenu' => _nativeController != null,
       'workbench.action.editor.nextChange' ||
       'workbench.action.editor.previousChange' ||
@@ -1181,7 +1191,9 @@ class IdeEditorState extends State<IdeEditor> {
     try {
       final firstLine = snapshot.text.substring(0, snapshot.contentEnds.first);
       final textMateLanguage = await _textMate.languageIdForPath(
-        doc.path,
+        // This API guesses from a filename and constructs a file URI. A
+        // virtual source identity is not a Windows filesystem path.
+        doc.virtualDocument?.name ?? doc.path,
         firstLine: firstLine.startsWith('\uFEFF')
             ? firstLine.substring(1)
             : firstLine,
@@ -2076,6 +2088,18 @@ class IdeEditorState extends State<IdeEditor> {
   bool _languageCommandEnabled(String id) {
     final session = _language;
     if (session == null) return false;
+    if (widget.active.readOnly &&
+        const {
+          'editor.action.rename',
+          'editor.action.formatDocument',
+          'editor.action.formatSelection',
+          'editor.action.quickFix',
+          'editor.action.refactor',
+          'editor.action.sourceAction',
+          'editor.action.triggerSuggest',
+        }.contains(id)) {
+      return false;
+    }
     // Explicit navigation waits for a starting server or explains how to
     // install/retry a missing one, as formatting does without a formatter.
     if (id == 'editor.action.revealDefinition' ||
@@ -2313,12 +2337,16 @@ class IdeEditorState extends State<IdeEditor> {
   bool get hasTextFocus => _focusNode.hasFocus;
 
   /// The lines selected, each selection's, as references to them for the
-  /// chat (Add Selection to Chat); none of a revision's, whose lines are
-  /// not the file's.
+  /// chat (Add Selection to Chat); none of a revision's or virtual source's,
+  /// which are not the file's lines.
   List<CodeReference> selectedCode() {
     final doc = widget.active;
     final controller = _nativeController;
-    if (controller == null || doc.readRevision != null) return const [];
+    if (controller == null ||
+        doc.readRevision != null ||
+        doc.virtualDocument != null) {
+      return const [];
+    }
     return [
       for (final (:text, :startLine, :endLine) in controller.selectedLines())
         CodeReference(

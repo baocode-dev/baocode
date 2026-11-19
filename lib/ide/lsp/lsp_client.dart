@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import '../host_paths.dart';
+import 'jdt_language_tools.dart';
 import 'json_rpc.dart';
 import 'language_features.dart';
 import 'lsp_glob.dart';
@@ -389,7 +390,7 @@ class LspClient {
       'workspaceFolders': [
         {'uri': _rootUri, 'name': _rootName},
       ],
-      'initializationOptions': ?definition.initializationOptions,
+      'initializationOptions': ?jdtInitializationOptions(definition),
       'capabilities': clientCapabilities(),
       'trace': 'off',
     }, timeout);
@@ -549,11 +550,13 @@ class LspClient {
 
   /// The options the server gave for [request] on the document at [path]
   /// (statically, or by a registration whose selector matches); `{}` for a
-  /// bare `true`, null when it does not support it.
+  /// bare `true`, null when it does not support it. [uri] supplies the
+  /// selector scheme and, for virtual documents, its path; `file` by default.
   JsonMap? optionsFor(
     LanguageRequest request, {
     required String path,
     required String languageId,
+    String? uri,
   }) {
     final (method, key) = _requests[request]!;
     final value = _capabilities[key];
@@ -565,6 +568,7 @@ class LspClient {
         registration.options['documentSelector'],
         path,
         languageId,
+        uri,
       )) {
         continue;
       }
@@ -578,7 +582,9 @@ class LspClient {
     LanguageRequest request, {
     required String path,
     required String languageId,
-  }) => optionsFor(request, path: path, languageId: languageId) != null;
+    String? uri,
+  }) =>
+      optionsFor(request, path: path, languageId: languageId, uri: uri) != null;
 
   static bool _accepts(LanguageRequest request, JsonMap options) =>
       switch (request) {
@@ -587,8 +593,11 @@ class LspClient {
         _ => true,
       };
 
-  bool _selects(Object? selector, String path, String languageId) {
+  bool _selects(Object? selector, String path, String languageId, String? uri) {
     if (selector is! List) return true;
+    final documentUri = uri == null ? null : Uri.parse(uri);
+    final documentScheme = documentUri?.scheme ?? 'file';
+    final documentPath = documentScheme == 'file' ? path : documentUri!.path;
     for (final filter in selector) {
       if (filter is String) {
         if (filter == languageId) return true;
@@ -599,8 +608,10 @@ class LspClient {
       final scheme = filter['scheme'];
       final pattern = filter['pattern'];
       if (language is String && language != languageId) continue;
-      if (scheme is String && scheme != 'file') continue;
-      if (pattern is String && !_patternMatches(pattern, path)) continue;
+      if (scheme is String && scheme != documentScheme) continue;
+      if (pattern is String && !_patternMatches(pattern, documentPath)) {
+        continue;
+      }
       return true;
     }
     return false;
@@ -623,8 +634,14 @@ class LspClient {
     String key, {
     required String path,
     required String languageId,
+    String? uri,
   }) {
-    final options = optionsFor(request, path: path, languageId: languageId);
+    final options = optionsFor(
+      request,
+      path: path,
+      languageId: languageId,
+      uri: uri,
+    );
     return {
       if (options?[key] case final List chars)
         for (final c in chars)
@@ -678,11 +695,13 @@ class LspClient {
   LspSemanticTokensLegend? semanticTokensLegend({
     required String path,
     required String languageId,
+    String? uri,
   }) {
     final options = optionsFor(
       LanguageRequest.semanticTokens,
       path: path,
       languageId: languageId,
+      uri: uri,
     );
     final legend = _asMap(options?['legend']);
     return legend == null ? null : LspSemanticTokensLegend.fromJson(legend);

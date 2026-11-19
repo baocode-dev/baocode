@@ -52,7 +52,7 @@ class _FakeIdeFileService with ReadWriteOnlyFiles implements IdeFileService {
 }
 
 void main() {
-  final root = p.join(p.separator, 'virtual-project');
+  final root = p.absolute(p.join(p.separator, 'virtual-project'));
   final first = p.join(root, 'first.txt');
   final second = p.join(root, 'second.txt');
 

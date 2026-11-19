@@ -172,10 +172,6 @@ class PanelPart extends StatelessWidget {
     }
   }
 
-  Future<String?> _textOf(String path) async {
-    for (final doc in options.workspace.documents) {
-      if (doc.path == path) return doc.text;
-    }
-    return options.workspace.files.read(path);
-  }
+  Future<String?> _textOf(String path) =>
+      options.workspace.readDocumentText(path);
 }

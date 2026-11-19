@@ -89,7 +89,8 @@ class IdeSuggestSession {
   }) {
     _quickTimer?.cancel();
     if (!_editor.controller.value.selection.isValid) return;
-    if (!_languages.supports(_path, LanguageRequest.completion)) {
+    if (_editor.document.readOnly ||
+        !_languages.supports(_path, LanguageRequest.completion)) {
       if (_active) cancel();
       return;
     }
@@ -234,6 +235,7 @@ class IdeSuggestSession {
 
   /// The document changed; [typed] is what the keyboard just inserted.
   void onTextChanged(String? typed) {
+    if (_editor.document.readOnly) return;
     final caret = _caret;
     final last = typed == null || typed.isEmpty
         ? null
@@ -450,6 +452,7 @@ class IdeSuggestSession {
   /// acceptAlternativeSelectedSuggestion (the other `insertMode`: the item
   /// replaces the rest of the word too). False when no item is selected.
   bool acceptSelected({bool alternative = false}) {
+    if (_editor.document.readOnly) return false;
     final item = selected;
     if (!visible || item == null) return false;
     accept(item, replace: alternative);
@@ -460,6 +463,7 @@ class IdeSuggestSession {
   /// [replace], over its replace range (to the end of the word) rather
   /// than its insert range.
   void accept(IdeSuggestItem item, {bool replace = false}) {
+    if (_editor.document.readOnly) return;
     final controller = _editor.controller;
     final original = item.completion;
     final completion = resolvedOf(original);
@@ -514,6 +518,7 @@ class IdeSuggestSession {
       return;
     }
     if (_editor.isDisposed ||
+        _editor.document.readOnly ||
         resolved.additionalTextEdits.isEmpty ||
         _editor.document.model.version != version) {
       return;

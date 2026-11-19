@@ -59,6 +59,7 @@ class WorkspaceBinding {
   /// Has the services follow [workspace].
   void attach(IdeWorkspace workspace) {
     _workspace = workspace;
+    workspace.onSourceError = _host.report;
     workspace.layout.terminals = _terminals.terminals != null;
     _explorer.attach(workspace);
     _language.attach(workspace);
@@ -91,6 +92,7 @@ class WorkspaceBinding {
     final workspace = _workspace;
     if (workspace == null) return;
     _workspace = null;
+    workspace.onSourceError = null;
     _debug.detach(workspace);
     workspace.removeListener(_workspaceChanged);
     workspace.edits.removeListener(_documentEdited);
@@ -174,6 +176,6 @@ class WorkspaceBinding {
     }
     if (!_editors.closing) _services.get<ExtensionsViewService>().editorShown();
     _language.recommendServers();
-    _explorer.follow(path);
+    if (active.virtualDocument == null) _explorer.follow(path);
   }
 }

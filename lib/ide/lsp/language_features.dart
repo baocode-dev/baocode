@@ -6,7 +6,8 @@ import 'lsp_protocol.dart';
 /// manager implements it over every server attached to a document (merging
 /// answers in the language's server order); tests use in-memory fakes.
 ///
-/// Documents are addressed by absolute file path. Positions use the
+/// Documents are addressed by absolute file path, or by a registered virtual
+/// source identity (see [LanguageVirtualDocuments]). Positions use the
 /// protocol's zero-based line and UTF-16 character, which the editor's
 /// [DocumentSnapshot] maps directly. Requests for a document no server
 /// serves complete with an empty answer. Every request reflects the
@@ -128,6 +129,22 @@ abstract interface class LanguageFeatures implements Listenable {
 
   /// Installs the package a missing server needs, then starts it.
   Future<void> install(String serverId, {String? path});
+}
+
+/// Read-only documents addressed by editor resource identity rather than file
+/// path. Kept separate so file-only providers do not advertise virtual sources.
+abstract interface class LanguageVirtualDocuments {
+  LspVirtualDocument? virtualDocumentFor(String path);
+  int virtualDocumentVersion(String path);
+  Future<LspVirtualDocumentContent> readVirtualDocument(String path);
+
+  /// Identities whose source attachment or owning server changed.
+  Stream<String> get virtualDocumentChanges;
+
+  /// Opens/closes the original URI on its owning server. There is deliberately
+  /// no change or save operation for these read-only documents.
+  void openVirtualDocument(String path, LspVirtualDocumentContent content);
+  void closeVirtualDocument(String path);
 }
 
 /// LSP `MessageType` (`window/showMessage`, `window/logMessage`, …).

@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:bao_editor/monaco/flutter/editor_surface_controller.dart';
+import 'package:bao_editor/monaco/vs/editor/common/core/position.dart';
+import 'package:baocode/ide/ide_workspace.dart';
+import 'package:baocode/ide/lsp/language_features.dart';
 import 'package:baocode/ide/lsp/lsp_protocol.dart';
+import 'package:baocode/ide/lsp_ui/editor_language_session.dart';
+import 'package:baocode/ide/lsp_ui/suggest_session.dart';
 import 'package:baocode/ide/lsp_ui/language_widgets.dart';
 
 import '../workbench/fake_files.dart';
@@ -12,6 +18,120 @@ const _a = 'lib/a.dart';
 const _b = 'lib/b.dart';
 
 void main() {
+  testWidgets('read-only language sessions reject edits and server commands', (
+    tester,
+  ) async {
+    const source = LspVirtualDocument(
+      path: 'baocode-lsp://jdtls/library/Foo.java',
+      uri: 'jdt://contents/library/Foo.class',
+      name: 'Foo.java',
+    );
+    final document = IdeDocument.virtual(
+      source,
+      const LspVirtualDocumentContent('{"x":1}', 0),
+    );
+    final controller = EditorSurfaceController(document: document.model);
+    final languages = FakeLanguageFeatures();
+    var applied = 0;
+    final session = EditorLanguageSession(
+      languages: languages,
+      document: document,
+      controller: controller,
+      onError: (error) => fail('$error'),
+      onOpenLocation: (_) async {},
+      onShowReferences: (_, _) {},
+      onApplyWorkspaceEdit: (_) async {
+        applied++;
+        return true;
+      },
+      onFocusEditor: () {},
+    )..languageId = 'json';
+    addTearDown(() {
+      session.dispose();
+      controller.dispose();
+      document.dispose();
+      languages.dispose();
+    });
+
+    for (final request in const [
+      LanguageRequest.completion,
+      LanguageRequest.rename,
+      LanguageRequest.format,
+      LanguageRequest.rangeFormat,
+      LanguageRequest.codeActions,
+    ]) {
+      expect(session.supports(request), isFalse, reason: request.name);
+    }
+    for (final request in const [
+      LanguageRequest.hover,
+      LanguageRequest.definition,
+      LanguageRequest.documentSymbols,
+      LanguageRequest.semanticTokens,
+    ]) {
+      expect(session.supports(request), isTrue, reason: request.name);
+    }
+    expect(session.canFormat(), isFalse);
+    expect(session.canFormat(selection: true), isFalse);
+    expect(await session.format(), isFalse);
+    expect(await session.format(selection: true), isFalse);
+    // A built-in formatter is not an escape from the read-only check.
+    languages.supported.clear();
+    expect(await session.format(), isFalse);
+    languages.supported.addAll(LanguageRequest.values);
+
+    await session.startRename();
+    await session.acceptRename();
+    await session.showCodeActions();
+    await session.applyCodeAction(
+      IdeCodeAction(
+        LspCodeAction(
+          title: 'Rewrite',
+          edit: LspWorkspaceEdit({source.uri: const []}),
+          command: const LspCommand('Rewrite', 'java.rewrite'),
+        ),
+      ),
+    );
+    session.runCommand(const LspCommand('Rewrite', 'java.rewrite'));
+    session.runCommand(
+      const LspCommand('Suggest', 'editor.action.triggerSuggest'),
+    );
+    session.suggest.trigger();
+    session.suggest.onTextChanged('.');
+    session.suggest.onTextChanged('x');
+    expect(session.suggest.acceptSelected(), isFalse);
+    session.suggest.accept(
+      IdeSuggestItem(
+        position: const Position(1, 1),
+        completion: const LspCompletionItem(label: 'rewrite'),
+        label: 'rewrite',
+        editStart: const Position(1, 1),
+        editInsertEnd: const Position(1, 1),
+        editReplaceEnd: const Position(1, 1),
+      ),
+    );
+    controller.select(1, 1);
+    await settle(tester, const Duration(milliseconds: 400));
+
+    expect(document.text, '{"x":1}');
+    expect(session.rename, isNull);
+    expect(session.codeActionMenu, isNull);
+    expect(session.lightbulbLine, isNull);
+    expect(session.suggest.visible, isFalse);
+    expect(applied, 0);
+    for (final kind in const [
+      'prepareRename',
+      'rename',
+      'format',
+      'codeActions',
+      'resolveCodeAction',
+      'completion',
+      'resolveCompletion',
+      'executeCommand',
+    ]) {
+      expect(languages.count(kind), 0, reason: kind);
+    }
+  });
+
   group('completion', () {
     const source = 'void main() {\n  pri\n}\n';
 

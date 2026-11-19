@@ -8157,6 +8157,18 @@ abstract class AppLocalizations {
   /// **'{kind, select, definition{No definition found for \'{word}\'} typeDefinition{No type definition found for \'{word}\'} implementation{No implementation found for \'{word}\'} other{No references found for \'{word}\'}}'**
   String langNoneFoundFor(String kind, String word);
 
+  /// No description provided for @langSourceReadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Cannot read library source \'{name}\'.'**
+  String langSourceReadFailed(String name);
+
+  /// No description provided for @langSourceUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'No source or decompiled content is available.'**
+  String get langSourceUnavailable;
+
   /// No description provided for @langNavigationUnavailable.
   ///
   /// In en, this message translates to:

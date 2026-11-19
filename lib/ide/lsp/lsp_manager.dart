@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 
 import '../host_paths.dart';
 import 'json_rpc.dart';
+import 'jdt_language_tools.dart';
 import 'language_features.dart';
 import 'lsp_client.dart';
 import 'lsp_glob.dart';
@@ -15,7 +16,16 @@ import 'lsp_server_definition.dart';
 import 'vue_language_tools.dart';
 
 class _Document {
-  _Document(this.path, this.uri, this.language, this.text, this.version);
+  _Document(
+    this.path,
+    this.uri,
+    this.language,
+    this.text,
+    this.version, {
+    this.virtualSource,
+  });
+
+  final _VirtualSource? virtualSource;
 
   final String path;
   final String uri;
@@ -32,7 +42,20 @@ class _Document {
 
   Iterable<_Server> get servers => entries.map((e) => e.$2).nonNulls;
 
-  String get languageId => language?.languageId ?? language?.id ?? 'plaintext';
+  String get languageId =>
+      virtualSource?.document.languageId ??
+      language?.languageId ??
+      language?.id ??
+      'plaintext';
+}
+
+class _VirtualSource {
+  _VirtualSource(this.document, this.server);
+
+  final LspVirtualDocument document;
+  final _Server server;
+  int version = 0;
+  Future<LspVirtualDocumentContent>? reading;
 }
 
 /// One server definition running for one workspace folder.
@@ -62,6 +85,8 @@ class _Server {
   String? missingRuntime;
   DateTime? retryAt;
   final Set<_Document> documents = {};
+  final Map<String, _VirtualSource> sources = {};
+  int sourceReads = 0;
   final List<DateTime> crashes = [];
   Timer? idleTimer;
   Timer? retryTimer;
@@ -80,7 +105,10 @@ class _Server {
 /// Hand it to the workspace, which then drives it and shuts it down:
 /// `IdeWorkspace(root, languages: LspManager(root, catalog, provider))`.
 class LspManager extends ChangeNotifier
-    implements LanguageFeatures, LanguageDocumentSync {
+    implements
+        LanguageFeatures,
+        LanguageDocumentSync,
+        LanguageVirtualDocuments {
   LspManager(
     String root,
     this.catalog,
@@ -154,6 +182,10 @@ class LspManager extends ChangeNotifier
 
   final _documents = <String, _Document>{};
   final _servers = <String, _Server>{};
+  static int _nextSourceNamespace = 0;
+  final _sourceNamespace = ++_nextSourceNamespace;
+  final _virtualSources = <String, _VirtualSource>{};
+  final _sourceChanges = StreamController<String>.broadcast();
 
   /// Diagnostics by document path, then by server.
   final _diagnostics = <String, Map<_Server, List<LspDiagnostic>>>{};
@@ -173,6 +205,7 @@ class LspManager extends ChangeNotifier
   /// [path] as the documents are kept by: on Windows its drive in capitals
   /// (see [capitalDrive]).
   String _normalize(String path) {
+    if (_virtualSources.containsKey(path)) return path;
     final normalized = _paths.normalize(_paths.absolute(path));
     return _windowsPaths ? capitalDrive(normalized) : normalized;
   }
@@ -195,12 +228,171 @@ class LspManager extends ChangeNotifier
     if (!_disposed) notifyListeners();
   }
 
+  // Java library source documents. Their editor identities never enter the
+  // host's file service; every request uses the original URI and server.
+
+  @override
+  LspVirtualDocument? virtualDocumentFor(String path) =>
+      _virtualSources[path]?.document;
+
+  @override
+  int virtualDocumentVersion(String path) =>
+      _virtualSources[path]?.version ?? -1;
+
+  @override
+  Stream<String> get virtualDocumentChanges => _sourceChanges.stream;
+
+  LspLocation _sourceLocation(LspClient client, LspLocation location) {
+    if (Uri.tryParse(location.uri)?.scheme != 'jdt' ||
+        !isJdtLanguageServer(client.definition)) {
+      return location;
+    }
+    final server = _servers.values
+        .where((server) => identical(server.client, client))
+        .firstOrNull;
+    if (server == null) return location;
+    final source = server.sources.putIfAbsent(location.uri, () {
+      final segments = Uri.parse(location.uri).pathSegments;
+      final file = segments.lastOrNull ?? 'Source.class';
+      final name = file.endsWith('.class')
+          ? '${file.substring(0, file.length - 6)}.java'
+          : file.endsWith('.java')
+          ? file
+          : '$file.java';
+      final path = Uri(
+        scheme: 'baocode-lsp',
+        host: 'sources-$_sourceNamespace',
+        pathSegments: ['${_virtualSources.length}', name],
+      ).toString();
+      final source = _VirtualSource(
+        LspVirtualDocument(path: path, uri: location.uri, name: name),
+        server,
+      );
+      _virtualSources[path] = source;
+      return source;
+    });
+    return LspLocation(
+      location.uri,
+      location.range,
+      selectionRange: location.selectionRange,
+      virtualDocument: source.document,
+    );
+  }
+
+  @override
+  Future<LspVirtualDocumentContent> readVirtualDocument(String path) {
+    final source = _virtualSources[path];
+    if (_shutDown || source == null) {
+      return Future.error(StateError('Library source is no longer available'));
+    }
+    final pending = source.reading;
+    if (pending != null) return pending;
+    late final Future<LspVirtualDocumentContent> reading;
+    reading = () async {
+      final server = source.server;
+      server.sourceReads++;
+      server.idleTimer?.cancel();
+      try {
+        final client = await _ensure(server);
+        if (client == null) {
+          throw StateError(server.message ?? '${server.id} is not running');
+        }
+        final version = source.version;
+        final answer = await client.request('java/classFileContents', {
+          'uri': source.document.uri,
+        });
+        if (_shutDown) throw const JsonRpcClosed('java/classFileContents');
+        if (!identical(server.client, client) || source.version != version) {
+          // Source attachments can finish downloading during the first read.
+          // Share the read for the new epoch rather than publish stale text.
+          if (identical(source.reading, reading)) source.reading = null;
+          return await readVirtualDocument(path);
+        }
+        if (answer is! String || answer.isEmpty) {
+          throw LspSourceException(source.document.name);
+        }
+        return LspVirtualDocumentContent(answer, version);
+      } on LspSourceException {
+        rethrow;
+      } on Object catch (error) {
+        throw LspSourceException(source.document.name, cause: error);
+      } finally {
+        server.sourceReads--;
+        _scheduleIdle(server);
+        if (identical(source.reading, reading)) source.reading = null;
+      }
+    }();
+    source.reading = reading;
+    return reading;
+  }
+
+  @override
+  void openVirtualDocument(String path, LspVirtualDocumentContent content) {
+    final source = _virtualSources[path];
+    if (_shutDown || source == null || content.version != source.version) {
+      return;
+    }
+    final existing = _documents[path];
+    if (existing != null) {
+      existing
+        ..text = content.text
+        ..version = content.version;
+      // A refreshed virtual source is not an edit. Reopen the URI with the
+      // new snapshot, never send didChange/didSave.
+      source.server.client?.didClose(existing.uri);
+      source.server.client?.didOpen(
+        existing.uri,
+        existing.languageId,
+        existing.version,
+        existing.text,
+      );
+      return;
+    }
+    final doc = _Document(
+      path,
+      source.document.uri,
+      null,
+      content.text,
+      content.version,
+      virtualSource: source,
+    )..entries.add((source.server.id, source.server));
+    _documents[path] = doc;
+    source.server
+      ..documents.add(doc)
+      ..idleTimer?.cancel();
+    source.server.client?.didOpen(
+      doc.uri,
+      doc.languageId,
+      doc.version,
+      doc.text,
+    );
+    _notify();
+  }
+
+  @override
+  void closeVirtualDocument(String path) => closeDocument(path);
+
+  void _invalidateSources(_Server server) {
+    for (final source in server.sources.values) {
+      source
+        ..version += 1
+        ..reading = null;
+      if (!_disposed) _sourceChanges.add(source.document.path);
+    }
+  }
+
+  void _sourceEvent(_Server server, LspClient client, Object? params) {
+    if (!identical(server.client, client) || params is! Map) return;
+    if (params['eventType'] == 500) _invalidateSources(server);
+  }
+
   // Documents.
 
   @override
   void openDocument(String path, String text, {int version = 0}) {
     if (_shutDown) return;
     path = _normalize(path);
+    if (_virtualSources.containsKey(path)) return;
     if (_documents.containsKey(path)) {
       changeDocument(path, text, version: version);
       return;
@@ -267,7 +459,7 @@ class LspManager extends ChangeNotifier
     List<LspTextDocumentContentChange>? changes,
   }) {
     final doc = _documents[_normalize(path)];
-    if (doc == null || _shutDown) return;
+    if (doc == null || _shutDown || doc.virtualSource != null) return;
     doc
       ..text = text
       ..version = version;
@@ -283,7 +475,7 @@ class LspManager extends ChangeNotifier
   @override
   void saveDocument(String path, String text) {
     final doc = _documents[_normalize(path)];
-    if (doc == null || _shutDown) return;
+    if (doc == null || _shutDown || doc.virtualSource != null) return;
     for (final server in doc.servers) {
       server.client?.didSave(doc.uri, text);
     }
@@ -306,6 +498,7 @@ class LspManager extends ChangeNotifier
   void reloadCatalog() {
     if (_shutDown) return;
     for (final doc in [..._documents.values]) {
+      if (doc.virtualSource != null) continue;
       closeDocument(doc.path);
       openDocument(doc.path, doc.text, version: doc.version);
     }
@@ -507,6 +700,8 @@ class LspManager extends ChangeNotifier
               _tsserverRequests(server, started, params),
           'language/status': (params) =>
               _languageStatus(server, started, params),
+          'language/eventNotification': (params) =>
+              _sourceEvent(server, started, params),
         },
       );
       server.client = started;
@@ -517,8 +712,11 @@ class LspManager extends ChangeNotifier
         ..runningAt = _clock()
         ..message = null;
       for (final doc in server.documents) {
-        started.didOpen(doc.uri, doc.languageId, doc.version, doc.text);
+        if (doc.virtualSource == null) {
+          started.didOpen(doc.uri, doc.languageId, doc.version, doc.text);
+        }
       }
+      _invalidateSources(server);
       _updateWatching();
       _notify();
       if (server.documents.isEmpty) _scheduleIdle(server);
@@ -755,10 +953,16 @@ class LspManager extends ChangeNotifier
 
   void _scheduleIdle(_Server server) {
     server.idleTimer?.cancel();
-    if (server.documents.isNotEmpty || server.client == null) return;
+    if (server.documents.isNotEmpty ||
+        server.sourceReads > 0 ||
+        server.client == null) {
+      return;
+    }
     server.idleTimer = Timer(idleTimeout, () {
       server.idleTimer = null;
-      if (server.documents.isEmpty) unawaited(_stop(server));
+      if (server.documents.isEmpty && server.sourceReads == 0) {
+        unawaited(_stop(server));
+      }
     });
   }
 
@@ -935,6 +1139,7 @@ class LspManager extends ChangeNotifier
     _disposed = true;
     unawaited(_edits.close());
     unawaited(_serverMessages.close());
+    unawaited(_sourceChanges.close());
     _progressChanges.dispose();
     super.dispose();
   }
@@ -1030,7 +1235,7 @@ class LspManager extends ChangeNotifier
         !server.definition.provides(LspFeature.diagnostics)) {
       return;
     }
-    final path = _pathOf(uri) ?? uri;
+    final path = server.sources[uri]?.document.path ?? _pathOf(uri) ?? uri;
     if (diagnostics.isEmpty) {
       final byServer = _diagnostics[path];
       if (byServer == null || byServer.remove(server) == null) return;
@@ -1231,12 +1436,24 @@ class LspManager extends ChangeNotifier
     LanguageRequest.semanticTokens => LspFeature.semanticTokens,
   };
 
+  static bool _readOnlyRequest(LanguageRequest request) => switch (request) {
+    LanguageRequest.hover ||
+    LanguageRequest.definition ||
+    LanguageRequest.typeDefinition ||
+    LanguageRequest.implementation ||
+    LanguageRequest.references ||
+    LanguageRequest.documentSymbols ||
+    LanguageRequest.semanticTokens => true,
+    _ => false,
+  };
+
   /// The running clients attached to [doc] that can answer [request], in
   /// the language's order.
   Iterable<LspClient> _runningFor(
     _Document doc,
     LanguageRequest request,
   ) sync* {
+    if (doc.virtualSource != null && !_readOnlyRequest(request)) return;
     for (final server in doc.servers) {
       final client = server.client;
       if (server.state != LanguageServerState.running || client == null) {
@@ -1247,6 +1464,7 @@ class LspManager extends ChangeNotifier
         request,
         path: doc.path,
         languageId: doc.languageId,
+        uri: doc.uri,
       )) {
         yield client;
       }
@@ -1261,7 +1479,10 @@ class LspManager extends ChangeNotifier
     bool waitForRegistration = false,
   }) async {
     final doc = _documents[_normalize(path)];
-    if (doc == null) return null;
+    if (doc == null ||
+        (doc.virtualSource != null && !_readOnlyRequest(request))) {
+      return null;
+    }
     await Future.wait(doc.attaching);
     if (_shutDown || !identical(_documents[doc.path], doc)) return null;
     await Future.wait([
@@ -1398,6 +1619,7 @@ class LspManager extends ChangeNotifier
           key,
           path: doc.path,
           languageId: doc.languageId,
+          uri: doc.uri,
         ),
     };
   }
@@ -1446,14 +1668,19 @@ class LspManager extends ChangeNotifier
       waitForRegistration: true,
     );
     final seen = <String>{};
-    return [
-      for (final (_, answer) in answers)
-        for (final location in LspLocation.listFromJson(answer))
-          if (seen.add(
-            '${_pathOf(location.uri) ?? location.uri}|${location.range}',
-          ))
-            location,
-    ];
+    final locations = <LspLocation>[];
+    for (final (client, answer) in answers) {
+      if (!_servers.values.any((s) => identical(s.client, client))) continue;
+      for (final raw in LspLocation.listFromJson(answer)) {
+        final location = _sourceLocation(client, raw);
+        final key =
+            location.virtualDocument?.path ??
+            _pathOf(location.uri) ??
+            location.uri;
+        if (seen.add('$key|${location.revealRange}')) locations.add(location);
+      }
+    }
+    return locations;
   }
 
   @override
@@ -1520,6 +1747,7 @@ class LspManager extends ChangeNotifier
                         'triggerCharacters',
                         path: doc.path,
                         languageId: doc.languageId,
+                        uri: doc.uri,
                       )
                       .contains(triggerCharacter)
               ? {'triggerKind': 2, 'triggerCharacter': triggerCharacter}
@@ -1551,11 +1779,12 @@ class LspManager extends ChangeNotifier
   ) async {
     final doc = _documents[_normalize(path)];
     final client = doc == null ? null : _clientOf(doc, item.serverId);
-    if (doc == null || client == null) return item;
+    if (doc == null || client == null || doc.virtualSource != null) return item;
     final options = client.optionsFor(
       LanguageRequest.completion,
       path: doc.path,
       languageId: doc.languageId,
+      uri: doc.uri,
     );
     if (options?['resolveProvider'] != true) return item;
     final answer = await _ask(client, 'completionItem/resolve', item.json);
@@ -1610,6 +1839,7 @@ class LspManager extends ChangeNotifier
         LanguageRequest.rename,
         path: doc.path,
         languageId: doc.languageId,
+        uri: doc.uri,
       );
       if (options?['prepareProvider'] != true) {
         return _wordAt(doc.text, position);
@@ -1741,11 +1971,17 @@ class LspManager extends ChangeNotifier
   ) async {
     final doc = _documents[_normalize(path)];
     final client = doc == null ? null : _clientOf(doc, action.serverId);
-    if (doc == null || client == null || action.edit != null) return action;
+    if (doc == null ||
+        client == null ||
+        doc.virtualSource != null ||
+        action.edit != null) {
+      return action;
+    }
     final options = client.optionsFor(
       LanguageRequest.codeActions,
       path: doc.path,
       languageId: doc.languageId,
+      uri: doc.uri,
     );
     if (options?['resolveProvider'] != true) return action;
     final answer = await _ask(client, 'codeAction/resolve', action.json);
@@ -1764,7 +2000,7 @@ class LspManager extends ChangeNotifier
     String? serverId,
   }) async {
     final doc = _documents[_normalize(path)];
-    if (doc == null) return;
+    if (doc == null || doc.virtualSource != null) return;
     LspClient? client;
     if (serverId != null) {
       client = _clientOf(doc, serverId);
@@ -1795,6 +2031,7 @@ class LspManager extends ChangeNotifier
       final legend = client.semanticTokensLegend(
         path: doc.path,
         languageId: doc.languageId,
+        uri: doc.uri,
       );
       if (legend == null) continue;
       final answer = await _ask(client, 'textDocument/semanticTokens/full', {
