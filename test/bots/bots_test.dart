@@ -196,8 +196,8 @@ void main() {
 
     test('what it may do, and may not', () {
       final told = botAbilities(bot);
-      expect(told, contains('bot_list_chats'));
-      expect(told, contains('bot_stop_chat'));
+      expect(told, contains('session_list'));
+      expect(told, contains('session_stop'));
       // All an agent has, unless it only chats.
       expect(told, contains('You can work on the computer as an agent does'));
       expect(
@@ -612,7 +612,7 @@ void main() {
       () async {
         final assistant = bots.bots.single;
         final its = await offered(assistant.folder);
-        expect(its, containsAll(['bot_list_chats', 'bot_stop_chat']));
+        expect(its, containsAll(['session_list', 'session_stop']));
         // Its tools as well as its files: they keep the same.
         for (final tool in [
           'bot_remember',
@@ -627,8 +627,8 @@ void main() {
         ]) {
           expect(its, contains(tool));
         }
-        expect(await offered(app), isNot(contains('bot_list_chats')));
-        expect(ClaudeSdkTools.serversFor(app), isEmpty);
+        // A project's agent: the session tools alone, none of the bots'.
+        expect(await offered(app), everyElement(isNot(startsWith('bot_'))));
 
         // A new one may do nothing until the user says.
         final mia = bots.save(
@@ -639,7 +639,7 @@ void main() {
         final hers = await offered(mia.folder);
         expect(
           hers,
-          containsAll(['bot_list_chats', 'bot_read_chat', 'bot_stop_chat']),
+          containsAll(['session_list', 'session_read', 'session_stop']),
         );
         expect(hers, contains('bot_remember'));
         final none = bots.save(name: 'Quiet', identity: '', abilities: {});
@@ -660,10 +660,7 @@ void main() {
           'jsonrpc': '2.0',
           'id': 2,
           'method': 'tools/call',
-          'params': {
-            'name': 'bot_list_chats',
-            'arguments': <String, Object?>{},
-          },
+          'params': {'name': 'session_list', 'arguments': <String, Object?>{}},
         }, ClaudeSdkCall(cwd: none.folder));
         expect((refused['result'] as Map)['isError'], isTrue);
       },
@@ -836,6 +833,55 @@ void main() {
               'params': {'name': tool, 'arguments': input},
             }, ClaudeSdkCall(cwd: bot.folder)))['result']
             as Map;
+
+    test('it looks after the agents with the session tools', () async {
+      final assistant = bots.bots.single;
+      String text(Map result) =>
+          ((result['content'] as List).single as Map)['text'] as String;
+
+      // Never behind the tool search, which one that only chats lacks.
+      final listed = await ClaudeSdkTools.handle({
+        'jsonrpc': '2.0',
+        'id': 1,
+        'method': 'tools/list',
+      }, ClaudeSdkCall(cwd: assistant.folder));
+      final tools = ((listed['result'] as Map)['tools'] as List).cast<Map>();
+      expect(tools.firstWhere((t) => t['name'] == 'session_new')['_meta'], {
+        'anthropic/alwaysLoad': true,
+      });
+
+      // No project of its own to start one in.
+      final unnamed = await call(assistant, 'session_new', {'text': 'Fix it'});
+      expect(unnamed['isError'], isTrue);
+      expect(text(unnamed), contains('Name its project'));
+
+      final started = await call(assistant, 'session_new', {
+        'project': 'app',
+        'text': 'Fix the tests',
+      });
+      expect(started['isError'], isNot(true));
+      final agent = workspace.threads.singleWhere(
+        (thread) => !bots.isBotThread(thread),
+      );
+      expect(agent.project.path, app);
+      // Told of it as its rules say: not at all, those off.
+      expect(bots.watching(assistant), [BotTools.idOf(agent)]);
+      expect(text(started), contains('You are not told of it'));
+      // From it, by its name.
+      final sent = agent.session.itemAt(0) as UserMessageItem;
+      expect(sent.fromAgent, assistant.name);
+      expect(sent.text, 'Fix the tests');
+
+      expect(
+        text(await call(assistant, 'session_list', {'mine': true})),
+        allOf(contains(BotTools.idOf(agent)), contains('yours')),
+      );
+      // Its own conversation none of them.
+      expect(
+        text(await call(assistant, 'session_list', {})),
+        isNot(contains(assistant.folder)),
+      );
+    });
 
     test('it goes on in its conversation of the last run', () async {
       // The kernels' sessions read slowly, as Claude Code's all are.
