@@ -1173,8 +1173,41 @@ void main() {
       expect(notes(assistant).last, contains('done: "${second.title}"'));
       await pumpEventQueue();
       expect(store.preferences['watching'], {
-        mia.id: [BotTools.idOf(second)],
+        mia.id: [second.id],
       });
+    });
+
+    test('one it handed work new is kept by its session\'s id, told of as '
+        'its own all the same', () async {
+      final bot = toldOfAll();
+      final agent = workspace.startAgent(workspace.projectAt(app));
+      bots.watch(bot, agent);
+      final went = BotTools.idOf(agent);
+      expect(went, startsWith('new-'));
+      expect(bots.watching(bot), [went]);
+
+      agent.session.send(const ComposerMessage(text: 'build it'));
+      for (var i = 0; i < 300 && agent.id == null; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      workspace.notifyListeners();
+      final id = agent.id!;
+      expect(bots.watching(bot), [id]);
+      await pumpEventQueue();
+      expect(store.preferences['watching'], {
+        bot.id: [id],
+      });
+
+      // Its events this run by the id it went by: its own still.
+      agent.session.stop();
+      for (var i = 0; i < 300 && agent.session.isStreaming; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      workspace.notifyListeners();
+      now = now.add(const Duration(minutes: 2));
+      bots.deliver();
+      expect(notes(bot).single, contains('done: "${agent.title}"'));
+      expect(bots.recentEvents(bot).last, endsWith('-> tell'));
     });
 
     test('its chat deleted: a new one, from nothing said; who it is and '
