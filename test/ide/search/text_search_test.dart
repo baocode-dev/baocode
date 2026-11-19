@@ -47,6 +47,58 @@ void main() {
       ).pathFilter();
       expect(all('node_modules/a/index.js'), isTrue);
     });
+
+    test('matched together as each in turn', () {
+      final globs = [
+        ...ideSearchPathGlobs(
+          '*.min.js, build, ./out, src/**/gen, file[0-9].txt, a?.md, '
+          '*.{ts,js}, foo.bar/, **/dist/**, *.x/',
+        ),
+        ...ideDefaultSearchExcludes,
+      ];
+      final together = IdePathGlobs(globs);
+      const paths = [
+        'a.min.js',
+        'x/a.min.js',
+        'a.min.jsx',
+        'build',
+        'build/a',
+        'a/build',
+        'a/build/b',
+        'abuild/c',
+        'out/a',
+        'x/out/a',
+        'src/a/gen/b',
+        'file1.txt',
+        'x/file12.txt',
+        'ab.md',
+        'a.ts',
+        'x/y.js',
+        'foo.bar',
+        'foo.bar/z',
+        'fooxbar/z',
+        'x/dist/y',
+        'dist',
+        'a.x/b',
+        'ax/b',
+        '.git',
+        'a/.git/b',
+        'b/.DS_Store',
+        'node_modules',
+        'q/node_modules/r',
+        'a.code-search',
+        'z/a.code-search/b',
+        'lib/main.dart',
+        'Node_modules/a',
+      ];
+      for (final path in paths) {
+        expect(
+          together.hasMatch(path),
+          globs.any((glob) => glob.hasMatch(path)),
+          reason: path,
+        );
+      }
+    });
   });
 
   group('patterns', () {
@@ -370,6 +422,62 @@ void main() {
     test('across lines', () async {
       final (files, _) = await run(const IdeTextQuery('one\nno'));
       expect(files, {'lib/a.dart': 1});
+    });
+
+    test('as ripgrep reads files: UTF-16 by its byte order mark, text up '
+        'to a NUL past the first 64 KB (#771)', () async {
+      void bytes(String path, List<int> data) =>
+          File(p.join(root.path, path)).writeAsBytesSync(data);
+      List<int> utf16(String text, {required bool bigEndian}) => [
+        ...bigEndian ? [0xFE, 0xFF] : [0xFF, 0xFE],
+        for (final unit in text.codeUnits)
+          ...bigEndian ? [unit >> 8, unit & 0xFF] : [unit & 0xFF, unit >> 8],
+      ];
+      bytes('le.txt', utf16('x\r\nneedle 中\r\n', bigEndian: false));
+      bytes('be.txt', utf16('needle', bigEndian: true));
+      bytes('late.log', [
+        ...'needle\n'.codeUnits,
+        ...List.filled(70 * 1024, 0x79),
+        0,
+        ...'needle'.codeUnits,
+      ]);
+      final (files, _) = await run(const IdeTextQuery('needle'));
+      expect(files, {'lib/a.dart': 2, 'le.txt': 1, 'be.txt': 1, 'late.log': 1});
+      final le = await ideSearchText(
+        root.path,
+        const IdeTextQuery('中'),
+      ).where((event) => event is IdeFileMatches).single as IdeFileMatches;
+      expect(le.matches.single.line, 1);
+    });
+
+    test('links followed, not into a loop', () async {
+      final outside = Directory.systemTemp.createTempSync('ide_search_out_');
+      addTearDown(() => outside.deleteSync(recursive: true));
+      File(p.join(outside.path, 'x.dart')).writeAsStringSync('needle');
+      try {
+        Link(p.join(root.path, 'linked')).createSync(outside.path);
+        Link(p.join(root.path, 'lib', 'loop')).createSync(root.path);
+        Link(p.join(root.path, 'file.dart'))
+            .createSync(p.join(outside.path, 'x.dart'));
+      } on FileSystemException {
+        return; // No links here (Windows without the privilege).
+      }
+      final (files, _) = await run(const IdeTextQuery('needle'));
+      expect(files, {'lib/a.dart': 2, 'linked/x.dart': 1, 'file.dart': 1});
+    });
+
+    test('many files, among the workers; the limit across them', () async {
+      for (var i = 0; i < 500; i++) {
+        write('many/${i.toString().padLeft(3, '0')}.txt', 'needle\nneedle');
+      }
+      final (files, limitHit) = await run(const IdeTextQuery('needle'));
+      expect(files, hasLength(501));
+      expect(limitHit, isFalse);
+      final (limited, hit) = await run(
+        const IdeTextQuery('needle', maxResults: 101),
+      );
+      expect(limited.values.fold(0, (a, b) => a + b), 101);
+      expect(hit, isTrue);
     });
 
     test('an invalid expression is an error', () async {

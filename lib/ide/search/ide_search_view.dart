@@ -139,7 +139,7 @@ class IdeSearchSession extends ChangeNotifier {
 
   /// The folders of [_followed] watched, by folder.
   final Map<String, StreamSubscription<void>> _watches = {};
-  bool _watchesScheduled = false;
+  Timer? _watchTimer;
 
   static const _refreshDelay = Duration(milliseconds: 250);
 
@@ -357,14 +357,18 @@ class IdeSearchSession extends ChangeNotifier {
 
   /// Adds [result] among [results] in their order.
   void _insert(IdeSearchFileResult result) {
-    final index = results.indexWhere(
-      (file) => _comparePaths(file.path, result.path) > 0,
-    );
-    if (index < 0) {
-      results.add(result);
-    } else {
-      results.insert(index, result);
+    // The first after it, by halves: a search may find thousands.
+    var low = 0;
+    var high = results.length;
+    while (low < high) {
+      final middle = (low + high) >> 1;
+      if (_comparePaths(results[middle].path, result.path) > 0) {
+        high = middle;
+      } else {
+        low = middle + 1;
+      }
     }
+    results.insert(low, result);
   }
 
   /// Stops following the last search's files.
@@ -373,6 +377,8 @@ class IdeSearchSession extends ChangeNotifier {
     _followed.clear();
     _stale.clear();
     _refreshTimer?.cancel();
+    _watchTimer?.cancel();
+    _watchTimer = null;
     for (final watch in _watches.values) {
       unawaited(watch.cancel());
     }
@@ -481,14 +487,12 @@ class IdeSearchSession extends ChangeNotifier {
   }
 
   /// Watches the folders of [_followed], once the results coming in
-  /// settle.
+  /// settle: each file's come in a message of its own.
   void _watchSoon() {
-    if (watch == null || _watchesScheduled) return;
-    _watchesScheduled = true;
-    final generation = _generation;
-    Timer.run(() {
-      _watchesScheduled = false;
-      if (!_disposed && generation == _generation) _watchFollowed();
+    if (watch == null || _watchTimer != null) return;
+    _watchTimer = Timer(_refreshDelay, () {
+      _watchTimer = null;
+      _watchFollowed();
     });
   }
 
@@ -1502,7 +1506,9 @@ class IdeSearchViewState extends State<IdeSearchView>
     final l10n = context.l10n;
     final lines = <String>[];
     if (session.replaced case final replaced?) lines.add(replaced);
-    if (searched != null && !session.searching) {
+    // The counts as the results come in, as upstream's; why there are
+    // none once it is done.
+    if (searched != null) {
       final matches = session.matchCount;
       final files = session.results.length;
       if (session.limitHit) {
@@ -1510,7 +1516,7 @@ class IdeSearchViewState extends State<IdeSearchView>
       }
       if (matches > 0) {
         lines.add(l10n.searchResultCount(matches, files));
-      } else if (session.replaced == null) {
+      } else if (session.replaced == null && !session.searching) {
         final include = searched.includes.trim();
         final exclude = searched.excludes.trim();
         lines.add(switch ((include.isEmpty, exclude.isEmpty)) {

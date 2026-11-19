@@ -111,6 +111,36 @@ void main() {
     expect(matchRow('foo one'), findsNothing);
   });
 
+  testWidgets('the counts show as the results come in (#771)', (tester) async {
+    final results = StreamController<Object>();
+    workspace = await pumpWorkbench(
+      tester,
+      files,
+      textSearch: (root, query) => results.stream,
+    );
+    await tester.pumpAndSettle();
+    await chord(tester, LogicalKeyboardKey.keyF, control: true, shift: true);
+    await tester.pumpAndSettle();
+    await tester.enterText(input('Search'), 'foo');
+    await tester.pump(const Duration(milliseconds: 300));
+    final a = inRoot('lib/a.dart');
+    results.add(
+      IdeFileMatches(
+        a,
+        ideMatchLines(
+          files['lib/a.dart']!,
+          RegExp('foo', caseSensitive: false),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.text('2 results in 1 file'), findsOneWidget);
+    results.add(const IdeTextSearchComplete(limitHit: false));
+    await tester.pumpAndSettle();
+    expect(find.text('2 results in 1 file'), findsOneWidget);
+    await results.close();
+  });
+
   testWidgets('says why there are no results; an invalid expression is an '
       'error', (tester) async {
     await pumpSearch(tester);
@@ -269,7 +299,8 @@ void main() {
     addTearDown(session.dispose);
     session.query.text = 'foo';
     session.search('/p');
-    await pumpEventQueue();
+    // Once the results coming in settle.
+    await Future<void>.delayed(const Duration(milliseconds: 300));
     expect(changes.keys, unorderedEquals(['/p', '/p/sub']));
 
     texts['/p/a.txt'] = 'x\nfoo moved';
