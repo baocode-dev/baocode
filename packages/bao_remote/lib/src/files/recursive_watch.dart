@@ -71,7 +71,7 @@ Iterable<WatchEvent> _events(FileSystemEvent event) => switch (event) {
 class _TreeWatcher {
   _TreeWatcher(this.root, this.skip, this.onLimit) {
     _controller = StreamController(
-      onListen: () => _add(root, initial: true),
+      onListen: () => unawaited(_add(root, initial: true)),
       onCancel: _close,
     );
   }
@@ -89,33 +89,54 @@ class _TreeWatcher {
 
   Stream<WatchEvent> get stream => _controller.stream;
 
-  /// Watches [directory] and the folders under it. Found [initial]ly, the
-  /// files in them are not news; added later, they are created.
-  void _add(String directory, {bool initial = false}) {
-    if (_closed || _limited || _watches.containsKey(directory)) return;
-    if (directory != root && (skip?.call(directory) ?? false)) return;
+  /// How long a crawl reads folders before it lets the isolate go on.
+  static const _slice = Duration(milliseconds: 8);
+
+  /// Watches [directory] and the folders under it, a few milliseconds of
+  /// them at a time: tens of thousands of folders read at once would hold
+  /// up the isolate (heartbeats, replies, a reconnect's handshake) for as
+  /// long. Found [initial]ly, the files in them are not news; added later,
+  /// they are created.
+  Future<void> _add(String directory, {bool initial = false}) async {
+    final pending = [directory];
+    final slice = Stopwatch()..start();
+    while (pending.isNotEmpty) {
+      if (slice.elapsed >= _slice) {
+        await Future<void>.delayed(Duration.zero);
+        slice.reset();
+      }
+      final folder = pending.removeLast();
+      if (!_watch(folder)) continue;
+      final List<FileSystemEntity> entries;
+      try {
+        entries = Directory(folder).listSync(followLinks: false);
+      } on FileSystemException {
+        continue;
+      }
+      for (final entry in entries) {
+        if (entry is Directory) {
+          pending.add(entry.path);
+        } else if (!initial) {
+          _controller.add(WatchEvent(entry.path, WatchChange.created));
+        }
+      }
+    }
+  }
+
+  /// Watches [directory] alone; whether it now is, newly.
+  bool _watch(String directory) {
+    if (_closed || _limited || _watches.containsKey(directory)) return false;
+    if (directory != root && (skip?.call(directory) ?? false)) return false;
     try {
       _watches[directory] = Directory(directory).watch().listen(
         (event) => _event(directory, event),
         onError: (Object error) => _failed(directory, error),
         onDone: () => _watches.remove(directory),
       );
+      return true;
     } on FileSystemException catch (error) {
       _failed(directory, error);
-      return;
-    }
-    final List<FileSystemEntity> entries;
-    try {
-      entries = Directory(directory).listSync(followLinks: false);
-    } on FileSystemException {
-      return;
-    }
-    for (final entry in entries) {
-      if (entry is Directory) {
-        _add(entry.path, initial: initial);
-      } else if (!initial) {
-        _controller.add(WatchEvent(entry.path, WatchChange.created));
-      }
+      return false;
     }
   }
 
@@ -132,7 +153,7 @@ class _TreeWatcher {
       FileSystemMoveEvent(isDirectory: true, :final destination) => destination,
       _ => null,
     };
-    if (created != null) _add(created);
+    if (created != null) unawaited(_add(created));
   }
 
   /// Stops watching [path] and the folders under it. One not watched has
