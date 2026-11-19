@@ -72,8 +72,9 @@ enum ChatMinimapSide {
 /// (shown while the history is scrolled, or the pointer is over it), and a
 /// press or a drag on it scrolls there. In the margin beside the column, on
 /// the [side] chosen, when there is room for it (not in a narrow pane), and
-/// once the conversation is long ([longAfter]); below what floats over that
-/// margin's top (the side panel's rail, see [ChatColumnInset.rail]).
+/// once the conversation is long ([longAfter]). Where the side panel's rail
+/// floats over that margin's top (see [ChatColumnInset.rail]), under it
+/// instead, in line with it.
 ///
 /// Light to keep: an item is sampled once, and again only when it changes
 /// (a changed item is a new one); only the strokes in sight are painted, and
@@ -433,19 +434,20 @@ class _ChatMinimapState extends State<ChatMinimap>
   /// Its width, as last placed.
   double _width = ChatMinimap._narrow;
 
-  // --- Below the rail --------------------------------------------------------
+  // --- Under the rail --------------------------------------------------------
   //
   // The side panel's rail floats over the top of the conversation's margin
-  // (see ChatColumnInset.rail); where the minimap is under it, it starts
-  // below it. Where each is on screen is known once laid out: looked at
-  // after each frame it is built in, and as the rail changes.
+  // (see ChatColumnInset.rail). A minimap on that side is under it, at any
+  // width: in line with it, from below it, the two one column of the
+  // margin's. Where the rail is on screen is known once laid out: looked at
+  // after each frame the minimap is built in, and as the rail changes.
 
   /// How far down past [ChatMinimap._inset] it starts.
   double _underRail = 0;
 
-  /// Its left and right in the box, pointer's reach and all, as last built.
-  double _from = 0;
-  double _to = 0;
+  /// The middle of the rail across the box, where the minimap is under it;
+  /// null where it is not.
+  double? _railMiddle;
 
   ValueListenable<Rect?>? _rail;
 
@@ -464,27 +466,37 @@ class _ChatMinimapState extends State<ChatMinimap>
   void _clearRailSoon() {
     if (_railScheduled) return;
     _railScheduled = true;
-    SchedulerBinding.instance.addPostFrameCallback((_) {
-      _railScheduled = false;
-      if (mounted) _clearRail();
-    });
+    SchedulerBinding.instance
+      ..addPostFrameCallback((_) {
+        _railScheduled = false;
+        if (mounted) _clearRail();
+      })
+      // The rail tells where it is after a frame: one more for it, or
+      // nothing would come to look until something else moved.
+      ..ensureVisualUpdate();
   }
 
-  /// [_underRail]: below what of the rail is over it.
+  /// [_railMiddle] and [_underRail], as the rail is: on the minimap's side
+  /// of the box, or not.
   void _clearRail() {
     final box = context.findRenderObject();
     var below = 0.0;
+    double? middle;
     if (_rail?.value case final rail?
         when box is RenderBox && box.attached && box.hasSize) {
-      final origin = box.localToGlobal(Offset.zero);
-      if (rail.left < origin.dx + _to && rail.right > origin.dx + _from) {
-        below = math.max(
-          0.0,
-          rail.bottom + _railGap - origin.dy - ChatMinimap._inset,
-        );
+      final at = rail.shift(-box.localToGlobal(Offset.zero));
+      final right = at.center.dx > box.size.width / 2;
+      if (right == (widget.at == ChatMinimapSide.right)) {
+        middle = at.center.dx;
+        below = math.max(0.0, at.bottom + _railGap - ChatMinimap._inset);
       }
     }
-    if (below != _underRail) setState(() => _underRail = below);
+    if (below != _underRail || middle != _railMiddle) {
+      setState(() {
+        _underRail = below;
+        _railMiddle = middle;
+      });
+    }
   }
 
   /// Kept between the rail and the top of the minimap.
@@ -918,7 +930,11 @@ class _ChatMinimapState extends State<ChatMinimap>
           constraints.maxHeight - top - ChatMinimap._inset,
         );
         final shown = fits && widget.long && widget.rowCount > 0;
-        final left = math.max(0.0, place?.left ?? 0);
+        // Under the rail, in line with it; else beside the column.
+        final left = math.max(0.0, switch ((place, _railMiddle)) {
+          (_?, final middle?) => middle - _width / 2,
+          _ => place?.left ?? 0,
+        });
         // The pointer's reach: out toward the edge as far as the margin
         // goes, in toward the column a little.
         final out = math.max(
@@ -930,18 +946,19 @@ class _ChatMinimapState extends State<ChatMinimap>
                 : left - ChatMinimap._outset,
           ),
         );
-        _from = left - ChatMinimap._outset - (right ? _reachIn : out);
-        _to = left + _width + ChatMinimap._outset + (right ? out : _reachIn);
+        final from = left - ChatMinimap._outset - (right ? _reachIn : out);
+        final to =
+            left + _width + ChatMinimap._outset + (right ? out : _reachIn);
         if (fits) _clearRailSoon();
         return Stack(
           children: [
             // Wide enough for the glass, which is wider than the track, and
             // a little more for the pointer.
             Positioned(
-              left: _from,
+              left: from,
               top: top,
               bottom: ChatMinimap._inset,
-              width: _to - _from,
+              width: to - from,
               child: IgnorePointer(
                 ignoring: !shown,
                 child: AnimatedOpacity(

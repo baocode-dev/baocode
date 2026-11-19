@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/chat/chat_column.dart';
 import 'package:baocode/chat/chat_feed.dart';
@@ -66,7 +67,7 @@ List<ChatItem> _conversation(int turns) => [
   ],
 ];
 
-Future<void> _pump(
+Future<ValueNotifier<Rect?>?> _pump(
   WidgetTester tester,
   ChatFeed feed, {
   double width = 1200,
@@ -85,8 +86,9 @@ Future<void> _pump(
     maxContentWidth: maxWidth,
     minimap: minimap,
   );
+  ValueNotifier<Rect?>? rail;
   if (inset != null) {
-    final rail = ValueNotifier<Rect?>(inset.rail);
+    rail = ValueNotifier<Rect?>(inset.rail);
     addTearDown(rail.dispose);
     history = ChatColumnInset(
       left: inset.left,
@@ -102,6 +104,7 @@ Future<void> _pump(
     ),
   );
   await tester.pumpAndSettle();
+  return rail;
 }
 
 ScrollPosition _position(WidgetTester tester) =>
@@ -226,51 +229,74 @@ void main() {
     expect(moved.left, text.left);
   });
 
-  // The side panel's rail floats over the margin's top: under it, the
-  // minimap starts below it; beside it, as it would.
+  // The side panel's rail floats over the margin's top: a minimap on its
+  // side is under it at any width, in line with it, from below it.
   for (final side in ChatMinimapSide.values) {
-    testWidgets('under the rail at the ${side.name}, below it', (tester) async {
-      const width = 900.0;
-      const railInset = 56.0;
-      final right = side == ChatMinimapSide.right;
-      final rail = right
-          ? const Rect.fromLTWH(width - 48, 12, 36, 130)
-          : const Rect.fromLTWH(12, 12, 36, 130);
-      await _pump(
-        tester,
-        _Feed(_conversation(30)),
-        width: width,
-        maxWidth: 1200,
-        side: side,
-        inset: (
-          left: right ? 0 : railInset,
-          right: right ? railInset : 0,
-          rail: rail,
-        ),
-      );
-      await tester.pumpAndSettle();
-      expect(_opacity(tester), 1);
-      final strip = _track(tester);
-      expect(strip.left, lessThan(rail.right));
-      expect(strip.right, greaterThan(rail.left));
-      expect(strip.top, greaterThanOrEqualTo(rail.bottom + 8));
-      expect(strip.bottom, 800 - 14);
-    });
+    for (final width in [900.0, 1400.0]) {
+      testWidgets('under the rail at the ${side.name} of a ${width.round()} '
+          'window, in line with it', (tester) async {
+        final right = side == ChatMinimapSide.right;
+        final rail = right
+            ? Rect.fromLTWH(width - 48, 12, 36, 130)
+            : const Rect.fromLTWH(12, 12, 36, 130);
+        await _pump(
+          tester,
+          _Feed(_conversation(30)),
+          width: width,
+          maxWidth: 1200,
+          side: side,
+          inset: (left: right ? 0 : 56, right: right ? 56 : 0, rail: rail),
+        );
+        expect(_opacity(tester), 1);
+        final strip = _track(tester);
+        expect(strip.center.dx, moreOrLessEquals(rail.center.dx));
+        expect(strip.top, moreOrLessEquals(rail.bottom + 10));
+        expect(strip.bottom, 800 - 14);
+        // Clear of the text still.
+        for (final text in find.byType(AssistantText).evaluate()) {
+          final rect = tester.getRect(find.byWidget(text.widget));
+          if (right) {
+            expect(strip.left, greaterThan(rect.right));
+          } else {
+            expect(strip.right, lessThan(rect.left));
+          }
+        }
+      });
+    }
   }
 
-  testWidgets('beside the rail, not under it, from the top', (tester) async {
-    const width = 1400.0;
-    const rail = Rect.fromLTWH(width - 48, 12, 36, 130);
+  testWidgets('with the rail at the other side, beside the column from the '
+      'top', (tester) async {
+    const rail = Rect.fromLTWH(1400 - 48, 12, 36, 130);
     await _pump(
       tester,
       _Feed(_conversation(30)),
-      width: width,
-      side: ChatMinimapSide.right,
+      width: 1400,
       inset: (left: 0, right: 56, rail: rail),
     );
     final strip = _track(tester);
-    expect(strip.right, lessThan(rail.left));
+    final text = tester.getRect(find.byType(AssistantText).first);
+    expect(strip.right, lessThanOrEqualTo(text.left - 20));
     expect(strip.top, 14);
+  });
+
+  testWidgets('the rail grown, the minimap follows it down at once, though '
+      'nothing else moves', (tester) async {
+    const rail = Rect.fromLTWH(900 - 48, 12, 36, 130);
+    final told = await _pump(
+      tester,
+      _Feed(_conversation(30)),
+      width: 900,
+      side: ChatMinimapSide.right,
+      inset: (left: 0, right: 56, rail: rail),
+    );
+    expect(_track(tester).top, moreOrLessEquals(rail.bottom + 10));
+    told!.value = const Rect.fromLTWH(900 - 48, 12, 36, 160);
+    // A frame of its own to look again in.
+    expect(SchedulerBinding.instance.hasScheduledFrame, isTrue);
+    await tester.pump();
+    await tester.pump();
+    expect(_track(tester).top, moreOrLessEquals(12 + 160 + 10));
   });
 
   testWidgets('gives way in a very narrow pane only', (tester) async {
