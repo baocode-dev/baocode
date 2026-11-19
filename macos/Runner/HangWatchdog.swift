@@ -254,11 +254,21 @@ final class HangWatchdog {
     }
   }
 
+  /// Writes [message] to the event log under [tag], as Flutter's lines,
+  /// for the app's other native watches (FocusWatch.swift). Nothing before
+  /// Flutter has said where the logs are.
+  func appendEvent(_ tag: String, _ message: String) {
+    guard let folder = locked({ folder }) else { return }
+    append(event: message, at: Date(), to: folder, tag: tag)
+  }
+
   /// Writes [message] to the event log in [folder], as Flutter's lines:
   /// "<time> [hang] message". Flutter does not write while the main
   /// thread is held.
-  private func append(event message: String, at time: Date, to folder: String) {
-    let line = "\(Self.format("yyyy-MM-dd'T'HH:mm:ss.SSSSSS", time)) [hang] \(message)\n"
+  private func append(
+    event message: String, at time: Date, to folder: String, tag: String = "hang"
+  ) {
+    let line = "\(Self.format("yyyy-MM-dd'T'HH:mm:ss.SSSSSS", time)) [\(tag)] \(message)\n"
     let path = (folder as NSString).appendingPathComponent("events.log")
     let fd = open(path, O_WRONLY | O_APPEND | O_CREAT | O_CLOEXEC, 0o644)
     guard fd >= 0 else { return }

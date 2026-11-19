@@ -698,6 +698,8 @@ class MainFlutterWindow: BaoWindow {
 
     // The main thread watched, its hangs written down (see HangWatchdog.swift).
     HangWatchdog.shared.start(messenger: messenger)
+    // Who takes the front when it goes oddly (see FocusWatch.swift).
+    FocusWatch.shared.start(window: self)
 
     // Notifications, the Dock's badge and the menu bar icon (see
     // lib/notifications/).
