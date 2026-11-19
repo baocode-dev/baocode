@@ -2754,6 +2754,30 @@ class AppLocalizationsZh extends AppLocalizations {
   String get activityCompacting => '正在压缩对话';
 
   @override
+  String get noticeCompacted => '对话已压缩';
+
+  @override
+  String get noticeCompactedAuto => '对话已自动压缩';
+
+  @override
+  String get noticeCompactedTooLong => '对话已提前压缩：服务商以超出模型上下文为由拒绝了请求';
+
+  @override
+  String noticeCompactedTooLongWindow(String window) {
+    return '对话已提前压缩：服务商以超出模型上下文为由拒绝了请求，模型实际能用的比设定的 $window 小';
+  }
+
+  @override
+  String noticeCompactedTokens(String tokens) {
+    return '$tokens token';
+  }
+
+  @override
+  String noticeCompactedFromTo(String before, String after) {
+    return '$before → $after token';
+  }
+
+  @override
   String get activityPlanning => '正在规划下一步';
 
   @override

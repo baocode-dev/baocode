@@ -4922,6 +4922,42 @@ abstract class AppLocalizations {
   /// **'Compacting conversation'**
   String get activityCompacting;
 
+  /// No description provided for @noticeCompacted.
+  ///
+  /// In en, this message translates to:
+  /// **'Conversation compacted'**
+  String get noticeCompacted;
+
+  /// No description provided for @noticeCompactedAuto.
+  ///
+  /// In en, this message translates to:
+  /// **'Conversation compacted automatically'**
+  String get noticeCompactedAuto;
+
+  /// The divider of a compaction forced by the API refusing the request as longer than the model's context, before the context set was full.
+  ///
+  /// In en, this message translates to:
+  /// **'Conversation compacted early: the provider refused it as too long for the model'**
+  String get noticeCompactedTooLong;
+
+  /// No description provided for @noticeCompactedTooLongWindow.
+  ///
+  /// In en, this message translates to:
+  /// **'Conversation compacted early: the provider refused it as too long for the model, which takes less than the {window} context set'**
+  String noticeCompactedTooLongWindow(String window);
+
+  /// No description provided for @noticeCompactedTokens.
+  ///
+  /// In en, this message translates to:
+  /// **'{tokens} tokens'**
+  String noticeCompactedTokens(String tokens);
+
+  /// No description provided for @noticeCompactedFromTo.
+  ///
+  /// In en, this message translates to:
+  /// **'{before} → {after} tokens'**
+  String noticeCompactedFromTo(String before, String after);
+
   /// No description provided for @activityPlanning.
   ///
   /// In en, this message translates to:

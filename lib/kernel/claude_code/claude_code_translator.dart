@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import '../../chat/chat_models.dart';
+import '../../chat/compaction_text.dart';
+import '../../l10n/l10n.dart';
 import '../kernel_event.dart';
 import '../kernel_types.dart';
 import '../output_meter.dart';
@@ -1788,20 +1790,27 @@ class ClaudeTranslator {
         }
       case 'compact_boundary':
         if (_activity?.kind == KernelActivityKind.compacting) _report(null);
+        // As it came, else as the transcript keeps it.
         final meta = _map(message['compact_metadata']);
-        final before = claudeInt(meta['pre_tokens']);
-        final after = claudeInt(meta['post_tokens']);
+        final kept = _map(message['compactMetadata']);
+        final auto = (meta['trigger'] ?? kept['trigger']) == 'auto';
+        final note = CompactionNote(
+          auto: auto,
+          // Refused by the API before the window set was full.
+          tooLong:
+              auto && (meta['reason'] ?? kept['reason']) == 'prompt_too_long',
+          before: claudeInt(meta['pre_tokens']) ?? claudeInt(kept['preTokens']),
+          after: claudeInt(meta['post_tokens']),
+          window:
+              claudeInt(meta['context_window']) ??
+              claudeInt(kept['contextWindow']),
+        );
         _put(
           uuid,
           NoticeItem(
             NoticeKind.compaction,
-            [
-              meta['trigger'] == 'auto'
-                  ? 'Conversation compacted automatically'
-                  : 'Conversation compacted',
-              if (before != null)
-                '${_tokens(before)}${after == null ? '' : ' → ${_tokens(after)}'} tokens',
-            ].join(' · '),
+            note.describe(englishLocalizations),
+            compaction: note,
           ),
         );
       case 'api_retry' when !replaying:
@@ -2336,9 +2345,6 @@ class ClaudeTranslator {
     'failed' || 'killed' || 'stopped' => CommandStatus.failed,
     _ => null,
   };
-
-  static String _tokens(int tokens) =>
-      tokens >= 1000 ? '${(tokens / 1000).toStringAsFixed(1)}k' : '$tokens';
 }
 
 enum _Outcome { running, done, failed, denied }

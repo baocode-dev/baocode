@@ -127,6 +127,33 @@ void main() {
     );
   });
 
+  test('why a conversation was compacted goes with its line', () {
+    final item =
+        ChatCodec.decode(
+              jsonDecode(
+                jsonEncode(
+                  ChatCodec.encode(
+                    const NoticeItem(
+                      NoticeKind.compaction,
+                      'Conversation compacted early',
+                      compaction: CompactionNote(
+                        auto: true,
+                        tooLong: true,
+                        before: 253000,
+                        window: 500000,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            )!
+            as NoticeItem;
+    expect(item.text, 'Conversation compacted early');
+    final note = item.compaction!;
+    expect((note.auto, note.tooLong), (true, true));
+    expect((note.before, note.after, note.window), (253000, null, 500000));
+  });
+
   test('conversations handed work go by the ids the phone knows', () {
     String phone(String id) => 'phone-$id';
     final step = ChatCodec.encode(

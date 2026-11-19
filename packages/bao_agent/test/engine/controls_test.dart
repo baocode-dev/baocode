@@ -256,7 +256,13 @@ void main() {
       await h.turn('one');
       await h.turn('two');
       expect(h.lastResult['result'], 'answered');
-      expect(h.of('system', 'compact_boundary'), hasLength(1));
+      final boundary = h.of('system', 'compact_boundary').single;
+      // Told apart from one at the window set.
+      expect(boundary['compact_metadata'], containsPair('trigger', 'auto'));
+      expect(
+        boundary['compact_metadata'],
+        containsPair('reason', 'prompt_too_long'),
+      );
       expect(sentIn(h.model.turns.last), contains('Earlier talk.'));
     });
 

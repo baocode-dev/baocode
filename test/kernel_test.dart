@@ -8,6 +8,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:bao_remote/claude.dart'
     show ClaudeHistoryPage, ClaudeNotInstalled;
 import 'package:baocode/chat/chat_models.dart';
+import 'package:baocode/chat/compaction_text.dart';
+import 'package:baocode/l10n/app_localizations_zh.dart';
 import 'package:baocode/chat/widgets/agent_step.dart' show AgentStep;
 import 'package:baocode/models/model_provider.dart' show ModelProvider;
 import 'package:baocode/models/model_providers.dart' show ModelProviders;
@@ -368,6 +370,65 @@ void main() {
         [for (var i = 0; i < transcript.length; i++) transcript.itemAt(i)]
             .whereType<UserMessageItem>(),
         hasLength(1),
+      );
+    });
+
+    test('a compaction the provider forced says so: live or kept', () {
+      final transcript = Transcript();
+      var seq = 0;
+      final translator = ClaudeTranslator(
+        emit: transcript.apply,
+        nextSeq: () => ++seq,
+      );
+      translator
+        ..translate({
+          'type': 'system',
+          'subtype': 'compact_boundary',
+          'uuid': 'at-window',
+          'compact_metadata': {'trigger': 'auto', 'pre_tokens': 467000},
+        })
+        ..translate({
+          'type': 'system',
+          'subtype': 'compact_boundary',
+          'uuid': 'live',
+          'compact_metadata': {
+            'trigger': 'auto',
+            'pre_tokens': 253000,
+            'post_tokens': 12000,
+            'reason': 'prompt_too_long',
+            'context_window': 500000,
+          },
+        })
+        ..translate({
+          'type': 'system',
+          'subtype': 'compact_boundary',
+          'uuid': 'kept',
+          'compactMetadata': {
+            'trigger': 'auto',
+            'preTokens': 253000,
+            'reason': 'prompt_too_long',
+            'contextWindow': 500000,
+          },
+        });
+      final notices = [
+        for (var i = 0; i < transcript.length; i++) transcript.itemAt(i),
+      ].whereType<NoticeItem>().toList();
+      expect(notices, hasLength(3));
+      expect(
+        notices[0].text,
+        startsWith('Conversation compacted automatically'),
+      );
+      expect(notices[0].compaction!.tooLong, isFalse);
+      for (final notice in notices.skip(1)) {
+        expect(notice.text, contains('refused it as too long'));
+        expect(notice.text, contains('500.0k context set'));
+        expect(notice.compaction!.tooLong, isTrue);
+      }
+      // Said in the app's language.
+      expect(
+        notices[1].compaction!.describe(AppLocalizationsZh()),
+        '对话已提前压缩：服务商以超出模型上下文为由拒绝了请求，'
+        '模型实际能用的比设定的 500.0k 小 · 253.0k → 12.0k token',
       );
     });
 
