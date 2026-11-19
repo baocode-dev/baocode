@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
@@ -79,7 +80,10 @@ class _TreeWatcher {
   final bool Function(String directory)? skip;
   final void Function(String message)? onLimit;
   late final StreamController<WatchEvent> _controller;
-  final Map<String, StreamSubscription<FileSystemEvent>> _watches = {};
+
+  /// By path, in order: the folders under one come right after it.
+  final SplayTreeMap<String, StreamSubscription<FileSystemEvent>> _watches =
+      SplayTreeMap();
   bool _limited = false;
   bool _closed = false;
 
@@ -131,11 +135,22 @@ class _TreeWatcher {
     if (created != null) _add(created);
   }
 
+  /// Stops watching [path] and the folders under it. One not watched has
+  /// none watched under it (a file, a folder skipped): nothing to look
+  /// through, as a batch of files renamed would have each time.
   void _removeUnder(String path) {
-    for (final watched in [..._watches.keys]) {
-      if (watched == path || p.isWithin(path, watched)) {
-        unawaited(_watches.remove(watched)?.cancel());
-      }
+    if (!_watches.containsKey(path)) return;
+    final under = '$path${p.separator}';
+    final gone = [path];
+    for (
+      var key = _watches.firstKeyAfter(under);
+      key != null && key.startsWith(under);
+      key = _watches.firstKeyAfter(key)
+    ) {
+      gone.add(key);
+    }
+    for (final folder in gone) {
+      unawaited(_watches.remove(folder)?.cancel());
     }
   }
 
