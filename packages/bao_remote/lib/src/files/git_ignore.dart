@@ -29,8 +29,7 @@ class GitIgnore {
   }
 
   static List<_Rule> _parse(String text) => [
-    for (final line in text.split('\n'))
-      ?_Rule.parse(line),
+    for (final line in text.split('\n')) ?_Rule.parse(line),
   ];
 }
 
@@ -203,16 +202,22 @@ typedef UnignoredFile = ({String relative, String path});
 /// outside any repository. Ignored folders are not gone into.
 ///
 /// [skipDirectory] leaves out other folders (by their path from [root]);
-/// [ignoreFiles] false reads no ignore files. Files come sorted within each
-/// folder, lazily, so a search can start before the walk is done.
+/// [ignoreFiles] false reads no ignore files, [globalIgnoreFile] false not
+/// the global one (as VS Code's search passes `--no-ignore-global`). With
+/// [followLinks] a symbolic link (or junction) to a file is listed and one
+/// to a folder gone into, as ripgrep's `--follow`, except one to a folder
+/// it is in. Files come sorted within each folder, lazily, so a search can
+/// start before the walk is done.
 Iterable<UnignoredFile> walkUnignored(
   String root, {
   bool Function(String relative, String name)? skipDirectory,
   bool ignoreFiles = true,
+  bool globalIgnoreFile = true,
+  bool followLinks = false,
 }) sync* {
   final separator = Platform.pathSeparator;
-  final base = ignoreFiles ? _rootLevels(root) : const <_Level>[];
-  final global = ignoreFiles ? _globalLevel() : null;
+  final global = ignoreFiles && globalIgnoreFile ? _globalLevel() : null;
+  final base = ignoreFiles ? _rootLevels(root, global) : const <_Level>[];
   final pending = <(String, String, List<_Level>)>[(root, '', base)];
   while (pending.isNotEmpty) {
     final (directory, relative, inherited) = pending.removeLast();
@@ -247,8 +252,19 @@ Iterable<UnignoredFile> walkUnignored(
     final folders = <(String, String, List<_Level>)>[];
     for (var i = 0; i < entries.length; i++) {
       final entry = entries[i];
-      final isDirectory = entry is Directory;
-      if (!isDirectory && entry is! File) continue;
+      var isDirectory = entry is Directory;
+      if (entry is Link) {
+        if (!followLinks) continue;
+        final type = FileSystemEntity.typeSync(entry.path);
+        if (type == FileSystemEntityType.directory) {
+          if (_linksToAncestor(entry.path, directory)) continue;
+          isDirectory = true;
+        } else if (type != FileSystemEntityType.file) {
+          continue;
+        }
+      } else if (!isDirectory && entry is! File) {
+        continue;
+      }
       final name = names[i];
       final path = relative.isEmpty ? name : '$relative/$name';
       if (ignoreFiles) {
@@ -266,6 +282,18 @@ Iterable<UnignoredFile> walkUnignored(
     yield* files;
     folders.sort((a, b) => b.$2.compareTo(a.$2));
     pending.addAll(folders);
+  }
+}
+
+/// Whether the folder [link] leads to holds [directory] (where the link
+/// is), so going into it would never end.
+bool _linksToAncestor(String link, String directory) {
+  try {
+    final target = Directory(link).resolveSymbolicLinksSync();
+    final here = Directory(directory).resolveSymbolicLinksSync();
+    return p.equals(target, here) || p.isWithin(target, here);
+  } on FileSystemException {
+    return true;
   }
 }
 
@@ -313,11 +341,11 @@ _Level? _globalLevel() {
   return _readLevel(p.join(folder, 'git', 'ignore'));
 }
 
-/// The rules over [root] before its own `.gitignore`: the global ones, and
-/// where [root] is in a repository, its `info/exclude` and the
+/// The rules over [root] before its own `.gitignore`: the [global] ones,
+/// and where [root] is in a repository, its `info/exclude` and the
 /// `.gitignore` files of the folders between.
-List<_Level> _rootLevels(String root) {
-  final levels = [?_globalLevel()];
+List<_Level> _rootLevels(String root, _Level? global) {
+  final levels = [?global];
   final folders = <String>[];
   var folder = p.absolute(root);
   while (true) {
