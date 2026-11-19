@@ -1542,12 +1542,21 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate, SessionToolsBots {
   /// look at. None for the others, not even of the agents they started or
   /// wrote to (off is off), nor without a phone to write to.
   void _tell(List<BotEvent> events) {
+    _settleWatching();
     if (events.isEmpty || !_hasPhone) return;
     var notified = false;
     for (final bot in _bots) {
       if (!bot.can(BotAbility.proactive)) continue;
       final rules = watchRules(bot);
-      final mine = {...?_watching[bot.id]};
+      // As kept, and as its events name them this run (one new then, by
+      // the id it went by before its session's).
+      final mine = {
+        for (final id in _watching[bot.id] ?? const <String>[]) ...[
+          id,
+          if (SessionTools.threadOf(workspace, id) case final thread?)
+            BotTools.idOf(thread),
+        ],
+      };
       final kept = <(BotEvent, BotWatchAction)>[];
       for (final event in events) {
         final action = BotWatch.actionFor(
@@ -1623,9 +1632,29 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate, SessionToolsBots {
     }
   }
 
+  /// Those watched by the id a new agent goes by until its session starts
+  /// (`new-…`, this run's alone), kept by its session's once it has one:
+  /// known again in the next run.
+  void _settleWatching() {
+    var changed = false;
+    for (final watching in _watching.values) {
+      for (var i = 0; i < watching.length; i++) {
+        if (!watching[i].startsWith('new-')) continue;
+        final id = switch (SessionTools.threadOf(workspace, watching[i])) {
+          AgentThread(id: final id?) => id,
+          _ => null,
+        };
+        if (id == null) continue;
+        watching[i] = id;
+        changed = true;
+      }
+    }
+    if (changed) _save();
+  }
+
   /// [bot] started [thread], or wrote to it: told what becomes of it.
   void watch(Bot bot, AgentThread thread) {
-    final id = BotTools.idOf(thread);
+    final id = SessionTools.idOf(thread);
     final watching = _watching[bot.id] ??= [];
     watching
       ..remove(id)
