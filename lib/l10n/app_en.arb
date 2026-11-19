@@ -701,12 +701,12 @@
     "description": "A browser step's verb while it runs (see browserStepDone).",
     "placeholders": {"action": {"type": "String"}}
   },
-  "sessionStepDone": "{action, select, new{Started} send{Handed work to} wait{Waited for} read{Read} stop{Stopped} changes{Checked the changes of} list{Listed the conversations} other{Coordinated}}",
+  "sessionStepDone": "{action, select, new{Started} send{Handed work to} wait{Waited for} read{Read} stop{Stopped} changes{Checked the changes of} list{Listed the conversations} models{Checked the models} other{Coordinated}}",
   "@sessionStepDone": {
     "description": "A coordinating step's verb once done, by the session tool it called; the conversation's title follows.",
     "placeholders": {"action": {"type": "String"}}
   },
-  "sessionStepRunning": "{action, select, new{Starting} send{Handing work to} wait{Waiting for} read{Reading} stop{Stopping} changes{Checking the changes of} list{Listing the conversations} other{Coordinating}}",
+  "sessionStepRunning": "{action, select, new{Starting} send{Handing work to} wait{Waiting for} read{Reading} stop{Stopping} changes{Checking the changes of} list{Listing the conversations} models{Checking the models} other{Coordinating}}",
   "@sessionStepRunning": {
     "description": "A coordinating step's verb while it runs (see sessionStepDone).",
     "placeholders": {"action": {"type": "String"}}

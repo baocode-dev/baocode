@@ -3017,13 +3017,13 @@ abstract class AppLocalizations {
   /// A coordinating step's verb once done, by the session tool it called; the conversation's title follows.
   ///
   /// In en, this message translates to:
-  /// **'{action, select, new{Started} send{Handed work to} wait{Waited for} read{Read} stop{Stopped} changes{Checked the changes of} list{Listed the conversations} other{Coordinated}}'**
+  /// **'{action, select, new{Started} send{Handed work to} wait{Waited for} read{Read} stop{Stopped} changes{Checked the changes of} list{Listed the conversations} models{Checked the models} other{Coordinated}}'**
   String sessionStepDone(String action);
 
   /// A coordinating step's verb while it runs (see sessionStepDone).
   ///
   /// In en, this message translates to:
-  /// **'{action, select, new{Starting} send{Handing work to} wait{Waiting for} read{Reading} stop{Stopping} changes{Checking the changes of} list{Listing the conversations} other{Coordinating}}'**
+  /// **'{action, select, new{Starting} send{Handing work to} wait{Waiting for} read{Reading} stop{Stopping} changes{Checking the changes of} list{Listing the conversations} models{Checking the models} other{Coordinating}}'**
   String sessionStepRunning(String action);
 
   /// No description provided for @sessionOpen.
