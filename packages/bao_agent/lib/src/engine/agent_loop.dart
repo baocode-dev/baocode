@@ -195,8 +195,9 @@ class AgentLoop {
         if (error.promptTooLong && isMain && !compactedForLength) {
           compactedForLength = true;
           try {
-            if (await Compaction(session)
-                .compact(store, trigger: 'auto', cancel: cancel)) {
+            if (await Compaction(
+              session,
+            ).compact(store, trigger: 'auto', tooLong: true, cancel: cancel)) {
               continue;
             }
           } on Cancelled {

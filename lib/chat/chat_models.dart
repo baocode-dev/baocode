@@ -485,10 +485,40 @@ class PlanItem extends ChatItem {
 
 /// A line from the runtime, not the agent: shown apart from its messages.
 class NoticeItem extends ChatItem {
-  const NoticeItem(this.kind, this.text);
+  const NoticeItem(this.kind, this.text, {this.compaction});
 
   final NoticeKind kind;
+
+  /// In English: what is copied, sent on, and shown without [compaction].
   final String text;
+
+  /// What a compaction divider tells, to be said in the app's language.
+  final CompactionNote? compaction;
+}
+
+/// A compaction: why, and how far the context came down.
+class CompactionNote {
+  const CompactionNote({
+    this.auto = false,
+    this.tooLong = false,
+    this.before,
+    this.after,
+    this.window,
+  });
+
+  /// Done by the agent, not asked for.
+  final bool auto;
+
+  /// Forced by the API refusing the conversation as longer than the model
+  /// takes, before [window] was full.
+  final bool tooLong;
+
+  /// The tokens before and after it, as known.
+  final int? before;
+  final int? after;
+
+  /// The context set when it happened.
+  final int? window;
 }
 
 enum CommandStatus { running, succeeded, failed }

@@ -2851,6 +2851,31 @@ class AppLocalizationsEn extends AppLocalizations {
   String get activityCompacting => 'Compacting conversation';
 
   @override
+  String get noticeCompacted => 'Conversation compacted';
+
+  @override
+  String get noticeCompactedAuto => 'Conversation compacted automatically';
+
+  @override
+  String get noticeCompactedTooLong =>
+      'Conversation compacted early: the provider refused it as too long for the model';
+
+  @override
+  String noticeCompactedTooLongWindow(String window) {
+    return 'Conversation compacted early: the provider refused it as too long for the model, which takes less than the $window context set';
+  }
+
+  @override
+  String noticeCompactedTokens(String tokens) {
+    return '$tokens tokens';
+  }
+
+  @override
+  String noticeCompactedFromTo(String before, String after) {
+    return '$before → $after tokens';
+  }
+
+  @override
   String get activityPlanning => 'Planning next move';
 
   @override
