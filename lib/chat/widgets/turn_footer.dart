@@ -7,6 +7,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../ide/ide_hover.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/codicons.dart';
 import '../chat_models.dart';
 import 'agent_step.dart';
 import 'copy_button.dart';
@@ -17,7 +18,6 @@ import 'rolling_text.dart';
 const _zapIcon = 'assets/icons/lucide-zap.svg';
 const _clockIcon = 'assets/icons/lucide-clock.svg';
 const _arrowDownIcon = 'assets/icons/lucide-arrow-down.svg';
-const _forkIcon = 'assets/icons/lucide-git-fork.svg';
 
 /// Whether the turn under way has its line of figures (`chat.liveTurnStats`),
 /// on unless set to false. A finished turn's figures always show.
@@ -267,13 +267,17 @@ class _ForkButton extends StatelessWidget {
               color: hovered ? AppColors.hover : null,
               borderRadius: BorderRadius.circular(4),
             ),
-            child: SvgPicture.asset(
-              _forkIcon,
-              width: 13,
-              height: 13,
-              colorFilter: ColorFilter.mode(
-                hovered ? AppColors.text : AppColors.textFaint,
-                BlendMode.srcIn,
+            // The copy button's box: its icon as big, the line as high.
+            child: SizedBox.square(
+              dimension: 13,
+              child: OverflowBox(
+                maxWidth: 14,
+                maxHeight: 14,
+                child: Icon(
+                  Codicons.repoForked,
+                  size: 14,
+                  color: hovered ? AppColors.text : AppColors.textFaint,
+                ),
               ),
             ),
           ),
