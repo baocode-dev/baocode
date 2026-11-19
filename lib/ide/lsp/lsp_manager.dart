@@ -56,6 +56,9 @@ class _Server {
   String? runtimeError;
   LanguageServerSeverity? runtimeSeverity;
   final projectErrors = <String, String>{};
+
+  /// The messages told the user since it started, each told once.
+  final notified = <String>{};
   List<String> lastLog = const [];
   String? package;
   bool installable = false;
@@ -72,10 +75,11 @@ class _Server {
 /// folder), keeps them in sync with the editor, merges their answers, and
 /// restarts them when they crash.
 ///
-/// Workspace folders are the outermost ancestor of a document holding one of
-/// the server's (else the language's) root markers within [root] (nearest
-/// when the document is outside [root]); [root] itself when there is none,
-/// unless the server requires one.
+/// Workspace folders are the nearest ancestor of a document holding one of
+/// the server's (else the language's) root markers, searched up to [root];
+/// the outermost within [root] when the markers are a JVM build's
+/// ([_moduleBuildMarkers]); [root] itself when there is none, unless the
+/// server requires one.
 ///
 /// Hand it to the workspace, which then drives it and shuts it down:
 /// `IdeWorkspace(root, languages: LspManager(root, catalog, provider))`.
@@ -314,11 +318,12 @@ class LspManager extends ChangeNotifier
   /// The workspace folder of [path] for [definition]; later where the
   /// markers are looked for on another machine.
   ///
-  /// Inside [root], prefers the outermost ancestor with a root marker (up to
-  /// [root]) so multi-module projects (Maven, Gradle, Cargo, Go workspaces,
-  /// C# solutions, …) share one server at the workspace root instead of
-  /// starting an isolated server per submodule. Outside [root], stops at the
-  /// nearest marker.
+  /// The nearest ancestor with a root marker, but for a JVM build's markers
+  /// inside [root]: the outermost there, so a Maven or Gradle build's modules
+  /// share the one server that imports the whole build (a module's own
+  /// pom.xml would start one per module, each importing it alone). Other
+  /// languages keep the nearest: a crate or Go module in a subfolder of
+  /// another, not a member of it, is a project of its own.
   FutureOr<String?> _workspaceFolder(
     String path,
     LspServerDefinition definition,
@@ -329,7 +334,8 @@ class LspManager extends ChangeNotifier
         : language.rootMarkers;
     final inside = _paths.isWithin(root, path);
     if (markers.isNotEmpty) {
-      final dirs = _ancestorDirs(path, inside: inside);
+      final outermost = inside && markers.any(_moduleBuildMarkers.contains);
+      final dirs = _ancestorDirs(path, inside: inside, outermost: outermost);
       for (var i = 0; i < dirs.length; i++) {
         final dir = dirs[i];
         for (var j = 0; j < markers.length; j++) {
@@ -353,9 +359,25 @@ class LspManager extends ChangeNotifier
     return _noMarker(path, definition, inside: inside);
   }
 
-  /// Ancestor directories of [path] to search for root markers: outermost
-  /// first (from [root] down) when [inside], nearest first otherwise.
-  List<String> _ancestorDirs(String path, {required bool inside}) {
+  /// Build files whose modules are imported by the build at the top: Maven's
+  /// and Gradle's, sbt's and Mill's.
+  static const _moduleBuildMarkers = {
+    'pom.xml',
+    'settings.gradle',
+    'settings.gradle.kts',
+    'build.gradle',
+    'build.gradle.kts',
+    'build.sbt',
+    'build.sc',
+  };
+
+  /// Ancestor directories of [path] to search for root markers, up to [root]
+  /// when [inside]: nearest first, or from [root] down when [outermost].
+  List<String> _ancestorDirs(
+    String path, {
+    required bool inside,
+    required bool outermost,
+  }) {
     final paths = _paths;
     final dirs = <String>[];
     var dir = paths.dirname(path);
@@ -366,7 +388,7 @@ class LspManager extends ChangeNotifier
       if (parent == dir) break;
       dir = parent;
     }
-    return inside ? dirs.reversed.toList() : dirs;
+    return outermost ? dirs.reversed.toList() : dirs;
   }
 
   /// [_workspaceFolder], waiting for each marker's answer.
@@ -447,6 +469,7 @@ class LspManager extends ChangeNotifier
       ..runtimeError = null
       ..runtimeSeverity = null
       ..projectErrors.clear()
+      ..notified.clear()
       ..lastLog = const [];
     _notify();
     LspClient? client;
@@ -695,7 +718,8 @@ class LspManager extends ChangeNotifier
       ..statusProgress = null
       ..runtimeError = null
       ..runtimeSeverity = null
-      ..projectErrors.clear();
+      ..projectErrors.clear()
+      ..notified.clear();
     _updateWatching();
     if (_shutDown) return;
     if (!crashed) {
@@ -947,6 +971,9 @@ class LspManager extends ChangeNotifier
     _notify();
   }
 
+  static String _notifiedKey(LspMessageType type, String message) =>
+      '${type.name}\u0000$message';
+
   void _clientMessage(
     _Server server,
     LspClient client,
@@ -1010,6 +1037,8 @@ class LspManager extends ChangeNotifier
 
   void _emitServerMessage(_Server server, LspMessageType type, String message) {
     if (_disposed || _shutDown || !_serverMessages.hasListener) return;
+    // Servers repeat themselves (each build, each save): once a run.
+    if (!server.notified.add(_notifiedKey(type, message))) return;
     _serverMessages.add(
       LspServerMessage(
         serverId: server.id,
@@ -1072,6 +1101,10 @@ class LspManager extends ChangeNotifier
         .toSet();
     if (errors.isEmpty) {
       server.projectErrors.remove(path);
+      // Fixed: told again should it come back.
+      if (previous != null) {
+        server.notified.remove(_notifiedKey(LspMessageType.error, previous));
+      }
       return;
     }
     final message = errors.join('\n');

@@ -840,6 +840,11 @@ void main() {
       );
       managers.add(lsp);
       final (_, doc) = await open(lsp, p.join('mod-a', 'src', 'a.fake'), 'a');
+      // The folder is looked for first: no server until it is found.
+      await until(
+        () => lsp.statusFor(doc.path).isNotEmpty,
+        reason: 'workspace folder found',
+      );
       await running(lsp, doc.path);
       final rootUri =
           ((await state(lsp, 'fake', doc.path))['initializeParams']!

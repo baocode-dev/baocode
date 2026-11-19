@@ -166,6 +166,22 @@ void main() {
     },
   );
 
+  test('a crate in a subfolder of another keeps its own server', () async {
+    final paths = p.Context(style: p.Style.posix);
+    const root = '/workspace';
+    final launches = await captureLaunches(
+      root: root,
+      paths: paths,
+      rootMarkers: const ['Cargo.toml'],
+      existingPaths: {
+        '/workspace/Cargo.toml',
+        '/workspace/tools/gen/Cargo.toml',
+      },
+      openPaths: const ['/workspace/tools/gen/src/main.rs'],
+    );
+    expect(launches.single.workingDirectory, '/workspace/tools/gen');
+  });
+
   test('independent sibling projects each keep their own server', () async {
     final paths = p.Context(style: p.Style.posix);
     const root = '/workspace';
