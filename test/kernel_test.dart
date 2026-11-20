@@ -2851,6 +2851,30 @@ void main() {
           const ApprovalAnswer(ApprovalDecision.allowOnce),
         );
       }
+      // In Plan, what the classifier never weighed (auto mode not there for
+      // the account, though the model has it) is approved as in Agent;
+      // what it held back is the user's.
+      kernel.mode.select('plan');
+      ask('r2-plan', 'Bash', command, {
+        'decision_reason_type': 'other',
+        'decision_reason': 'This command requires approval',
+      });
+      await pumpEventQueue();
+      expect(transcript.pendingInteraction, isNull);
+      expect(cli.responses.last, {
+        'behavior': 'allow',
+        'updatedInput': command,
+      });
+      ask('r2-classified', 'Bash', command, {
+        'decision_reason_type': 'classifier',
+      });
+      await pumpEventQueue();
+      expect(transcript.pendingInteraction, isA<ApprovalRequest>());
+      kernel.answer(
+        'r2-classified',
+        const ApprovalAnswer(ApprovalDecision.allowOnce),
+      );
+      kernel.mode.select('agent');
       // The plan is put to the user, not asked about.
       ask('r3', 'ExitPlanMode', {'plan': '1. Do it'});
       await pumpEventQueue();
@@ -2877,6 +2901,46 @@ void main() {
       await pumpEventQueue();
       expect(transcript.pendingInteraction, isNull);
       expect(cli.responses.last['message'], ClaudeTranslator.planPresented);
+      kernel.dispose();
+    });
+
+    test('full access picked with a card up answers what it approves, and '
+        'leaves what it would ask all the same', () async {
+      final cli = FakeCli();
+      final (:kernel, :transcript, events: _) = claude(cli);
+      kernel.permission.select('acceptEdits');
+      kernel.send(const KernelTurn(id: 'u1', text: 'go'));
+      await pumpEventQueue();
+      const command = {'command': 'npm test', 'description': 'Test'};
+      void ask(String id, [Map<String, Object?> why = const {}]) => cli.push({
+        'type': 'control_request',
+        'request_id': id,
+        'request': {
+          'subtype': 'can_use_tool',
+          'tool_name': 'Bash',
+          'input': command,
+          ...why,
+        },
+      });
+      ask('plain', {'decision_reason': 'This command requires approval'});
+      ask('ruled', {
+        'decision_reason_type': 'rule',
+        'matched_ask_rule': {'toolName': 'Bash'},
+      });
+      await pumpEventQueue();
+      expect(cli.responses, isEmpty);
+      expect(transcript.pendingInteraction, isA<ApprovalRequest>());
+
+      kernel.permission.select('bypassPermissions');
+      await pumpEventQueue();
+      expect(cli.responses, [
+        {'behavior': 'allow', 'updatedInput': command},
+      ]);
+      expect(transcript.pendingInteraction?.id, 'ruled');
+      kernel.answer('ruled', const ApprovalAnswer(ApprovalDecision.deny));
+      await pumpEventQueue();
+      expect(cli.responses.last['behavior'], 'deny');
+      expect(transcript.pendingInteraction, isNull);
       kernel.dispose();
     });
 

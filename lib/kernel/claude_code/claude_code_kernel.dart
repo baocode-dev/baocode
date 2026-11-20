@@ -1718,16 +1718,7 @@ class ClaudeCodeKernel
       _control!.respond(requestId, {'behavior': 'deny', 'message': _notAsked});
       return;
     }
-    // Full access is approved here (see _cliApproval), but for what is
-    // asked all the same (see _askedInFullAccess): that too where no one
-    // is there to ask (a bot's, KernelWorkspace.approvesAll). In Plan it
-    // leaves to the classifier what the CLI cannot tell is read-only; with
-    // no classifier (another provider's model), that is approved here
-    // too, as it would be by the classifier.
-    if (_approval == 'bypassPermissions' &&
-        (_work != 'plan' || !_classifies) &&
-        tool != 'AskUserQuestion' &&
-        ((_workspace?.approvesAll ?? false) || !_askedInFullAccess(request))) {
+    if (_fullAccessAllows(request)) {
       _control!.respond(requestId, {
         'behavior': 'allow',
         'updatedInput': input,
@@ -1775,8 +1766,50 @@ class ClaudeCodeKernel
           alwaysAllowLabel: _describeRules(suggestions),
         );
     }
-    _permissions[requestId] = _Permission(input, suggestions, questions);
+    _permissions[requestId] = _Permission(
+      input,
+      suggestions,
+      questions,
+      request: request,
+    );
     emit(InteractionRequested(nextSeq, interaction));
+  }
+
+  /// Whether full access approves this request of the CLI's here (see
+  /// _cliApproval): all but what is asked all the same (see
+  /// _askedInFullAccess), and that too where no one is there to ask (a
+  /// bot's, KernelWorkspace.approvesAll). A question is the user's in any
+  /// mode, and so is what the classifier held back in Plan: what it never
+  /// weighed (auto mode not there for the account, say, though the model
+  /// has it) is approved, as it would be with no classifier.
+  bool _fullAccessAllows(Map<String, Object?> request) =>
+      _approval == 'bypassPermissions' &&
+      request['tool_name'] != 'AskUserQuestion' &&
+      request['decision_reason_type'] != 'classifier' &&
+      ((_workspace?.approvesAll ?? false) || !_askedInFullAccess(request));
+
+  /// Answers what is waiting on the user that the approvals now picked
+  /// approve: switched to full access with a card up, it goes, as it would
+  /// not have come.
+  void _approveWaiting() {
+    if (_approval != 'bypassPermissions') return;
+    for (final MapEntry(key: id, value: permission) in [
+      ..._permissions.entries,
+    ]) {
+      if (permission.sdk case final sdk?) {
+        _permissions.remove(id);
+        emit(InteractionResolved(nextSeq, id));
+        if (!sdk.isCompleted) sdk.complete(ApprovalDecision.allowOnce);
+      } else if (permission.request case final request?
+          when _fullAccessAllows(request)) {
+        _permissions.remove(id);
+        emit(InteractionResolved(nextSeq, id));
+        _control?.respond(id, {
+          'behavior': 'allow',
+          'updatedInput': permission.input,
+        });
+      }
+    }
   }
 
   static String _approvalTitle(String tool, Map<String, Object?> request) {
@@ -3761,6 +3794,7 @@ class ClaudeCodeKernel
   /// Tells a running CLI what is picked now.
   void _applyMode() {
     _applyPlanReview();
+    _approveWaiting();
     emitInfoChanged();
     final mode = _mode;
     if (!_running || mode == _cliMode) return;
@@ -3966,7 +4000,12 @@ class _Permission {
     this.questions, {
     this.elicitation,
     this.sdk,
+    this.request,
   });
+
+  /// For the CLI's can_use_tool: the request as it came, to answer it
+  /// here should full access be picked while it waits.
+  final Map<String, Object?>? request;
 
   /// For one of the app's own tools asking (ClaudeSdkCall.ask): answered
   /// here, not to the CLI.
