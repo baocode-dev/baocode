@@ -71,6 +71,7 @@ class WindowHeader extends StatefulWidget {
     this.hasFolder,
     this.onBack,
     this.backLabel,
+    this.onOpenIde,
     this.onNewWindow,
     this.onCloseWindow,
     this.compact = false,
@@ -115,6 +116,10 @@ class WindowHeader extends StatefulWidget {
   /// default); by default, the workspace's chat layout.
   final VoidCallback? onBack;
   final String? backLabel;
+
+  /// Over the chat, Open in Fast Ide's way to the IDE (see
+  /// [OpenInEditorButton.onOpenIde]); by default, the workspace's.
+  final VoidCallback? onOpenIde;
 
   /// The File menu's New Window, where windows can be opened.
   final VoidCallback? onNewWindow;
@@ -455,6 +460,7 @@ class _WindowHeaderState extends State<WindowHeader> {
         child: OpenInEditorButton(
           workspace: widget.workspace,
           project: project,
+          onOpenIde: widget.onOpenIde,
         ),
       ),
     ],

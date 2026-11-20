@@ -13,6 +13,7 @@ import 'package:baocode/theme/codicons.dart';
 import 'package:baocode/window/app_windows.dart';
 import 'package:baocode/window/window_settings.dart';
 import 'package:baocode/workbench.dart';
+import 'package:baocode/workspace/open_in_editor_button.dart';
 import 'package:baocode/workspace/workspace.dart';
 
 import 'fake_window_host.dart';
@@ -216,6 +217,54 @@ void main() {
       TargetPlatform.macOS,
     }),
   );
+
+  for (final ideWindows in IdeWindows.values) {
+    _testWindows('an agent\'s window\'s Open in Fast Ide shows its project\'s '
+        'IDE there, the agent its chat, the window behind left alone '
+        '(${ideWindows.name})', (tester) async {
+      final (windows, host, workspace) = await _pumpApp(
+        tester,
+        settings: () => WindowSettings(ideWindows: ideWindows),
+      );
+      final opening = windows.openAgent(['~/code/baocode']);
+      for (var i = 0; i < 4; i++) {
+        await tester.pump();
+      }
+      final thread = (await opening)!;
+      final window = windows.agentWindows.single;
+      final layout = workspace.layout;
+
+      await tester.tap(
+        find
+            .descendant(
+              of: _inView(window.viewId, find.byType(OpenInEditorButton)),
+              matching: find.text('Fast Ide'),
+            )
+            .first,
+      );
+      for (var i = 0; i < 3; i++) {
+        await tester.pump();
+      }
+      final ide = _inView(window.viewId, find.byType(IdeWorkbench));
+      expect(ide, findsOneWidget);
+      expect(window.delegate!.ideSpace!.root, '~/code/baocode');
+      final title = tester.widget<IdeChatTitle>(
+        _inView(window.viewId, find.byType(IdeChatTitle)),
+      );
+      expect(title.current, same(thread));
+      // No other window opens or comes up for it.
+      expect(host.created, hasLength(1));
+      expect(windows.active, same(window));
+      expect(workspace.layout, layout);
+      expect(_inView(0, find.byType(IdeWorkbench)), findsNothing);
+
+      tester.widget<IdeWorkbench>(ide).onBack();
+      await tester.pump();
+      await tester.pump();
+      expect(ide, findsNothing);
+      expect(_inView(window.viewId, find.byType(ChatScreen)), findsOneWidget);
+    });
+  }
 
   _testWindows('a window closed goes, its view and its workbench', (
     tester,
