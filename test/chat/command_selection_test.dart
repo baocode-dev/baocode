@@ -25,6 +25,9 @@ class _Feed extends ChangeNotifier implements ChatFeed {
   final List<ChatItem> items;
   final bool streaming;
 
+  /// [items] changed in place.
+  void changed() => notifyListeners();
+
   @override
   int get itemCount => items.length;
   @override
@@ -166,6 +169,75 @@ void main() {
     expect(_selected(tester), line);
     expect(position.pixels, 400);
   }, variant: TargetPlatformVariant.desktop());
+
+  testWidgets('a press held on output that follows its end keeps the line '
+      'under it as more comes in; let go, it follows again', (tester) async {
+    tester.view.physicalSize = const Size(1000, 700);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    TerminalItem command(int lines) => TerminalItem(
+      command: 'print rows',
+      output: [
+        for (var i = 0; i < lines; i++)
+          'row_${i.toString().padLeft(3, '0')} abcdefghijklmnopqrstuvwxyz',
+      ].join('\n'),
+      status: CommandStatus.running,
+    );
+    final feed = _Feed([
+      const UserMessageItem(text: 'Print the rows'),
+      command(100),
+    ], streaming: true);
+    addTearDown(feed.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(body: ChatHistoryView(feed: feed)),
+      ),
+    );
+    await tester.pumpAndSettle();
+    if (find
+        .descendant(
+          of: find.byType(CommandStep),
+          matching: find.byType(Scrollable),
+        )
+        .evaluate()
+        .isEmpty) {
+      await tester.tap(
+        find.textContaining('print rows', findRichText: true).first,
+      );
+      await tester.pumpAndSettle();
+    }
+    final position = tester
+        .state<ScrollableState>(
+          find
+              .descendant(
+                of: find.byType(CommandStep),
+                matching: find.byType(Scrollable),
+              )
+              .first,
+        )
+        .position;
+    // Following the output: at its end.
+    expect(position.pixels, position.minScrollExtent);
+    RenderParagraph output() => tester
+        .renderObjectList<RenderParagraph>(find.byType(RichText))
+        .singleWhere((p) => p.text.toPlainText().contains('row_000'));
+    const line = 'row_098 abcdefghijklmnopqrstuvwxyz';
+    final at = _ends(output(), line).$1;
+    final mouse = await tester.startGesture(at, kind: PointerDeviceKind.mouse);
+    await tester.pump();
+    for (final lines in [110, 125]) {
+      feed.items[1] = command(lines);
+      feed.changed();
+      await tester.pump(const Duration(milliseconds: 16));
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(_ends(output(), line).$1.dy, closeTo(at.dy, 0.5));
+    }
+    await mouse.up();
+    await tester.pump();
+    await tester.pump();
+    expect(position.pixels, position.minScrollExtent);
+  });
 
   testWidgets('a drag stays on its start while output scrolls under it', (
     tester,

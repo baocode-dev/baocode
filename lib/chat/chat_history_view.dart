@@ -626,7 +626,10 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   /// What the text in the list registers with: nothing comes of it (see
   /// [ChatSelectionController]).
   final _inertSelection = StaticSelectionContainerDelegate();
-  EdgeDraggingAutoScroller? _autoScroller;
+
+  /// Scrolls the list while a drag selection is held past its edge.
+  Ticker? _autoScroll;
+  Duration _autoScrolled = Duration.zero;
 
   final GlobalKey _listKey = GlobalKey();
   final ListController _listController = ListController();
@@ -678,13 +681,14 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   void initState() {
     super.initState();
     _scrollController
-      ..laidOut = _keepShownLaidOut
+      ..laidOut = _keepLaidOut
       ..stopAt = _replyStart;
     _find
       ..feed = _feed
       ..addListener(_findChanged);
     _scrollController.addListener(_handleScroll);
     _feed.addListener(_handleSessionChanged);
+    _statusIndex = _lastStatusIndex();
     UserMessageStyle.current.addListener(_handleStyleChanged);
     ChatMinimap.side.addListener(_handleStyleChanged);
     // Its size, for a slow frame's line in the event log.
@@ -794,6 +798,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       _shownFirst = null;
       oldWidget.feed.removeListener(_handleSessionChanged);
       widget.feed.addListener(_handleSessionChanged);
+      _statusIndex = _lastStatusIndex();
       _find.feed = widget.feed;
       // Another conversation: what was selected was in the one before.
       _selection.clear();
@@ -883,7 +888,8 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     ChatMinimap.side.removeListener(_handleStyleChanged);
     _scrubEnded?.cancel();
     _leavingDone?.cancel();
-    _autoScroller?.stopAutoScroll();
+    _autoScroll?.dispose();
+    _letGo();
     _editorMoved.dispose();
     _editorReveal.dispose();
     _editorClose.dispose();
@@ -1152,6 +1158,191 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     return keep.above - above + _scrollController.scrolled - keep.scrolled;
   }
 
+  /// How far the list is to move once laid out: the row under a press held
+  /// to select kept where it was, if there is one ([_dragRow]); else the
+  /// row shown first, rows put before it ([_keepShown]).
+  double _keepLaidOut() {
+    final shown = _keepShownLaidOut();
+    return _keepDragRowLaidOut() ?? shown;
+  }
+
+  /// The row under a press held to select, the text in it under the
+  /// pointer (the piece the selection's end is in), how far that text's
+  /// top was above the view's top, and the list scrolled then: rows above
+  /// it folding away (a turn's steps into "Worked for…"), a thought
+  /// closing, a line come in above the text in its own row, or a row laid
+  /// out taller than taken for move what is under the pointer, and the
+  /// selection's end with it, unless the list is moved back by as much (a
+  /// browser's scroll anchoring, to the deepest thing under the pointer).
+  ({int index, RenderBox? box, double above, double scrolled})? _dragRow;
+
+  /// The row under the pointer held to select, remembered (see
+  /// [_dragRow]): at the press, as it moves, and as the list scrolls on.
+  void _rememberDragRow() {
+    final at = _dragAt ?? _dragFrom;
+    final shown = _shownRect();
+    final sliver = _findSliver();
+    if (at == null ||
+        shown == null ||
+        sliver == null ||
+        !sliver.attached ||
+        !_scrollController.hasClients) {
+      _dragRow = null;
+      return;
+    }
+    // On screen, as the rows are painted (not laid out: a row's place in
+    // the list and where it shows differ by what is over the list).
+    final y = at.dy.clamp(shown.top, shown.bottom - 1);
+    final pixels = _scrollController.position.pixels;
+    RenderBox? row;
+    var above = 0.0;
+    var bestGap = double.infinity;
+    for (var child = sliver.firstChild; child != null;) {
+      final data = child.parentData! as SliverMultiBoxAdaptorParentData;
+      final offset = data.layoutOffset;
+      if (offset != null && child.hasSize) {
+        final top = child.localToGlobal(Offset.zero).dy;
+        final gap = y < top
+            ? top - y
+            : y > top + child.size.height
+            ? y - top - child.size.height
+            : 0.0;
+        if (gap < bestGap) {
+          bestGap = gap;
+          row = child;
+          above = pixels - sliver.constraints.precedingScrollExtent - offset;
+        }
+      }
+      child = sliver.childAfter(child);
+    }
+    if (row == null) {
+      _dragRow = null;
+      return;
+    }
+    // The piece of text the end is in, if in this row: its top, not the
+    // row's.
+    RenderBox? box;
+    final end = _dragAt != null ? _selection.focus : _selection.anchor;
+    if (end != null) {
+      final item = _selection.builtItems[end.item];
+      final leaves = item != null && item.attached ? item.leaves() : null;
+      if (leaves != null && end.leaf < leaves.length) {
+        final leaf = leaves[end.leaf].box;
+        final inRow = leaf.attached ? _laidOutTopIn(leaf, row) : null;
+        if (inRow != null) {
+          box = leaf;
+          above -= inRow;
+        }
+      }
+    }
+    _dragRow = (
+      index: _indexOf(row),
+      box: box,
+      above: above,
+      scrolled: _scrollController.scrolled,
+    );
+  }
+
+  /// Where [box]'s top is in [row], by where each box on the way is laid
+  /// out in its parent (in layout: a paint transform may not be asked for
+  /// then, and one only painted, as a row coming in slides, is not where
+  /// the text is laid out); null if [box] is not in [row].
+  static double? _laidOutTopIn(RenderBox box, RenderBox row) {
+    var top = 0.0;
+    RenderObject node = box;
+    while (!identical(node, row)) {
+      final data = node.parentData;
+      final parent = node.parent;
+      if (parent == null) return null;
+      if (data is BoxParentData) top += data.offset.dy;
+      node = parent;
+    }
+    return top;
+  }
+
+  /// How far the list is to move to put the text under a press held to
+  /// select back where it was (see [_dragRow]), moved on as far as the
+  /// list was scrolled meanwhile; null while no press is held, or its row
+  /// is not laid out.
+  double? _keepDragRowLaidOut() {
+    final keep = _dragRow;
+    if (keep == null) return null;
+    if (_dragFrom == null || _pointersDown <= 0) {
+      _dragRow = null;
+      return null;
+    }
+    final sliver = _findSliver();
+    if (sliver == null) return null;
+    for (var child = sliver.firstChild; child != null;) {
+      final data = child.parentData! as SliverMultiBoxAdaptorParentData;
+      final offset = data.layoutOffset;
+      if (offset != null && _indexOf(child) == keep.index) {
+        var above =
+            _scrollController.position.pixels -
+            sliver.constraints.precedingScrollExtent -
+            offset;
+        // Its text's top, where it is in the row now (laid out already);
+        // gone (built anew), the row's, from here on.
+        var box = keep.box;
+        final inRow = box != null && box.attached
+            ? _laidOutTopIn(box, child)
+            : null;
+        if (inRow == null) {
+          box = null;
+        } else {
+          above -= inRow;
+        }
+        final index = keep.index;
+        // Taken to the end, it follows what is written (see
+        // [_BottomAnchoredScrollPosition]): that, not this, moves it.
+        if (_scrollController.anchored) {
+          _dragRow = (
+            index: index,
+            box: box,
+            above: above,
+            scrolled: _scrollController.scrolled,
+          );
+          return null;
+        }
+        // Built anew, nothing to keep to this time.
+        if (keep.box != null && box == null) {
+          _dragRow = (
+            index: index,
+            box: null,
+            above: above,
+            scrolled: _scrollController.scrolled,
+          );
+          return null;
+        }
+        // As far as the list goes: past its top or end it would be put
+        // back, and moved again, each time it is laid out.
+        final position = _scrollController.position;
+        final move =
+            (position.pixels +
+                    keep.above -
+                    above +
+                    _scrollController.scrolled -
+                    keep.scrolled)
+                .clamp(position.minScrollExtent, position.maxScrollExtent) -
+            position.pixels;
+        // Too little to move it by (see
+        // [_BottomAnchoredScrollPosition.applyContentDimensions]): kept to
+        // where it was, not to here, for what is left to add up and be made
+        // up for once it is enough.
+        if (move.abs() < 0.5) return null;
+        _dragRow = (
+          index: index,
+          box: box,
+          above: above + move,
+          scrolled: _scrollController.scrolled,
+        );
+        return move;
+      }
+      child = sliver.childAfter(child);
+    }
+    return null;
+  }
+
   /// How far row [index]'s end is above the view's top, if it is laid out:
   /// by where the list has it, so also while it is laid out. Its end, not
   /// its top: the room above it is not the same when a turn comes before
@@ -1286,7 +1477,9 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   );
 
   void _handleScroll() {
-    if (_userScrolling) {
+    // (Held to select, it follows nothing till let go: see
+    // [_handlePointerUp].)
+    if (_userScrolling && !(_dragFrom != null && _pointersDown > 0)) {
       final position =
           _scrollController.position as _BottomAnchoredScrollPosition;
       final end = position.maxScrollExtent - 1;
@@ -1339,6 +1532,19 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   /// selection's end follows it.
   Offset? _dragAt;
 
+  /// Whether the list followed what is written before the press held now
+  /// (see [_handlePointerDown]).
+  bool _followedBeforePress = false;
+
+  /// Whether this view's press holds [ChatSelectionHold] now.
+  bool _holding = false;
+
+  void _letGo() {
+    if (!_holding) return;
+    _holding = false;
+    ChatSelectionHold.held.value = false;
+  }
+
   /// Presses in a row in one place: two select a word, three a line.
   int _clicks = 0;
   Duration _lastPress = Duration.zero;
@@ -1382,6 +1588,12 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
         ? null
         : event.position;
     _dragAt = null;
+    // A press that may select stops the list following what is written,
+    // while held: the text under the pointer would go on up, and the
+    // selection's start or end with it. A click lets it follow again; a
+    // drag leaves it where it is (taken to the end, it follows again).
+    _followedBeforePress = _dragFrom != null && _scrollController.anchored;
+    if (_followedBeforePress) _scrollController.anchored = false;
     final onSticky = _pressOnSticky;
     final onMinimap = _pressOnMinimap;
     final inEditor = _pressInEditor;
@@ -1440,13 +1652,29 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     } else {
       _selection.start(pos);
     }
+    _rememberDragRow();
+    // What follows its own end in the conversation holds still meanwhile.
+    ChatSelectionHold.held.value = _holding = true;
   }
 
   void _handlePointerUp(PointerEvent event) {
     if (!_pressedDevices.remove(event.device)) return;
     final selecting = _dragFrom != null;
+    if (_followedBeforePress && _dragAt == null) {
+      _scrollController.anchored = true;
+    } else if (selecting && _dragAt != null && _scrollController.hasClients) {
+      // A drag let go at the end: what is written is followed again (not
+      // while held, see [_autoScrollTick]).
+      final position = _scrollController.position;
+      if (position.pixels >= position.maxScrollExtent - 1) {
+        _setAnchored(true);
+      }
+    }
+    _followedBeforePress = false;
     _dragFrom = null;
     _dragAt = null;
+    _dragRow = null;
+    _letGo();
     // Its focus taken while held (a panel come up): back, for the keys to
     // copy what it selected.
     if (selecting && _selection.hasSelection && !_selectionFocusNode.hasFocus) {
@@ -1454,7 +1682,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     }
     if (_pointersDown <= 0) {
       _scrub(false);
-      _autoScroller?.stopAutoScroll();
+      _autoScroll?.stop();
     }
   }
 
@@ -1468,16 +1696,59 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     }
     _dragAt = event.position;
     _extendToPointer();
+    _rememberDragRow();
     _autoScrollToward(event.position);
   }
 
-  /// The selection's moving end to where the pointer is, held.
+  /// What shows of the list, globally: below the stuck message, if one
+  /// is.
+  Rect? _shownRect() {
+    final list = _listKey.currentContext?.findRenderObject() as RenderBox?;
+    if (list == null || !list.attached || !list.hasSize) return null;
+    final rect = MatrixUtils.transformRect(
+      list.getTransformTo(null),
+      Offset.zero & list.size,
+    );
+    final under = _stickyBottom();
+    if (under == null || under < rect.top) return rect;
+    return Rect.fromLTRB(
+      rect.left,
+      math.min(under + 1, rect.bottom - 1),
+      rect.right,
+      rect.bottom,
+    );
+  }
+
+  /// The bottom of the stuck message, on screen; null while none is.
+  double? _stickyBottom() {
+    final cover = _stickyCover();
+    final list = _listKey.currentContext?.findRenderObject() as RenderBox?;
+    if (cover == null || list == null || !list.attached || !list.hasSize) {
+      return null;
+    }
+    final bottom = cover + _stickyFade;
+    if (bottom <= 0) return null;
+    return list.localToGlobal(Offset(0, bottom)).dy;
+  }
+
+  /// The selection's moving end to where the pointer is, held, on the text
+  /// that shows: past the list's top or bottom (on the title, the
+  /// composer), the line at that edge, not one built beyond it and hidden;
+  /// over the stuck message, the text just under it (what shows there is a
+  /// copy of a message above, not the text the list has under it).
   void _extendToPointer() {
     final at = _dragAt;
     if (at == null) return;
-    final pos = _selection.positionAt(at);
-    if (pos == null) return;
-    _selection.extendTo(pos, unitAt: _selection.unitAt);
+    var used = at;
+    final shown = _shownRect();
+    if (shown != null) {
+      used = Offset(
+        at.dx,
+        at.dy.clamp(shown.top, math.max(shown.top, shown.bottom - 1)),
+      );
+    }
+    final pos = _selection.positionAt(used, shown: shown);
+    if (pos != null) _selection.extendTo(pos, unitAt: _selection.unitAt);
   }
 
   /// A device moving with no button down, though its release never came
@@ -1488,21 +1759,67 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     if (_pressedDevices.contains(event.device)) _handlePointerUp(event);
   }
 
-  /// Scrolls while a drag selection is held near or past an edge.
+  /// Scrolls while a drag selection is held past an edge.
   void _autoScrollToward(Offset globalPosition) {
-    if (_pointersDown <= 0 || !_scrollController.hasClients) return;
-    final scrollable = _scrollController.position.context as ScrollableState;
-    if (_autoScroller?.scrollable != scrollable) {
-      _autoScroller?.stopAutoScroll();
-      _autoScroller = EdgeDraggingAutoScroller(
-        scrollable,
-        onScrollViewScrolled: _extendToPointer,
-        velocityScalar: 30,
-      );
+    if (_autoScrollSpeed() == 0) return;
+    final ticker = _autoScroll ??= createTicker(_autoScrollTick);
+    if (ticker.isActive) return;
+    _autoScrolled = Duration.zero;
+    ticker.start();
+  }
+
+  /// How fast the list goes for the drag held where it is, in points a
+  /// second (up, less than 0): 30 times how far past its edge, up to 20
+  /// points. Over the stuck message as past the top: the list goes on up,
+  /// the text under the message coming out from under it.
+  double _autoScrollSpeed() {
+    final at = _dragAt;
+    if (at == null || _pointersDown <= 0 || !_scrollController.hasClients) {
+      return 0;
     }
-    _autoScroller!.startAutoScrollIfNecessary(
-      Rect.fromCenter(center: globalPosition, width: 0, height: 0),
+    final scrollable = _scrollController.position.context as ScrollableState;
+    final box = scrollable.context.findRenderObject();
+    if (box is! RenderBox || !box.attached || !box.hasSize) return 0;
+    final top = box.localToGlobal(Offset.zero).dy;
+    final bottom = top + box.size.height;
+    final under = _stickyBottom();
+    final past = under != null && at.dy < under
+        ? -math.max(under - at.dy, top - at.dy)
+        : at.dy < top
+        ? at.dy - top
+        : at.dy > bottom
+        ? at.dy - bottom
+        : 0.0;
+    return past.clamp(-20.0, 20.0) * 30;
+  }
+
+  /// A frame of it: the list moved on from where it is now (not toward a
+  /// place set before, which a row laid out above, its height corrected,
+  /// would have moved: the text under the pointer leaping).
+  void _autoScrollTick(Duration elapsed) {
+    final speed = _autoScrollSpeed();
+    if (speed == 0) {
+      _autoScroll?.stop();
+      return;
+    }
+    final seconds = (elapsed - _autoScrolled).inMicroseconds / 1e6;
+    _autoScrolled = elapsed;
+    final position = _scrollController.position;
+    final to = (position.pixels + speed * math.min(seconds, 0.05)).clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
     );
+    if ((to - position.pixels).abs() < 0.01) return;
+    // The row under the pointer as it is now, and the move counted as
+    // scrolled: kept moving on, not put back (see [_dragRow]).
+    _rememberDragRow();
+    final before = position.pixels;
+    position.jumpTo(to);
+    _scrollController.scrolled += position.pixels - before;
+    // Come to the end, it does not follow what is written while held: the
+    // text under the pointer would go on up, and the selection's end with
+    // it. Let go there, it does.
+    _scrollController.anchored = false;
   }
 
   void _copySelection() {
@@ -1614,7 +1931,14 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     final sliver = _findSliver();
     if (sliver == null || !sliver.attached) return;
     for (var child = sliver.firstChild; child != null;) {
-      if (child.hasSize && _indexOf(child) < _feed.itemCount) yield child;
+      // (One given no place in this layout yet, after a jump: not where it
+      // shows.)
+      final placed =
+          (child.parentData! as SliverMultiBoxAdaptorParentData).layoutOffset !=
+          null;
+      if (placed && child.hasSize && _indexOf(child) < _feed.itemCount) {
+        yield child;
+      }
       child = sliver.childAfter(child);
     }
   }
@@ -1705,11 +2029,40 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     if (_shownAtBottom != value) setState(() => _shownAtBottom = value);
   }
 
+  /// Where the turn's status row is, while it is the last item.
+  int? _statusIndex;
+
+  int? _lastStatusIndex() {
+    final count = _feed.itemCount;
+    return count > 0 && _feed.itemAt(count - 1) is LiveStatusItem
+        ? count - 1
+        : null;
+  }
+
   void _handleSessionChanged() {
     final prepended = _session?.prependedCount ?? 0;
     final moved = prepended - _prependedSeen;
     _prependedSeen = prepended;
     if (moved > 0) _shiftIndexes(moved);
+    // The turn's status row, the last, put on below what came in before
+    // it: what is selected in it with it, not on what came in its place.
+    final statusWas = _statusIndex == null ? null : _statusIndex! + moved;
+    final count = _feed.itemCount;
+    _statusIndex = _lastStatusIndex();
+    if (statusWas != null &&
+        _statusIndex != null &&
+        statusWas < count &&
+        _feed.itemAt(statusWas) is! LiveStatusItem) {
+      _selection.moveItem(statusWas, _statusIndex!);
+      if (_dragRow case final row? when row.index == statusWas) {
+        _dragRow = (
+          index: _statusIndex!,
+          box: row.box,
+          above: row.above,
+          scrolled: row.scrolled,
+        );
+      }
+    }
     final startedStreaming = _feed.isStreaming && !_wasLive;
     final ended = _wasLive && !_feed.isStreaming;
     _wasLive = _feed.isStreaming;
@@ -1748,7 +2101,6 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       _toReplyStart = true;
     }
     if (ended) _toReplyStart = false;
-    final count = _feed.itemCount;
     final wordsOnly =
         _feed.isStreaming &&
         !startedStreaming &&
@@ -3698,11 +4050,21 @@ class _RenderHeightMotion extends RenderProxyBox {
     _clip.layer = context.pushClipRect(
       needsCompositing,
       offset,
-      Rect.fromLTRB(-80, -80, size.width + 80, size.height),
+      _clipRect,
       super.paint,
       oldLayer: _clip.layer,
     );
   }
+
+  Rect get _clipRect => Rect.fromLTRB(-80, -80, size.width + 80, size.height);
+
+  // What is cut off does not show: not a place to select in (see
+  // RenderChatSelectionItem.positionAt), nor where floating elements show.
+  @override
+  Rect? describeApproximatePaintClip(RenderObject child) =>
+      this.child != null && size.height < this.child!.size.height
+      ? _clipRect
+      : null;
 }
 
 /// [child], [onLayout] called with it before it is laid out (once what is

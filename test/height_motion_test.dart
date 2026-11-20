@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,6 +9,7 @@ import 'package:baocode/chat/chat_session.dart';
 import 'package:baocode/chat/composer/composer.dart';
 import 'package:baocode/chat/widgets/fold_line.dart';
 import 'package:baocode/chat/composer/composer_embeds.dart';
+import 'package:baocode/chat/selection/chat_selection.dart';
 import 'package:baocode/chat/widgets/tool_call_row.dart';
 import 'package:baocode/chat/widgets/user_message_bubble.dart';
 import 'package:baocode/theme/app_theme.dart';
@@ -114,6 +116,99 @@ void main() {
     expect(closing, greaterThan(closed));
     await tester.pump(const Duration(milliseconds: 300));
     expect(tester.getSize(item.first).height, closed);
+  });
+
+  testWidgets('a press under a step as it opens is on the row it shows '
+      'there, not on what of the step is not in yet', (tester) async {
+    await pumpScreen(tester);
+    await reveal(tester, '第 2 轮');
+    final message = tester.getRect(
+      inList(find.textContaining('第 2 轮', findRichText: true)),
+    );
+    await tester.tap(
+      find
+          .byElementPredicate(
+            (element) =>
+                element.widget is StepsFoldLine &&
+                tester
+                        .getTopLeft(
+                          find.byElementPredicate((e) => e == element),
+                        )
+                        .dy >
+                    message.bottom,
+          )
+          .first,
+    );
+    await tester.pumpAndSettle();
+    final row = find
+        .byElementPredicate(
+          (element) =>
+              element.widget is ToolCallRow &&
+              (element.widget as ToolCallRow).results.isNotEmpty &&
+              tester
+                      .getTopLeft(find.byElementPredicate((e) => e == element))
+                      .dy >
+                  message.bottom,
+        )
+        .first;
+    // Held to, as it moves.
+    final rowElement = row.evaluate().first;
+    final step = find.byElementPredicate((e) => e == rowElement);
+    final item = find.ancestor(of: step, matching: _item).first;
+    // Up near the list's top, room below it.
+    final list = tester.getRect(find.byType(SuperListView));
+    final position = tester
+        .state<ScrollableState>(
+          find
+              .descendant(
+                of: find.byType(SuperListView),
+                matching: find.byType(Scrollable),
+              )
+              .first,
+        )
+        .position;
+    position.jumpTo(
+      position.pixels + tester.getTopLeft(item).dy - list.top - 150,
+    );
+    await tester.pumpAndSettle();
+    final closed = tester.getSize(item).height;
+    // Opening: its height on the way up, what is not in yet cut off.
+    await tester.tapAt(tester.getTopLeft(step) + const Offset(12, 10));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 60));
+    final opening = tester.getRect(item);
+    final selectable = tester.renderObject<RenderChatSelectionItem>(
+      find.descendant(of: item, matching: find.byType(ChatSelectionItem)).first,
+    );
+    expect(opening.height, greaterThan(closed));
+    // Its text runs on below what shows of it.
+    expect(
+      selectable.localToGlobal(Offset(0, selectable.size.height)).dy,
+      greaterThan(opening.bottom + 10),
+    );
+    // The row below it, where the step's text would be, were it not cut
+    // off.
+    final below = tester
+        .elementList(_item)
+        .map((row) => tester.getRect(find.byElementPredicate((e) => e == row)))
+        .where((rect) => rect.top > opening.bottom - 1)
+        .where((rect) => rect.top + 5 < list.bottom)
+        .reduce((a, b) => a.top < b.top ? a : b);
+    // Just above it, in the room between the rows: the row below is the
+    // nearest that shows, the step's text cut off over it not.
+    final at = Offset(opening.left + 60, below.top - 2);
+    expect(
+      selectable.localToGlobal(Offset(0, selectable.size.height)).dy,
+      greaterThan(at.dy),
+    );
+    final mouse = await tester.startGesture(at, kind: PointerDeviceKind.mouse);
+    await tester.pump();
+    final anchor = selectable.controller.anchor;
+    await mouse.up();
+    await tester.pump();
+    expect(anchor, isNotNull);
+    expect(anchor!.item, isNot(selectable.index));
   });
 
   testWidgets('the editor opens from the message down, and closes back', (

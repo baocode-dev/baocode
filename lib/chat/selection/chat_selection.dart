@@ -17,6 +17,8 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
+import '../../base/smooth_scroll.dart';
+
 /// A place in the conversation's text: item [item], its piece of text
 /// [leaf] (in reading order, see [chatTextLeaves]), character [offset] in
 /// that.
@@ -170,6 +172,96 @@ class _ParagraphLeaf implements ChatTextLeaf {
       paragraph.getWordBoundary(TextPosition(offset: offset));
 }
 
+/// Whether a press that selects in a conversation is held now. What
+/// follows the end of what is written in a part of it that scrolls on its
+/// own (a command's output, a thought) stays where it is meanwhile: the
+/// text under the pointer would go on up, and the selection's end with it.
+/// Let go, it follows again if it did.
+abstract final class ChatSelectionHold {
+  static final ValueNotifier<bool> held = ValueNotifier(false);
+}
+
+/// A [SmoothScrollController] for a view that follows the end of what is
+/// written into it, its offset counted from that end ([ScrollView.reverse]):
+/// while a press that selects is held ([ChatSelectionHold]), what comes in
+/// at the end does not move what shows; let go, back at the end if it was.
+class HeldTailScrollController extends SmoothScrollController {
+  @override
+  ScrollPosition createScrollPosition(
+    ScrollPhysics physics,
+    ScrollContext context,
+    ScrollPosition? oldPosition,
+  ) => _HeldTailPosition(
+    physics: physics,
+    context: context,
+    initialPixels: initialScrollOffset,
+    keepScrollOffset: keepScrollOffset,
+    oldPosition: oldPosition,
+    debugLabel: debugLabel,
+  );
+}
+
+class _HeldTailPosition extends ScrollPositionWithSingleContext
+    with WheelGliding {
+  _HeldTailPosition({
+    required super.physics,
+    required super.context,
+    super.initialPixels,
+    super.keepScrollOffset,
+    super.oldPosition,
+    super.debugLabel,
+  }) {
+    ChatSelectionHold.held.addListener(_heldChanged);
+  }
+
+  double? _max;
+
+  /// At the end when the press was held: back there once let go.
+  bool _atEndWhenHeld = false;
+
+  void _heldChanged() {
+    if (!hasPixels || !hasContentDimensions) return;
+    if (ChatSelectionHold.held.value) {
+      _atEndWhenHeld = pixels <= minScrollExtent + 0.5;
+    } else if (_atEndWhenHeld) {
+      _atEndWhenHeld = false;
+      if (pixels != minScrollExtent) jumpTo(minScrollExtent);
+    }
+  }
+
+  @override
+  bool applyContentDimensions(double minScrollExtent, double maxScrollExtent) {
+    final was = _max;
+    _max = maxScrollExtent;
+    final accepted = super.applyContentDimensions(
+      minScrollExtent,
+      maxScrollExtent,
+    );
+    // Counted from the end, what came in there would push what shows on:
+    // as much further from it, it stays.
+    if (ChatSelectionHold.held.value &&
+        was != null &&
+        hasPixels &&
+        axisDirectionIsReversed(axisDirection) &&
+        (maxScrollExtent - was).abs() >= 0.5) {
+      correctPixels(
+        (pixels + maxScrollExtent - was).clamp(
+          minScrollExtent,
+          maxScrollExtent,
+        ),
+      );
+      return false;
+    }
+    return accepted;
+  }
+
+  @override
+  void dispose() {
+    ChatSelectionHold.held.removeListener(_heldChanged);
+    super.dispose();
+  }
+}
+
 /// What is out of the conversation's selection: a control's label, a card
 /// that selects on its own. (Out of Flutter's too, for a selection area
 /// around it elsewhere.)
@@ -281,7 +373,13 @@ List<ChatTextLeaf> chatTextLeaves(RenderObject root) => [
 class ChatItemText {
   const ChatItemText(this.pieces);
 
-  final List<({String text, String copied, String join})> pieces;
+  /// Each piece's text, its copy, how it joins the one before, and what
+  /// each placeholder character in its text copies as (a chip's label, a
+  /// formula's TeX), in order.
+  final List<
+    ({String text, String copied, String join, List<String> placeholders})
+  >
+  pieces;
 
   /// The text from [start] to [end] (null for its start or end), pieces
   /// joined as they show.
@@ -295,7 +393,7 @@ class ChatItemText {
       final to = end != null && i == end.leaf ? end.offset : piece.text.length;
       final part = from == 0 && to >= piece.text.length
           ? piece.copied
-          : _slice(piece.text, piece.copied, from, to);
+          : _slice(piece.text, piece.placeholders, from, to);
       if (part.isEmpty) continue;
       if (buffer.isNotEmpty) {
         final written = buffer.toString();
@@ -314,15 +412,28 @@ class ChatItemText {
     return buffer.toString();
   }
 
-  // A part of a piece whose copy is its text (placeholders aside, a part
-  // of one whose copy differs is its text's part).
-  static String _slice(String text, String copied, int from, int to) {
+  // A part of a piece: its text's, each placeholder in it as it copies.
+  static String _slice(
+    String text,
+    List<String> placeholders,
+    int from,
+    int to,
+  ) {
     from = from.clamp(0, text.length);
     to = to.clamp(from, text.length);
-    if (text == copied) return text.substring(from, to);
-    // An atomic piece (one placeholder character): in or out.
-    if (text.length == 1) return from < to ? copied : '';
-    return text.substring(from, to).replaceAll('￼', '');
+    final part = text.substring(from, to);
+    if (!part.contains('￼')) return part;
+    var next = '￼'.allMatches(text.substring(0, from)).length;
+    final buffer = StringBuffer();
+    for (final unit in part.split('')) {
+      if (unit == '￼') {
+        if (next < placeholders.length) buffer.write(placeholders[next]);
+        next++;
+      } else {
+        buffer.write(unit);
+      }
+    }
+    return buffer.toString();
   }
 }
 
@@ -350,6 +461,12 @@ class ChatSelectionController extends ChangeNotifier {
 
   /// The text of the items that hold an end, as last built.
   final Map<int, ChatItemText> _endText = {};
+
+  /// The pieces of the items that hold an end, as when the ends were put
+  /// there: to find the ends again once pieces come or go before them (a
+  /// long reply's segment built again, coming back into view; the item
+  /// built anew), the ends counting pieces.
+  final Map<int, List<({RenderBox box, String text})>> _endLeaves = {};
 
   ChatTextPos? get anchor => _anchor;
   ChatTextPos? get focus => _focus;
@@ -399,7 +516,149 @@ class ChatSelectionController extends ChangeNotifier {
 
   void _rememberText(RenderChatSelectionItem item) {
     if (!holdsEnd(item.index) || !item.attached) return;
+    _syncItem(item.index);
     _endText[item.index] = item.text();
+  }
+
+  /// The ends in item [index] (if built) moved to the same text in its
+  /// pieces now.
+  void _syncItem(int index) {
+    if (_items[index] case final item? when item.attached) {
+      _syncWith(item, item.leaves());
+    }
+  }
+
+  void _syncEnds() {
+    if (_anchor case final anchor?) _syncItem(anchor.item);
+    if (_focus case final focus? when focus.item != _anchor?.item) {
+      _syncItem(focus.item);
+    }
+  }
+
+  /// [item]'s pieces are [leaves] now: the ends in it moved to the same
+  /// text, if pieces came or went before them.
+  void _syncWith(RenderChatSelectionItem item, List<ChatTextLeaf> leaves) {
+    final index = item.index;
+    final old = _endLeaves[index];
+    if (old == null) return;
+    var same = old.length == leaves.length;
+    for (var i = 0; same && i < leaves.length; i++) {
+      same = identical(old[i].box, leaves[i].box);
+    }
+    if (same) return;
+    ChatTextPos? moved(ChatTextPos? pos) {
+      if (pos == null || pos.item != index) return pos;
+      return _placeAgain(pos, old, leaves);
+    }
+
+    _anchor = moved(_anchor);
+    _focus = moved(_focus);
+    if (_unit case (final start, final end)) {
+      _unit = (moved(start)!, moved(end)!);
+    }
+    _endLeaves[index] = [
+      for (final leaf in leaves) (box: leaf.box, text: leaf.text),
+    ];
+  }
+
+  @visibleForTesting
+  static ChatTextPos placeAgain(
+    ChatTextPos pos,
+    List<({RenderBox box, String text})> old,
+    List<ChatTextLeaf> leaves,
+  ) => _placeAgain(pos, old, leaves);
+
+  /// Where [pos], a place among the pieces [old], is among [leaves].
+  static ChatTextPos _placeAgain(
+    ChatTextPos pos,
+    List<({RenderBox box, String text})> old,
+    List<ChatTextLeaf> leaves,
+  ) {
+    if (pos.leaf >= old.length || leaves.isEmpty) return pos;
+    final was = old[pos.leaf];
+    ChatTextPos at(int leaf, int offset) => ChatTextPos(pos.item, leaf, offset);
+    // The same piece, elsewhere in the order.
+    for (var i = 0; i < leaves.length; i++) {
+      if (identical(leaves[i].box, was.box)) return at(i, pos.offset);
+    }
+    // A piece let go of (a segment's box, its text whole) laid out again,
+    // in pieces: its start or its end.
+    final inside = [
+      for (var i = 0; i < leaves.length; i++)
+        if (_isUnder(leaves[i].box, was.box)) i,
+    ];
+    if (inside.isNotEmpty) {
+      return pos.offset == 0
+          ? at(inside.first, 0)
+          : at(inside.last, leaves[inside.last].text.length);
+    }
+    // Built anew: the piece with the same text, as many such before it.
+    if (was.text != '￼') {
+      var nth = 0;
+      for (var i = 0; i < pos.leaf; i++) {
+        if (old[i].text == was.text) nth++;
+      }
+      for (var i = 0; i < leaves.length; i++) {
+        if (leaves[i].text == was.text && nth-- == 0) {
+          return at(i, pos.offset.clamp(0, leaves[i].text.length));
+        }
+      }
+    }
+    bool wasThere(RenderBox box) => old.any((o) => identical(o.box, box));
+    // Else as far on from the nearest piece before it still there: built
+    // anew there (a header's text changed), the same place in it; nothing
+    // new there, it went (a header's second line), and the place is where
+    // it was, between the pieces still there, not inside one of them.
+    for (var k = pos.leaf - 1; k >= 0; k--) {
+      for (var i = 0; i < leaves.length; i++) {
+        if (identical(leaves[i].box, old[k].box)) {
+          final j = i + pos.leaf - k;
+          if (j < leaves.length && !wasThere(leaves[j].box)) {
+            return at(j, pos.offset.clamp(0, leaves[j].text.length));
+          }
+          return at(i, leaves[i].text.length);
+        }
+      }
+    }
+    // None before it there: the start of the first after it still there.
+    for (var k = pos.leaf + 1; k < old.length; k++) {
+      for (var i = 0; i < leaves.length; i++) {
+        if (identical(leaves[i].box, old[k].box)) {
+          if (i > 0 && !wasThere(leaves[i - 1].box)) {
+            return at(i - 1, pos.offset.clamp(0, leaves[i - 1].text.length));
+          }
+          return at(i, 0);
+        }
+      }
+    }
+    // None of its pieces left: the same place, as far as it goes.
+    final leaf = math.min(pos.leaf, leaves.length - 1);
+    return at(leaf, pos.offset.clamp(0, leaves[leaf].text.length));
+  }
+
+  static bool _isUnder(RenderObject object, RenderObject ancestor) {
+    for (RenderObject? node = object.parent; node != null; node = node.parent) {
+      if (identical(node, ancestor)) return true;
+    }
+    return false;
+  }
+
+  /// The pieces of the items holding an end now, as the ends are put
+  /// there.
+  void _rememberLeaves() {
+    final anchor = _anchor;
+    final focus = _focus;
+    for (final pos in [anchor, focus]) {
+      if (pos == null) continue;
+      if (_items[pos.item] case final item? when item.attached) {
+        _endLeaves[pos.item] = [
+          for (final leaf in item.leaves()) (box: leaf.box, text: leaf.text),
+        ];
+      }
+    }
+    _endLeaves.removeWhere(
+      (index, _) => index != anchor?.item && index != focus?.item,
+    );
   }
 
   // --- Changes --------------------------------------------------------------
@@ -410,6 +669,7 @@ class ChatSelectionController extends ChangeNotifier {
     _unit = null;
     _all = false;
     _endText.clear();
+    _endLeaves.clear();
     notifyListeners();
   }
 
@@ -420,6 +680,8 @@ class ChatSelectionController extends ChangeNotifier {
     _granularity = TextGranularity.character;
     _anchor = _focus = pos;
     _endText.clear();
+    _endLeaves.clear();
+    _rememberLeaves();
     notifyListeners();
   }
 
@@ -432,6 +694,7 @@ class ChatSelectionController extends ChangeNotifier {
     _anchor = start;
     _focus = end;
     _endText.clear();
+    _endLeaves.clear();
     _rememberEnds();
     notifyListeners();
   }
@@ -447,6 +710,8 @@ class ChatSelectionController extends ChangeNotifier {
       _all = false;
       _anchor ??= const ChatTextPos(0, 0, 0);
     }
+    // [pos] is a place among the pieces now: the ends too.
+    _syncEnds();
     _anchor ??= pos;
     if (_unit case (final start, final end)
         when _granularity != TextGranularity.character) {
@@ -467,6 +732,7 @@ class ChatSelectionController extends ChangeNotifier {
 
   /// Shift+click: the end nearest [pos] moves there.
   void extendNearestTo(ChatTextPos pos) {
+    _syncEnds();
     final range = this.range;
     if (range == null) {
       extendTo(pos);
@@ -491,6 +757,7 @@ class ChatSelectionController extends ChangeNotifier {
     _all = true;
     _unit = null;
     _endText.clear();
+    _endLeaves.clear();
     notifyListeners();
   }
 
@@ -510,9 +777,34 @@ class ChatSelectionController extends ChangeNotifier {
     _endText
       ..clear()
       ..addAll(text);
+    final leaves = {
+      for (final MapEntry(:key, :value) in _endLeaves.entries)
+        key + count: value,
+    };
+    _endLeaves
+      ..clear()
+      ..addAll(leaves);
+  }
+
+  /// The item at index [from] now at [to], the others where they were (a
+  /// turn's status row, the last, as what the turn does comes in before
+  /// it): what is selected in it stays with it.
+  void moveItem(int from, int to) {
+    if (from == to) return;
+    ChatTextPos? moved(ChatTextPos? pos) => pos == null || pos.item != from
+        ? pos
+        : ChatTextPos(to, pos.leaf, pos.offset);
+    _anchor = moved(_anchor);
+    _focus = moved(_focus);
+    if (_unit case (final start, final end)) {
+      _unit = (moved(start)!, moved(end)!);
+    }
+    if (_endText.remove(from) case final text?) _endText[to] = text;
+    if (_endLeaves.remove(from) case final leaves?) _endLeaves[to] = leaves;
   }
 
   void _rememberEnds() {
+    _rememberLeaves();
     final range = this.range;
     if (range == null) return;
     for (final index in {range.$1.item, range.$2.item}) {
@@ -533,6 +825,7 @@ class ChatSelectionController extends ChangeNotifier {
     SchedulerBinding.instance.addPostFrameCallback((_) {
       for (final item in _laidOut) {
         if (item.attached && holdsEnd(item.index)) {
+          _syncItem(item.index);
           _endText[item.index] = item.text();
         }
       }
@@ -559,6 +852,7 @@ class ChatSelectionController extends ChangeNotifier {
 
   /// The selected text, the items between the ends whole, built or not.
   String? selectedText() {
+    _syncEnds();
     final range = this.range;
     if (range == null) return null;
     final (start, end) = range;
@@ -586,21 +880,39 @@ class ChatSelectionController extends ChangeNotifier {
 
   // --- Places ------------------------------------------------------------------
 
-  /// The place in the text nearest [global], among the items built; null
-  /// when none is.
-  ChatTextPos? positionAt(Offset global) {
-    final item = _itemNear(global);
-    if (item == null) return null;
-    return item.positionAt(global);
+  /// The place in the text nearest [global], among the items built (of
+  /// what of them is in [shown], globally, if given: the list's view, not
+  /// rows laid out beyond it, hidden); null when none is.
+  ChatTextPos? positionAt(Offset global, {Rect? shown}) {
+    // The nearest item with text in view: one only partly in it may show
+    // none of its text (a gap of its, its text all beyond).
+    final tried = <RenderChatSelectionItem>{};
+    while (true) {
+      final item = _itemNear(global, shown, tried);
+      if (item == null) return null;
+      if (item.positionAt(global, shown: shown) case final pos?) return pos;
+      tried.add(item);
+    }
   }
 
-  RenderChatSelectionItem? _itemNear(Offset global) {
+  RenderChatSelectionItem? _itemNear(
+    Offset global,
+    Rect? shown,
+    Set<RenderChatSelectionItem> tried,
+  ) {
     RenderChatSelectionItem? best;
     var bestDistance = double.infinity;
     for (final item in _items.values) {
-      if (!item.attached || !item.hasSize) continue;
-      final top = item.localToGlobal(Offset.zero).dy;
-      final bottom = top + item.size.height;
+      if (!item.attached || !item.hasSize || tried.contains(item)) continue;
+      final showing = item._showing();
+      if (showing.isEmpty) continue;
+      var top = showing.top;
+      var bottom = showing.bottom;
+      if (shown != null) {
+        top = math.max(top, shown.top);
+        bottom = math.min(bottom, shown.bottom);
+        if (bottom <= top) continue;
+      }
       final distance = global.dy < top
           ? top - global.dy
           : global.dy > bottom
@@ -809,6 +1121,7 @@ class RenderChatSelectionItem extends RenderProxyBox {
   @visibleForTesting
   bool showsSelected(RenderBox box) {
     final leaves = this.leaves();
+    _controller._syncWith(this, leaves);
     final ranges = _selectedRanges(leaves);
     for (var i = 0; i < leaves.length; i++) {
       if (identical(leaves[i].box, box) && ranges[i].end > ranges[i].start) {
@@ -821,7 +1134,10 @@ class RenderChatSelectionItem extends RenderProxyBox {
   /// Its text as it shows now.
   ChatItemText text() {
     final found = _findLeaves(this);
-    final pieces = <({String text, String copied, String join})>[];
+    final pieces =
+        <
+          ({String text, String copied, String join, List<String> placeholders})
+        >[];
     Rect? previous;
     List<RenderChatTextRow> previousGroups = const [];
     for (final (:leaf, :groups) in found) {
@@ -837,6 +1153,10 @@ class RenderChatSelectionItem extends RenderProxyBox {
         text: leaf.text,
         copied: leaf.copyOf(0, leaf.text.length),
         join: onLine ? sameLine : '\n',
+        placeholders: [
+          for (var i = 0; i < leaf.text.length; i++)
+            if (leaf.text.codeUnitAt(i) == 0xFFFC) leaf.copyOf(i, i + 1),
+        ],
       ));
       previous = box ?? previous;
     }
@@ -852,10 +1172,44 @@ class RenderChatSelectionItem extends RenderProxyBox {
     );
   }
 
+  /// What of this item shows, globally: clipped by what clips it on the
+  /// way up (its row folding away, its height moving and what is past it
+  /// cut off; the list's edges). What does not show is not selected in,
+  /// as in a browser: a press there is on what shows there.
+  Rect _showing() {
+    var rect = MatrixUtils.transformRect(
+      getTransformTo(null),
+      Offset.zero & size,
+    );
+    RenderObject child = this;
+    var parent = child.parent;
+    while (parent != null) {
+      final clip = parent.describeApproximatePaintClip(child);
+      if (clip != null) {
+        rect = rect.intersect(
+          MatrixUtils.transformRect(parent.getTransformTo(null), clip),
+        );
+        if (rect.isEmpty) return Rect.zero;
+      }
+      child = parent;
+      parent = child.parent;
+    }
+    return rect;
+  }
+
   /// What of [leaf] shows, in its own coordinates: clipped by what clips
-  /// it on the way up to the item (a code block's scroll view).
-  Rect _visibleIn(ChatTextLeaf leaf) {
+  /// it on the way up to the item (a code block's scroll view), and what
+  /// clips the item ([_showing]).
+  Rect _visibleIn(ChatTextLeaf leaf, [Rect? shown]) {
     var rect = Offset.zero & leaf.box.size;
+    var limit = _showing();
+    if (shown != null) limit = limit.intersect(shown);
+    if (limit.isEmpty) return Rect.zero;
+    final toLeaf = Matrix4.tryInvert(leaf.box.getTransformTo(null));
+    if (toLeaf != null) {
+      rect = rect.intersect(MatrixUtils.transformRect(toLeaf, limit));
+      if (rect.isEmpty) return Rect.zero;
+    }
     RenderObject child = leaf.box;
     var parent = child.parent;
     while (parent != null && !identical(child, this)) {
@@ -872,18 +1226,19 @@ class RenderChatSelectionItem extends RenderProxyBox {
     return rect;
   }
 
-  /// The place nearest [global] in this item's text.
-  ChatTextPos positionAt(Offset global) {
+  /// The place nearest [global] in this item's text (in what of it is in
+  /// [shown], globally, if given: null if none of its text is).
+  ChatTextPos? positionAt(Offset global, {Rect? shown}) {
     final leaves = this.leaves();
     if (leaves.isEmpty) return ChatTextPos(index, 0, 0);
     // The piece whose lines hold the point's height, nearest across; else
     // the nearest above or below.
-    var best = 0;
+    var best = -1;
     var bestScore = double.infinity;
     for (var i = 0; i < leaves.length; i++) {
       final leaf = leaves[i];
       if (!leaf.box.hasSize) continue;
-      final visible = _visibleIn(leaf);
+      final visible = _visibleIn(leaf, shown);
       if (visible.isEmpty) continue;
       final box = MatrixUtils.transformRect(
         leaf.box.getTransformTo(null),
@@ -905,8 +1260,12 @@ class RenderChatSelectionItem extends RenderProxyBox {
         bestScore = score;
       }
     }
+    if (best < 0) {
+      if (shown != null) return null;
+      best = 0;
+    }
     final leaf = leaves[best];
-    final visible = _visibleIn(leaf);
+    final visible = _visibleIn(leaf, shown);
     var local = leaf.box.globalToLocal(global);
     if (!visible.isEmpty) {
       local = Offset(
@@ -922,6 +1281,7 @@ class RenderChatSelectionItem extends RenderProxyBox {
     super.paint(context, offset);
     if (_controller.selectedIn(index) == null) return;
     final leaves = this.leaves();
+    _controller._syncWith(this, leaves);
     final ranges = _selectedRanges(leaves);
     final paint = Paint()..color = _color;
     final canvas = context.canvas;
