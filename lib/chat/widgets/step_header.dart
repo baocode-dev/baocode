@@ -3,7 +3,6 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
-import '../../base/smooth_scroll.dart';
 import '../../theme/app_theme.dart';
 import 'hover_builder.dart';
 import 'hover_scrollbar.dart';
@@ -299,7 +298,8 @@ class StepBody extends StatefulWidget {
 }
 
 class _StepBodyState extends State<StepBody> {
-  final _controller = SmoothScrollController();
+  // Following the output, it holds still under a press that selects.
+  final _controller = HeldTailScrollController();
   final _scrollbarContent = GlobalKey();
 
   @override

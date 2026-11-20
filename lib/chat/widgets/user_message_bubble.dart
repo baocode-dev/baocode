@@ -169,8 +169,11 @@ class _UserMessageBubbleState extends State<UserMessageBubble> {
     final pressedAt = _pressedAt;
     _pressedAt = null;
     if (pressedAt == null) return;
-    // A click, not the end of a drag selection.
-    if ((event.position - pressedAt).distance <= kTouchSlop) {
+    // A click, not the end of a drag selection: a mouse's drag of a few
+    // points selects (a character or two), and the editor or viewer that
+    // a click opens would take the focus, and the copy, from it.
+    final slop = event.kind == PointerDeviceKind.mouse ? 4.0 : kTouchSlop;
+    if ((event.position - pressedAt).distance <= slop) {
       widget.onEdit?.call();
     }
   }
