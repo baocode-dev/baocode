@@ -143,6 +143,7 @@ class IdeLanguageOverlay extends StatelessWidget {
               anchored(
                 anchor,
                 IdeHoverCard(
+                  key: session.hoverCardKey,
                   state: hover,
                   onPointer: session.onHoverCardPointer,
                   colorize: colorize,
@@ -399,7 +400,27 @@ class IdeHoverCard extends StatelessWidget {
         ),
       if (state.markdown case final markdown?)
         IdeHoverMarkdown(markdown, colorize: colorize, language: language),
+      if (state.loading)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Text(
+            context.l10n.langLoading,
+            style: TextStyle(color: foreground, fontSize: 13),
+          ),
+        ),
     ];
+    // `.monaco-hover`'s `animation: fadein 100ms linear`, each time it
+    // shows (not as its content changes).
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 100),
+      builder: (context, opacity, child) =>
+          Opacity(opacity: opacity, child: child),
+      child: _card(colors, rowBorder, rows),
+    );
+  }
+
+  Widget _card(WorkbenchColors colors, Color rowBorder, List<Widget> rows) {
     return MouseRegion(
       onEnter: (_) => onPointer?.call(true),
       onExit: (_) => onPointer?.call(false),

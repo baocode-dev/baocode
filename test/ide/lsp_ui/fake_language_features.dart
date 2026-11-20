@@ -25,7 +25,7 @@ class FakeLanguageFeatures extends ChangeNotifier implements LanguageFeatures {
   final List<String> installed = [];
   final Map<String, List<LanguageServerStatus>> statuses = {};
 
-  LspHover? Function(String path, LspPosition position)? onHover;
+  FutureOr<LspHover?> Function(String path, LspPosition position)? onHover;
   FutureOr<List<LspLocation>> Function(String path, LspPosition position)?
   onDefinition;
   List<LspLocation> Function(String path, LspPosition position)?
