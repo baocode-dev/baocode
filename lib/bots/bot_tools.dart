@@ -1099,6 +1099,7 @@ abstract final class BotTools {
   static String statusOf(AgentThread thread) => switch (thread.status) {
     ThreadStatus.needsInput => 'waiting',
     ThreadStatus.running => 'running',
+    ThreadStatus.failed => 'failed',
     _ when _lastIsError(thread) => 'failed',
     _ => 'idle',
   };

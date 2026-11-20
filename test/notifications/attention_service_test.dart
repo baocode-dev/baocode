@@ -138,6 +138,45 @@ void main() {
     await tester.pump(const Duration(seconds: 5));
   });
 
+  testWidgets('notifies of a turn that failed, and counts it', (tester) async {
+    start();
+    focused = false;
+    service.refresh();
+    workspace.windowActive = false;
+    final background = _thread(workspace, 'Rate limit per API key');
+    background.session.send(const ComposerMessage(text: '让这一轮 fail'));
+    for (var i = 0; i < 200 && background.session.isStreaming; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(background.session.isStreaming, isFalse);
+    expect(background.status, ThreadStatus.failed);
+    expect(host.notifications, hasLength(1));
+    expect(host.notifications.single.body, 'This turn failed');
+    expect(host.sounds, hasLength(1));
+    // The failed turn counts on the badge like an unread one.
+    expect(host.badge, 2);
+
+    // Off in the settings: not told of.
+    settings = const AttentionSettings(
+      events: {AttentionEvent.needsInput, AttentionEvent.finished},
+    );
+    final other = workspace.threads.firstWhere(
+      (thread) => thread.title == 'Migrate auth middleware to JWT',
+    );
+    other.session.send(const ComposerMessage(text: '让这一轮 fail'));
+    await tester.pump();
+    // Its title is its first message now: found again by session.
+    final failedOther = workspace.threads.firstWhere(
+      (thread) => thread.session == other.session,
+    );
+    for (var i = 0; i < 200 && failedOther.session.isStreaming; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(failedOther.status, ThreadStatus.failed);
+    expect(host.notifications, hasLength(1));
+    await tester.pump(const Duration(seconds: 5));
+  });
+
   testWidgets('notifies of a plan put to the user, to start or change', (
     tester,
   ) async {

@@ -833,6 +833,7 @@ abstract final class SessionTools {
       ThreadStatus.running => _State.running,
       // Taken up next.
       _ when thread.session.queued.isNotEmpty => _State.running,
+      ThreadStatus.failed => _State.failed,
       _ when BotTools.statusOf(thread) == 'failed' => _State.failed,
       _ => _State.done,
     };

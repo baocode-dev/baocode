@@ -83,7 +83,8 @@ class _PaneTab extends StatelessWidget {
           // is waiting on, if anything.
           final mark = switch (status) {
             ThreadStatus.needsInput ||
-            ThreadStatus.unread => ThreadStatusMark(status),
+            ThreadStatus.unread ||
+            ThreadStatus.failed => ThreadStatusMark(status),
             _ => null,
           };
           return Listener(

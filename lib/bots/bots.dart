@@ -1428,6 +1428,7 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate, SessionToolsBots {
       if (was == null || was == now) continue;
       final kind = switch ((was, now)) {
         (_, ThreadStatus.needsInput) => BotEventKind.waiting,
+        (ThreadStatus.running, ThreadStatus.failed) => BotEventKind.failed,
         (ThreadStatus.running, ThreadStatus.idle || ThreadStatus.unread)
             when _failed(thread) =>
           BotEventKind.failed,

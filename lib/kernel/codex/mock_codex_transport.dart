@@ -195,6 +195,23 @@ class MockCodexTransport implements CodexTransport {
     final target =
         RegExp(r'@(\S+)').firstMatch(prompt)?.group(1) ??
         'lib/chat/chat_screen.dart';
+    // Told to fail: the turn ends in an error, as a real one may.
+    if (prompt.contains('fail')) {
+      final thought =
+          '**Reviewing ${target.split('/').last}**\n\n'
+          '${MockScript.thoughtFor(target)}';
+      if (!await _reasoning(run, thought)) return;
+      _notify('item/started', {
+        'item': {
+          'type': 'error',
+          'id': _itemId(),
+          'message': 'The task failed to complete: server error (500)',
+        },
+      });
+      _run = null;
+      _completeTurn(turnId, 'failed');
+      return;
+    }
     // Codex thinks in summaries, each under a bold title.
     final thought =
         '**Reviewing ${target.split('/').last}**\n\n'

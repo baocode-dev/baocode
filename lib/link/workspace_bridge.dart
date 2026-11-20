@@ -299,9 +299,12 @@ class WorkspaceBridge {
               ThreadStatus.needsInput => LinkSessionStatus.needsInput,
               ThreadStatus.running => LinkSessionStatus.running,
               ThreadStatus.unread ||
+              ThreadStatus.failed ||
               ThreadStatus.idle => LinkSessionStatus.idle,
             },
-            unread: thread.status == ThreadStatus.unread,
+            unread:
+                thread.status == ThreadStatus.unread ||
+                thread.status == ThreadStatus.failed,
             pinned: thread.pinned,
             model: thread.isOpen
                 ? thread.session.selected(KernelChoiceKind.model)

@@ -36,12 +36,17 @@ final class TurnEnded extends KernelEvent {
     super.seq,
     this.turnId, {
     this.interrupted = false,
+    this.failed = false,
     this.worked,
     this.usage,
   });
 
   final String turnId;
   final bool interrupted;
+
+  /// The turn failed: an error ended it, not the user stopping it. What
+  /// the agent's lists tell of apart from a turn merely stopped.
+  final bool failed;
 
   /// How long the turn took, when known: kept on the message that began
   /// it, unless it was [interrupted].

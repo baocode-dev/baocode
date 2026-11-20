@@ -1935,6 +1935,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sidebarUnread => 'Unread';
 
   @override
+  String get sidebarFailed => 'Failed';
+
+  @override
   String sidebarHoverModel(String model) {
     return 'Model: $model';
   }
@@ -3863,6 +3866,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'It is done and waiting for your next message.';
 
   @override
+  String get notificationsEventFailed => 'Fails a turn';
+
+  @override
+  String get notificationsEventFailedDetail =>
+      'An error ended its turn; open it to see what went wrong.';
+
+  @override
   String get notificationsWhen => 'When';
 
   @override
@@ -3943,6 +3953,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get attentionFinished => 'Finished';
+
+  @override
+  String get attentionFailed => 'This turn failed';
 
   @override
   String get attentionPlanReady => 'Plan ready for review';

@@ -274,7 +274,11 @@ class CodexKernel
         if (turn['id'] != _serverTurn) return;
         _serverTurn = null;
         if (_turn case final ours?) {
-          _endTurn(ours, interrupted: turn['status'] == 'interrupted');
+          _endTurn(
+            ours,
+            interrupted: turn['status'] == 'interrupted',
+            failed: turn['status'] == 'failed',
+          );
         }
       case 'item/started':
         _itemStarted((params!['item'] as Map).cast<String, Object?>());
@@ -525,7 +529,7 @@ class CodexKernel
     );
   }
 
-  void _endTurn(String turn, {required bool interrupted}) {
+  void _endTurn(String turn, {required bool interrupted, bool failed = false}) {
     _turn = null;
     for (final id in [..._reasoning.keys]) {
       _itemCompleted({'type': 'reasoning', 'id': id});
@@ -547,6 +551,7 @@ class CodexKernel
         nextSeq,
         turn,
         interrupted: interrupted,
+        failed: failed,
         worked: switch (_turnStarted) {
           final started? => DateTime.now().difference(started),
           null => null,

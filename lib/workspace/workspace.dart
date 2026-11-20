@@ -113,6 +113,11 @@ enum ThreadStatus {
 
   /// Finished while the user was looking at another agent.
   unread,
+
+  /// Its last turn failed, unseen: an error, not the user stopping it.
+  failed,
+
+  /// Nothing waiting on the user.
   idle,
 }
 
@@ -222,7 +227,12 @@ class AgentThread {
       return ThreadStatus.needsInput;
     }
     if (session?.isStreaming ?? false) return ThreadStatus.running;
-    if (unread) return ThreadStatus.unread;
+    if (unread) {
+      // A turn that failed shows as that, not merely unread, until seen.
+      return (session?.lastTurnFailed ?? false)
+          ? ThreadStatus.failed
+          : ThreadStatus.unread;
+    }
     return ThreadStatus.idle;
   }
 
@@ -235,6 +245,7 @@ class AgentThread {
   /// notification, the window's attention) goes by [status].
   ThreadStatus get shownStatus => switch (status) {
     ThreadStatus.unread ||
+    ThreadStatus.failed ||
     ThreadStatus.idle when runsInBackground => ThreadStatus.running,
     final status => status,
   };

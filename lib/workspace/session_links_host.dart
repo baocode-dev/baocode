@@ -56,6 +56,7 @@ class WorkspaceSessionLinks extends ChangeNotifier implements SessionLinkHost {
   static HandedStatus _status(AgentThread thread) => switch (thread.status) {
     ThreadStatus.needsInput => HandedStatus.waiting,
     ThreadStatus.running => HandedStatus.running,
+    ThreadStatus.failed => HandedStatus.failed,
     _ when BotTools.statusOf(thread) == 'failed' => HandedStatus.failed,
     _ => HandedStatus.done,
   };

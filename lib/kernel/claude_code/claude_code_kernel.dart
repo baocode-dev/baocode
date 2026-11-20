@@ -1109,6 +1109,7 @@ class ClaudeCodeKernel
 
   void _endTurn({
     required bool interrupted,
+    bool failed = false,
     Duration? worked,
     TurnUsage? usage,
   }) {
@@ -1149,6 +1150,7 @@ class ClaudeCodeKernel
         nextSeq,
         turn,
         interrupted: interrupted,
+        failed: failed,
         worked: worked,
         usage: usage,
       ),
@@ -2237,8 +2239,14 @@ class ClaudeCodeKernel
         );
       }
     }
+    // An error that ended the turn: said by either marker (the CLI's own
+    // versions differ in which they set).
+    final errored =
+        message['is_error'] == true ||
+        message['subtype'] == 'error_during_execution';
     _endTurn(
       interrupted: message['subtype'] != 'success',
+      failed: errored,
       worked: switch (message['duration_ms']) {
         final num ms => Duration(milliseconds: ms.round()),
         _ => null,

@@ -145,6 +145,11 @@ class _NotificationsSettingsPageState extends State<NotificationsSettingsPage> {
                 l10n.notificationsEventFinished,
                 l10n.notificationsEventFinishedDetail,
               ),
+              (
+                AttentionEvent.failed,
+                l10n.notificationsEventFailed,
+                l10n.notificationsEventFailedDetail,
+              ),
             ])
               SettingsSwitchRow(
                 label: label,
