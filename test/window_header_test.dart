@@ -568,6 +568,39 @@ void main() {
     expect(shown(), (true, true));
   }, variant: _windows);
 
+  // #1150: the window made narrow, the conversation keeps it all.
+  testWidgets('the window too narrow for the side panel beside the '
+      'conversation: its toggle off while it gives way, and on again as the '
+      'window widens; asked for meanwhile, it is over the conversation', (
+    tester,
+  ) async {
+    await pumpWindowsApp(tester);
+    final panelToggle = find.byType(SidePanelToggle);
+    final panelView = find.byType(AgentSidePanelView);
+    Future<void> resize(double width) async {
+      tester.view.physicalSize = Size(width, 900);
+      await tester.pumpAndSettle();
+    }
+
+    bool toggleOn() => tester.widget<SidePanelToggle>(panelToggle.first).shown;
+
+    await resize(1400);
+    await tester.tap(panelToggle.first);
+    await tester.pumpAndSettle();
+    expect((toggleOn(), panelView.evaluate().length), (true, 1));
+
+    await resize(600);
+    expect((toggleOn(), panelView.evaluate().length), (false, 0));
+    expect(tester.getSize(find.byType(ChatScreen)).width, greaterThan(500));
+    await resize(1400);
+    expect((toggleOn(), panelView.evaluate().length), (true, 1));
+
+    await resize(600);
+    await tester.tap(panelToggle.first);
+    await tester.pumpAndSettle();
+    expect((toggleOn(), panelView.evaluate().length), (true, 1));
+  }, variant: _windows);
+
   testWidgets('over the IDE, the IDE\'s layout toggles as on its own title '
       'bar: the side bar\'s after the menus, the panel\'s and the chat\'s on '
       'the right; no editor to open the project in', (tester) async {
