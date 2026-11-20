@@ -39,6 +39,19 @@
       "hosts": [
         "www.useccmax.com"
       ]
+    },
+    {
+      "id": "novalink",
+      "name": "NovaLink",
+      "url": "https://newapi.it120.cloud",
+      "logo": "novalink.png",
+      "description": {
+        "en": "GPT, Claude and Gemini, one key. Track usage.",
+        "zh": "GPT、Claude、Gemini 统一接入，清晰管理用量"
+      },
+      "hosts": [
+        "newapi.it120.cloud"
+      ]
     }
   ]
 }
