@@ -219,10 +219,7 @@ void main() {
           ProviderModel(id: Magpie.alias('b/off'), enabled: false),
           const ProviderModel(id: 'auto/claude-opus-5-5'),
         ],
-        roles: ProviderRoles(
-          main: aliased,
-          haiku: modelRef('magpie', aliased),
-        ),
+        roles: ProviderRoles(main: aliased, haiku: modelRef('magpie', aliased)),
       );
       final after = Magpie.synced(before, [
         const RemoteModel(real),
