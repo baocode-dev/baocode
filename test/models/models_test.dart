@@ -64,6 +64,21 @@ class _CountingSecretStore implements SecretStore {
   Future<void> delete(String id) async => value = null;
 }
 
+/// A system without its keychain: the tool it goes through is missing.
+class _NoKeychain implements SecretStore {
+  @override
+  Future<String?> read(String id) =>
+      throw const ProcessException('security', [], 'No such file');
+
+  @override
+  Future<void> write(String id, String value) =>
+      throw ArgumentError('Failed to load dynamic library crypt32.dll');
+
+  @override
+  Future<void> delete(String id) =>
+      throw const SecretStoreException('no keychain here');
+}
+
 const _loginKeychain = '/Users/me/Library/Keychains/login.keychain-db';
 
 void main() {
@@ -1552,6 +1567,28 @@ void main() {
       }
       await store.delete('provider.gw');
       expect(await store.read('provider.gw'), isNull);
+    });
+
+    test('without a keychain, the key goes to the file', () async {
+      final file = MemorySecretStore();
+      final store = FallbackSecretStore(_NoKeychain(), fallback: file);
+      await store.write('provider.gw', 'sk');
+      expect(await file.read('provider.gw'), 'sk');
+      expect(await store.read('provider.gw'), 'sk');
+      await store.delete('provider.gw');
+      expect(await file.read('provider.gw'), isNull);
+      // Nowhere at all: the keychain's failure is said.
+      expect(store.read('provider.gw'), throwsA(isA<SecretStoreException>()));
+    });
+
+    test('a keychain that takes the key again leaves no file', () async {
+      final keychain = MemorySecretStore();
+      final file = MemorySecretStore({'provider.gw': 'old'});
+      final store = FallbackSecretStore(keychain, fallback: file);
+      await store.write('provider.gw', 'sk');
+      expect(await keychain.read('provider.gw'), 'sk');
+      expect(await file.read('provider.gw'), isNull);
+      expect(await store.read('provider.gw'), 'sk');
     });
   });
 
