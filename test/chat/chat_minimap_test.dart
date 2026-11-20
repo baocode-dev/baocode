@@ -14,6 +14,7 @@ import 'package:baocode/chat/widgets/chat_minimap.dart';
 import 'package:baocode/chat/widgets/hover_scrollbar.dart';
 import 'package:baocode/chat/widgets/user_message_bubble.dart';
 import 'package:baocode/theme/app_theme.dart';
+import 'package:baocode/theme/ui_zoom.dart';
 
 class _Feed extends ChangeNotifier implements ChatFeed {
   _Feed(this.items);
@@ -67,6 +68,11 @@ List<ChatItem> _conversation(int turns) => [
   ],
 ];
 
+/// Pumps [feed]'s history [width] wide (on screen; in the window's own
+/// units, [zoom]ed, as wide over [zoom]). With an [inset], a rail floats over
+/// it where [ChatColumnInset.rail]'s rect says, in the window's units: kept
+/// as far from the nearer edge as the window is resized. Returns the rail's
+/// rect, to move it.
 Future<ValueNotifier<Rect?>?> _pump(
   WidgetTester tester,
   ChatFeed feed, {
@@ -75,6 +81,7 @@ Future<ValueNotifier<Rect?>?> _pump(
   bool minimap = true,
   ChatMinimapSide side = ChatMinimapSide.left,
   ({double left, double right, Rect? rail})? inset,
+  double zoom = 1,
 }) async {
   tester.view.physicalSize = Size(width, 800);
   tester.view.devicePixelRatio = 1;
@@ -86,25 +93,50 @@ Future<ValueNotifier<Rect?>?> _pump(
     maxContentWidth: maxWidth,
     minimap: minimap,
   );
-  ValueNotifier<Rect?>? rail;
+  ValueNotifier<Rect?>? rect;
   if (inset != null) {
-    rail = ValueNotifier<Rect?>(inset.rail);
+    final rail = ChatRail();
     addTearDown(rail.dispose);
-    history = ChatColumnInset(
-      left: inset.left,
-      right: inset.right,
-      rail: rail,
-      child: history,
+    final at = rect = ValueNotifier<Rect?>(inset.rail);
+    addTearDown(at.dispose);
+    final wide = width / zoom;
+    history = Stack(
+      children: [
+        Positioned.fill(
+          child: ChatColumnInset(
+            left: inset.left,
+            right: inset.right,
+            rail: rail,
+            child: history,
+          ),
+        ),
+        ValueListenableBuilder(
+          valueListenable: at,
+          builder: (context, rect, _) => rect == null
+              ? const SizedBox.shrink()
+              : Positioned(
+                  left: rect.center.dx < wide / 2 ? rect.left : null,
+                  right: rect.center.dx < wide / 2 ? null : wide - rect.right,
+                  top: rect.top,
+                  width: rect.width,
+                  height: rect.height,
+                  child: ChatRailReport(rail: rail, child: const SizedBox()),
+                ),
+        ),
+      ],
     );
   }
   await tester.pumpWidget(
     MaterialApp(
       theme: buildAppTheme(),
       home: Scaffold(body: history),
+      builder: zoom == 1
+          ? null
+          : (context, child) => UiZoom(scale: zoom, child: child),
     ),
   );
   await tester.pumpAndSettle();
-  return rail;
+  return rect;
 }
 
 ScrollPosition _position(WidgetTester tester) =>
@@ -180,8 +212,8 @@ void main() {
     );
   }
 
-  // At the right: the column's left level with the composer's (which keeps
-  // the room either side), its right clear of the minimap.
+  // At the right: the column's right clear of the minimap, and no room kept
+  // at its left, which stays level with the composer's.
   for (final (width, maxWidth) in [
     (1300.0, 1200.0),
     (1200.0, 720.0),
@@ -190,6 +222,15 @@ void main() {
   ]) {
     testWidgets('at the right of a column ${maxWidth.round()} at most, in a '
         '${width.round()} window', (tester) async {
+      await _pump(
+        tester,
+        _Feed(_conversation(30)),
+        width: width,
+        maxWidth: maxWidth,
+        minimap: false,
+      );
+      final without = tester.getRect(find.byType(AssistantText).first).left;
+      await tester.pumpWidget(const SizedBox());
       await _pump(
         tester,
         _Feed(_conversation(30)),
@@ -205,13 +246,8 @@ void main() {
         final rect = tester.getRect(find.byWidget(text.widget));
         expect(strip.left, greaterThanOrEqualTo(rect.right + 20));
       }
-      final text = tester.getRect(find.byType(AssistantText).first);
-      if (width < maxWidth + 2 * ChatMinimap.room) {
-        expect(text.left, greaterThanOrEqualTo(ChatMinimap.room));
-      } else {
-        // Room enough: in the middle, as on the left.
-        expect(text.left, greaterThan(strip.width + 2 * ChatMinimap.room));
-      }
+      // Its left where it is without a minimap.
+      expect(tester.getRect(find.byType(AssistantText).first).left, without);
       expect(_scrollbar(tester).interactive, isFalse);
     });
   }
@@ -226,7 +262,8 @@ void main() {
     await tester.pumpAndSettle();
     final moved = tester.getRect(find.byType(AssistantText).first);
     expect(_track(tester).left, greaterThanOrEqualTo(moved.right + 20));
-    expect(moved.left, text.left);
+    // The room at the left given back.
+    expect(moved.left, lessThan(text.left));
   });
 
   // The side panel's rail floats over the margin's top: a minimap on its
@@ -265,6 +302,71 @@ void main() {
     }
   }
 
+  // Settings → Appearance's zoom: the window laid out in units of its own.
+  testWidgets('under the rail, in line with it, in a zoomed window', (
+    tester,
+  ) async {
+    const zoom = 0.94;
+    const wide = 1000 / zoom;
+    // In the window's units: 12 in from the right, at 12 down.
+    const rail = Rect.fromLTWH(wide - 48, 12, 36, 130);
+    await _pump(
+      tester,
+      _Feed(_conversation(30)),
+      width: 1000,
+      maxWidth: 1200,
+      side: ChatMinimapSide.right,
+      inset: (left: 0, right: 56, rail: rail),
+      zoom: zoom,
+    );
+    expect(_opacity(tester), 1);
+    final strip = tester.getRect(_strip);
+    expect(strip.center.dx, moreOrLessEquals(rail.center.dx * zoom));
+    expect(strip.top, moreOrLessEquals((rail.bottom + 10) * zoom));
+  });
+
+  // The window resized, or zoomed: the rail moves with its edge, and the
+  // minimap with it in the same frame, not one after.
+  for (final zoomed in [false, true]) {
+    testWidgets('in line with the rail in the very frame the window is '
+        '${zoomed ? 'zoomed' : 'resized'}', (tester) async {
+      await _pump(
+        tester,
+        _Feed(_conversation(30)),
+        width: 900,
+        maxWidth: 1200,
+        side: ChatMinimapSide.right,
+        inset: (
+          left: 0,
+          right: 56,
+          rail: const Rect.fromLTWH(900 - 48, 12, 36, 130),
+        ),
+      );
+      expect(_track(tester).center.dx, moreOrLessEquals(900 - 30));
+      if (zoomed) {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: buildAppTheme(),
+            home: Scaffold(
+              body: tester.widget<Scaffold>(find.byType(Scaffold)).body,
+            ),
+            builder: (context, child) => UiZoom(scale: 0.9, child: child),
+          ),
+        );
+      } else {
+        tester.view.physicalSize = const Size(1100, 800);
+        await tester.pump();
+      }
+      final strip = tester.getRect(_strip);
+      final rail = tester.getRect(find.byType(ChatRailReport));
+      expect(strip.center.dx, moreOrLessEquals(rail.center.dx));
+      expect(
+        strip.top,
+        moreOrLessEquals(rail.bottom + 10 * (zoomed ? 0.9 : 1)),
+      );
+    });
+  }
+
   testWidgets('with the rail at the other side, beside the column from the '
       'top', (tester) async {
     const rail = Rect.fromLTWH(1400 - 48, 12, 36, 130);
@@ -292,9 +394,9 @@ void main() {
     );
     expect(_track(tester).top, moreOrLessEquals(rail.bottom + 10));
     told!.value = const Rect.fromLTWH(900 - 48, 12, 36, 160);
+    await tester.pump();
     // A frame of its own to look again in.
     expect(SchedulerBinding.instance.hasScheduledFrame, isTrue);
-    await tester.pump();
     await tester.pump();
     expect(_track(tester).top, moreOrLessEquals(12 + 160 + 10));
   });
