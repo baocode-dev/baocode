@@ -313,6 +313,9 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   /// [AgentSidePanel.asks] as last seen.
   int _sidePanelAsks = 0;
 
+  /// [AgentSidePanel.gaveWay], the window's, as last seen.
+  bool _sidePanelGaveWay = false;
+
   /// The docked sidebar is sliding out, giving way to the side panel: the
   /// panel's room grows meanwhile (see [AgentSidePanelArea.roomComing]).
   bool _sidebarGivingWay = false;
@@ -508,13 +511,18 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   /// [_sidePanelLast]).
   void _sidePanelChanged() {
     final asked = _sidePanel.asks != _sidePanelAsks;
+    final gaveWay = _sidePanel.gaveWay();
     if (_sidePanel.isShown == _sidePanelShown &&
         _sidePanel.layout == _layout &&
         !asked) {
-      // Each pane's own, shown or hidden: their panes built anew.
-      if (_panesSidePanels && mounted) setState(() {});
+      // Each pane's own, shown or hidden, and the window's given way to
+      // the conversations or back: the toggles built anew.
+      if ((_panesSidePanels || gaveWay != _sidePanelGaveWay) && mounted) {
+        setState(() => _sidePanelGaveWay = gaveWay);
+      }
       return;
     }
+    _sidePanelGaveWay = gaveWay;
     final sidebarDocked = _sidebarDocked;
     _layout = _sidePanel.layout;
     if (asked) {
@@ -538,16 +546,20 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   /// Toggle Side Panel, as the title bars' toggles show it: shown where it
   /// gave way, it is asked for again. Of agents side by side, the focused
   /// one's.
-  void _toggleSidePanel() => _sidePanel.isShown && !_sidePanelHidden
+  void _toggleSidePanel() =>
+      _sidePanel.isShown && !_sidePanelHidden && !_sidePanel.givenWay
       ? _sidePanel.hide()
       : _sidePanel.show();
 
   /// Whether the side panel shows for [thread]: of agents side by side, its
   /// pane's own; else the window's, the focused agent's.
   bool _sidePanelShownFor(AgentThread thread) => _panesSidePanels
-      ? _sidePanel.shownIn(thread.session) && !_sidePanelHidden
+      ? _sidePanel.shownIn(thread.session) &&
+            !_sidePanelHidden &&
+            !_sidePanel.gaveWay(thread.session)
       : _sidePanelShown &&
             !_sidePanelHidden &&
+            !_sidePanel.gaveWay() &&
             (_agentThread != null || identical(thread, _workspace.current));
 
   /// [thread]'s pane's side panel: hidden where it is its agent's already,
@@ -3512,7 +3524,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       onToggleTerminal: ide || _terminals?.root == null
           ? null
           : _toggleTerminal,
-      sidePanelShown: _sidePanel.isShown && !_sidePanelHidden,
+      sidePanelShown:
+          _sidePanel.isShown && !_sidePanelHidden && !_sidePanel.givenWay,
       onToggleSidePanel: ide || (agent ?? _workspace.current) == null
           ? null
           : _toggleSidePanel,
