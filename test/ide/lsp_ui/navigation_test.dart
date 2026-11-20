@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:bao_editor/monaco/flutter/editor_document_model.dart';
 import 'package:bao_editor/monaco/flutter/editor_surface.dart';
 import 'package:baocode/ide/lsp/language_features.dart';
 import 'package:baocode/ide/lsp/lsp_protocol.dart';
@@ -180,6 +181,157 @@ void main() {
     surfaceController(tester).type('x');
     await settle(tester);
     expect(find.byType(IdeHoverCard), findsNothing);
+  });
+
+  group('mouse hover timing, as upstream', () {
+    Future<(TestGesture, Rect)> hoverWorkbench(
+      WidgetTester tester,
+      FakeLanguageFeatures languages,
+    ) async {
+      await pumpLanguageWorkbench(tester, _files, languages, open: [_a]);
+      final foo = offsetOf(tester, 'foo');
+      final char = surfaceView(tester)
+          .rangeRectAt(foo + 1, foo + 2)!
+          .shift(tester.getTopLeft(find.byType(EditorSurface)));
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(mouse.removePointer);
+      await mouse.addPointer(location: Offset.zero);
+      return (mouse, char);
+    }
+
+    FakeLanguageFeatures answering() =>
+        FakeLanguageFeatures()
+          ..onHover = (path, position) =>
+              const LspHover('**foo** returns an int', range: null);
+
+    int hoverRequests(FakeLanguageFeatures languages) =>
+        languages.requests.where((r) => r.startsWith('hover ')).length;
+
+    testWidgets('asks halfway through the delay and shows at its end; a '
+        'pointer trembling on one character does not start it over', (
+      tester,
+    ) async {
+      final languages = answering();
+      final (mouse, char) = await hoverWorkbench(tester, languages);
+      await mouse.moveTo(char.centerLeft + const Offset(1, 0));
+      for (var i = 0; i < 3; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+        await mouse.moveTo(char.centerLeft + Offset(i.isEven ? 2 : 1, 0));
+      }
+      await tester.pump(const Duration(milliseconds: 10));
+      expect(hoverRequests(languages), 1);
+      expect(find.byType(IdeHoverCard), findsNothing);
+      await settle(tester, const Duration(milliseconds: 140));
+      expect(find.byType(IdeHoverCard), findsOneWidget);
+      expect(hoverRequests(languages), 1);
+    });
+
+    testWidgets('with a card up, the pointer moving on is heeded the hiding '
+        'delay after it starts, however it keeps moving', (tester) async {
+      final languages = answering();
+      final (mouse, char) = await hoverWorkbench(tester, languages);
+      await mouse.moveTo(char.center);
+      await settle(tester, const Duration(milliseconds: 400));
+      expect(find.byType(IdeHoverCard), findsOneWidget);
+
+      // Off the text, past the line's end, away from the card above.
+      for (var i = 1; i <= 5; i++) {
+        await mouse.moveTo(char.center + Offset(80.0 + 5 * i, 4));
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      expect(find.byType(IdeHoverCard), findsOneWidget);
+      for (var i = 6; i <= 8; i++) {
+        await mouse.moveTo(char.center + Offset(80.0 + 5 * i, 4));
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      expect(find.byType(IdeHoverCard), findsNothing);
+    });
+
+    testWidgets('the card stays with the pointer on it and goes once it is '
+        'back off the text', (tester) async {
+      final languages = answering();
+      final (mouse, char) = await hoverWorkbench(tester, languages);
+      await mouse.moveTo(char.center);
+      await settle(tester, const Duration(milliseconds: 400));
+      await mouse.moveTo(tester.getCenter(find.byType(IdeHoverCard)));
+      await settle(tester, const Duration(seconds: 1));
+      expect(find.byType(IdeHoverCard), findsOneWidget);
+
+      await mouse.moveTo(char.center + const Offset(120, 4));
+      await settle(tester, const Duration(milliseconds: 400));
+      expect(find.byType(IdeHoverCard), findsNothing);
+    });
+
+    testWidgets('a press in the text hides it, and one on its way', (
+      tester,
+    ) async {
+      final languages = answering();
+      final (mouse, char) = await hoverWorkbench(tester, languages);
+      await mouse.moveTo(char.center);
+      await settle(tester, const Duration(milliseconds: 400));
+      expect(find.byType(IdeHoverCard), findsOneWidget);
+      await mouse.down(char.center);
+      await mouse.up();
+      await tester.pump();
+      expect(find.byType(IdeHoverCard), findsNothing);
+
+      await mouse.moveTo(char.center + const Offset(0, 1));
+      await mouse.moveTo(char.center + const Offset(-8, 0));
+      await tester.pump(const Duration(milliseconds: 100));
+      await mouse.down(char.center + const Offset(-8, 0));
+      await mouse.up();
+      await settle(tester, const Duration(milliseconds: 500));
+      expect(find.byType(IdeHoverCard), findsNothing);
+    });
+
+    testWidgets('a key hides it; an edit not from the keyboard keeps it', (
+      tester,
+    ) async {
+      final languages = answering();
+      final (mouse, char) = await hoverWorkbench(tester, languages);
+      await mouse.moveTo(char.center);
+      await settle(tester, const Duration(milliseconds: 400));
+      expect(find.byType(IdeHoverCard), findsOneWidget);
+
+      final controller = surfaceController(tester);
+      final end = controller.value.text.length;
+      controller.applyEdits([EditorOffsetEdit(end, end, '\n')]);
+      await settle(tester);
+      expect(find.byType(IdeHoverCard), findsOneWidget);
+
+      await press(tester, LogicalKeyboardKey.arrowDown);
+      await settle(tester);
+      expect(find.byType(IdeHoverCard), findsNothing);
+    });
+
+    testWidgets('leaving the editor hides it at once', (tester) async {
+      final languages = answering();
+      final (mouse, char) = await hoverWorkbench(tester, languages);
+      await mouse.moveTo(char.center);
+      await settle(tester, const Duration(milliseconds: 400));
+      expect(find.byType(IdeHoverCard), findsOneWidget);
+      await mouse.moveTo(Offset.zero);
+      await tester.pump();
+      expect(find.byType(IdeHoverCard), findsNothing);
+    });
+
+    testWidgets('a slow answer shows Loading... after three times the '
+        'delay, then itself', (tester) async {
+      final answer = Completer<LspHover?>();
+      final languages = FakeLanguageFeatures()
+        ..onHover = (path, position) => answer.future;
+      final (mouse, char) = await hoverWorkbench(tester, languages);
+      await mouse.moveTo(char.center);
+      await settle(tester, const Duration(milliseconds: 850));
+      expect(find.byType(IdeHoverCard), findsNothing);
+      await settle(tester, const Duration(milliseconds: 100));
+      expect(find.text('Loading...'), findsOneWidget);
+
+      answer.complete(const LspHover('**foo** returns an int', range: null));
+      await settle(tester);
+      expect(find.text('Loading...'), findsNothing);
+      expect(find.textContaining('returns an int'), findsOneWidget);
+    });
   });
 
   testWidgets('F12 opens a definition in another file and Go Back returns', (
