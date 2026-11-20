@@ -198,17 +198,26 @@ class ClaudeTranslator {
       'Your plan is now shown to the user, who will start it or say what '
       'should change in their next message. End your turn here without '
       'repeating the plan: do not start implementing it, and do not call '
-      'ExitPlanMode again.';
+      'ExitPlanMode again. Approval does not go through this tool: the user '
+      'starts the plan in the app, and their message then tells you plan '
+      'mode is over.';
 
   /// Marks the note sent with the message that starts a plan.
   static const _planStarted = 'The user has started your plan';
 
   /// The note sent with the message that starts the plan in [path]: not
-  /// shown, it tells the model planning is over.
+  /// shown, it tells the model planning is over. It says outright that the
+  /// plan-mode reminders earlier on no longer hold, and that ExitPlanMode
+  /// is not to be called: a model that took the read-only ones as standing
+  /// called it again and again for an approval it already had.
   static String planStartedNote(String path) =>
-      '<system-reminder>$_planStarted: plan mode is over. Carry out the '
-      '${path.isEmpty ? 'plan you put to them' : 'plan in $path'} now.'
-      '</system-reminder>';
+      '<system-reminder>$_planStarted: plan mode is over and the plan is '
+      'approved. The plan-mode instructions earlier in this conversation '
+      '(read-only, superseding other instructions) no longer apply: you may '
+      'edit files, run commands and use any tool. Do not call ExitPlanMode: '
+      'there is nothing left to approve, and it would only fail. Carry out '
+      'the ${path.isEmpty ? 'plan you put to them' : 'plan in $path'} now, '
+      'from its first step.</system-reminder>';
 
   /// Whether [text] says the plan is started (see [planStartedNote]).
   static bool startsPlan(String text) => text.contains(_planStarted);

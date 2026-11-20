@@ -2659,7 +2659,7 @@ void main() {
       );
       expect(
         ClaudeTranslator.planStartedNote(''),
-        contains('Carry out the plan you put to them now.'),
+        contains('Carry out the plan you put to them now,'),
       );
       kernel.dispose();
     });
