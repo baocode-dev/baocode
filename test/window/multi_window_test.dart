@@ -258,7 +258,7 @@ void main() {
       expect(workspace.layout, layout);
       expect(_inView(0, find.byType(IdeWorkbench)), findsNothing);
 
-      tester.widget<IdeWorkbench>(ide).onBack!();
+      tester.widget<IdeWorkbench>(ide).onBack();
       await tester.pump();
       await tester.pump();
       expect(ide, findsNothing);
