@@ -15,6 +15,7 @@ import 'code_citation.dart';
 import 'hover_builder.dart';
 import 'own_selection.dart';
 import 'step_header.dart';
+import '../selection/chat_selection.dart';
 
 /// A file edit, as [EditDetail] has it: a card of the file's icon, name
 /// and counts over its diff; or a step, "Edited main.dart +12 -3", a click
@@ -345,8 +346,8 @@ class _FileHeader extends StatelessWidget {
       );
     }
 
-    if (onOpen == null) return SelectionContainer.disabled(child: row(false));
-    return SelectionContainer.disabled(
+    if (onOpen == null) return ChatUnselectable(child: row(false));
+    return ChatUnselectable(
       child: Semantics(
         button: true,
         label: context.l10n.sidePanelOpenDiff,

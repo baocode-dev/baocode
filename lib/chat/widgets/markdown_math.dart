@@ -6,6 +6,7 @@ import '../../theme/app_theme.dart';
 import 'finite_selection_edges.dart';
 import 'selectable_token.dart';
 import 'will_change_paint.dart';
+import '../selection/chat_selection.dart';
 
 /// TeX in markdown, as `math` elements (their `display` attribute `block`
 /// or `inline`), for [MathView] to render.
@@ -90,7 +91,7 @@ class MathView extends StatelessWidget {
     // Selected whole, as a tag is: the typeset glyphs are no text to select.
     final math = SelectableToken(
       text: source(tex, display: display),
-      child: SelectionContainer.disabled(
+      child: ChatUnselectable(
         child: Math.tex(
           tex,
           mathStyle: display ? MathStyle.display : MathStyle.text,

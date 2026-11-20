@@ -9,7 +9,6 @@ import 'hover_builder.dart';
 import 'fade_curve.dart';
 import 'markdown_view.dart';
 import 'plan_start.dart';
-import '../../base/safe_selection_indexes.dart';
 
 /// A round of planning in the conversation: the plan's title over its
 /// text, the text fading out past a height; a click shows it in full beside
@@ -205,104 +204,20 @@ class PlanCard extends StatelessWidget {
   }
 }
 
-/// One selectable bounded by the preview, not by the hidden plan below it.
-class _PlanPreview extends StatefulWidget {
+/// The plan's top, faded out where it is cut.
+class _PlanPreview extends StatelessWidget {
   const _PlanPreview(this.text);
 
   final String text;
 
   @override
-  State<_PlanPreview> createState() => _PlanPreviewState();
-}
-
-class _PlanPreviewState extends State<_PlanPreview> {
-  final _selection = _PlanPreviewSelectionDelegate();
-
-  @override
-  void dispose() {
-    _selection.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => SelectionContainer(
-    delegate: _selection,
-    child: _FadedBody(
-      maxHeight: PlanCard.maxBodyHeight,
-      child: MarkdownView(
-        widget.text,
-        style: MarkdownView.baseStyle.copyWith(fontSize: 13),
-      ),
+  Widget build(BuildContext context) => _FadedBody(
+    maxHeight: PlanCard.maxBodyHeight,
+    child: MarkdownView(
+      text,
+      style: MarkdownView.baseStyle.copyWith(fontSize: 13),
     ),
   );
-}
-
-/// A paint clip does not clip selection events. Hidden paragraphs must not
-/// receive a pointer meant for a later reply. Crossing the whole preview
-/// still selects its full text, as select-all does.
-class _PlanPreviewSelectionDelegate extends StaticSelectionContainerDelegate
-    with SafeSelectionIndexes {
-  SelectionResult _resultAt(Offset globalPosition) {
-    final inverse = getTransformTo(null)..invert();
-    return SelectionUtils.getResultBasedOnRect(
-      Offset.zero & containerSize,
-      MatrixUtils.transformPoint(inverse, globalPosition),
-    );
-  }
-
-  Offset _outsideText(SelectionResult result) {
-    var bounds = Offset.zero & containerSize;
-    for (final selectable in selectables) {
-      final transform = getTransformFrom(selectable);
-      for (final rect in selectable.boundingBoxes) {
-        bounds = bounds.expandToInclude(
-          MatrixUtils.transformRect(transform, rect),
-        );
-      }
-    }
-    final local = result == SelectionResult.previous
-        ? bounds.topLeft - const Offset(0, 1)
-        : bounds.bottomRight + const Offset(0, 1);
-    return MatrixUtils.transformPoint(getTransformTo(null), local);
-  }
-
-  @override
-  SelectionResult dispatchSelectionEvent(SelectionEvent event) {
-    switch (event) {
-      case SelectionEdgeUpdateEvent():
-        final result = _resultAt(event.globalPosition);
-        if (result == SelectionResult.end) {
-          return super.dispatchSelectionEvent(event);
-        }
-        // Put the edge beyond all hidden text too, so a selection wholly
-        // below the card clears it instead of leaving hidden words selected.
-        final position = _outsideText(result);
-        super.dispatchSelectionEvent(
-          event.type == SelectionEventType.startEdgeUpdate
-              ? SelectionEdgeUpdateEvent.forStart(
-                  globalPosition: position,
-                  granularity: event.granularity,
-                )
-              : SelectionEdgeUpdateEvent.forEnd(
-                  globalPosition: position,
-                  granularity: event.granularity,
-                ),
-        );
-        return result;
-      case SelectParagraphSelectionEvent(absorb: true):
-        return super.dispatchSelectionEvent(event);
-      case SelectWordSelectionEvent(:final globalPosition) ||
-          SelectParagraphSelectionEvent(:final globalPosition):
-        final result = _resultAt(globalPosition);
-        if (result == SelectionResult.end) {
-          return super.dispatchSelectionEvent(event);
-        }
-        super.dispatchSelectionEvent(const ClearSelectionEvent());
-        return result;
-      default:
-        return super.dispatchSelectionEvent(event);
-    }
-  }
 }
 
 /// [child] in full up to [maxHeight]; past that, its top [maxHeight],

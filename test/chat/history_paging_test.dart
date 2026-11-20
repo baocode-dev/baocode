@@ -12,6 +12,7 @@ import 'package:baocode/kernel/agent_kernel.dart';
 import 'package:baocode/kernel/claude_code/claude_code_kernel.dart';
 import 'package:baocode/kernel/mock/mock_kernels.dart';
 import 'package:baocode/theme/app_theme.dart';
+import 'package:baocode/chat/selection/chat_selection.dart';
 
 import '../kernel_test.dart' show FakeCli;
 
@@ -241,7 +242,11 @@ void main() {
     await tester.pump();
     await tester.pump();
     final paragraph = tester.renderObject<RenderParagraph>(answer);
-    expect(paragraph.selections.any((s) => !s.isCollapsed), isTrue);
+    RenderObject? item = paragraph.parent;
+    while (item != null && item is! RenderChatSelectionItem) {
+      item = item.parent;
+    }
+    expect((item! as RenderChatSelectionItem).showsSelected(paragraph), isTrue);
     expect(await copy(), selected);
 
     await tester.pumpWidget(const SizedBox());

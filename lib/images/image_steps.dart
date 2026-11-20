@@ -21,6 +21,7 @@ import '../models/model_providers.dart';
 import '../theme/app_theme.dart';
 import 'image_picks.dart';
 import 'image_tools.dart';
+import '../chat/selection/chat_selection.dart';
 
 /// A picture's icon (Remix Icon's image-line), an image step's.
 const imageIcon = 'assets/icons/image-line.svg';
@@ -360,7 +361,7 @@ class _PromptCopy extends StatelessWidget {
         child: child,
       ),
     ),
-    child: SelectionContainer.disabled(
+    child: ChatUnselectable(
       child: CopyButton(text: prompt, tooltip: context.l10n.imageCopyPrompt),
     ),
   );

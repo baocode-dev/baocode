@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
 import '../../theme/app_theme.dart';
+import '../selection/chat_selection.dart';
 
 /// Makes [child] one unit of text selection: selected whole or not at all
 /// (whenever the two selection edges fall on either side of it), and copied
@@ -37,8 +38,12 @@ class SelectableToken extends SingleChildRenderObjectWidget {
 }
 
 class RenderSelectableToken extends RenderProxyBox
-    with Selectable, SelectionRegistrant {
+    with Selectable, SelectionRegistrant
+    implements ChatTextLeafSource {
   RenderSelectableToken(this.text, this._selectionColor);
+
+  @override
+  ChatTextLeaf get chatTextLeaf => AtomicChatTextLeaf(this, text);
 
   String text;
 
