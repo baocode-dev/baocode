@@ -60,6 +60,24 @@ void main() {
     expect(h.permissionRequests.map((r) => r['tool_name']), ['ExitPlanMode']);
   });
 
+  test('ExitPlanMode out of plan mode: the user is not asked, the model is '
+      'told to carry the plan out', () async {
+    // A model that took the plan mode it had left as standing called it
+    // again and again for an approval it already had.
+    h = await Harness.start(permissionMode: 'acceptEdits');
+    h.model.script.addAll([
+      Reply.tool('ExitPlanMode', {}),
+      Reply.text('on it'),
+    ]);
+    h.onPermission = (request) async => fail('asked: $request');
+    await h.turn('go');
+    expect(h.permissionRequests, isEmpty);
+    expect(
+      '${h.toolResults.single['content']}',
+      contains('do not call ExitPlanMode again'),
+    );
+  });
+
   test('a plan sent rather than written is kept in its file, which the '
       'user is shown', () async {
     // #298: the file named was not there, and its tab said so.
