@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
@@ -22,13 +21,12 @@ class ChatColumnInset extends InheritedWidget {
   /// conversations' left.
   final double left;
 
-  /// Where what floats there is on screen (in global coordinates), as
-  /// last painted: what of the chat's margin it is over (the minimap's)
-  /// keeps below it. None where nothing floats.
-  final ValueListenable<Rect?>? rail;
+  /// What floats there (see [ChatRail]): what of the chat's margin it is
+  /// over (the minimap's) keeps in line with it. None where nothing floats.
+  final ChatRail? rail;
 
   /// [rail] where [context] is; none outside any.
-  static ValueListenable<Rect?>? railOf(BuildContext context) =>
+  static ChatRail? railOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<ChatColumnInset>()?.rail;
 
   /// The inset at the right where [context] is; none outside any.
@@ -57,8 +55,8 @@ class ChatColumnInset extends InheritedWidget {
 /// long as it is still at least [roomFrom] wide that way, narrower than
 /// [maxWidth] if need be; in less width it gives the room up. Its right
 /// keeps none: only [right] there, for what floats over it. With the
-/// minimap at its right ([roomRight]), the room is kept there too, its
-/// left still level with the composer.
+/// minimap at its right ([roomRight]), the room is kept there instead, and
+/// none at its left: its left stays level with the composer's.
 class ChatColumn extends SingleChildRenderObjectWidget {
   const ChatColumn({
     super.key,
@@ -163,11 +161,11 @@ class RenderChatColumn extends RenderShiftedBox {
   }) {
     final centered = math.max(0.0, math.min(maxWidth, width));
     // In the middle, unless that comes within [left] (or the minimap's
-    // [room]) of the left edge; or, the minimap at the right, within its
-    // room of either edge: its left level with the composer's, which keeps
-    // the room either side.
-    final roomy = room > 0 && width - (roomRight ? 2 : 1) * room >= roomFrom;
-    final clear = roomy ? math.max(left, room) : left;
+    // [room]) of the left edge; the minimap at the right, its room is kept
+    // from the right edge alone, as [right] is (the side panel's rail, which
+    // it goes under, already keeps as much there).
+    final roomy = room > 0 && width - room >= roomFrom;
+    final clear = roomy && !roomRight ? math.max(left, room) : left;
     if (roomy && roomRight) right = math.max(right, room);
     final start = math.max((width - centered) / 2, math.min(clear, width));
     final end = math.max(start, (width + centered) / 2);
@@ -246,5 +244,63 @@ class RenderChatColumn extends RenderShiftedBox {
       0,
     );
     size = constraints.constrain(Size(width, child.size.height));
+  }
+}
+
+/// What floats over a chat's margin (the side panel's rail): its render
+/// object, once laid out ([box]), and news of it moving or changing size, as
+/// [ChatRailReport] gives it.
+///
+/// Where it is is read off [box] against what is under it (as
+/// `rail.box.getTransformTo(other)`): in the same units, however the window
+/// is zoomed, and at the frame both were laid out in.
+class ChatRail extends ChangeNotifier {
+  RenderBox? _box;
+
+  /// The rail's, while laid out.
+  RenderBox? get box => switch (_box) {
+    final box? when box.attached && box.hasSize => box,
+    _ => null,
+  };
+
+  void _tell(RenderBox box) {
+    _box = box;
+    notifyListeners();
+  }
+}
+
+/// [child] as [rail]'s: tells it after each frame [child] moved or changed
+/// size in.
+class ChatRailReport extends SingleChildRenderObjectWidget {
+  const ChatRailReport({super.key, required this.rail, super.child});
+
+  final ChatRail rail;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderChatRailReport(rail);
+
+  @override
+  void updateRenderObject(BuildContext context, RenderObject renderObject) {
+    (renderObject as _RenderChatRailReport).rail = rail;
+  }
+}
+
+class _RenderChatRailReport extends RenderProxyBox {
+  _RenderChatRailReport(this.rail);
+
+  ChatRail rail;
+  Rect? _told;
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    super.paint(context, offset);
+    final at = localToGlobal(Offset.zero) & size;
+    if (at == _told) return;
+    _told = at;
+    final rail = this.rail;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (attached) rail._tell(this);
+    });
   }
 }

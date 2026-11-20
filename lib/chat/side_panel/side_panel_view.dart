@@ -3,7 +3,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show RenderProxyBox;
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
@@ -212,13 +211,12 @@ class _AgentSidePanelAreaState extends State<AgentSidePanelArea> {
   void dispose() {
     _short?.cancel();
     _young?.cancel();
-    _railRect.dispose();
+    _rail.dispose();
     super.dispose();
   }
 
-  /// Where the rail is on screen, as last painted (see
-  /// [ChatColumnInset.rail]).
-  final ValueNotifier<Rect?> _railRect = ValueNotifier(null);
+  /// The rail, for what is under it (see [ChatColumnInset.rail]).
+  final ChatRail _rail = ChatRail();
 
   AgentSidePanel get _panel => widget.panel;
 
@@ -288,7 +286,7 @@ class _AgentSidePanelAreaState extends State<AgentSidePanelArea> {
               child: ChatColumnInset(
                 right: rail && !atLeft ? AgentSidePanelArea.railInset : 0,
                 left: rail && atLeft ? AgentSidePanelArea.railInset : 0,
-                rail: rail ? _railRect : null,
+                rail: rail ? _rail : null,
                 child: widget.child,
               ),
             ),
@@ -298,7 +296,7 @@ class _AgentSidePanelAreaState extends State<AgentSidePanelArea> {
                 left: atLeft ? AgentSidePanelArea.railRight : null,
                 right: atLeft ? null : AgentSidePanelArea.railRight,
                 top: widget.railTop ?? AgentSidePanelArea.defaultRailTop,
-                child: _ReportRect(rect: _railRect, child: widget.rail!),
+                child: ChatRailReport(rail: _rail, child: widget.rail!),
               ),
             if (shown) ...[
               if (overlay)
@@ -2304,43 +2302,4 @@ class _SidePanelScmHost implements IdeScmHost {
 
   @override
   String? get activePath => null;
-}
-
-/// [child], telling [rect] where it is on screen each time it is painted
-/// somewhere else (after the frame: not while painting).
-class _ReportRect extends SingleChildRenderObjectWidget {
-  const _ReportRect({required this.rect, super.child});
-
-  final ValueNotifier<Rect?> rect;
-
-  @override
-  _RenderReportRect createRenderObject(BuildContext context) =>
-      _RenderReportRect(rect);
-
-  @override
-  void updateRenderObject(
-    BuildContext context,
-    _RenderReportRect renderObject,
-  ) {
-    renderObject.rect = rect;
-  }
-}
-
-class _RenderReportRect extends RenderProxyBox {
-  _RenderReportRect(this.rect);
-
-  ValueNotifier<Rect?> rect;
-  Rect? _told;
-
-  @override
-  void paint(PaintingContext context, Offset offset) {
-    super.paint(context, offset);
-    final at = localToGlobal(Offset.zero) & size;
-    if (at == _told) return;
-    _told = at;
-    final rect = this.rect;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (attached) rect.value = at;
-    });
-  }
 }

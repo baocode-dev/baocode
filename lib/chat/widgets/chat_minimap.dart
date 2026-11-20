@@ -439,25 +439,39 @@ class _ChatMinimapState extends State<ChatMinimap>
   // The side panel's rail floats over the top of the conversation's margin
   // (see ChatColumnInset.rail). A minimap on that side is under it, at any
   // width: in line with it, from below it, the two one column of the
-  // margin's. Where the rail is on screen is known once laid out: looked at
-  // after each frame the minimap is built in, and as the rail changes.
+  // margin's. How far the rail is from that edge of the box, and down from
+  // its top, is the same however wide the window is and however zoomed: it
+  // is read off the two once laid out (after a frame the minimap is built
+  // in, and as the rail changes), and the minimap is placed from the edge
+  // as it is laid out, in the same frame as the rail.
 
   /// How far down past [ChatMinimap._inset] it starts.
   double _underRail = 0;
 
-  /// The middle of the rail across the box, where the minimap is under it;
-  /// null where it is not.
-  double? _railMiddle;
+  /// How far the rail's middle is from the box's edge on its side, where
+  /// the minimap is under it; null where it is not.
+  double? _railFromEdge;
 
-  ValueListenable<Rect?>? _rail;
+  ChatRail? _rail;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final rail = ChatColumnInset.railOf(context);
     if (rail != _rail) {
-      _rail?.removeListener(_clearRailSoon);
-      _rail = rail?..addListener(_clearRailSoon);
+      _rail?.removeListener(_railChanged);
+      _rail = rail?..addListener(_railChanged);
+    }
+  }
+
+  /// The rail tells it changed after the frame it did in, all laid out:
+  /// looked at then and there.
+  void _railChanged() {
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.postFrameCallbacks) {
+      if (mounted) _clearRail();
+    } else {
+      _clearRailSoon();
     }
   }
 
@@ -471,30 +485,34 @@ class _ChatMinimapState extends State<ChatMinimap>
         _railScheduled = false;
         if (mounted) _clearRail();
       })
-      // The rail tells where it is after a frame: one more for it, or
-      // nothing would come to look until something else moved.
+      // One more frame for it, or nothing would come to look until
+      // something else moved.
       ..ensureVisualUpdate();
   }
 
-  /// [_railMiddle] and [_underRail], as the rail is: on the minimap's side
-  /// of the box, or not.
+  /// [_railFromEdge] and [_underRail], as the rail is: on the minimap's
+  /// side of the box, or not.
   void _clearRail() {
     final box = context.findRenderObject();
     var below = 0.0;
-    double? middle;
-    if (_rail?.value case final rail?
+    double? fromEdge;
+    if (_rail?.box case final rail?
         when box is RenderBox && box.attached && box.hasSize) {
-      final at = rail.shift(-box.localToGlobal(Offset.zero));
+      // In the box's own units, both as laid out in the same frame.
+      final at = MatrixUtils.transformRect(
+        rail.getTransformTo(box),
+        Offset.zero & rail.size,
+      );
       final right = at.center.dx > box.size.width / 2;
       if (right == (widget.at == ChatMinimapSide.right)) {
-        middle = at.center.dx;
+        fromEdge = right ? box.size.width - at.center.dx : at.center.dx;
         below = math.max(0.0, at.bottom + _railGap - ChatMinimap._inset);
       }
     }
-    if (below != _underRail || middle != _railMiddle) {
+    if (below != _underRail || fromEdge != _railFromEdge) {
       setState(() {
         _underRail = below;
-        _railMiddle = middle;
+        _railFromEdge = fromEdge;
       });
     }
   }
@@ -892,7 +910,7 @@ class _ChatMinimapState extends State<ChatMinimap>
 
   @override
   void dispose() {
-    _rail?.removeListener(_clearRailSoon);
+    _rail?.removeListener(_railChanged);
     _ticker.dispose();
     _conceal?.cancel();
     _dropTilesFrom(double.negativeInfinity);
@@ -931,8 +949,8 @@ class _ChatMinimapState extends State<ChatMinimap>
         );
         final shown = fits && widget.long && widget.rowCount > 0;
         // Under the rail, in line with it; else beside the column.
-        final left = math.max(0.0, switch ((place, _railMiddle)) {
-          (_?, final middle?) => middle - _width / 2,
+        final left = math.max(0.0, switch ((place, _railFromEdge)) {
+          (_?, final edge?) => (right ? width - edge : edge) - _width / 2,
           _ => place?.left ?? 0,
         });
         // The pointer's reach: out toward the edge as far as the margin
