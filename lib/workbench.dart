@@ -386,7 +386,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   /// own).
   String get _ideFolder => _ideWindow
       ? widget.window!.folder ?? _noFolder
-      : _workspace.ideFolder ?? _noFolder;
+      : _agentThread?.project.path ?? _workspace.ideFolder ?? _noFolder;
   IdeWorkbenchState? get _ide => _ideKeys[_ideFolder]?.currentState;
 
   AppWindows? get _windows => widget.windows;
@@ -409,11 +409,30 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
 
   int get _viewId => widget.window?.viewId ?? 0;
 
-  /// Whether the IDE shows: always in its own window; without them, as the
+  /// Whether the IDE shows: always in its own window; in an agent's, once
+  /// its Open in Fast Ide is clicked ([_agentInIde]); without them, as the
   /// workspace's layout says.
   bool get _showsIde =>
       _ideWindow ||
+      (_agentWindow && _agentInIde) ||
       (!_multi && !_agentWindow && _workspace.layout == WorkspaceLayout.ide);
+
+  /// Whether an agent's window shows its project's IDE in place of its
+  /// conversation: its own, not the workspace's layout, which is the main
+  /// window's (the IDE opening there was the window behind coming up).
+  bool _agentInIde = false;
+
+  /// An agent's window's Open in Fast Ide: its project's IDE here, the
+  /// agent the tab of its chat.
+  void _showAgentIde() {
+    final thread = _agentThread;
+    if (thread == null) return;
+    _workspace.openIdeChat(thread.project.path, thread);
+    setState(() => _agentInIde = true);
+  }
+
+  /// Back to Chat in an agent's window: its conversation again.
+  void _showAgentChat() => setState(() => _agentInIde = false);
 
   WindowSettings get _windowSettings =>
       WindowSettings.parse(widget.settings?.files?.settings.values ?? const {});
@@ -2928,7 +2947,18 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         ),
         showToggle: showToggle,
       );
-      return narrow ? _buildNarrow(body: chat) : _buildWide(body: chat);
+      // Its project's IDE, once opened here, kept built while the
+      // conversation shows (as the main window keeps its own).
+      final folder = _ideFolder;
+      final ide = _agentInIde;
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          if (ide || _ideSpaces.containsKey(folder))
+            _buildIde(folder, _ideSpace(folder), shown: ide),
+          if (!ide) narrow ? _buildNarrow(body: chat) : _buildWide(body: chat),
+        ],
+      );
     }
     final folder = _ideFolder;
     // An IDE window has its folder's alone.
@@ -2987,9 +3017,12 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
                 ? Project.at(space.root)
                 : _workspace.projectAt(path),
             visible: shown,
-            // An IDE window's way back shows the chat's window.
+            // An IDE window's way back shows the chat's window; an agent's,
+            // its conversation.
             onBack: _ideWindow
                 ? _windows!.showChat
+                : _agentWindow
+                ? _showAgentChat
                 : () => _workspace.layout = WorkspaceLayout.chat,
             backLabel: _ideWindow ? context.l10n.cmdShowChatWindow : null,
             pinned: _pinned,
@@ -3501,8 +3534,13 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       project: project,
       ide: ide,
       hasFolder: _ideFolder != _noFolder,
-      onBack: _ideWindow ? windows!.showChat : null,
+      onBack: _ideWindow
+          ? windows!.showChat
+          : _agentWindow
+          ? _showAgentChat
+          : null,
       backLabel: _ideWindow ? context.l10n.cmdShowChatWindow : null,
+      onOpenIde: _agentWindow ? _showAgentIde : null,
       onNewWindow: windows == null
           ? null
           : () => unawaited(windows.newWindow()),
@@ -3999,6 +4037,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
                           workspace: _workspace,
                           project: thread.project,
                           agent: thread,
+                          onOpenIde: _agentWindow ? _showAgentIde : null,
                         ),
                       ],
                       if (showToggle && _sidebarAtRight) ...[
@@ -5047,6 +5086,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
           workspace: _workspace,
           project: thread.project,
           agent: thread,
+          onOpenIde: _agentWindow ? _showAgentIde : null,
         ),
       ],
       if (trailingToggle && !inPane) ...[

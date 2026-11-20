@@ -27,6 +27,7 @@ class OpenInEditorButton extends StatelessWidget {
     required this.workspace,
     required this.project,
     this.agent,
+    this.onOpenIde,
   });
 
   final Workspace workspace;
@@ -35,6 +36,10 @@ class OpenInEditorButton extends StatelessWidget {
   /// The agent whose chat the IDE opens with [project]; null: the focused
   /// one's, where it is this project's.
   final AgentThread? agent;
+
+  /// Shows the IDE in place of the workspace's (an agent's window has its
+  /// own: see Workbench); null, the workspace's.
+  final VoidCallback? onOpenIde;
 
   /// Opens a project in an editor; replaceable under test.
   @visibleForTesting
@@ -45,6 +50,7 @@ class OpenInEditorButton extends StatelessWidget {
     // A remote project's files are not this machine's: only the IDE's own
     // opens them.
     if (editor == Editor.fastIde || project.host != null) {
+      if (onOpenIde case final open?) return open();
       // The project in the IDE, with the agent's chat there.
       final thread =
           agent ??
