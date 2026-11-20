@@ -5,6 +5,7 @@
 library;
 
 import '../icons/project_icon.dart';
+import 'magpie.dart';
 
 /// How an upstream is spoken to.
 enum ProviderProtocol {
@@ -801,8 +802,13 @@ class ModelProvider {
   static final _enabled = Expando<List<ProviderModel>>();
   static final _labels = Expando<Map<String, String>>();
 
+  /// Its model [id]; for magpie's, also one kept by its real id that a
+  /// session or setting still names by its old alias ([Magpie.alias]).
   ProviderModel? model(String id) =>
-      models.where((model) => model.id == id).firstOrNull;
+      models.where((model) => model.id == id).firstOrNull ??
+      (followsMagpie && Magpie.isAlias(id)
+          ? models.where((model) => Magpie.alias(model.id) == id).firstOrNull
+          : null);
 
   /// How [model] is spoken to: at its own endpoint, if it has one, else
   /// as the upstream is. A ChatGPT (Codex) upstream's all go as it does.
