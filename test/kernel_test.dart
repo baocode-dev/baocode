@@ -96,11 +96,14 @@ class _SilentCli extends FakeCli {
 }
 
 class FakeCli implements ClaudeCodeTransport {
-  FakeCli({this.answers = const {}});
+  FakeCli({this.answers = const {}, this.refused = const {}});
 
   /// Responses by control request subtype; `initialize` and
   /// `get_context_usage` default to the recorded ones.
   final Map<String, Map<String, Object?>> answers;
+
+  /// Control request subtypes answered with an error.
+  final Set<String> refused;
   final StreamController<Map<String, Object?>> _out =
       StreamController.broadcast();
   final List<Map<String, Object?>> written = [];
@@ -145,6 +148,17 @@ class FakeCli implements ClaudeCodeTransport {
     written.add(message);
     if (message['type'] != 'control_request') return;
     final subtype = (message['request'] as Map)['subtype'] as String;
+    if (refused.contains(subtype)) {
+      push({
+        'type': 'control_response',
+        'response': {
+          'subtype': 'error',
+          'request_id': message['request_id'],
+          'error': 'refused',
+        },
+      });
+      return;
+    }
     final payload =
         answers[subtype] ??
         switch (subtype) {

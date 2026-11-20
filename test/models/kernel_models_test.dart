@@ -36,6 +36,19 @@ const _other = ModelProvider(
   models: [ProviderModel(id: 'm')],
 );
 
+/// Two models on the same window: a switch between them restarts
+/// nothing on its own.
+const _twins = ModelProvider(
+  id: 'tw',
+  name: 'Twins',
+  protocol: ProviderProtocol.openaiChat,
+  baseUrl: 'https://tw.example.com/v1',
+  models: [
+    ProviderModel(id: 'a', contextWindow: 200000),
+    ProviderModel(id: 'b', contextWindow: 200000),
+  ],
+);
+
 const _fastGateway = ModelProvider(
   id: 'fast',
   name: 'Fast Gateway',
@@ -61,7 +74,11 @@ const _codex = ModelProvider(
   List<FakeCli> clis,
   List<(String, String)> environments,
 })
-start(ModelProviders providers, Map<String, String> settings) {
+start(
+  ModelProviders providers,
+  Map<String, String> settings, {
+  Set<String> refused = const {},
+}) {
   final launches = <ClaudeLaunch>[];
   final clis = <FakeCli>[];
   final environments = <(String, String)>[];
@@ -70,7 +87,7 @@ start(ModelProviders providers, Map<String, String> settings) {
     KernelContext(cwd: '/p', settings: settings),
     start: (launch) async {
       launches.add(launch);
-      final cli = FakeCli();
+      final cli = FakeCli(refused: refused);
       clis.add(cli);
       return cli;
     },
@@ -452,6 +469,47 @@ void main() {
     (kernel as SelectsEffort).effort.select('@gw/gpt-5', 'high');
     await pumpEventQueue();
     expect(clis.single.requests('set_model').last['model'], 'gpt-5(high)');
+    kernel.dispose();
+  });
+
+  test('a model the CLI refuses stays the one before only until the next '
+      'message, which starts it again on the one picked', () async {
+    final (:kernel, :launches, :clis, environments: _) = start(
+      ModelProviders.memory(providers: [_twins]),
+      {'model': '@tw/a'},
+      refused: {'set_model'},
+    );
+    kernel.prepare();
+    await pumpEventQueue();
+    kernel.model.select('@tw/b');
+    await pumpEventQueue();
+    expect(clis.single.requests('set_model'), hasLength(1));
+    expect(launches, hasLength(1));
+    kernel.send(const KernelTurn(id: 'u1', text: 'hi'));
+    await pumpEventQueue();
+    expect(launches, hasLength(2));
+    expect(launches.last.model, startsWith('b'));
+    expect(
+      launches.last.settings['availableModels'],
+      contains(launches.last.model),
+    );
+    kernel.dispose();
+  });
+
+  test('a model the CLI takes is not started again for', () async {
+    final (:kernel, :launches, :clis, environments: _) = start(
+      ModelProviders.memory(providers: [_twins]),
+      {'model': '@tw/a'},
+    );
+    kernel.prepare();
+    await pumpEventQueue();
+    kernel.model.select('@tw/b');
+    await pumpEventQueue();
+    expect(clis.single.requests('set_model').single['model'], startsWith('b'));
+    await pumpEventQueue();
+    kernel.send(const KernelTurn(id: 'u1', text: 'hi'));
+    await pumpEventQueue();
+    expect(launches, hasLength(1));
     kernel.dispose();
   });
 

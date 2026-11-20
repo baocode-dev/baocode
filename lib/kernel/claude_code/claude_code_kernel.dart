@@ -616,6 +616,7 @@ class ClaudeCodeKernel
       final workspace = _workspace;
       _launchedProvider = target.provider;
       _launchedModel = custom != null ? _model : null;
+      _modelRefused = false;
       _launchedWindow = _autocompact;
       _appliedSwitches = ExtensionSwitches.current();
       final sdkServers = ClaudeSdkTools.serversFor(_cwd);
@@ -885,12 +886,13 @@ class ClaudeCodeKernel
   /// on, resumed, on it. That even with tasks at work in the background
   /// (a server it started), which end with the process, or the CLI still
   /// saying it is at work past its turn: the user agreed to the restart,
-  /// and the message is not for the provider before.
+  /// and the message is not for the provider before. So too a model the
+  /// CLI refused ([_modelRefused]): the message is for the one picked.
   void _applyWindow() {
     if (!_running) return;
-    final otherProvider = _providerKey != _launchedProvider;
-    if (!otherProvider && _autocompact == _launchedWindow) return;
-    if (!otherProvider && _busy) return;
+    final otherModel = _providerKey != _launchedProvider || _modelRefused;
+    if (!otherModel && _autocompact == _launchedWindow) return;
+    if (!otherModel && _busy) return;
     _teardown();
     _translator.endTasks();
     _setHealth(KernelHealth.idle);
@@ -3196,8 +3198,17 @@ class ClaudeCodeKernel
       for (final (subtype, fields) in requests) {
         try {
           await control.request(subtype, fields);
+          if (subtype == 'set_model' && identical(control, _control)) {
+            _modelRefused = false;
+          }
         } on Object {
-          // Refused: what is in effect, asked for next, says so.
+          // Refused: what is in effect, asked for next, says so. A model
+          // refused (not in the `availableModels` it started with, or its
+          // check request failed) stays the one before: the next message
+          // starts it again on the one picked (see _applyWindow).
+          if (subtype == 'set_model' && identical(control, _control)) {
+            _modelRefused = true;
+          }
         }
       }
       if (!identical(control, _control)) return;
@@ -3207,6 +3218,10 @@ class ClaudeCodeKernel
   }
 
   Future<void> _changes = Future.value();
+
+  /// The CLI refused the model last picked (`set_model`): it is on the one
+  /// before until started again.
+  bool _modelRefused = false;
 
   /// Asks the CLI for the model and effort in effect.
   void _refreshApplied() {
