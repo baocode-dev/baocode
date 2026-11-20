@@ -1885,6 +1885,12 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
         warning: l10n.modelsRoleHaikuWarning,
       ),
       role(
+        'compact',
+        l10n.modelsRoleCompact,
+        l10n.modelsRoleCompactDescription,
+        warning: l10n.modelsRoleCompactWarning,
+      ),
+      role(
         'subagent',
         l10n.modelsRoleSubagent,
         l10n.modelsRoleSubagentDescription,

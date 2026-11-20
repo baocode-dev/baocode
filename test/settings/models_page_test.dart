@@ -183,7 +183,9 @@ void main() {
     MagpieFollow? magpie,
     ClaudeResetsService? claudeResets,
   }) async {
-    tester.view.physicalSize = const Size(1000, 1600);
+    // The roles section grows with each added role; keep the page tall
+    // enough that every folding header stays in the lazy-loaded viewport.
+    tester.view.physicalSize = const Size(1000, 2200);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
@@ -478,6 +480,27 @@ void main() {
     expect(providers.provider(id)!.roles.haiku, 'gpt-5-mini');
     expect(
       find.textContaining('Unset, background work runs on the model picked'),
+      findsNothing,
+    );
+
+    // Compaction unset: warned, then picked.
+    expect(
+      find.textContaining('Unset, compaction runs on the model picked'),
+      findsOneWidget,
+    );
+    final compact = find.ancestor(
+      of: find.text('Compaction'),
+      matching: find.byType(Row),
+    );
+    await tester.tap(
+      find.descendant(of: compact.first, matching: find.text('Unset')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('gpt-5').last);
+    await tester.pumpAndSettle();
+    expect(providers.provider(id)!.roles.compact, 'gpt-5');
+    expect(
+      find.textContaining('Unset, compaction runs on the model picked'),
       findsNothing,
     );
   });
@@ -800,14 +823,20 @@ void main() {
     await pick('Opus Tier', 'DeepSeek', 'deepseek-reasoner');
     await pick('Sonnet Tier', 'DeepSeek', 'deepseek-chat');
     await pick('Haiku Tier', 'DeepSeek', 'deepseek-chat');
+    await pick('Compaction', 'DeepSeek', 'deepseek-chat');
     var roles = providers.provider('an')!.roles;
     expect(
-      (roles.opus, roles.sonnet, roles.haiku),
-      ('@ds/deepseek-reasoner', '@ds/deepseek-chat', '@ds/deepseek-chat'),
+      (roles.opus, roles.sonnet, roles.haiku, roles.compact),
+      (
+        '@ds/deepseek-reasoner',
+        '@ds/deepseek-chat',
+        '@ds/deepseek-chat',
+        '@ds/deepseek-chat',
+      ),
     );
     expect(providers.provider('an')!.throughProxy, isTrue);
     expect(find.text('DeepSeek · deepseek-reasoner'), findsOneWidget);
-    expect(find.text('DeepSeek · deepseek-chat'), findsNWidgets(2));
+    expect(find.text('DeepSeek · deepseek-chat'), findsNWidgets(3));
     // The Haiku warning is for one unset.
     expect(
       find.textContaining('Unset, background work runs on the model picked'),
@@ -847,8 +876,8 @@ void main() {
     ]);
     roles = providers.provider('an')!.roles;
     expect(
-      (roles.opus, roles.sonnet, roles.haiku),
-      ('@ds/deepseek-reasoner', null, null),
+      (roles.opus, roles.sonnet, roles.haiku, roles.compact),
+      ('@ds/deepseek-reasoner', null, null, null),
     );
   });
 

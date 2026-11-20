@@ -222,7 +222,7 @@ class Compaction {
     String? instructions,
     CancelToken cancel,
   ) async {
-    final model = session.resolvedModel;
+    final model = session.catalog.compactModel ?? session.resolvedModel;
     final info = session.catalog.info(model);
     final conversation = [...messages];
     final ask = {'type': 'text', 'text': compactPrompt(instructions)};

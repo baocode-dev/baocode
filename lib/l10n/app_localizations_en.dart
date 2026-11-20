@@ -7267,6 +7267,17 @@ class AppLocalizationsEn extends AppLocalizations {
       'Unset, background work runs on the model picked, which may be slower and cost more. Pick a small, fast model.';
 
   @override
+  String get modelsRoleCompact => 'Compaction';
+
+  @override
+  String get modelsRoleCompactDescription =>
+      'CLAUDE_CODE_COMPACT_MODEL: the model used to compact conversations. Built-in core only; the CLI core compacts inside Claude Code, which cannot be given a separate model.';
+
+  @override
+  String get modelsRoleCompactWarning =>
+      'Unset, compaction runs on the model picked, which may cost more. Pick a small, fast model.';
+
+  @override
   String get modelsRoleSubagent => 'Subagents';
 
   @override
