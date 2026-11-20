@@ -1,5 +1,7 @@
 import 'package:flutter/widgets.dart';
 
+import '../selection/chat_selection.dart';
+
 /// What selects on its own in the conversation (an editor in a card): out
 /// of the conversation's selection, and a press in it neither starts that
 /// selection nor clears it, nor takes the focus from it ([pressedIn]).
@@ -22,6 +24,6 @@ class OwnSelection extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Listener(
     onPointerDown: takePress,
-    child: SelectionContainer.disabled(child: child),
+    child: ChatUnselectable(child: child),
   );
 }

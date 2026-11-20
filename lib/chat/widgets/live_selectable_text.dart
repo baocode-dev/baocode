@@ -5,6 +5,8 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
+import '../selection/chat_selection.dart';
+
 /// Plain text, selectable under a [SelectionArea], that keeps its selection
 /// on the same characters while it changes: for text that streams in.
 ///
@@ -48,7 +50,10 @@ class LiveSelectableText extends LeafRenderObjectWidget {
   }
 }
 
-class RenderLiveSelectableText extends RenderBox {
+class RenderLiveSelectableText extends RenderBox implements ChatTextLeafSource {
+  @override
+  ChatTextLeaf get chatTextLeaf => _LiveLeaf(this);
+
   RenderLiveSelectableText({
     required String text,
     required TextStyle style,
@@ -943,4 +948,43 @@ class _ChunkedWordBoundary extends TextBoundary {
         .getTrailingTextBoundaryAt(position - chunk.start);
     return local == null ? chunk.end : chunk.start + local;
   }
+}
+
+/// A [RenderLiveSelectableText] as a piece of the conversation's text.
+class _LiveLeaf implements ChatTextLeaf {
+  _LiveLeaf(this._render);
+
+  final RenderLiveSelectableText _render;
+
+  @override
+  RenderBox get box => _render;
+
+  @override
+  String get text => _render._text;
+
+  @override
+  String copyOf(int start, int end) {
+    final text = _render._text;
+    start = start.clamp(0, text.length);
+    return text.substring(start, end.clamp(start, text.length));
+  }
+
+  @override
+  int positionAt(Offset local) => _render._painter
+      .getPositionForOffset(local)
+      .offset
+      .clamp(0, _render._text.length);
+
+  @override
+  List<Rect> rectsFor(int start, int end) => [
+    for (final box in _render._painter.getBoxesForSelection(
+      TextSelection(baseOffset: start, extentOffset: end),
+      exact: false,
+    ))
+      box.toRect(),
+  ];
+
+  @override
+  TextRange wordAt(int offset) =>
+      _render._painter.getWordBoundary(TextPosition(offset: offset));
 }

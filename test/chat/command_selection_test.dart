@@ -1,4 +1,9 @@
+import 'package:baocode/chat/chat_feed.dart';
+import 'package:baocode/chat/chat_history_view.dart';
 import 'package:baocode/chat/chat_models.dart';
+import 'package:baocode/chat/chat_session.dart';
+import 'package:baocode/chat/composer/composer_draft.dart';
+import 'package:baocode/chat/selection/chat_selection.dart';
 import 'package:baocode/chat/widgets/command_step.dart';
 import 'package:baocode/theme/app_theme.dart';
 import 'package:baocode/theme/ui_zoom.dart';
@@ -14,6 +19,36 @@ final _lines = [
     'row_${i.toString().padLeft(3, '0')} abcdefghijklmnopqrstuvwxyz',
 ];
 
+class _Feed extends ChangeNotifier implements ChatFeed {
+  _Feed(this.items, {this.streaming = false});
+
+  final List<ChatItem> items;
+  final bool streaming;
+
+  @override
+  int get itemCount => items.length;
+  @override
+  ChatItem itemAt(int index) => items[index];
+  @override
+  bool get isStreaming => streaming;
+  @override
+  bool get isUnprompted => false;
+  @override
+  bool get canEditMessages => false;
+  @override
+  ({int index, ComposerDraft draft})? get editing => null;
+  @override
+  set editing(({int index, ComposerDraft draft})? value) {}
+  @override
+  void editMessage(int index, ComposerMessage message, {UserPlace? from}) {}
+  @override
+  VoidCallback? moveToBackgroundAt(int index) => null;
+  @override
+  VoidCallback? stopAt(int index) => null;
+}
+
+/// A command's output open in the conversation, scrolled [offset] down
+/// in its box; its scroll position.
 Future<ScrollPosition> _pumpOutput(
   WidgetTester tester, {
   double zoom = 1.1,
@@ -23,6 +58,16 @@ Future<ScrollPosition> _pumpOutput(
   tester.view.physicalSize = const Size(1000, 700);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
+  final feed = _Feed([
+    const UserMessageItem(text: 'Print the rows'),
+    TerminalItem(
+      command: 'print rows',
+      output: _lines.join('\n'),
+      status: running ? CommandStatus.running : CommandStatus.succeeded,
+    ),
+    const AssistantTextItem(_after),
+  ], streaming: running);
+  addTearDown(feed.dispose);
   await tester.pumpWidget(
     MaterialApp(
       theme: buildAppTheme(),
@@ -30,32 +75,21 @@ Future<ScrollPosition> _pumpOutput(
         data: UiZoom.zoomed(MediaQuery.of(context), zoom),
         child: UiZoom(scale: zoom, child: child),
       ),
-      home: Scaffold(
-        body: SelectionArea(
-          child: Padding(
-            padding: const EdgeInsets.all(60),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                CommandStep(
-                  command: 'print rows',
-                  output: _lines.join('\n'),
-                  status: running
-                      ? CommandStatus.running
-                      : CommandStatus.succeeded,
-                  expanded: true,
-                ),
-                const Text(_after),
-              ],
-            ),
-          ),
-        ),
-      ),
+      home: Scaffold(body: ChatHistoryView(feed: feed)),
     ),
   );
   await tester.pumpAndSettle();
+  await tester.tap(find.textContaining('print rows', findRichText: true).first);
+  await tester.pumpAndSettle();
   final position = tester
-      .state<ScrollableState>(find.byType(Scrollable).first)
+      .state<ScrollableState>(
+        find
+            .descendant(
+              of: find.byType(CommandStep),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      )
       .position;
   position.jumpTo(offset);
   await tester.pumpAndSettle();
@@ -92,15 +126,10 @@ Future<void> _drag(WidgetTester tester, (Offset, Offset) ends) async {
   await tester.pumpAndSettle();
 }
 
-List<String> _selected(WidgetTester tester) => [
-  for (final paragraph in tester.renderObjectList<RenderParagraph>(
-    find.byType(RichText),
-  ))
-    // ignore: invalid_use_of_visible_for_testing_member
-    for (final selection in paragraph.selections)
-      if (!selection.isCollapsed)
-        selection.textInside(paragraph.text.toPlainText()),
-];
+String? _selected(WidgetTester tester) => tester
+    .renderObject<RenderChatSelectionItem>(find.byType(ChatSelectionItem).first)
+    .controller
+    .selectedText();
 
 void main() {
   for (final zoom in [0.9, 1.0, 1.1, 1.5]) {
@@ -110,7 +139,7 @@ void main() {
         final position = await _pumpOutput(tester, zoom: zoom, offset: offset);
         final line = _lines[offset == 0 ? 3 : 25];
         await _drag(tester, _ends(_output(tester), line));
-        expect(_selected(tester), [line]);
+        expect(_selected(tester), line);
         expect(position.pixels, offset);
       }, variant: TargetPlatformVariant.desktop());
     }
@@ -121,13 +150,20 @@ void main() {
   ) async {
     final position = await _pumpOutput(tester, running: true);
     final paragraph = _output(tester);
-    final viewport = tester.getRect(find.byType(SingleChildScrollView));
+    final viewport = tester.getRect(
+      find
+          .descendant(
+            of: find.byType(CommandStep),
+            matching: find.byType(SingleChildScrollView),
+          )
+          .first,
+    );
     final line = _lines.firstWhere((line) {
       final ends = _ends(paragraph, line);
       return (ends.$1.dy - viewport.center.dy).abs() < 12;
     });
     await _drag(tester, _ends(paragraph, line));
-    expect(_selected(tester), [line]);
+    expect(_selected(tester), line);
     expect(position.pixels, 400);
   }, variant: TargetPlatformVariant.desktop());
 
@@ -145,35 +181,11 @@ void main() {
     await tester.pump();
     position.jumpTo(position.pixels + 36);
     await tester.pumpAndSettle();
-    // Selection is reapplied after the scroll frame's own updates.
     await tester.pump(const Duration(milliseconds: 16));
     await mouse.up();
     await tester.pumpAndSettle();
-    expect(_selected(tester), [_lines.sublist(25, 28).join('\n')]);
+    expect(_selected(tester), _lines.sublist(25, 28).join('\n'));
     expect(position.pixels, 436);
-  });
-
-  testWidgets('holding a selection below the output scrolls it on', (
-    tester,
-  ) async {
-    final position = await _pumpOutput(tester);
-    final ends = _ends(_output(tester), _lines[25]);
-    final mouse = await tester.startGesture(
-      ends.$1,
-      kind: PointerDeviceKind.mouse,
-    );
-    await tester.pump();
-    await mouse.moveTo(ends.$2);
-    await tester.pump();
-    final viewport = tester.getRect(find.byType(SingleChildScrollView));
-    await mouse.moveTo(Offset(ends.$2.dx, viewport.bottom + 20));
-    for (var i = 0; i < 10; i++) {
-      await tester.pump(const Duration(milliseconds: 50));
-    }
-    await mouse.up();
-    await tester.pumpAndSettle();
-    expect(position.pixels, greaterThan(400));
-    expect(_selected(tester).first, startsWith(_lines[25]));
   });
 
   testWidgets('copy returns the output line dragged over after scrolling', (

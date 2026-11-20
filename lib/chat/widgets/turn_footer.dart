@@ -12,6 +12,7 @@ import 'agent_step.dart';
 import 'copy_button.dart';
 import 'hover_builder.dart';
 import 'rolling_text.dart';
+import '../selection/chat_selection.dart';
 
 /// Lucide's icons the footer uses.
 const _zapIcon = 'assets/icons/lucide-zap.svg';
@@ -115,7 +116,7 @@ class TurnFooter extends StatelessWidget {
     );
   }
 
-  static Widget _padded(Widget line) => SelectionContainer.disabled(
+  static Widget _padded(Widget line) => ChatUnselectable(
     child: Padding(padding: const EdgeInsets.only(top: 6), child: line),
   );
 
