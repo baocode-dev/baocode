@@ -816,13 +816,22 @@ class ModelProvider {
   static final _sorted = Expando<List<ProviderModel>>();
   static final _enabled = Expando<List<ProviderModel>>();
   static final _labels = Expando<Map<String, String>>();
+  static final _byId = Expando<Map<String, ProviderModel>>();
+  static final _byAlias = Expando<Map<String, ProviderModel>>();
 
   /// Its model [id]; for magpie's, also one kept by its real id that a
   /// session or setting still names by its old alias ([Magpie.alias]).
+  /// Looked up for every event of a conversation, of every one replayed:
+  /// the aliases, hashed one by one, are worked out once.
   ProviderModel? model(String id) =>
-      models.where((model) => model.id == id).firstOrNull ??
+      (_byId[this] ??= {
+        for (final model in models.reversed) model.id: model,
+      })[id] ??
       (followsMagpie && Magpie.isAlias(id)
-          ? models.where((model) => Magpie.alias(model.id) == id).firstOrNull
+          ? (_byAlias[this] ??= {
+              for (final model in models.reversed)
+                Magpie.alias(model.id): model,
+            })[id]
           : null);
 
   /// How [model] is spoken to: at its own endpoint, if it has one, else
