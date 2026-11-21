@@ -476,14 +476,14 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate, SessionToolsBots {
   /// The bot whose folder [cwd] is: its conversation's, or one of a group
   /// chat's it had before its groups came to it there
   /// ([BotGroups.memberFolder]).
-  Bot? botAt(String cwd) => _bots
-      .where(
-        (bot) =>
-            bot.folder == cwd ||
-            BotGroups.groupAt(cwd) != null &&
-                p.dirname(p.dirname(cwd)) == bot.folder,
-      )
-      .firstOrNull;
+  Bot? botAt(String cwd) {
+    final member = BotGroups.groupAt(cwd) == null
+        ? null
+        : p.dirname(p.dirname(cwd));
+    return _bots
+        .where((bot) => bot.folder == cwd || bot.folder == member)
+        .firstOrNull;
+  }
 
   AgentSetup? _setup(String path) => switch (botAt(path)) {
     final bot? => AgentSetup(
