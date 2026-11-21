@@ -16,6 +16,7 @@ import 'plan_card.dart';
 import 'session_step.dart';
 import 'step_header.dart';
 import 'edit_step.dart';
+import 'markdown_view.dart';
 import 'terminal_output.dart';
 import 'thinking_section.dart';
 import 'tool_call_row.dart';
@@ -174,6 +175,20 @@ class ChatItemView extends StatelessWidget {
   }
 }
 
+/// What a copy of [item] takes while it is not built: the text it shows
+/// that selects ([chatItemPlainText]): of an edit, only a compact one's
+/// line; a card's name and counts do not select, and the diff selects in
+/// its own editor.
+String chatItemCopyText(
+  ChatItem item, {
+  bool expanded = false,
+  AppLocalizations? l10n,
+}) => switch (item) {
+  CodeDiffItem() when EditDetail.current.value == EditDetail.card => '',
+  CodeDiffItem() => chatItemPlainText(item, l10n: l10n),
+  _ => chatItemPlainText(item, expanded: expanded, l10n: l10n),
+};
+
 /// The text of [item] as the history shows it, for copying items that are
 /// wholly inside a selection (built or not). Mirrors the widgets above: one
 /// line per text block, blocks on the same row joined by a space, so it
@@ -197,13 +212,7 @@ String chatItemPlainText(
     UserMessageItem(:final text, fromAgent: final agent?) =>
       '$agent: ${inline(text)}',
     UserMessageItem(:final text) => inline(text),
-    AssistantTextItem(:final text) => [
-      for (final line in text.split('\n'))
-        if (line.startsWith('- '))
-          '• ${inline(line.substring(2))}'
-        else if (line.isNotEmpty)
-          inline(line),
-    ].join('\n'),
+    AssistantTextItem(:final text) => MarkdownView.copyText(text),
     ThinkingItem(:final text, :final seconds) => switch (thoughtSummary(text)) {
       (:final title, :final body) => [
         title,
