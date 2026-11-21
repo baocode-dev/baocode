@@ -448,6 +448,7 @@ class ComposerPickerState extends State<ComposerPicker> {
 
   /// Picks option [index]; one with a submenu opens it, as → does.
   void _select(int index) {
+    if (!_open) return;
     if (widget.submenuOf != null) {
       if (_settingsFor(index).isNotEmpty) {
         _highlighted = index;
@@ -457,6 +458,13 @@ class ComposerPickerState extends State<ComposerPicker> {
     }
     _setOpen(false);
     widget.onSelected(widget.options[index]);
+  }
+
+  void _submitHighlighted() {
+    final visible = _visible;
+    if (visible.isNotEmpty) {
+      _select(visible.contains(_highlighted) ? _highlighted : visible.first);
+    }
   }
 
   /// The settings shown, if any.
@@ -585,6 +593,10 @@ class ComposerPickerState extends State<ComposerPicker> {
 
   KeyEventResult? _handleKey(KeyEvent event) {
     if (event is KeyUpEvent) return null;
+    // An input method composing in the search line: its keys (Enter picks
+    // a candidate, Esc drops them), also as they come back up through the
+    // input the picker belongs to.
+    if (_composing) return null;
     final key = event.logicalKey;
     if (_setting case final setting?) return _handleSettingKey(event, setting);
     final visible = _visible;
@@ -602,9 +614,7 @@ class ComposerPickerState extends State<ComposerPicker> {
       if (!_openSettings()) return null;
     } else if (key == LogicalKeyboardKey.enter ||
         key == LogicalKeyboardKey.numpadEnter) {
-      if (event is KeyDownEvent && count > 0) {
-        _select(visible.contains(_highlighted) ? _highlighted : visible.first);
-      }
+      if (event is KeyDownEvent) _submitHighlighted();
     } else if (key == LogicalKeyboardKey.escape) {
       // Typed: the search is cleared first.
       if (event is KeyDownEvent) {
@@ -649,9 +659,16 @@ class ComposerPickerState extends State<ComposerPicker> {
     if (!_searchFocus.hasFocus) _searchFocus.requestFocus();
   }
 
+  /// Whether an input method is composing text in the search line.
+  bool get _composing {
+    final composing = _searchText.value.composing;
+    return _searchFocus.hasFocus && composing.isValid && !composing.isCollapsed;
+  }
+
   /// A key in the focused search line: the menu's (↑↓, Enter, Esc; all
   /// of them in the settings), the rest the line's own.
   KeyEventResult _handleSearchKey(KeyEvent event) {
+    if (_composing) return KeyEventResult.ignored;
     final key = event.logicalKey;
     // Back to the input: the focus does not go on out of the menu.
     if (key == LogicalKeyboardKey.tab) {
@@ -1124,6 +1141,7 @@ class ComposerPickerState extends State<ComposerPicker> {
               controller: _searchText,
               focusNode: _searchFocus,
               placeholder: widget.searchPlaceholder!,
+              onSubmitted: (_) => _submitHighlighted(),
             ),
           if (matching.isEmpty)
             Padding(
@@ -1306,11 +1324,13 @@ class _SearchLine extends StatelessWidget {
     required this.controller,
     required this.focusNode,
     required this.placeholder,
+    this.onSubmitted,
   });
 
   final TextEditingController controller;
   final FocusNode focusNode;
   final String placeholder;
+  final ValueChanged<String>? onSubmitted;
 
   static const _style = TextStyle(fontSize: 12.5, height: 1.2);
 
@@ -1379,6 +1399,7 @@ class _SearchLine extends StatelessWidget {
                       backgroundCursorColor: AppColors.textFaint,
                       selectionColor: themeColors['editor.selectionBackground'],
                       maxLines: 1,
+                      onSubmitted: onSubmitted,
                     ),
                   ),
                 ],
