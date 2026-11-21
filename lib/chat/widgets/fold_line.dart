@@ -8,6 +8,15 @@ import '../step_folds.dart';
 import 'agent_step.dart';
 import 'content_image.dart';
 import 'step_header.dart';
+import 'web_step_icons.dart';
+
+export 'web_step_icons.dart'
+    show
+        FoldWebIcon,
+        FoldWebSearchIcon,
+        FoldWebSiteIcon,
+        StepWebIcons,
+        foldWebIcons;
 
 /// A run of quick steps, folded: "Read 3 files, ran 2 commands", the
 /// counts standing out; then, fainter, how long it thought. Opens to the
@@ -19,6 +28,7 @@ class StepsFoldLine extends StatelessWidget {
     required this.expanded,
     required this.onToggle,
     this.images = const [],
+    this.webIcons = const [],
   });
 
   final StepTally tally;
@@ -27,6 +37,9 @@ class StepsFoldLine extends StatelessWidget {
 
   /// The steps' pictures (see [foldImages]), small after the line.
   final List<ChatImage> images;
+
+  /// The steps' web icons (see [foldWebIcons]), stacked before [images].
+  final List<FoldWebIcon> webIcons;
 
   /// What the steps did, each phrase with its count in it.
   static List<(String, int)> _actions(StepTally tally, AppLocalizations l10n) {
@@ -87,7 +100,12 @@ class StepsFoldLine extends StatelessWidget {
         expanded: expanded,
         onToggle: onToggle,
         trailingGap: 0,
-        trailing: _thumbnails(context, images, expanded: expanded),
+        trailing: _foldTrailing(
+          context,
+          webIcons: webIcons,
+          images: images,
+          expanded: expanded,
+        ),
         spans: [
           for (final (i, (phrase, n)) in actions.indexed) ...[
             if (i > 0) TextSpan(text: l10n.stepsSeparator),
@@ -127,6 +145,7 @@ class WorkFoldLine extends StatelessWidget {
     required this.expanded,
     required this.onToggle,
     this.images = const [],
+    this.webIcons = const [],
     this.stopped = false,
   });
 
@@ -140,6 +159,9 @@ class WorkFoldLine extends StatelessWidget {
 
   /// The turn's pictures (see [foldImages]), small after the line.
   final List<ChatImage> images;
+
+  /// The turn's web icons (see [foldWebIcons]), stacked before [images].
+  final List<FoldWebIcon> webIcons;
 
   /// The line as text, e.g. for copying; in [l10n]'s language (English
   /// when null).
@@ -184,7 +206,12 @@ class WorkFoldLine extends StatelessWidget {
       expanded: expanded,
       onToggle: onToggle,
       trailingGap: 0,
-      trailing: _thumbnails(context, images, expanded: expanded),
+      trailing: _foldTrailing(
+        context,
+        webIcons: webIcons,
+        images: images,
+        expanded: expanded,
+      ),
       spans: [
         TextSpan(text: _worked(l10n, worked, stopped: stopped)),
         if (edits.files > 0) ...[
@@ -213,6 +240,21 @@ class WorkFoldLine extends StatelessWidget {
       child: Align(alignment: Alignment.centerLeft, child: header),
     );
   }
+}
+
+/// A fold's stacked web icons (before its pictures) and small [images] after
+/// its line while it is closed; none without either.
+Widget? _foldTrailing(
+  BuildContext context, {
+  required List<FoldWebIcon> webIcons,
+  required List<ChatImage> images,
+  required bool expanded,
+}) {
+  final thumbs = _thumbnails(context, images, expanded: expanded);
+  if (webIcons.isEmpty) return thumbs;
+  final badges = StepWebIcons(icons: webIcons, shown: !expanded);
+  if (thumbs == null) return badges;
+  return Row(mainAxisSize: MainAxisSize.min, children: [badges, thumbs]);
 }
 
 /// A fold's [images] small after its line while it is closed, a click on

@@ -318,6 +318,45 @@ void main() {
       expect('${refused['content']}', contains('Web search is not available'));
       expect('${invalid['content']}', contains('not both'));
     });
+
+    test(
+      'WebSearch: tool error block and empty reply fail as tool errors',
+      () async {
+        h = await Harness.start();
+        h.model.script.addAll([
+          Reply.tool('WebSearch', {'query': 'unsupported model'}),
+          Reply([
+            {
+              'type': 'server_tool_use',
+              'id': 'srvtoolu_1',
+              'name': 'web_search',
+              'input': {'query': 'unsupported model'},
+            },
+            {
+              'type': 'web_search_tool_result',
+              'tool_use_id': 'srvtoolu_1',
+              'content': {
+                'type': 'web_search_tool_result_error',
+                'error_code': 'unavailable',
+                'message': 'Web search is not supported for claude-opus-5-5 on Antigravity.',
+              },
+            },
+          ]),
+          Reply.tool('WebSearch', {'query': 'silent empty'}),
+          Reply(const []),
+          Reply.text('done'),
+        ]);
+        await h.turn('search');
+        final [unsupported, empty] = h.toolResults;
+        expect(unsupported['is_error'], isTrue);
+        expect(
+          '${unsupported['content']}',
+          'Web search is not supported for claude-opus-5-5 on Antigravity.',
+        );
+        expect(empty['is_error'], isTrue);
+        expect('${empty['content']}', contains('Web search is not available'));
+      },
+    );
   });
 
   group('shell', () {

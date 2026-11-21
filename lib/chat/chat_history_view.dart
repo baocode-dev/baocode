@@ -3053,6 +3053,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                       stopped: fold.stopped,
                       edits: turnEdits(_itemsIn(fold)),
                       images: foldImages(_itemsIn(fold)),
+                      webIcons: foldWebIcons(_itemsIn(fold)),
                       expanded: _isFoldOpen(fold),
                       onToggle: () => _toggleFold(fold),
                     ),
@@ -3064,6 +3065,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                     StepsFoldLine(
                       tally: StepTally(_itemsIn(fold)),
                       images: foldImages(_itemsIn(fold)),
+                      webIcons: foldWebIcons(_itemsIn(fold)),
                       expanded: _isFoldOpen(fold),
                       onToggle: () => _toggleFold(fold),
                     ),
