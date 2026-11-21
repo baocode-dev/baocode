@@ -214,6 +214,78 @@ void main() {
     });
   }
 
+  for (final readOnly in [false, true]) {
+    testWidgets('a table scrollbar uses an arrow and drags without selecting '
+        'text (readOnly: $readOnly)', (tester) async {
+      final wide = List.filled(3, 'word ' * 30).join(' | ');
+      final model = EditorDocumentModel(
+        '| x | y | z |\n|---|---|---|\n| $wide |\n',
+      );
+      await pumpPreview(tester, model, readOnly: readOnly);
+      tester.view.physicalSize = const Size(420, 700);
+      await tester.pumpAndSettle();
+      final bar = find.descendant(
+        of: find.byType(MdTable),
+        matching: find.byType(RawScrollbar),
+      );
+      final position = tester.widget<RawScrollbar>(bar).controller!.position;
+      expect(position.maxScrollExtent, greaterThan(0));
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      final bounds = tester.getRect(bar);
+      await mouse.moveTo(bounds.centerLeft + const Offset(30, 0));
+      await tester.pumpAndSettle();
+      final paint = find.descendant(
+        of: bar,
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is CustomPaint &&
+              widget.foregroundPainter is ScrollbarPainter,
+        ),
+      );
+      final painter =
+          tester.widget<CustomPaint>(paint).foregroundPainter!
+              as ScrollbarPainter;
+      final origin = tester.getTopLeft(paint);
+      final thumbPoints = [
+        for (var x = bounds.left; x < bounds.right; x++)
+          if (painter.hitTestOnlyThumbInteractive(
+            Offset(x, bounds.bottom - 5) - origin,
+            PointerDeviceKind.mouse,
+          ))
+            Offset(x, bounds.bottom - 5),
+      ];
+      expect(thumbPoints, isNotEmpty);
+      final thumb = (thumbPoints.first + thumbPoints.last) / 2;
+      final controller = _controller(tester);
+      final selection = controller.selection;
+      await mouse.moveTo(thumb);
+      await tester.pumpAndSettle();
+      expect(
+        RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
+        SystemMouseCursors.basic,
+      );
+      await mouse.down(thumb);
+      await tester.pump(const Duration(milliseconds: 150));
+      expect(controller.selection, selection);
+      await mouse.moveBy(const Offset(100, 0));
+      await tester.pumpAndSettle();
+      await mouse.up();
+      await tester.pumpAndSettle();
+      expect(position.pixels, greaterThan(0));
+      expect(controller.selection, selection);
+      expect(find.byType(MarkdownEditor), findsOneWidget);
+      expect(model.text, '| x | y | z |\n|---|---|---|\n| $wide |\n');
+      await mouse.moveTo(bounds.centerLeft + const Offset(30, 0));
+      await tester.pumpAndSettle();
+      expect(
+        RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
+        SystemMouseCursors.text,
+      );
+    }, variant: const TargetPlatformVariant({TargetPlatform.windows}));
+  }
+
   testWidgets('a file dropped goes after the block it is let go on', (
     tester,
   ) async {

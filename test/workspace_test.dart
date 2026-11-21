@@ -907,6 +907,41 @@ void main() {
     await tester.runAsync(() => Future<void>.delayed(Duration.zero));
   });
 
+  testWidgets('sessions in the temporary folder are listed only once its '
+      'folder is opened here, kept so between runs', (tester) async {
+    Workspace.inTempFolder = (path) => path.startsWith('/scratch/');
+    addTearDown(FakeCatalog.started.clear);
+    // An agent's clone, another agent run in it with `claude -p`.
+    const clone = '/scratch/xdr-files.PLYm1c';
+    FakeCatalog.started.add(
+      SessionRecord(
+        id: 'worker',
+        title: '# 离线打包 v8',
+        updatedAt: DateTime(2026, 9, 28),
+        cwd: clone,
+      ),
+    );
+    final store = MemoryPreferenceStore();
+    var workspace = await pumpLoaded(tester, preferences: store);
+    List<String> listed() => [
+      for (final project in workspace.sidebarProjects) project.path,
+    ];
+    expect(listed(), ['/tmp/project']);
+    final worker = workspace.threads.firstWhere(
+      (thread) => thread.record?.id == 'worker',
+    );
+    expect(workspace.isHidden(worker.project), isTrue);
+
+    await tester.runAsync(() => workspace.openFolder(clone));
+    expect(listed(), contains(clone));
+    expect(workspace.isHidden(worker.project), isFalse);
+
+    // The next run.
+    await tester.pumpWidget(const SizedBox());
+    workspace = await pumpLoaded(tester, preferences: store);
+    expect(listed(), contains(clone));
+  });
+
   testWidgets('what the sidebar shows is kept between runs', (tester) async {
     addTearDown(FakeCatalog.started.clear);
     FakeCatalog.started.add(

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../network/network_proxy_io.dart';
+import '../network/tls.dart';
 import '../usage/usage_ledger.dart';
 import '../workspace/editor_launcher.dart';
 import 'codex/codex_accounts_io.dart';
@@ -62,7 +63,7 @@ Future<List<RemoteModel>> listUpstreamModels(
   // The proxy as it is now: the settings page's test of a key may follow
   // turning Clash on.
   final route = await NetworkProxy.instance.resolve();
-  final client = HttpClient()
+  final client = HttpClient(context: await upstreamSecurityContext())
     ..connectionTimeout = const Duration(seconds: 15)
     ..findProxy = route.findProxy;
   try {
@@ -92,7 +93,7 @@ Future<List<RemoteModel>> listUpstreamModels(
   } on SocketException catch (error) {
     throw UpstreamException('Could not connect: ${error.message}');
   } on HandshakeException catch (error) {
-    throw UpstreamException('TLS failed: ${error.message}');
+    throw UpstreamException('TLS failed: ${handshakeFailure(error)}');
   } on TimeoutException {
     throw const UpstreamException('No answer in time.');
   } on HttpException catch (error) {

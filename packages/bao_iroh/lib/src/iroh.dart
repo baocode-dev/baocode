@@ -589,7 +589,8 @@ class IrohStream {
     if (!_released) biStreamReset(_handle);
   }
 
-  /// Lets go of it (reset, if not finished both ways).
+  /// Lets go of it: a read under way ends; what was sent is still written
+  /// to the end, then finished.
   void release() {
     if (_released) return;
     _released = true;

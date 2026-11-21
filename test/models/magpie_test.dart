@@ -193,6 +193,53 @@ void main() {
       );
     });
 
+    test('its alias of a model, as its gateway lists it to Claude Code', () {
+      // As magpie answered claude-cli's user agent for this model.
+      expect(
+        Magpie.alias('queqiaoai/gpt-5.6-sol'),
+        'anthropic/magpie-0508400605',
+      );
+      expect(Magpie.isAlias('anthropic/magpie-0508400605'), isTrue);
+      expect(Magpie.isAlias('anthropic/claude-opus-5-5'), isFalse);
+    });
+
+    test('asked with its own user agent, not Claude Code\'s', () {
+      expect(
+        upstreamHeaders(Magpie.provider('magpie'), 'k')['user-agent'],
+        baoCodeUserAgent,
+      );
+    });
+
+    test('models kept by an alias: by their ids, as they were', () {
+      const real = 'queqiaoai/gpt-5.6-sol';
+      final aliased = Magpie.alias(real);
+      final before = Magpie.provider('magpie').copyWith(
+        models: [
+          ProviderModel(id: aliased, label: 'GPT-5.6 Sol'),
+          ProviderModel(id: Magpie.alias('b/off'), enabled: false),
+          const ProviderModel(id: 'auto/claude-opus-5-5'),
+        ],
+        roles: ProviderRoles(main: aliased, haiku: modelRef('magpie', aliased)),
+      );
+      final after = Magpie.synced(before, [
+        const RemoteModel(real),
+        const RemoteModel('b/off'),
+        const RemoteModel('auto/claude-opus-5-5'),
+      ], {});
+      expect(after.models.map((m) => m.id), [
+        real,
+        'b/off',
+        'auto/claude-opus-5-5',
+      ]);
+      expect(after.model(real)!.enabled, isTrue);
+      expect(after.model('b/off')!.enabled, isFalse);
+      expect(after.models.any((m) => m.missing), isFalse);
+      expect(after.roles.main, real);
+      expect(after.roles.haiku, modelRef('magpie', real));
+      // A session still on the alias finds its model.
+      expect(after.model(aliased)!.id, real);
+    });
+
     test('kept with what it follows; a copy does not follow', () async {
       final store = ModelProviders.memory();
       await store.save(Magpie.provider('magpie'));

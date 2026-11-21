@@ -24,6 +24,7 @@ import 'chat/aside_layers.dart';
 import 'chat/chat_keys.dart';
 import 'chat/chat_models.dart' show FileChange, FileChangeKind;
 import 'chat/chat_screen.dart';
+import 'chat/session_links.dart';
 import 'chat/chat_session.dart' show ChatSession, ComposerMessage;
 import 'chat/composer/composer_files.dart' show CodeReference, ComposerFile;
 import 'chat/composer/composer_mock_data.dart' show Suggestion;
@@ -127,6 +128,8 @@ import 'window/code_args.dart';
 import 'window/window_settings.dart';
 import 'remote/open_remote.dart';
 import 'remote/project_host.dart';
+import 'remote/remote_browser.dart';
+import 'remote/remote_browser_view.dart';
 import 'remote/remote_customization_disk.dart';
 import 'remote/remote_files.dart';
 import 'remote/remote_location.dart';
@@ -158,9 +161,9 @@ import 'workspace/project_workspace.dart' show ProjectWorkspace;
 import 'workspace/title_bar_double_click.dart';
 import 'workspace/window_controls.dart';
 import 'workspace/window_header/window_header.dart';
+import 'workspace/session_links_host.dart';
 import 'workspace/workspace.dart';
 import 'workspace/workspace_dialog.dart';
-import 'ide/host_paths.dart';
 import 'remote/local_tools.dart';
 import 'remote/port_forwards.dart';
 
@@ -310,6 +313,9 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   /// [AgentSidePanel.asks] as last seen.
   int _sidePanelAsks = 0;
 
+  /// [AgentSidePanel.gaveWay], the window's, as last seen.
+  bool _sidePanelGaveWay = false;
+
   /// The docked sidebar is sliding out, giving way to the side panel: the
   /// panel's room grows meanwhile (see [AgentSidePanelArea.roomComing]).
   bool _sidebarGivingWay = false;
@@ -347,6 +353,18 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
 
   Workspace get _workspace => widget.workspace;
 
+  /// The conversations' names and states, for each conversation's steps,
+  /// cards and strip to show and open (see [SessionLinks]).
+  late final _sessionLinks = WorkspaceSessionLinks(
+    _workspace,
+    onOpen: _openLinkedAgent,
+  );
+
+  /// A conversation named in another's steps or cards, opened as the
+  /// sidebar would: in this window.
+  void _openLinkedAgent(AgentThread thread) =>
+      _agentWindow ? _showInWindow(thread) : _openAgent(thread);
+
   /// The IDE's workspaces by folder, each kept once shown; [_noFolder]'s is
   /// its empty window.
   final Map<String, IdeWorkspace> _ideSpaces = {};
@@ -368,7 +386,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   /// own).
   String get _ideFolder => _ideWindow
       ? widget.window!.folder ?? _noFolder
-      : _workspace.ideFolder ?? _noFolder;
+      : _agentThread?.project.path ?? _workspace.ideFolder ?? _noFolder;
   IdeWorkbenchState? get _ide => _ideKeys[_ideFolder]?.currentState;
 
   AppWindows? get _windows => widget.windows;
@@ -391,11 +409,30 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
 
   int get _viewId => widget.window?.viewId ?? 0;
 
-  /// Whether the IDE shows: always in its own window; without them, as the
+  /// Whether the IDE shows: always in its own window; in an agent's, once
+  /// its Open in Fast Ide is clicked ([_agentInIde]); without them, as the
   /// workspace's layout says.
   bool get _showsIde =>
       _ideWindow ||
+      (_agentWindow && _agentInIde) ||
       (!_multi && !_agentWindow && _workspace.layout == WorkspaceLayout.ide);
+
+  /// Whether an agent's window shows its project's IDE in place of its
+  /// conversation: its own, not the workspace's layout, which is the main
+  /// window's (the IDE opening there was the window behind coming up).
+  bool _agentInIde = false;
+
+  /// An agent's window's Open in Fast Ide: its project's IDE here, the
+  /// agent the tab of its chat.
+  void _showAgentIde() {
+    final thread = _agentThread;
+    if (thread == null) return;
+    _workspace.openIdeChat(thread.project.path, thread);
+    setState(() => _agentInIde = true);
+  }
+
+  /// Back to Chat in an agent's window: its conversation again.
+  void _showAgentChat() => setState(() => _agentInIde = false);
 
   WindowSettings get _windowSettings =>
       WindowSettings.parse(widget.settings?.files?.settings.values ?? const {});
@@ -493,13 +530,18 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   /// [_sidePanelLast]).
   void _sidePanelChanged() {
     final asked = _sidePanel.asks != _sidePanelAsks;
+    final gaveWay = _sidePanel.gaveWay();
     if (_sidePanel.isShown == _sidePanelShown &&
         _sidePanel.layout == _layout &&
         !asked) {
-      // Each pane's own, shown or hidden: their panes built anew.
-      if (_panesSidePanels && mounted) setState(() {});
+      // Each pane's own, shown or hidden, and the window's given way to
+      // the conversations or back: the toggles built anew.
+      if ((_panesSidePanels || gaveWay != _sidePanelGaveWay) && mounted) {
+        setState(() => _sidePanelGaveWay = gaveWay);
+      }
       return;
     }
+    _sidePanelGaveWay = gaveWay;
     final sidebarDocked = _sidebarDocked;
     _layout = _sidePanel.layout;
     if (asked) {
@@ -523,16 +565,20 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   /// Toggle Side Panel, as the title bars' toggles show it: shown where it
   /// gave way, it is asked for again. Of agents side by side, the focused
   /// one's.
-  void _toggleSidePanel() => _sidePanel.isShown && !_sidePanelHidden
+  void _toggleSidePanel() =>
+      _sidePanel.isShown && !_sidePanelHidden && !_sidePanel.givenWay
       ? _sidePanel.hide()
       : _sidePanel.show();
 
   /// Whether the side panel shows for [thread]: of agents side by side, its
   /// pane's own; else the window's, the focused agent's.
   bool _sidePanelShownFor(AgentThread thread) => _panesSidePanels
-      ? _sidePanel.shownIn(thread.session) && !_sidePanelHidden
+      ? _sidePanel.shownIn(thread.session) &&
+            !_sidePanelHidden &&
+            !_sidePanel.gaveWay(thread.session)
       : _sidePanelShown &&
             !_sidePanelHidden &&
+            !_sidePanel.gaveWay() &&
             (_agentThread != null || identical(thread, _workspace.current));
 
   /// [thread]'s pane's side panel: hidden where it is its agent's already,
@@ -876,6 +922,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
 
   @override
   void dispose() {
+    _sessionLinks.dispose();
     ChannelGate.current?.removeListener(_channelGateChanged);
     for (final edits in _ideAgentEdits.values) {
       edits.dispose();
@@ -2215,7 +2262,13 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     _workspace.closeIdeFolder();
   }
 
+  /// Open Folder… in the IDE: a remote project's host's folders browsed,
+  /// as VS Code's in a remote window; else this machine's.
   Future<void> _pickIdeFolder() async {
+    if (_remoteBeside(_ideFolder) case (:final host, :final directory)) {
+      _openRemoteProject(host: host, directory: directory, inIde: true);
+      return;
+    }
     final held = _newWindowHeld;
     final path = await WindowControls.pickDirectory();
     if (path == null || !mounted) return;
@@ -2402,20 +2455,30 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
 
   /// Asks where to save [doc] of [space] (Save As…, an untitled file's
   /// first save): where it is, or in the folder; noted among the recent.
-  Future<String?> _askSavePath(IdeWorkspace space, IdeDocument doc) async {
-    // A remote project's folders are not this machine's, where the panel is.
-    final local = space.files is! IdeHostFiles;
+  Future<String?> _askSavePath(
+    IdeWorkspace space,
+    IdeDocument doc, {
+    String? host,
+  }) async {
+    final directory = doc.isUntitled
+        ? (space.hasFolder ? space.root : null)
+        : space.paths.dirname(doc.path);
+    final name = doc.isUntitled ? doc.path : space.paths.basename(doc.path);
+    // A remote project's: its host's folders, not this machine's, where
+    // the save panel is.
+    if (host != null) {
+      return _browseRemote(
+        RemoteBrowseRequest(
+          host: host,
+          saveName: name,
+          directory: directory,
+          connect: SshHosts.instance[host].reconnect,
+        ),
+      );
+    }
     final path = await WindowControls.pickSaveFile(
-      directory: !local
-          ? null
-          : doc.isUntitled
-          ? (space.hasFolder ? space.root : null)
-          : p.dirname(doc.path),
-      name: doc.isUntitled
-          ? doc.path
-          : local
-          ? p.basename(doc.path)
-          : hostPathsFor(doc.path).basename(doc.path),
+      directory: directory,
+      name: name,
     );
     if (path != null) _workspace.addRecentFile(path);
     return path;
@@ -2858,7 +2921,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
           // progress in the window's toasts.
           child: IdeNotificationsScope(
             notifications: _notifications,
-            child: content,
+            child: SessionLinks(host: _sessionLinks, child: content),
           ),
         );
       },
@@ -2884,7 +2947,18 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         ),
         showToggle: showToggle,
       );
-      return narrow ? _buildNarrow(body: chat) : _buildWide(body: chat);
+      // Its project's IDE, once opened here, kept built while the
+      // conversation shows (as the main window keeps its own).
+      final folder = _ideFolder;
+      final ide = _agentInIde;
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          if (ide || _ideSpaces.containsKey(folder))
+            _buildIde(folder, _ideSpace(folder), shown: ide),
+          if (!ide) narrow ? _buildNarrow(body: chat) : _buildWide(body: chat),
+        ],
+      );
     }
     final folder = _ideFolder;
     // An IDE window has its folder's alone.
@@ -2943,9 +3017,12 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
                 ? Project.at(space.root)
                 : _workspace.projectAt(path),
             visible: shown,
-            // An IDE window's way back shows the chat's window.
+            // An IDE window's way back shows the chat's window; an agent's,
+            // its conversation.
             onBack: _ideWindow
                 ? _windows!.showChat
+                : _agentWindow
+                ? _showAgentChat
                 : () => _workspace.layout = WorkspaceLayout.chat,
             backLabel: _ideWindow ? context.l10n.cmdShowChatWindow : null,
             pinned: _pinned,
@@ -3364,7 +3441,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     }
     if (_ideWindow) _trackEdited(space);
     if (folder == _noFolder) space.addListener(() => _followLooseFile(space));
-    return space..askSavePath = (doc) => _askSavePath(space, doc);
+    return space
+      ..askSavePath = (doc) => _askSavePath(space, doc, host: host.name);
   });
 
   /// Where the IDE's chat is without a folder open: in that of the file in
@@ -3456,8 +3534,13 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       project: project,
       ide: ide,
       hasFolder: _ideFolder != _noFolder,
-      onBack: _ideWindow ? windows!.showChat : null,
+      onBack: _ideWindow
+          ? windows!.showChat
+          : _agentWindow
+          ? _showAgentChat
+          : null,
       backLabel: _ideWindow ? context.l10n.cmdShowChatWindow : null,
+      onOpenIde: _agentWindow ? _showAgentIde : null,
       onNewWindow: windows == null
           ? null
           : () => unawaited(windows.newWindow()),
@@ -3479,7 +3562,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       onToggleTerminal: ide || _terminals?.root == null
           ? null
           : _toggleTerminal,
-      sidePanelShown: _sidePanel.isShown && !_sidePanelHidden,
+      sidePanelShown:
+          _sidePanel.isShown && !_sidePanelHidden && !_sidePanel.givenWay,
       onToggleSidePanel: ide || (agent ?? _workspace.current) == null
           ? null
           : _toggleSidePanel,
@@ -3605,12 +3689,14 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     bool inIde = false,
     ValueChanged<String>? onOpen,
     String? host,
+    String? directory,
     bool switchTo = false,
   }) {
     final held = _newWindowHeld;
     late final OpenRemoteFlow flow;
     flow = OpenRemoteFlow(
       show: showQuickPick,
+      browse: _browseRemote,
       l10n: context.l10n,
       added: _workspace.sshHosts,
       labelOf: _workspace.hostLabel,
@@ -3638,10 +3724,50 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       },
     );
     if (host != null) {
-      flow.startAt(host);
+      flow.startAt(host, directory: directory);
     } else {
       unawaited(flow.start());
     }
+  }
+
+  /// Where a folder is picked beside [location] (a project's, the IDE's):
+  /// on its host, in the folder holding it; null where it is this
+  /// machine's, for the file manager.
+  ({String host, String directory})? _remoteBeside(String? location) {
+    final host = location == null ? null : RemoteLocation.hostOf(location);
+    if (host == null || host.isEmpty) return null;
+    final path = RemoteLocation.pathOf(location!);
+    return (
+      host: host,
+      directory: RemoteLocation.pathsOf(location).dirname(path),
+    );
+  }
+
+  /// The remote browser for [request]: the host by its name, the folders
+  /// browsed or opened there lately at its left, what it shows kept.
+  Future<String?> _browseRemote(RemoteBrowseRequest request) async {
+    if (!mounted) return null;
+    final host = request.host;
+    final recent = <String>{
+      for (final location in [
+        ..._workspace.recentFolders,
+        for (final project in _workspace.projects) project.path,
+      ])
+        if (RemoteLocation.hostOf(location) == host)
+          RemoteLocation.pathOf(location),
+    };
+    return showRemoteBrowser(
+      context,
+      request,
+      hostLabel: _workspace.hostLabel(host),
+      // Those browsed, then those opened as projects there.
+      locations: [
+        ...{..._workspace.remoteLocations(host), ...recent},
+      ],
+      onLocations: (paths) => _workspace.keepRemoteLocations(host, paths),
+      view: RemoteBrowserView.fromJson(_workspace.remoteBrowserView),
+      onView: (view) => _workspace.keepRemoteBrowserView(view.toJson()),
+    );
   }
 
   /// The hosts of `~/.ssh/config`, as last read: edited there, not with
@@ -3740,6 +3866,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     if (host == null || host.isEmpty) return;
     final flow = OpenRemoteFileFlow(
       show: showQuickPick,
+      browse: _browseRemote,
       l10n: context.l10n,
       hosts: SshHosts.instance,
       onOpen: (location) {
@@ -3820,10 +3947,28 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   /// (set as the item is built).
   Rect _statusAnchor = Rect.zero;
 
+  /// Open Folder… on the chat's side: on the current agent's host, its
+  /// folders browsed (as VS Code's in a remote window), else this
+  /// machine's in the file manager.
   Future<void> _openFolder() async {
+    if (_remoteBeside(_workspace.current?.project.path) case (
+      :final host,
+      :final directory,
+    )) {
+      _openRemoteProject(
+        host: host,
+        directory: directory,
+        onOpen: (location) => unawaited(_openedFolder(location)),
+      );
+      return;
+    }
     final path = await WindowControls.pickDirectory();
     if (path == null || !mounted) return;
-    final thread = await _workspace.openFolder(path);
+    await _openedFolder(path);
+  }
+
+  Future<void> _openedFolder(String location) async {
+    final thread = await _workspace.openFolder(location);
     _closeDrawer();
     if (mounted) _watchFirstTurn(thread);
   }
@@ -3892,6 +4037,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
                           workspace: _workspace,
                           project: thread.project,
                           agent: thread,
+                          onOpenIde: _agentWindow ? _showAgentIde : null,
                         ),
                       ],
                       if (showToggle && _sidebarAtRight) ...[
@@ -4940,6 +5086,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
           workspace: _workspace,
           project: thread.project,
           agent: thread,
+          onOpenIde: _agentWindow ? _showAgentIde : null,
         ),
       ],
       if (trailingToggle && !inPane) ...[
@@ -5073,8 +5220,11 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
             : NewChatFolderBar(
                 workspace: _workspace,
                 thread: thread,
-                openRemote: (onOpen, {host}) =>
-                    _openRemoteProject(onOpen: onOpen, host: host),
+                openRemote: (onOpen, {host, directory}) => _openRemoteProject(
+                  onOpen: onOpen,
+                  host: host,
+                  directory: directory,
+                ),
               ),
         // The setup checklist, over the new agent's composer.
         startHint: switch (_tips) {
@@ -5095,6 +5245,14 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         onSideQuestion: (question) => _askBeside(thread, question),
         onFork: (message) =>
             unawaited(_forkFromComposer(thread, message, embedded: embedded)),
+        onForkBefore: (before) => unawaited(
+          _forkFromComposer(
+            thread,
+            const ComposerMessage(text: ''),
+            embedded: embedded,
+            before: before,
+          ),
+        ),
         asideAt: _asideCards(thread, embedded: embedded),
         back: switch (_workspace.parentOf(thread)) {
           final parent? => (
@@ -5170,17 +5328,23 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
 
   /// `/fork` in [thread]: copied as the sidebar's Fork does and the copy
   /// opened where [thread] shows (in the IDE's chat, as a tab of its own),
-  /// [message] sent there; a notice where [thread] cannot be copied.
+  /// [message] sent there; a notice where [thread] cannot be copied. Up to
+  /// the user's message [before] when given: a turn footer's fork.
   Future<void> _forkFromComposer(
     AgentThread thread,
     ComposerMessage message, {
     required bool embedded,
+    String? before,
   }) async {
     if (thread.id == null || !thread.session.canFork) {
       _notifications.notify(IdeSeverity.info, context.l10n.forkUnavailable);
       return;
     }
-    final forked = await _workspace.fork(thread, message: message);
+    final forked = await _workspace.fork(
+      thread,
+      message: message,
+      before: before,
+    );
     if (forked == null || !mounted) return;
     if (embedded) {
       _openIdeChat(thread.project.path, forked);

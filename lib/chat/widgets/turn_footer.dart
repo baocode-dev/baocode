@@ -10,12 +10,15 @@ import '../../theme/app_theme.dart';
 import '../chat_models.dart';
 import 'agent_step.dart';
 import 'copy_button.dart';
+import 'hover_builder.dart';
 import 'rolling_text.dart';
+import '../selection/chat_selection.dart';
 
 /// Lucide's icons the footer uses.
 const _zapIcon = 'assets/icons/lucide-zap.svg';
 const _clockIcon = 'assets/icons/lucide-clock.svg';
 const _arrowDownIcon = 'assets/icons/lucide-arrow-down.svg';
+const _forkIcon = 'assets/icons/lucide-split.svg';
 
 /// Whether the turn under way has its line of figures (`chat.liveTurnStats`),
 /// on unless set to false. A finished turn's figures always show.
@@ -34,9 +37,10 @@ abstract final class LiveTurnStatsSetting {
   static Listenable? changes;
 }
 
-/// Under a finished turn: a button to copy its answer, then, faint, how
-/// long the turn took, how fast the model wrote, what it cost and the
-/// tokens it used, as far as known. Out of the history's selection.
+/// Under a finished turn: a button to copy its answer and one to fork the
+/// conversation from there, then, faint, how long the turn took, how fast
+/// the model wrote, what it cost and the tokens it used, as far as known.
+/// Out of the history's selection.
 ///
 /// Under a turn under way ([live]), the last of all: how long the turn has
 /// taken ([since] its start), how fast the model writes (as last sampled)
@@ -48,6 +52,7 @@ class TurnFooter extends StatelessWidget {
   const TurnFooter({
     super.key,
     this.answer,
+    this.onFork,
     this.worked,
     this.usage,
     this.live,
@@ -56,6 +61,10 @@ class TurnFooter extends StatelessWidget {
 
   /// What the copy button copies; no button when null.
   final String? answer;
+
+  /// Copies the conversation up to the end of this turn into a new one;
+  /// no button when null.
+  final VoidCallback? onFork;
   final Duration? worked;
   final TurnUsage? usage;
 
@@ -81,10 +90,19 @@ class TurnFooter extends StatelessWidget {
     final l10n = context.l10n;
     final live = this.live;
     if (live == null) {
+      final onFork = this.onFork;
       return _padded(
         _line([
-          if (answer case final answer?)
-            CopyButton(text: answer, tooltip: l10n.turnCopy),
+          if (answer != null || onFork != null)
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              spacing: 2,
+              children: [
+                if (answer case final answer?)
+                  CopyButton(text: answer, tooltip: l10n.turnCopy),
+                if (onFork != null) _ForkButton(onTap: onFork),
+              ],
+            ),
           ..._stats(l10n),
         ]),
       );
@@ -98,7 +116,7 @@ class TurnFooter extends StatelessWidget {
     );
   }
 
-  static Widget _padded(Widget line) => SelectionContainer.disabled(
+  static Widget _padded(Widget line) => ChatUnselectable(
     child: Padding(padding: const EdgeInsets.only(top: 6), child: line),
   );
 
@@ -226,6 +244,44 @@ class _LiveStatsState extends State<_LiveStats> {
 
   static Duration _nonNegative(Duration time) =>
       time.isNegative ? Duration.zero : time;
+}
+
+/// A faint icon beside the copy button, as it is: forks the conversation
+/// from the end of the turn.
+class _ForkButton extends StatelessWidget {
+  const _ForkButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return IdeHover(
+      message: context.l10n.turnFork,
+      child: HoverBuilder(
+        cursor: SystemMouseCursors.click,
+        builder: (context, hovered) => GestureDetector(
+          onTap: onTap,
+          behavior: HitTestBehavior.opaque,
+          child: Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: hovered ? AppColors.hover : null,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: SvgPicture.asset(
+              _forkIcon,
+              width: 13,
+              height: 13,
+              colorFilter: ColorFilter.mode(
+                hovered ? AppColors.text : AppColors.textFaint,
+                BlendMode.srcIn,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _Stat extends StatelessWidget {

@@ -80,11 +80,11 @@ class FileMentions {
   }
 
   /// The listing's matches, then the kernel's not among them.
-  List<Suggestion> _merge(
+  Future<List<Suggestion>> _merge(
     String query,
     String? root,
     List<FileSuggestion> kernelFiles,
-  ) {
+  ) async {
     final filter = query.replaceAll(r'\', '/');
     final seen = <String>{};
     final suggestions = <Suggestion>[];
@@ -104,15 +104,20 @@ class FileMentions {
     } else {
       // The files matching, and the folders whose names match, best first;
       // a folder first of the two where they match as well.
+      final (files, folders) = await (
+        index.find(filter, limit: _limit),
+        index.findFolders(filter, limit: _maxFolders, minScore: _nameMatch),
+      ).wait;
       final ranked = <({String path, String relative, int score, bool folder})>[
-        for (final (:path, :relative) in index.search(filter, limit: _limit))
+        for (final (:path, :relative) in files)
           (
             path: path,
             relative: relative,
             score: scoreFilePath(filter, relative)?.score ?? 0,
             folder: false,
           ),
-        ..._folders(filter),
+        for (final (folder: (:path, :relative), :score) in folders)
+          (path: path, relative: relative, score: score, folder: true),
       ];
       ranked.sort((a, b) {
         final byScore = b.score.compareTo(a.score);
@@ -140,20 +145,6 @@ class FileMentions {
       if (seen.add(_key(suggestion.value))) suggestions.add(suggestion);
     }
     return suggestions;
-  }
-
-  /// The listing's folders whose names match [filter], the best few.
-  List<({String path, String relative, int score, bool folder})> _folders(
-    String filter,
-  ) {
-    final found = [
-      for (final (:path, :relative) in index.folders)
-        if (scoreFilePath(filter, relative)
-            case (:final score, label: _, description: _)
-            when score >= _nameMatch)
-          (path: path, relative: relative, score: score, folder: true),
-    ]..sort((a, b) => b.score.compareTo(a.score));
-    return found.take(_maxFolders).toList();
   }
 
   /// At most this many folders among the files.

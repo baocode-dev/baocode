@@ -2750,6 +2750,12 @@ abstract class AppLocalizations {
   /// **'No matching results'**
   String get quickOpenNoMatchingResults;
 
+  /// No description provided for @quickOpenTooManyFiles.
+  ///
+  /// In en, this message translates to:
+  /// **'Only the first {count} files are searched: this project has more'**
+  String quickOpenTooManyFiles(int count);
+
   /// Command palette group label.
   ///
   /// In en, this message translates to:
@@ -3007,6 +3013,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{action, select, tabs{Listing tabs} open{Opening} navigate{Going to} back{Going back} forward{Going forward} reload{Reloading} snapshot{Reading the page} screenshot{Taking a screenshot} click{Clicking} type{Typing} press{Pressing} scroll{Scrolling} evaluate{Running} close{Closing the tab} console{Reading the console} network{Listing requests} request{Reading the request} performance{Profiling} recordStart{Starting to profile} recordStop{Profiling} emulate{Emulating} watch{Watching you} act{Acting} inspect{Inspecting} sources{Reading the sources} breakpoints{Setting breakpoints} debugger{Debugging} intercept{Intercepting requests} storage{Reading site data} dialog{Answering the dialog} coverage{Measuring coverage} memory{Measuring memory} history{Reading the debugging history} other{Using the browser}}'**
   String browserStepRunning(String action);
+
+  /// A coordinating step's verb once done, by the session tool it called; the conversation's title follows.
+  ///
+  /// In en, this message translates to:
+  /// **'{action, select, new{Started} send{Handed work to} wait{Waited for} read{Read} stop{Stopped} changes{Checked the changes of} list{Listed the conversations} models{Checked the models} other{Coordinated}}'**
+  String sessionStepDone(String action);
+
+  /// A coordinating step's verb while it runs (see sessionStepDone).
+  ///
+  /// In en, this message translates to:
+  /// **'{action, select, new{Starting} send{Handing work to} wait{Waiting for} read{Reading} stop{Stopping} changes{Checking the changes of} list{Listing the conversations} models{Checking the models} other{Coordinating}}'**
+  String sessionStepRunning(String action);
+
+  /// No description provided for @sessionOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Open the conversation'**
+  String get sessionOpen;
+
+  /// How a conversation handed work stands, in the strip over the composer.
+  ///
+  /// In en, this message translates to:
+  /// **'{status, select, running{Working} waiting{Waiting on you} done{Done} failed{Failed} other{}}'**
+  String sessionStatus(String status);
+
+  /// Goes to a conversation that waits on the user, to answer it there.
+  ///
+  /// In en, this message translates to:
+  /// **'Answer'**
+  String get sessionAnswer;
+
+  /// No description provided for @sessionShowMore.
+  ///
+  /// In en, this message translates to:
+  /// **'Show more'**
+  String get sessionShowMore;
+
+  /// No description provided for @sessionShowLess.
+  ///
+  /// In en, this message translates to:
+  /// **'Show less'**
+  String get sessionShowLess;
 
   /// The side panel's plan page: the plan the agent wrote in plan mode, shown while there is one.
   ///
@@ -4688,6 +4736,12 @@ abstract class AppLocalizations {
   /// **'Copy reply'**
   String get turnCopy;
 
+  /// Hint of the button at the end of a finished turn that copies the conversation up to there into a new one.
+  ///
+  /// In en, this message translates to:
+  /// **'Fork from here'**
+  String get turnFork;
+
   /// No description provided for @turnCopied.
   ///
   /// In en, this message translates to:
@@ -4873,6 +4927,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Compacting conversation'**
   String get activityCompacting;
+
+  /// No description provided for @noticeCompacted.
+  ///
+  /// In en, this message translates to:
+  /// **'Conversation compacted'**
+  String get noticeCompacted;
+
+  /// No description provided for @noticeCompactedAuto.
+  ///
+  /// In en, this message translates to:
+  /// **'Conversation compacted automatically'**
+  String get noticeCompactedAuto;
+
+  /// The divider of a compaction forced by the API refusing the request as longer than the model's context, before the context set was full.
+  ///
+  /// In en, this message translates to:
+  /// **'Conversation compacted early: the provider refused it as too long for the model'**
+  String get noticeCompactedTooLong;
+
+  /// No description provided for @noticeCompactedTooLongWindow.
+  ///
+  /// In en, this message translates to:
+  /// **'Conversation compacted early: the provider refused it as too long for the model, which takes less than the {window} context set'**
+  String noticeCompactedTooLongWindow(String window);
+
+  /// No description provided for @noticeCompactedTokens.
+  ///
+  /// In en, this message translates to:
+  /// **'{tokens} tokens'**
+  String noticeCompactedTokens(String tokens);
+
+  /// No description provided for @noticeCompactedFromTo.
+  ///
+  /// In en, this message translates to:
+  /// **'{before} → {after} tokens'**
+  String noticeCompactedFromTo(String before, String after);
 
   /// No description provided for @activityPlanning.
   ///
@@ -5594,6 +5684,12 @@ abstract class AppLocalizations {
   /// **'Remove from the queue'**
   String get queuedRemove;
 
+  /// Hover of a reply the agent suggests, over the composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Click to put it in the input, double-click to send it'**
+  String get replySuggestionHint;
+
   /// No description provided for @stopConfirmMessage.
   ///
   /// In en, this message translates to:
@@ -6284,16 +6380,16 @@ abstract class AppLocalizations {
   /// **'Join the Current Task'**
   String get generalSettingsQueuedDuringTurn;
 
-  /// Settings → General switch: whether Claude Code suggests the next prompt in the composer after each turn.
+  /// Settings → General switch: whether the agent suggests, at the end of each turn, what the user might send next, shown over the composer.
   ///
   /// In en, this message translates to:
-  /// **'Suggest Next Prompt'**
+  /// **'Suggest Replies'**
   String get generalSettingsPromptSuggestions;
 
   /// No description provided for @generalSettingsPromptSuggestionsDescription.
   ///
   /// In en, this message translates to:
-  /// **'After each turn, a greyed-out suggestion for your next message, taken with Tab. Each one is an extra request with the whole conversation; turn it off to save tokens. Applies from the next message; Claude Code only.'**
+  /// **'After each turn, two or three things you might send next, over the composer: click one to put it in the input and edit it, double-click to send it as it is; Tab in an empty input takes the first. The agent writes them at the end of its reply, with no extra request. Applies from the next message.'**
   String get generalSettingsPromptSuggestionsDescription;
 
   /// The commit attribution dropdown, as read out: its setting and the choice in effect.
@@ -7964,6 +8060,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{id} is running'**
   String langRunning(String id);
+
+  /// No description provided for @langError.
+  ///
+  /// In en, this message translates to:
+  /// **'{id} reported an error'**
+  String langError(String id);
+
+  /// No description provided for @langWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'{id} reported a warning'**
+  String langWarning(String id);
+
+  /// No description provided for @langClickForDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Click for log and settings'**
+  String get langClickForDetails;
+
+  /// No description provided for @langViewLog.
+  ///
+  /// In en, this message translates to:
+  /// **'View Log'**
+  String get langViewLog;
+
+  /// No description provided for @langOpenLspSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Open LSP Settings'**
+  String get langOpenLspSettings;
+
+  /// No description provided for @langServerLogLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'LSP Log'**
+  String get langServerLogLabel;
+
+  /// No description provided for @langNoLogOutput.
+  ///
+  /// In en, this message translates to:
+  /// **'No log output from {id} yet.'**
+  String langNoLogOutput(String id);
+
+  /// No description provided for @langServerInitializing.
+  ///
+  /// In en, this message translates to:
+  /// **'{id} is still initializing (click the status bar for details)'**
+  String langServerInitializing(String id);
+
+  /// No description provided for @langServerImportError.
+  ///
+  /// In en, this message translates to:
+  /// **'{id} failed to load the project (click the status bar for details)'**
+  String langServerImportError(String id);
 
   /// No description provided for @langRestarting.
   ///
@@ -11082,7 +11232,7 @@ abstract class AppLocalizations {
   /// No description provided for @quotaBarRefresh.
   ///
   /// In en, this message translates to:
-  /// **'Refresh Quota'**
+  /// **'Refresh Quota Data'**
   String get quotaBarRefresh;
 
   /// No description provided for @modelsQuotaResetsIn.
@@ -11637,18 +11787,6 @@ abstract class AppLocalizations {
   /// **'Sends each conversation\'s own prompt_cache_key, so the upstream (or a relay in front of several) routes its requests to where the earlier ones are cached. Turn off for an upstream that rejects the field.'**
   String get modelsPromptCacheKeyDescription;
 
-  /// No description provided for @modelsCodexVersion.
-  ///
-  /// In en, this message translates to:
-  /// **'Codex Version'**
-  String get modelsCodexVersion;
-
-  /// No description provided for @modelsCodexVersionDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'The Codex CLI version requests are made as. The backend only lists models that version supports, so if new models are missing, enter a newer version and refresh the model list. Leave empty to use the app\'s default.'**
-  String get modelsCodexVersionDescription;
-
   /// No description provided for @modelsEnv.
   ///
   /// In en, this message translates to:
@@ -12020,6 +12158,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Switch'**
   String get modelsSwitchConfirm;
+
+  /// No description provided for @modelsFallbackHint.
+  ///
+  /// In en, this message translates to:
+  /// **'{picked} flagged a message, so Claude Code answers on {fallback} instead. Switch back from the menu.'**
+  String modelsFallbackHint(String picked, String fallback);
+
+  /// No description provided for @modelsFallbackSwitchBack.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch Back to {name}'**
+  String modelsFallbackSwitchBack(String name);
 
   /// No description provided for @modelsAuxiliary.
   ///
@@ -12720,7 +12870,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceSettingsMinimapDescription.
   ///
   /// In en, this message translates to:
-  /// **'A minimap of the whole conversation at the left of its column, where you are in it shown as you scroll; click or drag it to get somewhere. It stands in for the scrollbar, and is not shown in a window too narrow for it. Off: the scrollbar.'**
+  /// **'A minimap of the whole conversation beside its column, where you are in it shown as you scroll; click or drag it to get somewhere. It stands in for the scrollbar, and is not shown in a window too narrow for it. Off: the scrollbar.'**
   String get appearanceSettingsMinimapDescription;
 
   /// No description provided for @appearanceSettingsWindowBlur.
@@ -12806,6 +12956,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Bouncy'**
   String get minimapElasticityBouncy;
+
+  /// No description provided for @appearanceSettingsMinimapSide.
+  ///
+  /// In en, this message translates to:
+  /// **'Minimap Position'**
+  String get appearanceSettingsMinimapSide;
+
+  /// No description provided for @appearanceSettingsMinimapSideDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Which side of the conversation\'s column the minimap is on. At the right it takes the scrollbar\'s place, below the side panel\'s buttons.'**
+  String get appearanceSettingsMinimapSideDescription;
+
+  /// No description provided for @appearanceSettingsMinimapSideLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Minimap position: {side}'**
+  String appearanceSettingsMinimapSideLabel(String side);
+
+  /// No description provided for @minimapSideLeft.
+  ///
+  /// In en, this message translates to:
+  /// **'Left'**
+  String get minimapSideLeft;
+
+  /// No description provided for @minimapSideRight.
+  ///
+  /// In en, this message translates to:
+  /// **'Right'**
+  String get minimapSideRight;
 
   /// No description provided for @appearanceSettingsCodeFont.
   ///
@@ -13065,6 +13245,12 @@ abstract class AppLocalizations {
   /// **'Could not connect to {host}'**
   String remoteConnectFailed(String host);
 
+  /// No description provided for @remoteConnectionLost.
+  ///
+  /// In en, this message translates to:
+  /// **'The connection to {host} is lost, and being tried again by itself. What you send waits until it is back'**
+  String remoteConnectionLost(String host);
+
   /// No description provided for @remoteRetry.
   ///
   /// In en, this message translates to:
@@ -13095,35 +13281,11 @@ abstract class AppLocalizations {
   /// **'Connect'**
   String get remoteSignInConnect;
 
-  /// No description provided for @remoteFolderPlaceholder.
-  ///
-  /// In en, this message translates to:
-  /// **'A folder on {host}: pick one, or type a path'**
-  String remoteFolderPlaceholder(String host);
-
-  /// The button at the right of the quick pick browsing a remote host's folders: it lists the folder again, e.g. one made in a terminal since.
-  ///
-  /// In en, this message translates to:
-  /// **'Read the folders again'**
-  String get remoteFolderRefresh;
-
-  /// No description provided for @remoteOpenThisFolder.
-  ///
-  /// In en, this message translates to:
-  /// **'Open This Folder'**
-  String get remoteOpenThisFolder;
-
   /// No description provided for @remoteParentFolder.
   ///
   /// In en, this message translates to:
   /// **'Parent Folder'**
   String get remoteParentFolder;
-
-  /// No description provided for @remoteGoTo.
-  ///
-  /// In en, this message translates to:
-  /// **'Go to {path}'**
-  String remoteGoTo(String path);
 
   /// No description provided for @remoteListFailed.
   ///
@@ -13142,24 +13304,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Select a host, to browse its files'**
   String get remoteFileHostPlaceholder;
-
-  /// No description provided for @remoteFilePlaceholder.
-  ///
-  /// In en, this message translates to:
-  /// **'A file on {host}: pick one, or type a path'**
-  String remoteFilePlaceholder(String host);
-
-  /// No description provided for @remoteOpenFile.
-  ///
-  /// In en, this message translates to:
-  /// **'Open {path}'**
-  String remoteOpenFile(String path);
-
-  /// No description provided for @remoteOpenFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'Could not open {path}'**
-  String remoteOpenFailed(String path);
 
   /// No description provided for @remoteRecentFiles.
   ///
@@ -13202,6 +13346,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{kind}: {host} (disconnected)'**
   String remoteStatusFailed(String kind, String host);
+
+  /// No description provided for @remoteStatusDown.
+  ///
+  /// In en, this message translates to:
+  /// **'{kind}: {host} (disconnected, retrying...)'**
+  String remoteStatusDown(String kind, String host);
 
   /// No description provided for @remoteStatusInstalling.
   ///
@@ -14426,6 +14576,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Disconnected'**
   String get sidebarHostDisconnected;
+
+  /// No description provided for @sidebarHostDown.
+  ///
+  /// In en, this message translates to:
+  /// **'Disconnected, retrying...'**
+  String get sidebarHostDown;
 
   /// No description provided for @sidebarHostIdle.
   ///
@@ -16789,6 +16945,12 @@ abstract class AppLocalizations {
   /// **'Status'**
   String get browserSettingsStatus;
 
+  /// No description provided for @browserSettingsStatusDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Agents use the browser marked In Use; choose another to switch.'**
+  String get browserSettingsStatusDescription;
+
   /// No description provided for @browserSettingsNotInstalled.
   ///
   /// In en, this message translates to:
@@ -16842,6 +17004,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Extension {version}'**
   String browserSettingsExtensionVersion(String version);
+
+  /// No description provided for @browserSettingsUse.
+  ///
+  /// In en, this message translates to:
+  /// **'Use This Browser'**
+  String get browserSettingsUse;
+
+  /// No description provided for @browserSettingsUsing.
+  ///
+  /// In en, this message translates to:
+  /// **'In Use'**
+  String get browserSettingsUsing;
+
+  /// No description provided for @browserSettingsChosenMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'The browser chosen is not connected'**
+  String get browserSettingsChosenMissing;
+
+  /// Under browserSettingsChosenMissing: the chosen browser's executable, and the connected one used meanwhile.
+  ///
+  /// In en, this message translates to:
+  /// **'{path}: agents use {browser} until it connects again.'**
+  String browserSettingsChosenMissingDescription(String path, String browser);
 
   /// No description provided for @browserSettingsExtensionOld.
   ///
@@ -22828,7 +23014,7 @@ abstract class AppLocalizations {
   /// No description provided for @generalSettingsSessionToolsDescription.
   ///
   /// In en, this message translates to:
-  /// **'An agent can list your other conversations, read where they stand without waking them, hand them work (resumed if stopped, queued if busy) and wait for them. For one conversation that coordinates the others; agents started after the change have it.'**
+  /// **'An agent can list your other conversations, read where they stand without waking them, start new ones or hand work to others (in a worktree of their own if need be), and hears back by itself when each is done, fails or waits on you; it can also stop them and see which files they changed. For one conversation that coordinates the others. Off, agents neither see nor act on other conversations, and those handed work no longer report back.'**
   String get generalSettingsSessionToolsDescription;
 
   /// No description provided for @generalSettingsCommandLine.
@@ -22974,6 +23160,210 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The program to run commands with: a bash.exe, cmd.exe, powershell.exe or pwsh.exe.'**
   String get commandLineCustomPathDescription;
+
+  /// No description provided for @remoteBrowserFolderTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Open a Folder on {host}'**
+  String remoteBrowserFolderTitle(String host);
+
+  /// No description provided for @remoteBrowserFileTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Open a File on {host}'**
+  String remoteBrowserFileTitle(String host);
+
+  /// No description provided for @remoteBrowserPlaces.
+  ///
+  /// In en, this message translates to:
+  /// **'Locations'**
+  String get remoteBrowserPlaces;
+
+  /// No description provided for @remoteBrowserRecent.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent Locations'**
+  String get remoteBrowserRecent;
+
+  /// No description provided for @remoteBrowserHome.
+  ///
+  /// In en, this message translates to:
+  /// **'Home'**
+  String get remoteBrowserHome;
+
+  /// No description provided for @remoteBrowserThisPc.
+  ///
+  /// In en, this message translates to:
+  /// **'This PC'**
+  String get remoteBrowserThisPc;
+
+  /// No description provided for @remoteBrowserRoot.
+  ///
+  /// In en, this message translates to:
+  /// **'Root'**
+  String get remoteBrowserRoot;
+
+  /// No description provided for @remoteBrowserLocalDisk.
+  ///
+  /// In en, this message translates to:
+  /// **'Local Disk ({drive})'**
+  String remoteBrowserLocalDisk(String drive);
+
+  /// No description provided for @remoteBrowserBack.
+  ///
+  /// In en, this message translates to:
+  /// **'Back'**
+  String get remoteBrowserBack;
+
+  /// No description provided for @remoteBrowserForward.
+  ///
+  /// In en, this message translates to:
+  /// **'Forward'**
+  String get remoteBrowserForward;
+
+  /// No description provided for @remoteBrowserRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh'**
+  String get remoteBrowserRefresh;
+
+  /// No description provided for @remoteBrowserFilter.
+  ///
+  /// In en, this message translates to:
+  /// **'Filter'**
+  String get remoteBrowserFilter;
+
+  /// No description provided for @remoteBrowserView.
+  ///
+  /// In en, this message translates to:
+  /// **'View Options'**
+  String get remoteBrowserView;
+
+  /// No description provided for @remoteBrowserShowHidden.
+  ///
+  /// In en, this message translates to:
+  /// **'Hidden Items'**
+  String get remoteBrowserShowHidden;
+
+  /// No description provided for @remoteBrowserShowSystem.
+  ///
+  /// In en, this message translates to:
+  /// **'Protected Operating System Files'**
+  String get remoteBrowserShowSystem;
+
+  /// No description provided for @remoteBrowserNewFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'New Folder'**
+  String get remoteBrowserNewFolder;
+
+  /// No description provided for @remoteBrowserOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Open'**
+  String get remoteBrowserOpen;
+
+  /// No description provided for @remoteBrowserEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'This folder is empty.'**
+  String get remoteBrowserEmpty;
+
+  /// No description provided for @remoteBrowserNoFolders.
+  ///
+  /// In en, this message translates to:
+  /// **'No folders here.'**
+  String get remoteBrowserNoFolders;
+
+  /// No description provided for @remoteBrowserNoMatch.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing here matches “{filter}”.'**
+  String remoteBrowserNoMatch(String filter);
+
+  /// No description provided for @remoteBrowserHiddenCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 hidden item} other{{count} hidden items}}'**
+  String remoteBrowserHiddenCount(int count);
+
+  /// No description provided for @remoteBrowserShowHiddenNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Show'**
+  String get remoteBrowserShowHiddenNow;
+
+  /// No description provided for @remoteBrowserEditPath.
+  ///
+  /// In en, this message translates to:
+  /// **'Go to a Path'**
+  String get remoteBrowserEditPath;
+
+  /// No description provided for @remoteBrowserPathPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'A path: ~/code, /srv/app, D:\\work'**
+  String get remoteBrowserPathPlaceholder;
+
+  /// No description provided for @remoteBrowserNotFound.
+  ///
+  /// In en, this message translates to:
+  /// **'{path} does not exist.'**
+  String remoteBrowserNotFound(String path);
+
+  /// No description provided for @remoteBrowserNotFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'{path} is a file, not a folder.'**
+  String remoteBrowserNotFolder(String path);
+
+  /// No description provided for @remoteBrowserMakeFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not make the folder: {error}'**
+  String remoteBrowserMakeFailed(String error);
+
+  /// No description provided for @remoteBrowserFolderAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Folder'**
+  String get remoteBrowserFolderAction;
+
+  /// No description provided for @remoteBrowserFileAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Open File'**
+  String get remoteBrowserFileAction;
+
+  /// No description provided for @remoteBrowserSaveTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Save to {host}'**
+  String remoteBrowserSaveTitle(String host);
+
+  /// No description provided for @remoteBrowserSaveAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Save As'**
+  String get remoteBrowserSaveAction;
+
+  /// No description provided for @remoteBrowserSaveName.
+  ///
+  /// In en, this message translates to:
+  /// **'Save As:'**
+  String get remoteBrowserSaveName;
+
+  /// No description provided for @remoteBrowserSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get remoteBrowserSave;
+
+  /// No description provided for @remoteBrowserReplace.
+  ///
+  /// In en, this message translates to:
+  /// **'“{name}” already exists. Replace it?'**
+  String remoteBrowserReplace(String name);
 }
 
 class _AppLocalizationsDelegate

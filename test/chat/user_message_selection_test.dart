@@ -258,6 +258,44 @@ void main() {
     expect(copied, _answer.substring(4, _answer.length - 4));
   });
 
+  testWidgets('a short drag in a request selects and copies, not opening it', (
+    tester,
+  ) async {
+    await _pump(tester, _answer);
+    final paragraph = tester.renderObject<RenderParagraph>(
+      find.descendant(
+        of: find.byType(SuperListView),
+        matching: _paragraph(_request),
+      ),
+    );
+    // A character, a drag well under a touch's slop.
+    final glyphs = paragraph
+        .getBoxesForSelection(
+          const TextSelection(baseOffset: 8, extentOffset: 9),
+        )
+        .map((box) => box.toRect())
+        .reduce((a, b) => a.expandToInclude(b));
+    final from = paragraph.localToGlobal(
+      Offset(glyphs.left + 0.3, glyphs.center.dy),
+    );
+    final to = paragraph.localToGlobal(
+      Offset(glyphs.right - 0.3, glyphs.center.dy),
+    );
+    expect((to - from).distance, lessThan(kTouchSlop));
+    final mouse = await tester.startGesture(
+      from,
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pump();
+    await mouse.moveTo(to);
+    await tester.pump();
+    await mouse.up();
+    await tester.pumpAndSettle();
+    expect(find.byType(UserMessageViewer), findsNothing);
+    await _copy(tester);
+    expect(copied, _request.substring(8, 9));
+  });
+
   testWidgets('the visible request remains selectable and select all keeps '
       'its hidden text', (tester) async {
     await _pump(tester, _answer);

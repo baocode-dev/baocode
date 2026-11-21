@@ -35,7 +35,7 @@
 
 <main class="page">
   <h1>下载 BaoCode</h1>
-  <p class="meta"><span data-version>版本 1.9.6</span><span>免费开源</span></p>
+  <p class="meta"><span data-version>版本 2.0.3</span><span>免费开源</span></p>
 
   <div class="platforms" data-platforms>
     <section class="platform" data-os="macos">
@@ -118,6 +118,9 @@
   <p>装了 Claude Code 的话，BaoCode 会直接运行它，沿用你的设置和登录。没装的话，BaoCode 用你添加的模型服务商运行，第一次打开时会一步步带你设置。然后打开一个文件夹，开始对话。</p>
   <p>不确定你的 Mac 是哪种？在苹果菜单里选择“关于本机”：显示“芯片”的是 Apple 芯片，显示“处理器”的是 Intel。</p>
   <p>在 Mac 上，把 BaoCode 拖进“应用程序”文件夹。它还没有经过 Apple 公证，所以第一次打开时会被 macOS 拦下：打开“系统设置”→“隐私与安全性”，点 BaoCode 旁边的“仍要打开”。只有第一次需要这样做。</p>
+  <p id="windows-defender">在 Windows 上，运行安装程序即可。安装程序还没有数字签名，所以 Windows 可能提示“Windows 已保护你的电脑”：点“更多信息”，再点“仍要运行”。Microsoft Defender 偶尔还会把 BaoCode 误报成木马，因为它要替你执行命令，而没有签名的新程序本来就容易被误判。被拦下时，打开“Windows 安全中心”→“病毒和威胁防护”→“保护历史记录”，找到这条记录，在“操作”里选“允许在设备上”，然后重新安装。以后更新时如果再被拦，照样操作。</p>
+  <p>想确认安装程序没被改过：BaoCode 开源，每个安装程序都由 GitHub Actions 从公开的源码构建。在 PowerShell 里运行 <code>Get-FileHash 安装程序的路径</code>，结果应该和下面对应的那一项完全一致。从其他网站下载的安装包对不上的话，别装。</p>
+  <p class="hashes" data-hashes hidden>本版 SHA-256<br>x64：<code data-sha256="windows"></code><br>Arm64：<code data-sha256="windows-arm64"></code></p>
   <p>在 Linux 上，用系统的软件安装器打开 .deb，或者在下载目录里运行 <code>sudo apt install ./BaoCode-*.deb</code>。装好后应用列表里就有 BaoCode，终端里输入 <code>baocode</code> 也能打开。不确定是哪种处理器？运行 <code>uname -m</code>：<code>x86_64</code> 是 x64，<code>aarch64</code> 是 arm64。</p>
 
   <h2 class="plain">更新</h2>

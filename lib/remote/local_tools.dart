@@ -9,6 +9,7 @@ import '../ide/file_service_io.dart';
 import '../kernel/claude_code/claude_sdk_tools.dart';
 import '../kernel/kernel_types.dart';
 import '../l10n/app_localizations.dart';
+import '../platform/shell_command_io.dart' show windowsPowerShell;
 import 'port_forwards.dart';
 import 'remote_host_settings.dart';
 import 'remote_location.dart';
@@ -16,8 +17,8 @@ import 'remote_services.dart';
 import 'ssh_host.dart';
 
 /// The tools an agent on an SSH host has for the user's own computer, this
-/// machine: running a command here (`local_run`, asking the user each
-/// time), copying files here and there (`local_push`, `local_pull`) and
+/// machine: running a command here (`local_run`, the user asked first
+/// unless their approvals are full access), copying files here and there (`local_push`, `local_pull`) and
 /// forwarding ports either way (`port_forward`), over the host's
 /// connection. Only an agent of an SSH project is offered them, and only
 /// while the user lets that host act on this machine
@@ -100,8 +101,8 @@ abstract final class LocalTools {
     return 'You work on $name (${_hostSystem(host)}) over SSH: your files, '
         'commands and tools are all there. The user sits at their own '
         'computer ($thisSystem), not on $name. To act on their computer '
-        'use these tools: $run runs a command on it (the user approves '
-        'each one; ${Platform.isWindows ? 'PowerShell' : 'their shell'}), '
+        'use these tools: $run runs a command on it (the user may be asked '
+        'to approve it; ${Platform.isWindows ? 'PowerShell' : 'their shell'}), '
         '$push copies a file or folder from it to $name, $pull copies one '
         'from $name to it (their Downloads folder unless you say where), '
         'and $forward forwards a port either way: a server you run on '
@@ -135,7 +136,7 @@ abstract final class LocalTools {
         'Runs a shell command on the user\'s own computer ($thisSystem), '
         'not on the SSH host you work on: '
         '${Platform.isWindows ? 'in Windows PowerShell' : 'in their login shell'}. '
-        'The user is asked to approve each command. Returns its exit code '
+        'The user may be asked to approve it first. Returns its exit code '
         'and output (stdout, then stderr; the end of it where long).',
     inputSchema: const {
       'type': 'object',
@@ -242,7 +243,7 @@ abstract final class LocalTools {
     final Process process;
     if (Platform.isWindows) {
       process = await Process.start(
-        'powershell.exe',
+        windowsPowerShell,
         [
           '-NoProfile',
           '-NonInteractive',

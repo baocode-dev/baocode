@@ -299,9 +299,10 @@ class EditorSurface extends StatefulWidget {
   /// the editor's defaults (see [handleEditorKeyEvent]).
   final EditorKeyResolver? keyResolver;
 
-  /// The text offset under the mouse (null once it leaves the text), with
-  /// the pointer's surface-local position, for hovers and links.
-  final void Function(int? offset, Offset localPosition)? onHover;
+  /// The text offset under the mouse (null off the text), with the
+  /// pointer's global position (null once it left the surface), for hovers
+  /// and links.
+  final void Function(int? offset, Offset? position)? onHover;
 
   /// A primary-button press on the text at [offset]; return true to consume
   /// it (e.g. Cmd/Ctrl+click to go to a definition).
@@ -2057,18 +2058,16 @@ class _EditorSurfaceState extends State<EditorSurface>
   void _onHover(PointerHoverEvent event) {
     _updateHover(event.localPosition);
     _hoverInjection(event.localPosition);
-    _reportTextHover(event.localPosition);
+    _reportTextHover(event);
   }
 
-  int? _hoverOffset;
-
-  void _reportTextHover(Offset? position) {
+  /// Every move, off the text too (a hover card heeds where the pointer
+  /// heads); [event] null: the pointer left.
+  void _reportTextHover(PointerHoverEvent? event) {
     final onHover = widget.onHover;
     if (onHover == null) return;
-    final offset = position == null ? null : textOffsetAt(position);
-    if (offset == null && _hoverOffset == null && position != null) return;
-    _hoverOffset = offset;
-    onHover(offset, position ?? Offset.zero);
+    final offset = event == null ? null : textOffsetAt(event.localPosition);
+    onHover(offset, event?.position);
   }
 
   void _updateHover(Offset position) {

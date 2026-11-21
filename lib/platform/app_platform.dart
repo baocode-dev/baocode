@@ -24,6 +24,10 @@ abstract final class AppPlatform {
   /// Windows from another host.
   static bool get isWindowsHost => isWindows && hostReportsWindows;
 
+  /// macOS, and this process the app itself: not a test, which runs on a
+  /// macOS host whichever platform it targets.
+  static bool get isMacOSApp => isMacOS && !hostIsTest;
+
   /// Windows 11 (build 22000), whose window carries the system's acrylic
   /// backdrop (see win32_window.cpp). A test that targets Windows from
   /// another host has no build to read, and uses this one.

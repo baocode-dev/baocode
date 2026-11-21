@@ -47,14 +47,21 @@ class SessionModelPicker extends StatelessWidget {
 
   /// The model with its settings, e.g. "Opus · 1M · High": the context
   /// only when it is not the standard one; its upstream before it only
-  /// when another upstream has a model of its name.
-  String _label(KernelOption model, List<KernelOption> options) => [
-    if (model.group case final group?
-        when options.any(
-          (other) => other.label == model.label && other.group?.id != group.id,
-        ))
-      group.label,
-    model.label,
+  /// when another upstream has a model of its name. The one answering in
+  /// its place ([fallback]) in its stead.
+  String _label(
+    KernelOption model,
+    List<KernelOption> options, {
+    String? fallback,
+  }) => [
+    if (fallback == null)
+      if (model.group case final group?
+          when options.any(
+            (other) =>
+                other.label == model.label && other.group?.id != group.id,
+          ))
+        group.label,
+    fallback ?? model.label,
     for (final setting in session.modelSettings(model.id))
       if (setting.selected case final selected?
           when setting.kind != KernelChoiceKind.context ||
@@ -154,11 +161,16 @@ class SessionModelPicker extends StatelessWidget {
         onTap: () => unawaited(showModelWelcome(context)),
       );
     }
+    // Another answering in the picked one's place: its name, cautioned,
+    // the picked one a click away.
+    final fallback = session.fallbackModel;
+    final picked = model.selected.label;
     return ComposerPicker(
       key: pickerKey,
       options: model.options,
       selected: model.selected,
-      label: _label(model.selected, model.options),
+      label: _label(model.selected, model.options, fallback: fallback),
+      foreground: fallback == null ? null : AppColors.caution,
       // Each its name alone, one line; its maker's logo and its upstream's
       // heading tell the rest.
       describes: false,
@@ -176,10 +188,18 @@ class SessionModelPicker extends StatelessWidget {
         ?_resumeAfterLimit(context, option.id),
         ?_autoResetCredits(context, option.id),
       ],
-      tooltip: tooltip,
+      tooltip: fallback == null
+          ? tooltip
+          : l10n.modelsFallbackHint(picked, fallback),
       menuWidth: 260,
       searchPlaceholder: l10n.modelsSearch,
       footers: [
+        if (fallback != null)
+          (
+            label: l10n.modelsFallbackSwitchBack(picked),
+            icon: Icons.undo_rounded,
+            onTap: session.endModelFallback,
+          ),
         if (SettingsOpener.maybeOf(context) case final open?)
           (
             label: ChannelSetup.channelBuild

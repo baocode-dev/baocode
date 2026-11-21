@@ -146,6 +146,30 @@ void main() {
     connection.close();
   });
 
+  test('let go of once finished: what was written still arrives', () async {
+    final accepted = server.incoming.first;
+    final connection = await client.connect(serverAddr);
+    final theirs = await accepted;
+    final stream = await connection.open();
+    await stream.send(utf8.encode('read'));
+    final incoming = await theirs.incoming.first;
+    await incoming.receive();
+
+    // As a picture answered: finished and let go of while still on its
+    // way (more than the other end takes before it reads).
+    final picture = Uint8List.fromList(
+      List.generate(32 << 20, (i) => (i * 2654435761) >> 7 & 0xff),
+    );
+    final sent = incoming.send(picture);
+    final finished = incoming.finish();
+    incoming.release();
+    expect(await stream.receive(), picture);
+    expect(await stream.receive(), isNull);
+    await sent;
+    await finished;
+    connection.close();
+  });
+
   test('the other end hears of a close', () async {
     final accepted = server.incoming.first;
     final connection = await client.connect(serverAddr);

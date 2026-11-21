@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
 import '../../ide/ide_hover.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/codicons.dart';
+import '../../theme/ui_zoom.dart';
 import '../chat_models.dart';
 import '../widgets/hover_builder.dart';
 
@@ -32,6 +34,9 @@ class QueuePanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    // UiZoom.zoomed multiplies the media ratio by the window's UI scale.
+    final viewRatio = View.of(context).devicePixelRatio;
+    final zoom = MediaQuery.devicePixelRatioOf(context) / viewRatio;
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
@@ -64,18 +69,25 @@ class QueuePanel extends StatelessWidget {
               ],
             ),
           ),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 150),
+          _QueueViewport(
+            zoom: zoom,
             child: ReorderableListView(
               shrinkWrap: true,
-              padding: const EdgeInsets.fromLTRB(4, 0, 4, 4),
+              padding: const EdgeInsets.fromLTRB(4, 0, 4, 4) * zoom,
               buildDefaultDragHandles: false,
-              proxyDecorator: (child, index, animation) => Material(
-                color: AppColors.surface,
-                elevation: 3,
-                borderRadius: BorderRadius.circular(5),
-                child: child,
-              ),
+              proxyDecorator: (child, index, animation) {
+                final proxy = Material(
+                  color: AppColors.surface,
+                  elevation: 3,
+                  borderRadius: BorderRadius.circular(5 * zoom),
+                  child: child,
+                );
+                return zoom == 1
+                    ? proxy
+                    : ExcludeSemantics(
+                        child: _QueueDragProxy(zoom: zoom, child: proxy),
+                      );
+              },
               // The index given is where it goes, the one it came from
               // already taken out.
               onReorderItem: (oldIndex, newIndex) =>
@@ -85,6 +97,7 @@ class QueuePanel extends StatelessWidget {
                   _QueuedRow(
                     key: ValueKey(messages[i].$1),
                     index: i,
+                    zoom: zoom,
                     message: messages[i].$2,
                     onEdit: () => onEdit(messages[i].$1),
                     onSendNow: () => onSendNow(messages[i].$1),
@@ -99,10 +112,72 @@ class QueuePanel extends StatelessWidget {
   }
 }
 
+class _QueueViewport extends StatelessWidget {
+  const _QueueViewport({required this.zoom, required this.child});
+
+  final double zoom;
+  final Widget child;
+
+  // Flutter compares window pointer positions with the rows' local sizes.
+  // Lay out the list in window units, but draw its rows at the UI zoom.
+  @override
+  Widget build(BuildContext context) => ConstrainedBox(
+    constraints: const BoxConstraints(maxHeight: 150),
+    child: UiZoom(scale: 1 / zoom, child: child),
+  );
+}
+
+class _QueueDragProxy extends SingleChildRenderObjectWidget {
+  const _QueueDragProxy({required this.zoom, required super.child});
+
+  final double zoom;
+
+  @override
+  _RenderQueueDragProxy createRenderObject(BuildContext context) =>
+      _RenderQueueDragProxy(
+        Overlay.of(context).context.findRenderObject()! as RenderBox,
+        zoom,
+      );
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderQueueDragProxy proxy) {
+    proxy.zoom = zoom;
+    proxy.markNeedsPaint();
+  }
+}
+
+class _RenderQueueDragProxy extends RenderProxyBox {
+  _RenderQueueDragProxy(this.overlay, this.zoom);
+
+  final RenderBox overlay;
+  double zoom;
+
+  // Flutter lays out the proxy in window units, but the overlay treats them
+  // as zoomed units. Undo that zoom around the overlay's origin, not the row's.
+  Matrix4 get _correction {
+    final origin = localToGlobal(Offset.zero, ancestor: overlay);
+    final shift = origin / zoom - origin;
+    return Matrix4.diagonal3Values(1 / zoom, 1 / zoom, 1)
+      ..setTranslationRaw(shift.dx, shift.dy, 0);
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) =>
+      context.pushTransform(needsCompositing, offset, _correction, super.paint);
+
+  @override
+  void applyPaintTransform(RenderBox child, Matrix4 transform) =>
+      transform.multiply(_correction);
+
+  @override
+  bool hitTest(BoxHitTestResult result, {required Offset position}) => false;
+}
+
 class _QueuedRow extends StatelessWidget {
   const _QueuedRow({
     super.key,
     required this.index,
+    required this.zoom,
     required this.message,
     required this.onEdit,
     required this.onSendNow,
@@ -111,6 +186,7 @@ class _QueuedRow extends StatelessWidget {
 
   /// Where it is in the queue.
   final int index;
+  final double zoom;
   final UserMessageItem message;
   final VoidCallback onEdit;
   final VoidCallback onSendNow;
@@ -120,7 +196,7 @@ class _QueuedRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final text = message.text.replaceAll(RegExp(r'\s+'), ' ').trim();
-    return HoverBuilder(
+    final row = HoverBuilder(
       builder: (context, hovered) => _draggable(
         context,
         Container(
@@ -185,6 +261,7 @@ class _QueuedRow extends StatelessWidget {
         ),
       ),
     );
+    return UiZoom(scale: zoom, child: row);
   }
 
   /// Drags the row at once with a mouse; after a long press with a finger,

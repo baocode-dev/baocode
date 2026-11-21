@@ -14,15 +14,17 @@ import '../../theme/codicons.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../../workspace/islands.dart';
 import '../chat_models.dart';
+import '../session_links.dart';
 import '../widgets/flip_switcher.dart';
 import '../widgets/hover_builder.dart';
 import '../widgets/pixel_loader.dart';
 import 'change_tree.dart';
 import 'interaction_panel.dart';
 
-/// A card over the composer, apart from it: background tasks still
-/// running and the files changed and not yet kept or undone, as a tree
-/// (see [ChangeTree]).
+/// A card over the composer, apart from it: the conversations it handed
+/// work to while any is still at it or waits on the user, background tasks
+/// still running, and the files changed and not yet kept or undone, as a
+/// tree (see [ChangeTree]).
 class ActivityStrip extends StatefulWidget {
   const ActivityStrip({
     super.key,
@@ -40,9 +42,18 @@ class ActivityStrip extends StatefulWidget {
     this.onOpenTask,
     this.canOpenTask,
     this.detailOf,
+    this.handed = const [],
+    this.onOpenHanded,
   });
 
   final List<KernelTask> tasks;
+
+  /// The conversations it handed work to (session_new, session_send), as
+  /// they stand: shown while one is at it or waits on the user.
+  final List<HandedConversation> handed;
+
+  /// Opens one of [handed].
+  final ValueChanged<HandedConversation>? onOpenHanded;
   final List<FileChange> changes;
 
   /// The project's directory, which [changes]' paths are in.
@@ -77,8 +88,18 @@ class ActivityStrip extends StatefulWidget {
   /// See [ChangeTree.fileActions].
   final List<List<IdeMenuEntry>> Function(FileChange file)? fileActions;
 
-  static bool hasContent(List<KernelTask> tasks, List<FileChange> changes) =>
-      tasks.isNotEmpty || changes.isNotEmpty;
+  static bool hasContent(
+    List<KernelTask> tasks,
+    List<FileChange> changes, {
+    List<HandedConversation> handed = const [],
+  }) => tasks.isNotEmpty || changes.isNotEmpty || showsHanded(handed);
+
+  /// Whether [handed] shows: while one is at it or waits on the user.
+  static bool showsHanded(List<HandedConversation> handed) => handed.any(
+    (conversation) =>
+        conversation.status == HandedStatus.running ||
+        conversation.status == HandedStatus.waiting,
+  );
 
   @override
   State<ActivityStrip> createState() => _ActivityStripState();
@@ -225,6 +246,27 @@ class _ActivityStripState extends State<ActivityStrip> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (ActivityStrip.showsHanded(widget.handed))
+                ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxHeight: _StripRow.height * _maxTaskRows,
+                  ),
+                  child: ListView(
+                    shrinkWrap: true,
+                    padding: EdgeInsets.zero,
+                    children: [
+                      for (final conversation in widget.handed)
+                        _HandedRow(
+                          key: ValueKey(conversation.id),
+                          conversation: conversation,
+                          onOpen: switch (widget.onOpenHanded) {
+                            final open? => () => open(conversation),
+                            null => null,
+                          },
+                        ),
+                    ],
+                  ),
+                ),
               if (widget.tasks.length > _maxUnfoldedTasks)
                 _TasksHeader(
                   tasks: widget.tasks,
@@ -431,6 +473,102 @@ class _TaskRow extends StatelessWidget {
             icon: Icons.stop_rounded,
             tooltip: context.l10n.chatStop,
             onTap: stop,
+          ),
+      ],
+    );
+  }
+}
+
+/// A conversation handed work: how it stands, by its title; the one
+/// waiting on the user stands out, offering to answer it.
+class _HandedRow extends StatelessWidget {
+  const _HandedRow({super.key, required this.conversation, this.onOpen});
+
+  final HandedConversation conversation;
+  final VoidCallback? onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final status = conversation.status;
+    final waiting = status == HandedStatus.waiting;
+    return _StripRow(
+      onTap: onOpen,
+      semanticLabel: onOpen == null ? null : l10n.stripOpen(conversation.title),
+      children: [
+        SizedBox.square(
+          dimension: 14,
+          child: switch (status) {
+            HandedStatus.running => const PixelLoader.subagent(),
+            HandedStatus.waiting => Icon(
+              Codicons.question,
+              size: 14,
+              color: AppColors.accent,
+            ),
+            HandedStatus.done => Icon(
+              Codicons.check,
+              size: 14,
+              color: AppColors.textFaint,
+            ),
+            HandedStatus.failed => Icon(
+              Codicons.error,
+              size: 14,
+              color: themeColors['errorForeground'],
+            ),
+          },
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Row(
+            children: [
+              Flexible(
+                child: Text(
+                  conversation.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: AppColors.text, fontSize: 11.5),
+                ),
+              ),
+              // The model it works on, faint: what the user follows.
+              if (conversation.model case final model?)
+                Flexible(
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 6),
+                    child: Text(
+                      '· $model',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: AppColors.textFaint,
+                        fontSize: 11.5,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        if (waiting && onOpen != null)
+          SizedBox(
+            height: 20,
+            child: FittedBox(
+              child: PanelButton(
+                label: l10n.sessionAnswer,
+                primary: true,
+                onTap: onOpen,
+              ),
+            ),
+          )
+        else
+          Text(
+            l10n.sessionStatus(status.name),
+            style: TextStyle(
+              color: status == HandedStatus.running
+                  ? AppColors.textMuted
+                  : AppColors.textFaint,
+              fontSize: 11.5,
+            ),
           ),
       ],
     );

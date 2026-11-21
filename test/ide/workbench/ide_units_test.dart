@@ -378,7 +378,10 @@ void main() {
     addTearDown(index.dispose);
     expect(index.loaded, isFalse);
     await index.refresh();
-    expect(index.relativePaths, ['a.txt', 'src/b.dart']);
+    expect(index.bestFor('', limit: 10)!.map((hit) => hit.relative), [
+      'a.txt',
+      'src/b.dart',
+    ]);
   });
 
   test(

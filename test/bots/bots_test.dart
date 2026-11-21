@@ -26,6 +26,7 @@ import 'package:baocode/workspace/preference_store.dart';
 import 'package:baocode/images/image_tools.dart';
 import 'package:baocode/workspace/workspace.dart';
 import 'package:bao_link/bao_link.dart' show linkGroupLeastPasses;
+import 'package:bao_remote/claude.dart' show ClaudeHistoryPage;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
@@ -196,8 +197,8 @@ void main() {
 
     test('what it may do, and may not', () {
       final told = botAbilities(bot);
-      expect(told, contains('bot_list_chats'));
-      expect(told, contains('bot_stop_chat'));
+      expect(told, contains('session_list'));
+      expect(told, contains('session_stop'));
       // All an agent has, unless it only chats.
       expect(told, contains('You can work on the computer as an agent does'));
       expect(
@@ -612,7 +613,7 @@ void main() {
       () async {
         final assistant = bots.bots.single;
         final its = await offered(assistant.folder);
-        expect(its, containsAll(['bot_list_chats', 'bot_stop_chat']));
+        expect(its, containsAll(['session_list', 'session_stop']));
         // Its tools as well as its files: they keep the same.
         for (final tool in [
           'bot_remember',
@@ -627,8 +628,8 @@ void main() {
         ]) {
           expect(its, contains(tool));
         }
-        expect(await offered(app), isNot(contains('bot_list_chats')));
-        expect(ClaudeSdkTools.serversFor(app), isEmpty);
+        // A project's agent: the session tools alone, none of the bots'.
+        expect(await offered(app), everyElement(isNot(startsWith('bot_'))));
 
         // A new one may do nothing until the user says.
         final mia = bots.save(
@@ -639,7 +640,7 @@ void main() {
         final hers = await offered(mia.folder);
         expect(
           hers,
-          containsAll(['bot_list_chats', 'bot_read_chat', 'bot_stop_chat']),
+          containsAll(['session_list', 'session_read', 'session_stop']),
         );
         expect(hers, contains('bot_remember'));
         final none = bots.save(name: 'Quiet', identity: '', abilities: {});
@@ -660,10 +661,7 @@ void main() {
           'jsonrpc': '2.0',
           'id': 2,
           'method': 'tools/call',
-          'params': {
-            'name': 'bot_list_chats',
-            'arguments': <String, Object?>{},
-          },
+          'params': {'name': 'session_list', 'arguments': <String, Object?>{}},
         }, ClaudeSdkCall(cwd: none.folder));
         expect((refused['result'] as Map)['isError'], isTrue);
       },
@@ -837,6 +835,55 @@ void main() {
             }, ClaudeSdkCall(cwd: bot.folder)))['result']
             as Map;
 
+    test('it looks after the agents with the session tools', () async {
+      final assistant = bots.bots.single;
+      String text(Map result) =>
+          ((result['content'] as List).single as Map)['text'] as String;
+
+      // Never behind the tool search, which one that only chats lacks.
+      final listed = await ClaudeSdkTools.handle({
+        'jsonrpc': '2.0',
+        'id': 1,
+        'method': 'tools/list',
+      }, ClaudeSdkCall(cwd: assistant.folder));
+      final tools = ((listed['result'] as Map)['tools'] as List).cast<Map>();
+      expect(tools.firstWhere((t) => t['name'] == 'session_new')['_meta'], {
+        'anthropic/alwaysLoad': true,
+      });
+
+      // No project of its own to start one in.
+      final unnamed = await call(assistant, 'session_new', {'text': 'Fix it'});
+      expect(unnamed['isError'], isTrue);
+      expect(text(unnamed), contains('Name its project'));
+
+      final started = await call(assistant, 'session_new', {
+        'project': 'app',
+        'text': 'Fix the tests',
+      });
+      expect(started['isError'], isNot(true));
+      final agent = workspace.threads.singleWhere(
+        (thread) => !bots.isBotThread(thread),
+      );
+      expect(agent.project.path, app);
+      // Told of it as its rules say: not at all, those off.
+      expect(bots.watching(assistant), [BotTools.idOf(agent)]);
+      expect(text(started), contains('You are not told of it'));
+      // From it, by its name.
+      final sent = agent.session.itemAt(0) as UserMessageItem;
+      expect(sent.fromAgent, assistant.name);
+      expect(sent.text, 'Fix the tests');
+
+      expect(
+        text(await call(assistant, 'session_list', {'mine': true})),
+        allOf(contains(BotTools.idOf(agent)), contains('yours')),
+      );
+      // Its own conversation none of them.
+      expect(
+        text(await call(assistant, 'session_list', {})),
+        isNot(contains(assistant.folder)),
+      );
+    });
+
     test('it goes on in its conversation of the last run', () async {
       // The kernels' sessions read slowly, as Claude Code's all are.
       final listed = Completer<List<ProjectRecord>>();
@@ -885,6 +932,90 @@ void main() {
         for (final t in loading.threads)
           if (t.project.path == assistant.folder) t,
       ], hasLength(1));
+    });
+
+    test('its chat read again as the app starts, and read further back, '
+        'is nothing new', () async {
+      Map<String, Object?> turn(String id) => {
+        'type': 'assistant',
+        'uuid': 'a-$id',
+        'message': {
+          'id': 'm-$id',
+          'role': 'assistant',
+          'model': 'claude-opus-5-5',
+          'content': [
+            {'type': 'text', 'text': '<bot_say>$id</bot_say>'},
+          ],
+        },
+      };
+      final reading = Completer<void>();
+      late final KernelDescriptor reads;
+      reads = KernelDescriptor(
+        id: kernel.id,
+        label: kernel.label,
+        icon: kernel.icon,
+        description: kernel.description,
+        catalog: _Catalog(
+          Future.value([
+            ProjectRecord(
+              path: '/bots/assistant',
+              sessions: [
+                SessionRecord(
+                  id: 'kept',
+                  title: '在吗',
+                  updatedAt: now.subtract(const Duration(hours: 1)),
+                  cwd: '/bots/assistant',
+                ),
+              ],
+            ),
+          ]),
+        ),
+        create: (context) => ClaudeCodeKernel(
+          reads,
+          context,
+          start: MockClaudeCodeTransport.start,
+          readHistoryPage: (session, {required turns, before}) async {
+            if (before == null) {
+              await reading.future;
+              return ClaudeHistoryPage([
+                turn('b4'),
+                turn('b5'),
+              ], earlier: 'a-b4');
+            }
+            return ClaudeHistoryPage([turn('b1'), turn('b2'), turn('b3')]);
+          },
+        ),
+      );
+      final kept = Workspace(kernels: [reads], projects: [Project('app', app)])
+        ..load();
+      addTearDown(kept.dispose);
+      final later = Bots(
+        workspace: kept,
+        folders: MemoryBotFolders(),
+        store: MemoryPreferenceStore(),
+        chinese: true,
+        clock: () => now,
+        computer: () async => 'Leo 的 MacBook',
+      );
+      addTearDown(later.dispose);
+      await later.start();
+      final assistant = later.bots.single;
+      final session = later.threadFor(assistant).session;
+      for (var i = 0; i < 100 && !session.loadingHistory; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      expect(session.loadingHistory, isTrue);
+      // Asked while it is read (the phones', the pushes'): none yet.
+      expect(later.unread(assistant), 0);
+      reading.complete();
+      for (var i = 0; i < 100 && session.loadingHistory; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      expect(session.itemCount, greaterThan(0));
+      expect(later.unread(assistant), 0);
+      await session.loadEarlier();
+      expect(session.prependedCount, greaterThan(0));
+      expect(later.unread(assistant), 0);
     });
 
     test('it comes back later on its own, when it said', () async {
@@ -1127,8 +1258,41 @@ void main() {
       expect(notes(assistant).last, contains('done: "${second.title}"'));
       await pumpEventQueue();
       expect(store.preferences['watching'], {
-        mia.id: [BotTools.idOf(second)],
+        mia.id: [second.id],
       });
+    });
+
+    test('one it handed work new is kept by its session\'s id, told of as '
+        'its own all the same', () async {
+      final bot = toldOfAll();
+      final agent = workspace.startAgent(workspace.projectAt(app));
+      bots.watch(bot, agent);
+      final went = BotTools.idOf(agent);
+      expect(went, startsWith('new-'));
+      expect(bots.watching(bot), [went]);
+
+      agent.session.send(const ComposerMessage(text: 'build it'));
+      for (var i = 0; i < 300 && agent.id == null; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      workspace.notifyListeners();
+      final id = agent.id!;
+      expect(bots.watching(bot), [id]);
+      await pumpEventQueue();
+      expect(store.preferences['watching'], {
+        bot.id: [id],
+      });
+
+      // Its events this run by the id it went by: its own still.
+      agent.session.stop();
+      for (var i = 0; i < 300 && agent.session.isStreaming; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      workspace.notifyListeners();
+      now = now.add(const Duration(minutes: 2));
+      bots.deliver();
+      expect(notes(bot).single, contains('done: "${agent.title}"'));
+      expect(bots.recentEvents(bot).last, endsWith('-> tell'));
     });
 
     test('its chat deleted: a new one, from nothing said; who it is and '

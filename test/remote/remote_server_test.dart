@@ -215,6 +215,28 @@ void main() {
       );
     });
 
+    test('browsed from its root, the hidden entries marked', () async {
+      Directory(at('src')).createSync();
+      Directory(at('.cache')).createSync();
+      File(at('.env')).writeAsStringSync('');
+      File(at('a.txt')).writeAsStringSync('');
+      Link(at('linked')).createSync(at('src'));
+      final roots = await client().roots();
+      expect(roots.first.path, '/');
+      final entries = {
+        for (final entry in await client().browse(root))
+          entry.name: (entry.isDirectory, entry.hidden, entry.system),
+      };
+      expect(entries, {
+        'src': (true, false, false),
+        '.cache': (true, true, false),
+        '.env': (false, true, false),
+        'a.txt': (false, false, false),
+        'linked': (true, false, false),
+      });
+      await expectLater(client().browse(at('none')), throwsA(anything));
+    });
+
     test('a folder is watched until the subscription ends', () async {
       final changes = <void>[];
       final subscription = client().watchDirectory(root).listen(changes.add);
@@ -256,6 +278,19 @@ void main() {
       File(at('skip/hidden.txt')).writeAsStringSync('h');
       await Future<void>.delayed(const Duration(milliseconds: 500));
       expect(events.where((e) => e.path.contains('hidden')), isEmpty);
+      // A folder renamed is followed where it went, not where it was; the
+      // one beside it, its name a prefix of it, still is.
+      Directory(at('a2')).createSync();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      Directory(at('a')).renameSync(at('z'));
+      await until(() => events.any((e) => e.path == at('z')));
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      events.clear();
+      File(at('z/b/d.txt')).writeAsStringSync('d');
+      File(at('a2/e.txt')).writeAsStringSync('e');
+      await until(() => events.any((e) => e.path == at('z/b/d.txt')));
+      await until(() => events.any((e) => e.path == at('a2/e.txt')));
+      expect(events.where((e) => e.path.startsWith(at('a/'))), isEmpty);
       await subscription.cancel();
     });
   });

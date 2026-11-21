@@ -1,24 +1,81 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path/path.dart' as p;
 
 import '../platform/data_dir.dart';
 import 'secret_store.dart';
+import 'windows_dpapi.dart';
 
 /// The system's keychain: the login keychain on macOS, the user's DPAPI
-/// on Windows, the Secret Service on Linux (a file only the user reads
-/// where there is none).
+/// on Windows, the Secret Service on Linux; a file only the user reads
+/// where it cannot be used (a system stripped of it, a keychain that will
+/// not open).
 SecretStore systemSecretStore() {
-  if (Platform.isMacOS) return KeychainSecretStore();
-  if (Platform.isWindows) {
-    return DpapiSecretStore(p.join(DataDirectory.current.path, 'secrets'));
+  final directory = p.join(DataDirectory.current.path, 'secrets');
+  final file = FileSecretStore(directory);
+  final SecretStore system;
+  if (Platform.isMacOS) {
+    system = KeychainSecretStore();
+  } else if (Platform.isWindows) {
+    system = DpapiSecretStore(directory);
+  } else {
+    system = SecretServiceStore(fallback: file);
   }
-  return SecretServiceStore(
-    fallback: FileSecretStore(p.join(DataDirectory.current.path, 'secrets')),
-  );
+  return FallbackSecretStore(system, fallback: file);
+}
+
+/// [primary], and [fallback] for what it fails to keep: a key goes to the
+/// fallback only when the primary will not take it, and leaves it when
+/// the primary next does.
+class FallbackSecretStore implements SecretStore {
+  FallbackSecretStore(this.primary, {required this.fallback});
+
+  final SecretStore primary;
+  final SecretStore fallback;
+
+  @override
+  Future<String?> read(String id) async {
+    Object? failure;
+    try {
+      final value = await primary.read(id);
+      if (value != null) return value;
+    } catch (error) {
+      // Missing altogether too: `security` not there (ProcessException),
+      // crypt32.dll not there (ArgumentError).
+      failure = error;
+    }
+    final value = await fallback.read(id);
+    if (value == null && failure != null) throw _wrapped('read', failure);
+    return value;
+  }
+
+  @override
+  Future<void> write(String id, String value) async {
+    try {
+      await primary.write(id, value);
+    } catch (_) {
+      await fallback.write(id, value);
+      return;
+    }
+    await fallback.delete(id);
+  }
+
+  @override
+  Future<void> delete(String id) async {
+    try {
+      await primary.delete(id);
+    } catch (_) {}
+    await fallback.delete(id);
+  }
+
+  static SecretStoreException _wrapped(String what, Object error) =>
+      error is SecretStoreException
+      ? error
+      : SecretStoreException('The key could not be $what: $error');
 }
 
 /// Runs [executable] with [arguments], [input] on its stdin.
@@ -65,16 +122,33 @@ class KeychainSecretStore implements SecretStore {
   /// `security`'s "not found".
   static const _notFound = 44;
 
+  /// The keychain new items go in, named in every command. Unnamed, `find`
+  /// and the search of `add -U` go by the search list, which need not hold
+  /// it (or stops at a keychain it cannot open): the keys read as none, and
+  /// the add meets the item already there (-25299).
+  late final Future<String?> _keychain =
+      _command('/usr/bin/security', ['default-keychain', '-d', 'user']).then((
+        result,
+      ) {
+        if (result.exitCode != 0) return null;
+        final path = '${result.stdout}'.trim().replaceAll('"', '');
+        return path.isEmpty ? null : path;
+      }, onError: (_) => null);
+
+  Future<ProcessResult> _find(String id, String? keychain) => _command(
+    '/usr/bin/security',
+    ['find-generic-password', '-s', service, '-a', id, '-w', ?keychain],
+  );
+
   @override
   Future<String?> read(String id) async {
-    final result = await _command('/usr/bin/security', [
-      'find-generic-password',
-      '-s',
-      service,
-      '-a',
-      id,
-      '-w',
-    ]);
+    final keychain = await _keychain;
+    var result = await _find(id, keychain);
+    if (keychain != null && result.exitCode != 0) {
+      // Kept elsewhere in the search list, by an older version.
+      final listed = await _find(id, null);
+      if (listed.exitCode == 0 || result.exitCode == _notFound) result = listed;
+    }
     if (result.exitCode == _notFound) return null;
     if (result.exitCode != 0) throw _failed('read', result);
     final value = '${result.stdout}'.replaceFirst(RegExp(r'\r?\n$'), '');
@@ -83,85 +157,89 @@ class KeychainSecretStore implements SecretStore {
 
   @override
   Future<void> write(String id, String value) async {
+    final keychain = await _keychain;
     final hex = [
       for (final byte in utf8.encode(value))
         byte.toRadixString(16).padLeft(2, '0'),
     ].join();
+    final target = keychain == null ? '' : ' ${_quote(keychain)}';
     // Interactive: the command, the secret in it, read from stdin.
-    final result = await _command('/usr/bin/security', [
-      '-i',
-    ], input: 'add-generic-password -U -s $service -a ${_quote(id)} -X $hex\n');
-    if (result.exitCode != 0 || '${result.stderr}'.contains('error')) {
-      throw _failed('kept', result);
+    Future<ProcessResult> add() => _command(
+      '/usr/bin/security',
+      ['-i'],
+      input:
+          'add-generic-password -U -s $service -a ${_quote(id)} -X $hex$target\n',
+    );
+    bool failed(ProcessResult result) =>
+        result.exitCode != 0 || '${result.stderr}'.contains('error');
+    var result = await add();
+    if (failed(result) && '${result.stderr}'.contains('-25299')) {
+      // There and not found all the same: replaced.
+      await _delete(id, keychain);
+      result = await add();
     }
+    if (failed(result)) throw _failed('kept', result);
   }
 
-  @override
-  Future<void> delete(String id) async {
+  Future<void> _delete(String id, String? keychain) async {
     final result = await _command('/usr/bin/security', [
       'delete-generic-password',
       '-s',
       service,
       '-a',
       id,
+      ?keychain,
     ]);
     if (result.exitCode != 0 && result.exitCode != _notFound) {
       throw _failed('removed', result);
     }
   }
 
+  @override
+  Future<void> delete(String id) async {
+    final keychain = await _keychain;
+    await _delete(id, keychain);
+    if (keychain == null) return;
+    // A copy an older version left elsewhere; a search list that fails is
+    // no reason the key was not removed.
+    try {
+      await _delete(id, null);
+    } on SecretStoreException catch (_) {}
+  }
+
   static String _quote(String text) => '"${text.replaceAll('"', '')}"';
 }
 
-/// The user's DPAPI on Windows, through PowerShell: each secret encrypted
-/// for the user, in a file of [directory].
+/// The user's DPAPI on Windows, called in the process: each secret
+/// encrypted for the user, in base64, in a file of [directory].
 class DpapiSecretStore implements SecretStore {
-  DpapiSecretStore(this.directory, {@visibleForTesting SecretCommand? run})
-    : _command = run ?? _run;
+  DpapiSecretStore(this.directory);
 
   final String directory;
-  final SecretCommand _command;
-
-  /// No progress: PowerShell's first run of a session prepares its modules
-  /// with a progress record on stderr.
-  static const _prelude =
-      r'$ErrorActionPreference = "Stop"; $ProgressPreference = "SilentlyContinue"; '
-      r'Add-Type -AssemblyName System.Security; ';
 
   File _file(String id) => File(p.join(directory, '${_safe(id)}.dpapi'));
-
-  Future<ProcessResult> _powershell(String script, String input) => _command(
-    'powershell.exe',
-    ['-NoProfile', '-NonInteractive', '-Command', _prelude + script],
-    input: input,
-  );
 
   @override
   Future<String?> read(String id) async {
     final file = _file(id);
     if (!file.existsSync()) return null;
-    final result = await _powershell(
-      r'$b = [Convert]::FromBase64String([Console]::In.ReadToEnd().Trim()); '
-      r'$p = [Security.Cryptography.ProtectedData]::Unprotect($b, $null, "CurrentUser"); '
-      r'[Console]::Out.Write([Convert]::ToBase64String($p))',
-      await file.readAsString(),
-    );
-    if (result.exitCode != 0) throw _failed('read', result);
-    return utf8.decode(base64.decode('${result.stdout}'.trim()));
+    final Uint8List encrypted;
+    try {
+      encrypted = base64.decode((await file.readAsString()).trim());
+    } on FormatException {
+      throw SecretStoreException(
+        'The key could not be read: ${file.path} is damaged',
+      );
+    }
+    return utf8.decode(dpapiUnprotect(encrypted));
   }
 
   @override
   Future<void> write(String id, String value) async {
-    final result = await _powershell(
-      r'$b = [Convert]::FromBase64String([Console]::In.ReadToEnd().Trim()); '
-      r'$p = [Security.Cryptography.ProtectedData]::Protect($b, $null, "CurrentUser"); '
-      r'[Console]::Out.Write([Convert]::ToBase64String($p))',
-      base64.encode(utf8.encode(value)),
-    );
-    if (result.exitCode != 0) throw _failed('kept', result);
+    final encrypted = dpapiProtect(utf8.encode(value));
     final file = _file(id);
     await file.parent.create(recursive: true);
-    await file.writeAsString('${result.stdout}'.trim(), flush: true);
+    await file.writeAsString(base64.encode(encrypted), flush: true);
   }
 
   @override
@@ -227,7 +305,8 @@ class SecretServiceStore implements SecretStore {
   }
 }
 
-/// Files only the user reads (0600, in a folder of 0700): for where the
+/// Files only the user reads (0600, in a folder of 0700; on Windows, the
+/// profile's own: the data folder is the user's alone): for where the
 /// system keeps no secrets.
 class FileSecretStore implements SecretStore {
   FileSecretStore(this.directory);
@@ -247,14 +326,16 @@ class FileSecretStore implements SecretStore {
   @override
   Future<void> write(String id, String value) async {
     final folder = Directory(directory);
+    // No chmod on Windows (nor a process at all: a policy may refuse one).
+    final posix = !Platform.isWindows;
     if (!folder.existsSync()) {
       await folder.create(recursive: true);
-      await Process.run('chmod', ['700', directory]);
+      if (posix) await Process.run('chmod', ['700', directory]);
     }
     final file = _file(id);
     // Made empty and closed to others before the secret goes in.
     await file.writeAsString('');
-    await Process.run('chmod', ['600', file.path]);
+    if (posix) await Process.run('chmod', ['600', file.path]);
     await file.writeAsString(value, flush: true);
   }
 

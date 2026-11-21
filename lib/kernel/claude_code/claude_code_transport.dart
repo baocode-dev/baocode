@@ -59,6 +59,7 @@ class ClaudeLaunch {
     this.persist = true,
     this.env,
     this.settingsPath,
+    this.promptPath,
     this.directories = const [],
     this.folderInstructions = true,
     this.readable = const [],
@@ -69,17 +70,12 @@ class ClaudeLaunch {
     this.tools,
     this.userServers = false,
     this.allowed = const [],
-    this.promptSuggestions = true,
     this.switches = ExtensionSwitches.none,
   });
 
   /// The skills, MCP servers and tools turned off (Settings → Customize):
   /// permission rules and `skillOverrides` of the flag settings.
   final ExtensionSwitches switches;
-
-  /// Whether it suggests the next prompt after each turn
-  /// (`--prompt-suggestions`), each a request of its own.
-  final bool promptSuggestions;
 
   /// Folders it may read without asking, its tools' work outside them
   /// aside: where the long pastes it is told of are kept (PasteStore).
@@ -177,15 +173,35 @@ class ClaudeLaunch {
     null => false,
   };
 
+  /// A file [systemPrompt] is written to, given in its place: so that a
+  /// long one (a bot's) does not take the command line past what the
+  /// system starts a process with.
+  final String? promptPath;
+
+  /// What it is told as its system prompt ([ownPrompt]), or after Claude
+  /// Code's own.
+  String get systemPrompt => ownPrompt
+      ? instructions ?? ''
+      : switch (instructions) {
+          final instructions? when instructions.isNotEmpty =>
+            '$appendedSystemPrompt\n\n$instructions',
+          _ => appendedSystemPrompt,
+        };
+
   /// This launch with its flag settings in the file at [path].
   ClaudeLaunch withSettingsFile(String path) => copyWith(settingsPath: path);
 
+  /// This launch with [systemPrompt] in the file at [path].
+  ClaudeLaunch withPromptFile(String path) => copyWith(promptPath: path);
+
   /// This launch in [cwd], or with [env], or its flag settings in the file
-  /// at [settingsPath], or with [instructions].
+  /// at [settingsPath], or its prompt in the file at [promptPath], or with
+  /// [instructions].
   ClaudeLaunch copyWith({
     String? cwd,
     Map<String, String>? env,
     String? settingsPath,
+    String? promptPath,
     String? instructions,
   }) => ClaudeLaunch(
     cwd: cwd ?? this.cwd,
@@ -200,6 +216,7 @@ class ClaudeLaunch {
     persist: persist,
     env: env ?? this.env,
     settingsPath: settingsPath ?? this.settingsPath,
+    promptPath: promptPath ?? this.promptPath,
     directories: directories,
     folderInstructions: folderInstructions,
     readable: readable,
@@ -208,8 +225,8 @@ class ClaudeLaunch {
     models: models,
     sdkServers: sdkServers,
     tools: tools,
+    userServers: userServers,
     allowed: allowed,
-    promptSuggestions: promptSuggestions,
     switches: switches,
   );
 
@@ -320,8 +337,6 @@ class ClaudeLaunch {
     'stdio',
     '--thinking-display',
     thinkingDisplay,
-    // A prompt_suggestion message after each turn.
-    if (promptSuggestions) '--prompt-suggestions',
     if (permissionMode case final mode?) ...['--permission-mode', mode],
     if (model case final model? when model != 'default') ...['--model', model],
     if (effort case final effort?) ...['--effort', effort],
@@ -356,16 +371,12 @@ class ClaudeLaunch {
       '--allowedTools',
       sdkServers.map((name) => 'mcp__$name').join(','),
     ],
-    if (ownPrompt) ...[
-      '--system-prompt',
-      instructions ?? '',
+    if (promptPath case final path?) ...[
+      ownPrompt ? '--system-prompt-file' : '--append-system-prompt-file',
+      path,
     ] else ...[
-      '--append-system-prompt',
-      switch (instructions) {
-        final instructions? when instructions.isNotEmpty =>
-          '$appendedSystemPrompt\n\n$instructions',
-        _ => appendedSystemPrompt,
-      },
+      ownPrompt ? '--system-prompt' : '--append-system-prompt',
+      systemPrompt,
     ],
   ];
 

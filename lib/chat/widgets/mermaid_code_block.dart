@@ -17,6 +17,7 @@ import 'code_citation.dart';
 import 'content_image.dart' show ContentImagePlaceholder;
 import 'image_thumbnails.dart' show ImageMenu, showImagePreview;
 import 'mermaid_theme.dart';
+import '../selection/chat_selection.dart';
 
 /// Native, offline Mermaid rendering, with the ordinary code block as fallback.
 /// Shown whole, a right click's menu and its copy are a picture's.
@@ -261,7 +262,7 @@ class _MermaidCodeBlockState extends State<MermaidCodeBlock> {
       );
     }
     final l10n = context.l10n;
-    return SelectionContainer.disabled(
+    return ChatUnselectable(
       child: MouseRegion(
         onEnter: (_) => setState(() => _hovered = true),
         onExit: (_) => setState(() => _hovered = false),

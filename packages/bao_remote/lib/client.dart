@@ -11,4 +11,5 @@ export 'src/client/ssh_config.dart';
 export 'src/client/ssh_launcher.dart';
 export 'src/client/ssh_servers.dart';
 export 'src/client/wsl.dart';
+export 'src/files/browse.dart' show BrowseEntry, BrowseRoot, BrowseRootKind;
 export 'src/files/recursive_watch.dart' show WatchChange, WatchEvent;

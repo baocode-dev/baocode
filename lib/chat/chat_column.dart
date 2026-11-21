@@ -11,6 +11,7 @@ class ChatColumnInset extends InheritedWidget {
     super.key,
     this.right = 0,
     this.left = 0,
+    this.rail,
     required super.child,
   });
 
@@ -19,6 +20,14 @@ class ChatColumnInset extends InheritedWidget {
   /// As [right], at the left: what floats there with the side panel at the
   /// conversations' left.
   final double left;
+
+  /// What floats there (see [ChatRail]): what of the chat's margin it is
+  /// over (the minimap's) keeps in line with it. None where nothing floats.
+  final ChatRail? rail;
+
+  /// [rail] where [context] is; none outside any.
+  static ChatRail? railOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<ChatColumnInset>()?.rail;
 
   /// The inset at the right where [context] is; none outside any.
   static double of(BuildContext context) =>
@@ -30,7 +39,9 @@ class ChatColumnInset extends InheritedWidget {
 
   @override
   bool updateShouldNotify(ChatColumnInset oldWidget) =>
-      oldWidget.right != right || oldWidget.left != left;
+      oldWidget.right != right ||
+      oldWidget.left != left ||
+      oldWidget.rail != rail;
 }
 
 /// [child] no wider than [maxWidth], in the middle of the width it has (as
@@ -43,7 +54,9 @@ class ChatColumnInset extends InheritedWidget {
 /// It keeps [room] clear at its left (for the conversation's minimap) as
 /// long as it is still at least [roomFrom] wide that way, narrower than
 /// [maxWidth] if need be; in less width it gives the room up. Its right
-/// keeps none: only [right] there, for what floats over it.
+/// keeps none: only [right] there, for what floats over it. With the
+/// minimap at its right ([roomRight]), the room is kept there instead, and
+/// none at its left: its left stays level with the composer's.
 class ChatColumn extends SingleChildRenderObjectWidget {
   const ChatColumn({
     super.key,
@@ -52,6 +65,7 @@ class ChatColumn extends SingleChildRenderObjectWidget {
     this.left = 0,
     this.room = 0,
     this.roomFrom = 0,
+    this.roomRight = false,
     super.child,
   });
 
@@ -62,13 +76,15 @@ class ChatColumn extends SingleChildRenderObjectWidget {
   final double left;
   final double room;
   final double roomFrom;
+  final bool roomRight;
 
   @override
   RenderChatColumn createRenderObject(BuildContext context) =>
       RenderChatColumn(maxWidth, right)
         ..left = left
         ..room = room
-        ..roomFrom = roomFrom;
+        ..roomFrom = roomFrom
+        ..roomRight = roomRight;
 
   @override
   void updateRenderObject(BuildContext context, RenderChatColumn renderObject) {
@@ -77,7 +93,8 @@ class ChatColumn extends SingleChildRenderObjectWidget {
       ..right = right
       ..left = left
       ..room = room
-      ..roomFrom = roomFrom;
+      ..roomFrom = roomFrom
+      ..roomRight = roomRight;
   }
 }
 
@@ -89,6 +106,14 @@ class RenderChatColumn extends RenderShiftedBox {
   set room(double value) {
     if (value == _room) return;
     _room = value;
+    markNeedsLayout();
+  }
+
+  bool get roomRight => _roomRight;
+  bool _roomRight = false;
+  set roomRight(bool value) {
+    if (value == _roomRight) return;
+    _roomRight = value;
     markNeedsLayout();
   }
 
@@ -132,13 +157,16 @@ class RenderChatColumn extends RenderShiftedBox {
     double left = 0,
     double room = 0,
     double roomFrom = 0,
+    bool roomRight = false,
   }) {
     final centered = math.max(0.0, math.min(maxWidth, width));
     // In the middle, unless that comes within [left] (or the minimap's
-    // [room]) of the left edge.
-    final clear = room > 0 && width - room >= roomFrom
-        ? math.max(left, room)
-        : left;
+    // [room]) of the left edge; the minimap at the right, its room is kept
+    // from the right edge alone, as [right] is (the side panel's rail, which
+    // it goes under, already keeps as much there).
+    final roomy = room > 0 && width - room >= roomFrom;
+    final clear = roomy && !roomRight ? math.max(left, room) : left;
+    if (roomy && roomRight) right = math.max(right, room);
     final start = math.max((width - centered) / 2, math.min(clear, width));
     final end = math.max(start, (width + centered) / 2);
     return (
@@ -168,6 +196,7 @@ class RenderChatColumn extends RenderShiftedBox {
     left: _left,
     room: _room,
     roomFrom: _roomFrom,
+    roomRight: _roomRight,
   );
 
   BoxConstraints _childConstraints(BoxConstraints constraints) =>
@@ -215,5 +244,63 @@ class RenderChatColumn extends RenderShiftedBox {
       0,
     );
     size = constraints.constrain(Size(width, child.size.height));
+  }
+}
+
+/// What floats over a chat's margin (the side panel's rail): its render
+/// object, once laid out ([box]), and news of it moving or changing size, as
+/// [ChatRailReport] gives it.
+///
+/// Where it is is read off [box] against what is under it (as
+/// `rail.box.getTransformTo(other)`): in the same units, however the window
+/// is zoomed, and at the frame both were laid out in.
+class ChatRail extends ChangeNotifier {
+  RenderBox? _box;
+
+  /// The rail's, while laid out.
+  RenderBox? get box => switch (_box) {
+    final box? when box.attached && box.hasSize => box,
+    _ => null,
+  };
+
+  void _tell(RenderBox box) {
+    _box = box;
+    notifyListeners();
+  }
+}
+
+/// [child] as [rail]'s: tells it after each frame [child] moved or changed
+/// size in.
+class ChatRailReport extends SingleChildRenderObjectWidget {
+  const ChatRailReport({super.key, required this.rail, super.child});
+
+  final ChatRail rail;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderChatRailReport(rail);
+
+  @override
+  void updateRenderObject(BuildContext context, RenderObject renderObject) {
+    (renderObject as _RenderChatRailReport).rail = rail;
+  }
+}
+
+class _RenderChatRailReport extends RenderProxyBox {
+  _RenderChatRailReport(this.rail);
+
+  ChatRail rail;
+  Rect? _told;
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    super.paint(context, offset);
+    final at = localToGlobal(Offset.zero) & size;
+    if (at == _told) return;
+    _told = at;
+    final rail = this.rail;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (attached) rail._tell(this);
+    });
   }
 }

@@ -223,9 +223,6 @@ void main() {
       transcript.tasks.firstWhere((t) => t.id == task.id).background,
       isTrue,
     );
-
-    await until(() => kernel.promptSuggestion != null, seconds: 30);
-    print('SUGGESTION ${kernel.promptSuggestion}');
     kernel.dispose();
   }, timeout: const Timeout(Duration(minutes: 4)));
 }

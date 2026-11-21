@@ -329,15 +329,27 @@ Call it only when the plan is finished, and only for work that will change code,
     }
   }
 
+  /// What the model is told when it calls this out of plan mode: the plan
+  /// was approved already, and there is nothing to ask the user.
+  static const notInPlanMode =
+      'Plan mode is already over and the plan approved: you may change files '
+      'and run tools. Carry out the plan now, and do not call ExitPlanMode '
+      'again.';
+
+  /// Out of plan mode there is nothing to approve: the user is not asked,
+  /// the model is told so. (Not in [call]: an approval may leave the mode
+  /// before it runs.)
   @override
   Future<PermissionDecision> checkPermissions(
     Map<String, Object?> input,
     ToolContext context,
-  ) async => const PermissionAsk(
-    message: 'Exit plan mode?',
-    requiresUserInteraction: true,
-    classifierApprovable: false,
-  );
+  ) async => context.session.permissionMode == 'plan'
+      ? const PermissionAsk(
+          message: 'Exit plan mode?',
+          requiresUserInteraction: true,
+          classifierApprovable: false,
+        )
+      : const PermissionDeny(notInPlanMode, reasonType: 'mode');
 
   @override
   Future<ToolOutput> call(

@@ -127,6 +127,85 @@ void main() {
     );
   });
 
+  test('why a conversation was compacted goes with its line', () {
+    final item =
+        ChatCodec.decode(
+              jsonDecode(
+                jsonEncode(
+                  ChatCodec.encode(
+                    const NoticeItem(
+                      NoticeKind.compaction,
+                      'Conversation compacted early',
+                      compaction: CompactionNote(
+                        auto: true,
+                        tooLong: true,
+                        before: 253000,
+                        window: 500000,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            )!
+            as NoticeItem;
+    expect(item.text, 'Conversation compacted early');
+    final note = item.compaction!;
+    expect((note.auto, note.tooLong), (true, true));
+    expect((note.before, note.after, note.window), (253000, null, 500000));
+  });
+
+  test('conversations handed work go by the ids the phone knows', () {
+    String phone(String id) => 'phone-$id';
+    final step = ChatCodec.encode(
+      const ToolCallItem(
+        kind: ToolKind.other,
+        target: 's1',
+        tool: 'session_send',
+        input: {'session': 's1', 'text': ' fix the login '},
+      ),
+      session: phone,
+    );
+    expect(step['sessions'], ['phone-s1']);
+    expect(step['handed'], 'fix the login');
+    expect(
+      ChatCodec.encode(
+        const ToolCallItem(
+          kind: ToolKind.other,
+          target: 'Login',
+          tool: 'session_new',
+          output: 'Started: s2 in app, on Sonnet 5.',
+        ),
+        session: phone,
+      )['sessions'],
+      ['phone-s2'],
+    );
+    expect(
+      ChatCodec.encode(
+        const UserMessageItem(
+          text: 'done',
+          fromAgent: 'Login',
+          fromSession: 's2',
+        ),
+        session: phone,
+      ),
+      allOf(
+        containsPair('agent', 'Login'),
+        containsPair('agentSession', 'phone-s2'),
+      ),
+    );
+    // Not another tool's.
+    expect(
+      ChatCodec.encode(
+        const ToolCallItem(
+          kind: ToolKind.read,
+          target: 'a',
+          input: {'text': 'x'},
+        ),
+      ),
+      isNot(contains('sessions')),
+    );
+  });
+
   group('a bot\'s', () {
     test('pictures from the web go as they were sent', () {
       final url = roundTrip(

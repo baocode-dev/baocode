@@ -808,19 +808,32 @@ void Win32Window::CheckFrameShown() {
     return;
   }
   // What DWM leaves out of the border at each side is its invisible part;
-  // the rest it shows, the outline its last pixel.
+  // the rest it shows, the outline its last pixels. The outline grows with
+  // the dpi (2 px at 150%: 2 of 11 or 13 shown, on builds 26100 and 26200),
+  // so it is most of the border shown that counts (6 of 9 on build 22000):
+  // taken for more, an outline moved the border inside where it was
+  // invisible — the content's outer pixels then resized the window, the
+  // scrollbar at the right edge among them, and could not be pressed.
   const SIZE border = ResizeBorder();
   const LONG shown = std::max({border.cx - (frame.left - bounds.left),
                                border.cx - (bounds.right - frame.right),
                                border.cy - (bounds.bottom - frame.bottom)});
-  if (shown <= 1) {
+  const bool inside = shown * 2 > std::max(border.cx, border.cy);
+  // Either way, once for each measure (the first time the window shows, and
+  // on a screen of another dpi): what the check decides on which systems is
+  // there to see in the logs, not only where it moves the border.
+  if (shown != frame_logged_.cx || border.cx != frame_logged_.cy) {
+    frame_logged_ = {shown, border.cx};
+    LogContent(
+        "frame: DWM shows %ld px of the %ld px border outside the client at "
+        "dpi %u (window %ld,%ld,%ld,%ld; shown %ld,%ld,%ld,%ld): border %s",
+        shown, border.cx, FlutterDesktopGetDpiForHWND(window), bounds.left,
+        bounds.top, bounds.right, bounds.bottom, frame.left, frame.top,
+        frame.right, frame.bottom, inside ? "inside" : "outside");
+  }
+  if (!inside) {
     return;
   }
-  LogContent(
-      "frame: DWM shows %ld px of the %ld px border outside the client "
-      "(window %ld,%ld,%ld,%ld; shown %ld,%ld,%ld,%ld): border inside",
-      shown, border.cx, bounds.left, bounds.top, bounds.right, bounds.bottom,
-      frame.left, frame.top, frame.right, frame.bottom);
   frame_inside_ = true;
   ::SetWindowPos(window, nullptr, 0, 0, 0, 0,
                  SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |

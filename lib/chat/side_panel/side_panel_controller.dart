@@ -365,6 +365,7 @@ class AgentSidePanel extends ChangeNotifier {
   void setShownIn(Object conversation, bool shown) {
     if (shown) {
       _asks += 1;
+      _asksIn[conversation] = asksIn(conversation) + 1;
       _listAway = false;
     }
     if (shownIn(conversation) == shown && !shown) return;
@@ -526,6 +527,31 @@ class AgentSidePanel extends ChangeNotifier {
   /// both fit, though it showed already (having given way to the sidebar).
   int get asks => _asks;
   int _asks = 0;
+
+  /// As [asks], for [conversation]'s pane alone, of agents side by side.
+  int asksIn(Object conversation) => _asksIn[conversation] ?? 0;
+  final Expando<int> _asksIn = Expando();
+
+  /// Whether it gave way to the conversations, though shown: the window's
+  /// (or, of agents side by side, [conversation]'s pane's) too narrow for it
+  /// beside them, it is out of their way until the room is back, or it is
+  /// asked for again (see AgentSidePanelArea). Its toggles show it hidden
+  /// meanwhile, and show it again.
+  bool gaveWay([Object? conversation]) =>
+      _gaveWay[conversation ?? _window] ?? false;
+  final Expando<bool> _gaveWay = Expando();
+  static final _window = Object();
+
+  /// [gaveWay] the focused pane's, of agents side by side, else the
+  /// window's: what [show] and [hide] are for.
+  bool get givenWay => gaveWay(_pane);
+
+  /// As AgentSidePanelArea lays it out.
+  void setGaveWay(Object? conversation, bool gaveWay) {
+    if (this.gaveWay(conversation) == gaveWay) return;
+    _gaveWay[conversation ?? _window] = gaveWay;
+    notifyListeners();
+  }
 
   /// Shown: the focused pane's, of agents side by side ([pane]), else the
   /// window's.

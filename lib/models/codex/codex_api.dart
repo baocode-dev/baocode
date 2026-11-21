@@ -2,29 +2,65 @@
 // a request to it is made, and what it answers. After CLIProxyAPI's Codex
 // executor (see proxy/translate/NOTICE.md).
 
+import 'dart:async';
 import 'dart:convert';
 
-import '../model_provider.dart';
 import '../upstream.dart';
+import 'codex_feed_stub.dart' if (dart.library.io) 'codex_feed_io.dart';
 
-/// The Codex CLI's version this speaks as, unless the provider has its own
-/// ([ModelProvider.clientVersion]): the backend lists the models of it
-/// ([CodexEndpoints.models]), a model newer than it left out.
-const codexClientVersion = '0.159.0';
+/// The Codex CLI's version this speaks as until baocode.dev says another
+/// ([codexVersion]).
+const codexClientVersion = '0.169.1';
+
+/// The Codex CLI's version this speaks as: the backend lists the models of
+/// it ([CodexEndpoints.models]), a model newer than it left out. As
+/// [codexVersionFeed] says, asked at the app's start and again before the
+/// models are listed, so that a new one needs no release.
+String codexVersion = codexClientVersion;
+
+/// Where baocode.dev keeps the version ([codexVersion]): site/codex.json.
+final codexVersionFeed = Uri.parse('https://baocode.dev/codex.json');
+
+/// The version in [text] (codex.json's): null when it has none.
+String? parseCodexVersion(String text) {
+  try {
+    if (jsonDecode(text) case {'clientVersion': final String version}
+        when version.trim().isNotEmpty) {
+      return version.trim();
+    }
+  } on FormatException {
+    // None.
+  }
+  return null;
+}
+
+/// How [loadCodexVersion] gets codex.json's text: null where baocode.dev
+/// does not answer. Tests set their own.
+Future<String?> Function(Uri url) codexFeed = fetchCodexFeed;
+
+/// Sets [codexVersion] as [codexVersionFeed] says; left as it is where
+/// baocode.dev does not answer in [timeout].
+Future<void> loadCodexVersion({
+  Duration timeout = const Duration(seconds: 5),
+}) async {
+  final String? text;
+  try {
+    text = await codexFeed(codexVersionFeed).timeout(timeout);
+  } on TimeoutException {
+    return;
+  }
+  if (text != null) codexVersion = parseCodexVersion(text) ?? codexVersion;
+}
 
 /// The image model the Codex CLI makes pictures with (its `image_gen`):
 /// not in the backend's list, offered beside it.
 const codexImageModel = 'gpt-image-2';
 
-/// The Codex CLI's version [provider] speaks as.
-String codexVersionOf(ModelProvider provider) =>
-    provider.clientVersion ?? codexClientVersion;
-
-/// What the requests go as, as the Codex CLI's of [version]: the backend's
-/// Cloudflare turns away other clients.
-String codexUserAgent([String version = codexClientVersion]) =>
-    'codex-tui/$version (Mac OS 26.5.2; arm64) iTerm.app/3.6.11 '
-    '(codex-tui; $version)';
+/// What the requests go as, as the Codex CLI's of [codexVersion]: the
+/// backend's Cloudflare turns away other clients.
+String codexUserAgent() =>
+    'codex-tui/$codexVersion (Mac OS 26.5.2; arm64) iTerm.app/3.6.11 '
+    '(codex-tui; $codexVersion)';
 
 const codexOriginator = 'codex-tui';
 
@@ -54,9 +90,10 @@ class CodexEndpoints {
   Uri get token => Uri.parse('$auth/oauth/token');
   Uri get responses => Uri.parse('$backend/codex/responses');
 
-  /// The models the Codex CLI of [version] is offered.
-  Uri models([String version = codexClientVersion]) => Uri.parse(
-    '$backend/codex/models?client_version=${Uri.encodeQueryComponent(version)}',
+  /// The models the Codex CLI of [codexVersion] is offered.
+  Uri get models => Uri.parse(
+    '$backend/codex/models'
+    '?client_version=${Uri.encodeQueryComponent(codexVersion)}',
   );
   Uri get usage => Uri.parse('$backend/wham/usage');
 
@@ -73,19 +110,18 @@ class CodexEndpoints {
 
 /// The headers a request to the backend goes with: [token] the account's
 /// access token, [accountId] its workspace; [session] the conversation's
-/// (its `prompt_cache_key`); as the Codex CLI of [version].
+/// (its `prompt_cache_key`); as the Codex CLI of [codexVersion].
 Map<String, String> codexHeaders(
   String token, {
   String? accountId,
   String? session,
   bool events = false,
-  String version = codexClientVersion,
 }) => {
   'authorization': 'Bearer $token',
   if (accountId != null && accountId.isNotEmpty)
     'chatgpt-account-id': accountId,
   'originator': codexOriginator,
-  'user-agent': codexUserAgent(version),
+  'user-agent': codexUserAgent(),
   'accept': events ? 'text/event-stream' : 'application/json',
   if (session != null && session.isNotEmpty) 'session-id': session,
 };

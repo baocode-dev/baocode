@@ -61,13 +61,102 @@ class IdeTextQuery {
   /// Whether [relativePath] (with `/`) is to be searched.
   bool Function(String relativePath) pathFilter() {
     final include = ideSearchPathGlobs(includes);
-    final exclude = [
-      ...ideSearchPathGlobs(excludes),
-      if (useExcludesAndIgnoreFiles) ...ideDefaultSearchExcludes,
-    ];
+    final exclude = IdePathGlobs(excludeGlobs);
     return (path) =>
         (include.isEmpty || include.any((glob) => glob.hasMatch(path))) &&
-        !exclude.any((glob) => glob.hasMatch(path));
+        !exclude.hasMatch(path);
+  }
+
+  /// "files to exclude" and, where used, the default excludes.
+  List<RegExp> get excludeGlobs => [
+    ...ideSearchPathGlobs(excludes),
+    if (useExcludesAndIgnoreFiles) ...ideDefaultSearchExcludes,
+  ];
+}
+
+/// Whether any of [ideGlob]'s expressions matches a path, quicker than
+/// each in turn for a search's every file: `**/name`, `**/*.ext` and
+/// `**/name/**` compare names, others are tried as they are.
+class IdePathGlobs {
+  IdePathGlobs(Iterable<RegExp> globs) {
+    const anywhere = '^(?:.*/)?';
+    for (final glob in globs) {
+      final pattern = glob.pattern;
+      if (pattern.startsWith(anywhere) && glob.isCaseSensitive) {
+        var body = pattern.substring(anywhere.length);
+        var under = false;
+        if (body.endsWith(r'/.*$')) {
+          body = body.substring(0, body.length - 4);
+          under = true;
+        } else if (body.endsWith(r'$')) {
+          body = body.substring(0, body.length - 1);
+        } else {
+          _others.add(glob);
+          continue;
+        }
+        var suffix = false;
+        if (body.startsWith('[^/]*')) {
+          body = body.substring(5);
+          suffix = true;
+        }
+        if (_literal(body) case final name? when !(under && suffix)) {
+          if (under) {
+            _folders.add(name);
+          } else if (suffix) {
+            _endings.add(name);
+          } else {
+            _names.add(name);
+          }
+          continue;
+        }
+      }
+      _others.add(glob);
+    }
+  }
+
+  final _names = <String>{};
+  final _endings = <String>[];
+  final _folders = <String>{};
+  final _others = <RegExp>[];
+
+  bool hasMatch(String path) {
+    final slash = path.lastIndexOf('/');
+    final name = slash < 0 ? path : path.substring(slash + 1);
+    if (_names.contains(name)) return true;
+    for (final ending in _endings) {
+      if (name.endsWith(ending)) return true;
+    }
+    if (_folders.isNotEmpty && slash > 0) {
+      var start = 0;
+      while (start < slash) {
+        final end = path.indexOf('/', start);
+        if (_folders.contains(path.substring(start, end))) return true;
+        start = end + 1;
+      }
+    }
+    for (final glob in _others) {
+      if (glob.hasMatch(path)) return true;
+    }
+    return false;
+  }
+
+  /// [source] as the text it matches, when it is only escaped characters
+  /// and others that stand for themselves (none for `/`); else null.
+  static String? _literal(String source) {
+    if (source.isEmpty) return null;
+    final out = StringBuffer();
+    for (var i = 0; i < source.length; i++) {
+      final char = source[i];
+      if (char == r'\') {
+        if (i + 1 == source.length) return null;
+        out.write(source[++i]);
+      } else if (r'.*?+()[]{}|^$/'.contains(char)) {
+        return null;
+      } else {
+        out.write(char);
+      }
+    }
+    return out.toString();
   }
 }
 

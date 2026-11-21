@@ -254,6 +254,7 @@ class Transcript {
             stopped: taken.stopped,
             sentAt: sent,
             fromAgent: taken.fromAgent,
+            fromSession: taken.fromSession,
           ),
         _ => item,
       };
@@ -313,7 +314,7 @@ class Transcript {
     if (index == null) return false;
     final item = _items[index];
     final current = switch (item) {
-      AssistantTextItem(:final text) => text,
+      AssistantTextItem(:final raw) => raw,
       ThinkingItem(:final text) => text,
       _ => null,
     };

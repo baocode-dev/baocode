@@ -51,7 +51,7 @@ Future<ClaudeCodeTransport> startClaude(ClaudeLaunch launch) async {
 
 /// What runs Claude Code on [host]: as its server saved in the app says;
 /// as ssh reaches it otherwise (one of ~/.ssh/config, one typed), the CLI
-/// where it has one, else BaoCode's own core.
+/// where it has one, else BaoCode's own core: the CLI never installed.
 SshCore remoteCoreOf(String host) =>
     SshHosts.instance.savedServers()[host]?.core ?? SshCore.auto;
 
@@ -59,8 +59,10 @@ SshCore remoteCoreOf(String host) =>
 /// ([RemoteClient.startClaude]'s `core`: `builtin`, or null for the CLI; a
 /// server of before runs the CLI), as [remoteCoreOf] says. [model]: whether
 /// it runs on an upstream's model, which BaoCode's own core needs; without
-/// one, the CLI. Where the CLI is wanted and the host has none, it is
-/// installed there when [install], as VS Code's extension sets itself up.
+/// one, the CLI where the host has it. Where the CLI is picked and the
+/// host has none, it is installed there when [install], as VS Code's
+/// extension sets itself up; automatic installs nothing: without the CLI
+/// there nor an upstream, a model is asked for.
 Future<RemoteProcess> startRemoteCore(
   SshHost host, {
   required bool model,
@@ -84,10 +86,10 @@ Future<RemoteProcess> startRemoteCore(
     case SshCore.cli:
       return cli();
     case SshCore.auto:
-      if (!model) return cli();
       try {
         return await start(null);
       } on ClaudeNotInstalled {
+        if (!model) throw const ClaudeNoModel(ClaudeCore.noModel);
         return start('builtin');
       }
   }

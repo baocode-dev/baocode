@@ -59,6 +59,14 @@ void main() {
         'poetry.lock',
         'pyrightconfig.json',
       ]);
+      expect(servers('src/Main.java'), ['jdtls']);
+      expect(catalog.languageFor('src/Main.java')?.rootMarkers, [
+        'pom.xml',
+        'settings.gradle',
+        'settings.gradle.kts',
+        'build.gradle',
+        'build.gradle.kts',
+      ]);
     });
 
     test('matches names, longest extensions, globs and shebangs', () {

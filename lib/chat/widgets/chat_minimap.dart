@@ -57,13 +57,24 @@ enum ChatMinimapElasticity {
   String get setting => name;
 }
 
+/// Which side of the column a minimap is on.
+enum ChatMinimapSide {
+  left,
+  right;
+
+  /// As settings.json has it: its name.
+  String get setting => name;
+}
+
 /// A conversation's minimap, as an editor's: every row of the history
 /// sampled down to strokes (its lines of text, the user's messages, code,
 /// steps), the part in view under a drop of liquid glass that follows it
 /// (shown while the history is scrolled, or the pointer is over it), and a
-/// press or a drag on it scrolls there. In the margin left of the column
-/// when there is room for it (not in a narrow pane), and once the
-/// conversation is long ([longAfter]).
+/// press or a drag on it scrolls there. In the margin beside the column, on
+/// the [side] chosen, when there is room for it (not in a narrow pane), and
+/// once the conversation is long ([longAfter]). Where the side panel's rail
+/// floats over that margin's top (see [ChatColumnInset.rail]), under it
+/// instead, in line with it.
 ///
 /// Light to keep: an item is sampled once, and again only when it changes
 /// (a changed item is a new one); only the strokes in sight are painted, and
@@ -80,12 +91,17 @@ class ChatMinimap extends StatefulWidget {
     required this.scrolling,
     required this.onSeek,
     required this.onSeekEnd,
+    this.at = ChatMinimapSide.left,
     this.onPointerDown,
     this.onPointerSignal,
     this.onPointerPanZoomStart,
     this.onPointerPanZoomUpdate,
     this.onPointerPanZoomEnd,
   });
+
+  /// The side of the column it is on: the one the column keeps its room
+  /// on.
+  final ChatMinimapSide at;
 
   final int rowCount;
   final ChatMinimapRow Function(int index) rowAt;
@@ -125,16 +141,17 @@ class ChatMinimap extends StatefulWidget {
   static const _narrow = 24.0;
   static const _outset = 3.0;
 
-  /// The least kept between it and the history's left edge, and between it
-  /// and the column (more, for the text to breathe beside it); the most
-  /// between it and the column, however roomy the margin.
+  /// The least kept between it and the history's edge, and between it and
+  /// the column (more, for the text to breathe beside it); the most between
+  /// it and the column, however roomy the margin.
   static const _edgeGap = 12.0;
   static const _columnGap = 20.0;
   static const _maxColumnGap = 32.0;
 
-  /// The margin it takes left of a conversation's column, from the
+  /// The margin it takes beside a conversation's column, from the
   /// conversation's edge: a column with a minimap leaves it clear while it
-  /// can (see [ChatColumn.room]); at the right it reaches the margin.
+  /// can (see [ChatColumn.room]); on the other side it reaches the margin
+  /// (at the left, level with the composer).
   static const room = _edgeGap + _narrow + _columnGap;
 
   /// The least a column keeps of its width to leave [room]; narrower than
@@ -158,20 +175,29 @@ class ChatMinimap extends StatefulWidget {
   /// Kept above and below it.
   static const _inset = 14.0;
 
-  /// Where its track is beside [column] (the history's): its left and
-  /// width; null where the margin has no room for it.
+  /// Where its track is beside [column] (the history's, [width] wide), on
+  /// [side]: its left and width; null where the margin has no room for it.
   static ({double left, double width})? besides(
-    ({double left, double width}) column,
-  ) {
+    ({double left, double width}) column, {
+    required double width,
+    ChatMinimapSide side = ChatMinimapSide.left,
+  }) {
     if (column.width <= 0) return null;
-    final spare = column.left - _narrow;
+    final right = side == ChatMinimapSide.right;
+    final margin = right ? width - column.left - column.width : column.left;
+    final spare = margin - _narrow;
     if (spare < _edgeGap + _columnGap) return null;
     // Half way, within bounds: never nearer the edge than [_edgeGap].
     final gap = math.min(
       (spare / 2).clamp(_columnGap, _maxColumnGap),
       spare - _edgeGap,
     );
-    return (left: column.left - gap - _narrow, width: _narrow);
+    return (
+      left: right
+          ? column.left + column.width + gap
+          : column.left - gap - _narrow,
+      width: _narrow,
+    );
   }
 
   /// settings.json's `chat.minimap`: whether a conversation in the agents'
@@ -240,13 +266,33 @@ class ChatMinimap extends StatefulWidget {
   static Object? elasticitySetting(ChatMinimapElasticity level) =>
       level == defaultElasticity ? null : level.setting;
 
-  /// Sets [enabled], [glass] and [elasticity] from [read] now and whenever
-  /// [changes] notifies.
+  /// settings.json's `chat.minimapSide`: which side of the column it is on,
+  /// as Settings → Appearance sets it. Unset: [defaultSide].
+  static const sideKey = 'chat.minimapSide';
+  static const defaultSide = ChatMinimapSide.left;
+
+  static final ValueNotifier<ChatMinimapSide> side = ValueNotifier(defaultSide);
+
+  /// [value] as settings.json has it; [defaultSide] when it is none.
+  static ChatMinimapSide parseSide(Object? value) =>
+      ChatMinimapSide.values
+          .where((side) => side.setting == value)
+          .firstOrNull ??
+      defaultSide;
+
+  /// [value] as settings.json keeps it; null (not written) for
+  /// [defaultSide].
+  static Object? sideSetting(ChatMinimapSide value) =>
+      value == defaultSide ? null : value.setting;
+
+  /// Sets [enabled], [glass], [elasticity] and [side] from [read] now and
+  /// whenever [changes] notifies.
   static void follow(Listenable changes, Object? Function(String key) read) {
     void update() {
       enabled.value = parse(read(settingKey));
       glass.value = parseGlass(read(glassKey));
       elasticity.value = parseElasticity(read(elasticityKey));
+      side.value = parseSide(read(sideKey));
     }
 
     update();
@@ -387,6 +433,92 @@ class _ChatMinimapState extends State<ChatMinimap>
 
   /// Its width, as last placed.
   double _width = ChatMinimap._narrow;
+
+  // --- Under the rail --------------------------------------------------------
+  //
+  // The side panel's rail floats over the top of the conversation's margin
+  // (see ChatColumnInset.rail). A minimap on that side is under it, at any
+  // width: in line with it, from below it, the two one column of the
+  // margin's. How far the rail is from that edge of the box, and down from
+  // its top, is the same however wide the window is and however zoomed: it
+  // is read off the two once laid out (after a frame the minimap is built
+  // in, and as the rail changes), and the minimap is placed from the edge
+  // as it is laid out, in the same frame as the rail.
+
+  /// How far down past [ChatMinimap._inset] it starts.
+  double _underRail = 0;
+
+  /// How far the rail's middle is from the box's edge on its side, where
+  /// the minimap is under it; null where it is not.
+  double? _railFromEdge;
+
+  ChatRail? _rail;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final rail = ChatColumnInset.railOf(context);
+    if (rail != _rail) {
+      _rail?.removeListener(_railChanged);
+      _rail = rail?..addListener(_railChanged);
+    }
+  }
+
+  /// The rail tells it changed after the frame it did in, all laid out:
+  /// looked at then and there.
+  void _railChanged() {
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.postFrameCallbacks) {
+      if (mounted) _clearRail();
+    } else {
+      _clearRailSoon();
+    }
+  }
+
+  bool _railScheduled = false;
+
+  void _clearRailSoon() {
+    if (_railScheduled) return;
+    _railScheduled = true;
+    SchedulerBinding.instance
+      ..addPostFrameCallback((_) {
+        _railScheduled = false;
+        if (mounted) _clearRail();
+      })
+      // One more frame for it, or nothing would come to look until
+      // something else moved.
+      ..ensureVisualUpdate();
+  }
+
+  /// [_railFromEdge] and [_underRail], as the rail is: on the minimap's
+  /// side of the box, or not.
+  void _clearRail() {
+    final box = context.findRenderObject();
+    var below = 0.0;
+    double? fromEdge;
+    if (_rail?.box case final rail?
+        when box is RenderBox && box.attached && box.hasSize) {
+      // In the box's own units, both as laid out in the same frame.
+      final at = MatrixUtils.transformRect(
+        rail.getTransformTo(box),
+        Offset.zero & rail.size,
+      );
+      final right = at.center.dx > box.size.width / 2;
+      if (right == (widget.at == ChatMinimapSide.right)) {
+        fromEdge = right ? box.size.width - at.center.dx : at.center.dx;
+        below = math.max(0.0, at.bottom + _railGap - ChatMinimap._inset);
+      }
+    }
+    if (below != _underRail || fromEdge != _railFromEdge) {
+      setState(() {
+        _underRail = below;
+        _railFromEdge = fromEdge;
+      });
+    }
+  }
+
+  /// Kept between the rail and the top of the minimap.
+  static const _railGap = 10.0;
 
   // --- Showing the glass -----------------------------------------------------
   //
@@ -684,7 +816,9 @@ class _ChatMinimapState extends State<ChatMinimap>
       _lit = row;
       _lighting.forward(from: 0);
     }
-    _peek.value = row == null ? null : (row: row, at: at + ChatMinimap._inset);
+    _peek.value = row == null
+        ? null
+        : (row: row, at: at + ChatMinimap._inset + _underRail);
   }
 
   /// [_snap] after this frame: the marks have been painted where they are
@@ -776,6 +910,7 @@ class _ChatMinimapState extends State<ChatMinimap>
 
   @override
   void dispose() {
+    _rail?.removeListener(_railChanged);
     _ticker.dispose();
     _conceal?.cancel();
     _dropTilesFrom(double.negativeInfinity);
@@ -793,33 +928,55 @@ class _ChatMinimapState extends State<ChatMinimap>
     _pixelRatio = MediaQuery.devicePixelRatioOf(context);
     return LayoutBuilder(
       builder: (context, constraints) {
-        final column = widget.columnIn(constraints.maxWidth);
-        final place = ChatMinimap.besides(column);
+        final width = constraints.maxWidth;
+        final column = widget.columnIn(width);
+        final right = widget.at == ChatMinimapSide.right;
+        final place = ChatMinimap.besides(
+          column,
+          width: width,
+          side: widget.at,
+        );
         final fits = place != null;
         // Out of sight, nothing is sampled.
         if (place != null) {
           _sync(column.width);
           _width = place.width;
         }
+        final top = ChatMinimap._inset + _underRail;
         _viewHeight = math.max(
           0.0,
-          constraints.maxHeight - 2 * ChatMinimap._inset,
+          constraints.maxHeight - top - ChatMinimap._inset,
         );
         final shown = fits && widget.long && widget.rowCount > 0;
-        final left = math.max(0.0, place?.left ?? 0);
+        // Under the rail, in line with it; else beside the column.
+        final left = math.max(0.0, switch ((place, _railFromEdge)) {
+          (_?, final edge?) => (right ? width - edge : edge) - _width / 2,
+          _ => place?.left ?? 0,
+        });
+        // The pointer's reach: out toward the edge as far as the margin
+        // goes, in toward the column a little.
         final out = math.max(
           0.0,
-          math.min(_reachOut, left - ChatMinimap._outset),
+          math.min(
+            _reachOut,
+            right
+                ? width - left - _width - ChatMinimap._outset
+                : left - ChatMinimap._outset,
+          ),
         );
+        final from = left - ChatMinimap._outset - (right ? _reachIn : out);
+        final to =
+            left + _width + ChatMinimap._outset + (right ? out : _reachIn);
+        if (fits) _clearRailSoon();
         return Stack(
           children: [
             // Wide enough for the glass, which is wider than the track, and
             // a little more for the pointer.
             Positioned(
-              left: left - ChatMinimap._outset - out,
-              top: ChatMinimap._inset,
+              left: from,
+              top: top,
               bottom: ChatMinimap._inset,
-              width: _width + 2 * ChatMinimap._outset + out + _reachIn,
+              width: to - from,
               child: IgnorePointer(
                 ignoring: !shown,
                 child: AnimatedOpacity(
@@ -854,7 +1011,9 @@ class _ChatMinimapState extends State<ChatMinimap>
                       onPointerPanZoomUpdate: widget.onPointerPanZoomUpdate,
                       onPointerPanZoomEnd: widget.onPointerPanZoomEnd,
                       child: Padding(
-                        padding: EdgeInsets.only(left: out, right: _reachIn),
+                        padding: right
+                            ? EdgeInsets.only(left: _reachIn, right: out)
+                            : EdgeInsets.only(left: out, right: _reachIn),
                         child: RepaintBoundary(
                           child: CustomPaint(
                             painter: _MinimapPainter(
@@ -882,7 +1041,11 @@ class _ChatMinimapState extends State<ChatMinimap>
                 child: IgnorePointer(
                   child: _Peek(
                     target: _peek,
-                    left: left + _width + ChatMinimap._outset + 10,
+                    // From the side the minimap is on.
+                    start: right
+                        ? width - left + ChatMinimap._outset + 10
+                        : left + _width + ChatMinimap._outset + 10,
+                    fromRight: right,
                     maxWidth: math.min(440.0, column.width * 0.8),
                     content: _peekAt,
                   ),
@@ -1531,18 +1694,22 @@ class _Repaint extends ChangeNotifier {
 }
 
 /// A user's message beside the minimap, as [target] says: its [content],
-/// [left] in, the message's first line level with its mark. It comes at once (a breath of a fade),
-/// glides from one message to the next, and goes as quickly.
+/// [start] in from the left (from the right, [fromRight]: the minimap's
+/// side), the message's first line level with its mark. It comes at once
+/// (a breath of a fade), glides from one message to the next, and goes as
+/// quickly.
 class _Peek extends StatefulWidget {
   const _Peek({
     required this.target,
-    required this.left,
+    required this.start,
+    this.fromRight = false,
     required this.maxWidth,
     required this.content,
   });
 
   final ValueListenable<({int row, double at})?> target;
-  final double left;
+  final double start;
+  final bool fromRight;
   final double maxWidth;
   final ({Widget card, double firstLine}) Function(int row) content;
 
@@ -1644,14 +1811,16 @@ class _PeekState extends State<_Peek> with TickerProviderStateMixin {
         final fade = Curves.easeOut.transform(_fade.value);
         return CustomSingleChildLayout(
           delegate: _PeekLayout(
-            widget.left,
+            widget.start,
             _at - content.firstLine,
             widget.maxWidth,
+            fromRight: widget.fromRight,
           ),
           child: Opacity(
             opacity: fade,
             child: Transform.translate(
-              offset: Offset(-4 * (1 - fade), 0),
+              // Out from the minimap.
+              offset: Offset((widget.fromRight ? 4 : -4) * (1 - fade), 0),
               child: child,
             ),
           ),
@@ -1662,14 +1831,16 @@ class _PeekState extends State<_Peek> with TickerProviderStateMixin {
   }
 }
 
-/// The peek [left] in, its top at [top] as far as the box lets it (8
-/// from its edges), at most [maxWidth] wide.
+/// The peek [start] in from the left (the right, [fromRight]), its top at
+/// [top] as far as the box lets it (8 from its edges), at most [maxWidth]
+/// wide.
 class _PeekLayout extends SingleChildLayoutDelegate {
-  _PeekLayout(this.left, this.top, this.maxWidth);
+  _PeekLayout(this.start, this.top, this.maxWidth, {this.fromRight = false});
 
-  final double left;
+  final double start;
   final double top;
   final double maxWidth;
+  final bool fromRight;
 
   static const _margin = 8.0;
 
@@ -1678,14 +1849,14 @@ class _PeekLayout extends SingleChildLayoutDelegate {
       BoxConstraints(
         maxWidth: math.max(
           0.0,
-          math.min(maxWidth, constraints.maxWidth - left - _margin),
+          math.min(maxWidth, constraints.maxWidth - start - _margin),
         ),
         maxHeight: math.max(0.0, constraints.maxHeight - 2 * _margin),
       );
 
   @override
   Offset getPositionForChild(Size size, Size childSize) => Offset(
-    left,
+    fromRight ? size.width - start - childSize.width : start,
     top.clamp(
       _margin,
       math.max(_margin, size.height - childSize.height - _margin),
@@ -1694,7 +1865,8 @@ class _PeekLayout extends SingleChildLayoutDelegate {
 
   @override
   bool shouldRelayout(_PeekLayout oldDelegate) =>
-      oldDelegate.left != left ||
+      oldDelegate.start != start ||
+      oldDelegate.fromRight != fromRight ||
       oldDelegate.top != top ||
       oldDelegate.maxWidth != maxWidth;
 }

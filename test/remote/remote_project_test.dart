@@ -27,6 +27,7 @@ import 'package:baocode/models/launch_environment.dart';
 import 'package:baocode/models/model_provider.dart';
 import 'package:baocode/remote/open_remote.dart';
 import 'package:baocode/remote/project_host.dart';
+import 'package:baocode/remote/remote_browser.dart';
 import 'package:baocode/remote/remote_files.dart';
 import 'package:baocode/remote/remote_claude.dart';
 import 'package:baocode/remote/remote_location.dart';
@@ -215,6 +216,35 @@ void main() {
       await until(() => host.state == SshHostState.connected);
     });
 
+    test('lost for a while: down, not still connecting; back: not', () async {
+      final host = SshHost(
+        'dev',
+        connect: connector.call,
+        maxBackoff: const Duration(milliseconds: 1),
+        downAfter: const Duration(milliseconds: 100),
+      );
+      addTearDown(host.close);
+      await host.ready;
+      expect(host.down, isFalse);
+      connector.failure = const SshConnectException(
+        SshFailure.unreachable,
+        'The host could not be reached.',
+      );
+      await connector.links.single.drop();
+      await until(() => host.state == SshHostState.reconnecting);
+      // Lost a moment: just being made again.
+      expect(host.down, isFalse);
+      var told = false;
+      host.addListener(() => told |= host.down);
+      await until(() => host.down);
+      expect(told, isTrue, reason: 'listeners are told it is down');
+      expect(host.state, SshHostState.reconnecting);
+
+      connector.failure = null;
+      await until(() => host.state == SshHostState.connected);
+      expect(host.down, isFalse);
+    });
+
     test('a project\'s sessions are listed once its host is reached', () async {
       final mock = MockKernels.claudeCode;
       final workspace = Workspace(
@@ -289,6 +319,48 @@ void main() {
       await tester.pump();
       expect(
         find.text('https://dl.baocode.dev/x.gz: HTTP 404'),
+        findsOneWidget,
+      );
+
+      connector.failure = null;
+      await tester.tap(find.text('Retry'));
+      await tester.runAsync(
+        () => until(() => hosts['dev'].state == SshHostState.connected),
+      );
+      await tester.pump();
+      expect(find.byType(HealthBanner), findsNothing);
+    });
+
+    testWidgets('one lost for a while is said over the chat, though tried '
+        'again by itself', (tester) async {
+      hosts = SshHosts.instance = SshHosts(
+        connect: connector.call,
+        downAfter: const Duration(milliseconds: 100),
+      );
+      final location = RemoteLocation.of('dev', root);
+      await tester.pumpWidget(
+        MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(body: SshHostBanner(location: location)),
+        ),
+      );
+      await tester.runAsync(() => hosts['dev'].ready);
+      connector.failure = const SshConnectException(
+        SshFailure.unreachable,
+        'The host could not be reached.',
+      );
+      await tester.runAsync(() async {
+        await connector.links.single.drop();
+        await until(() => hosts['dev'].state == SshHostState.reconnecting);
+      });
+      await tester.pump();
+      expect(find.byType(HealthBanner), findsNothing);
+
+      await tester.runAsync(() => until(() => hosts['dev'].down));
+      await tester.pump();
+      expect(
+        find.textContaining('The connection to dev is lost'),
         findsOneWidget,
       );
 
@@ -790,9 +862,11 @@ printf '%s\n' "$line"
     test('a host, then a folder there, then opened', () async {
       Directory(p.join(root, 'app')).createSync();
       final shown = <IdeQuickPick>[];
+      final browser = _Browser();
       String? opened;
       final flow = OpenRemoteFlow(
         show: shown.add,
+        browse: browser.call,
         l10n: englishLocalizations,
         onOpen: (location) => opened = location,
         hosts: hosts,
@@ -817,77 +891,61 @@ printf '%s\n' "$line"
       );
 
       hostsPick.onDidAccept!(items.whereType<IdeQuickPickItem>().first);
-      // Connecting, then the home folder there.
-      await until(() => shown.length >= 3);
-      final browse = shown.last;
-      final typedPath = browse.itemsFor!(root);
-      expect(
-        (typedPath.first as IdeQuickPickItem).label,
-        englishLocalizations.remoteGoTo(root),
-      );
-      (typedPath.first as IdeQuickPickItem).onAccept!();
-      await until(() => shown.length >= 4);
-      final inRoot = shown.last.itemsFor!('').whereType<IdeQuickPickItem>();
-      expect(inRoot.map((i) => i.label), contains('app'));
-      inRoot.firstWhere((i) => i.label == 'app').onAccept!();
-      await until(() => shown.length >= 5);
-      final inApp = shown.last.itemsFor!('').whereType<IdeQuickPickItem>();
-      inApp
-          .firstWhere(
-            (i) => i.label == englishLocalizations.remoteOpenThisFolder,
-          )
-          .onAccept!();
+      // The browser, for a folder of dev: connected to, at its home first.
+      await until(() => browser.requests.isNotEmpty);
+      final request = browser.requests.single;
+      expect(request.host, 'dev');
+      expect(request.files, isFalse);
+      final model = RemoteBrowserModel(request);
+      addTearDown(model.dispose);
+      await model.connect();
+      expect(model.phase, RemoteBrowserPhase.ready);
+      expect(model.directory, model.home);
+      expect(await model.goTo(root), isNull);
+      expect(model.visible.map((e) => e.name), ['app']);
+      model.select('app');
+      expect(model.target, p.join(root, 'app'));
+      browser.answer(model.target);
+      await until(() => opened != null);
       expect(opened, RemoteLocation.of('dev', p.join(root, 'app')));
     });
 
-    test('a folder read that takes a while says so, rather than going '
-        'away until it is read', () async {
+    test('a folder read that takes a while says so, its entries in its '
+        'place once read', () async {
       // A host whose replies take a while; fast ones show no wait at all.
       connector.replyDelay = const Duration(milliseconds: 300);
       remoteReadingDelay = const Duration(milliseconds: 50);
       addTearDown(() => remoteReadingDelay = const Duration(milliseconds: 200));
       Directory(p.join(root, 'app')).createSync();
-      final shown = <IdeQuickPick>[];
+      final browser = _Browser();
       final flow = OpenRemoteFlow(
-        show: shown.add,
+        show: (_) {},
+        browse: browser.call,
         l10n: englishLocalizations,
         onOpen: (_) {},
         hosts: hosts,
         configHosts: () async => ['dev'],
       );
-      await flow.start();
-      shown.single.onDidAccept!(
-        shown.single.itemsFor!('').whereType<IdeQuickPickItem>().first,
-      );
-      // Connecting, then the home folder there.
-      final placeholder = englishLocalizations.remoteFolderPlaceholder('dev');
-      bool isBrowse(IdeQuickPick pick) =>
-          pick.placeholder == placeholder && pick.itemsFor != null;
-      await until(() => shown.any(isBrowse));
-      final browse = shown.lastWhere(isBrowse);
-      (browse.itemsFor!(root).first as IdeQuickPickItem).onAccept!();
-      bool listsApp(IdeQuickPick pick) =>
-          (pick.itemsFor?.call('') ?? const <IdeQuickPickEntry>[])
-              .whereType<IdeQuickPickItem>()
-              .any((item) => item.label == 'app');
-      // The wait said, then the folder in its place.
-      await until(
-        () => shown.any(
-          (pick) => pick.items.whereType<IdeQuickPickItem>().any(
-            (item) =>
-                item.label == englishLocalizations.remoteReadingFolder(root),
-          ),
-        ),
-      );
-      await until(() => listsApp(shown.last));
+      flow.startAt('dev');
+      final model = RemoteBrowserModel(browser.requests.single);
+      addTearDown(model.dispose);
+      await model.connect();
+      final going = model.goTo(root);
+      await until(() => model.readingShown);
+      expect(model.visible, isEmpty);
+      await going;
+      expect(model.readingShown, isFalse);
+      expect(model.visible.map((e) => e.name), ['app']);
     });
 
     test('the hosts added come first, by their names and icons; then '
         "~/.ssh/config's", () async {
       final shown = <IdeQuickPick>[];
+      final browser = _Browser();
       String? connected;
       final flow = OpenRemoteFlow(
         show: shown.add,
+        browse: browser.call,
         l10n: englishLocalizations,
         onOpen: (_) {},
         onConnected: (host) => connected = host,
@@ -922,7 +980,10 @@ printf '%s\n' "$line"
       );
 
       pick.onDidAccept!(items.whereType<IdeQuickPickItem>().elementAt(1));
-      await until(() => connected != null);
+      await until(() => browser.requests.isNotEmpty);
+      // Connected as the browser connects.
+      expect(connected, isNull);
+      await browser.requests.single.connect();
       expect(connected, 'dev');
     });
 
@@ -932,12 +993,12 @@ printf '%s\n' "$line"
       defaultWslHosts = () async => ['wsl+Ubuntu-24.04', 'wsl+Debian'];
       addTearDown(() => defaultWslHosts = before);
       final shown = <IdeQuickPick>[];
-      String? connected;
+      final browser = _Browser();
       final flow = OpenRemoteFlow(
         show: shown.add,
+        browse: browser.call,
         l10n: englishLocalizations,
         onOpen: (_) {},
-        onConnected: (host) => connected = host,
         onEdit: (_) {},
         added: ['wsl+Debian'],
         hosts: hosts,
@@ -968,8 +1029,8 @@ printf '%s\n' "$line"
       expect(ubuntu.buttons, isEmpty);
       expect((ubuntu.icon! as Icon).icon, Codicons.terminalLinux);
       pick.onDidAccept!(ubuntu);
-      await until(() => connected != null);
-      expect(connected, 'wsl+Ubuntu-24.04');
+      await until(() => browser.requests.isNotEmpty);
+      expect(browser.requests.single.host, 'wsl+Ubuntu-24.04');
     });
 
     test('a server added, what was typed given; those added edited, '
@@ -979,6 +1040,7 @@ printf '%s\n' "$line"
       final editing = <String>[];
       final flow = OpenRemoteFlow(
         show: shown.add,
+        browse: _Browser().call,
         l10n: englishLocalizations,
         onOpen: (_) {},
         added: ['me@box:2222', 'dev'],
@@ -1017,11 +1079,12 @@ printf '%s\n' "$line"
         SshFailure.hostKeyChanged,
         'The host key changed.',
       );
-      final shown = <IdeQuickPick>[];
+      final browser = _Browser();
       final forgotten = <String>[];
       final editing = <String>[];
       final flow = OpenRemoteFlow(
-        show: shown.add,
+        show: (_) {},
+        browse: browser.call,
         l10n: englishLocalizations,
         onOpen: (_) {},
         onEdit: editing.add,
@@ -1037,19 +1100,31 @@ printf '%s\n' "$line"
         configHosts: () async => const [],
       );
       flow.startAt('me@moved');
-      await until(() => shown.length > 1);
-      final failed = shown.last.items.whereType<IdeQuickPickItem>().toList();
-      expect(failed.first.label, startsWith("The server's key changed"));
-      expect(failed.map((item) => item.label), isNot(contains('Retry')));
-      expect(failed.map((item) => item.label), isNot(contains('Edit')));
-      failed
-          .firstWhere((item) => item.label == 'Remove the Old Key and Connect')
-          .onAccept!();
-      await until(() => shown.length > 3);
+      final model = RemoteBrowserModel(browser.requests.single);
+      addTearDown(model.dispose);
+      await model.connect();
+      expect(model.phase, RemoteBrowserPhase.failed);
+      expect(
+        sshErrorText(model.connectError, englishLocalizations).$1,
+        startsWith("The server's key changed"),
+      );
+      // No Retry (the dialog's for none but closing actions), nor Edit.
+      final changed = model.failureActions;
+      expect(changed.map((action) => action.label), [
+        'Remove the Old Key and Connect',
+      ]);
+      expect(changed.single.closes, isFalse);
+      expect(await changed.single.run(), isTrue);
       expect(forgotten, ['me@moved']);
-      final refused = shown.last.items.whereType<IdeQuickPickItem>().toList();
-      expect(refused.first.label, startsWith('The server refused to sign in'));
-      refused.firstWhere((item) => item.label == 'Edit').onAccept!();
+      await model.connect();
+      expect(
+        sshErrorText(model.connectError, englishLocalizations).$1,
+        startsWith('The server refused to sign in'),
+      );
+      final edit = model.failureActions.single;
+      expect(edit.label, 'Edit');
+      expect(edit.closes, isTrue);
+      await edit.run();
       expect(editing, ['me@moved']);
     });
 
@@ -1060,8 +1135,10 @@ printf '%s\n' "$line"
         detail: 'ssh: Could not resolve hostname nowhere',
       );
       final shown = <IdeQuickPick>[];
+      final browser = _Browser();
       final flow = OpenRemoteFlow(
         show: shown.add,
+        browse: browser.call,
         l10n: englishLocalizations,
         onOpen: (_) {},
         hosts: hosts,
@@ -1070,26 +1147,40 @@ printf '%s\n' "$line"
       await flow.start();
       final items = shown.single.itemsFor!('nowhere');
       (items.first as IdeQuickPickItem).onAccept!();
-      await until(() => shown.length >= 3);
-      final failed = shown.last.items.whereType<IdeQuickPickItem>().toList();
+      await until(() => browser.requests.isNotEmpty);
+      final model = RemoteBrowserModel(browser.requests.single);
+      addTearDown(model.dispose);
+      await model.connect();
+      final (message, detail) = sshErrorText(
+        model.connectError,
+        englishLocalizations,
+      );
       expect(
-        failed.first.label,
+        message,
         'The server could not be reached: check the address, port and network.',
       );
-      expect(failed.first.detail, contains('nowhere'));
-      expect(failed.last.label, englishLocalizations.remoteRetry);
+      expect(detail, contains('nowhere'));
+      // Nothing but Retry, the dialog's own.
+      expect(model.failureActions, isEmpty);
+      connector.failure = null;
+      await model.connect();
+      expect(model.phase, RemoteBrowserPhase.ready);
     });
   });
 
   group('Open Remote File', () {
     test('a host, then a file there, then opened', () async {
       Directory(p.join(root, 'lib')).createSync();
+      Directory(p.join(root, 'app')).createSync();
       File(p.join(root, 'lib', 'a.dart')).writeAsStringSync('a');
       File(p.join(root, 'lib', 'sub.dart')).writeAsStringSync('b');
+      File(p.join(root, 'notes.md')).writeAsStringSync('');
       final shown = <IdeQuickPick>[];
+      final browser = _Browser();
       String? opened;
       final flow = OpenRemoteFileFlow(
         show: shown.add,
+        browse: browser.call,
         l10n: englishLocalizations,
         onOpen: (location) => opened = location,
         hosts: hosts,
@@ -1101,85 +1192,162 @@ printf '%s\n' "$line"
       expect(items.map((i) => i.label), ['dev', 'prod']);
 
       items.first.onAccept!();
-      // Connecting, then the home folder there; a path typed goes to root.
-      Directory(p.join(root, 'app')).createSync();
-      await until(() => shown.length >= 3);
-      (shown.last.itemsFor!(root).first as IdeQuickPickItem).onAccept!();
-      await until(() => shown.length >= 4);
-      final inRoot = shown.last.itemsFor!('').whereType<IdeQuickPickItem>();
-      // Folders before files; a folder is walked into, a file opens.
-      expect(inRoot.first.label, '..');
-      expect(inRoot.map((i) => i.label), containsAll(['lib', 'app']));
-      inRoot.firstWhere((i) => i.label == 'lib').onAccept!();
-      await until(() => shown.length >= 5);
-      final inLib = shown.last.itemsFor!('').whereType<IdeQuickPickItem>();
-      expect(inLib.map((i) => i.label), containsAll(['a.dart', 'sub.dart']));
-      inLib.firstWhere((i) => i.label == 'a.dart').onAccept!();
+      await until(() => browser.requests.isNotEmpty);
+      final request = browser.requests.single;
+      expect(request.files, isTrue);
+      final model = RemoteBrowserModel(request);
+      addTearDown(model.dispose);
+      await model.connect();
+      await model.goTo(root);
+      // Folders before files; a folder is walked into, a file picked.
+      expect(model.visible.map((e) => e.name), ['app', 'lib', 'notes.md']);
+      model.select('lib');
+      expect(model.target, isNull);
+      await model.open(model.pathOf('lib'));
+      expect(model.visible.map((e) => e.name), ['a.dart', 'sub.dart']);
+      model.select('a.dart');
+      browser.answer(model.target);
+      await until(() => opened != null);
       expect(opened, RemoteLocation.of('dev', p.join(root, 'lib', 'a.dart')));
     });
 
-    test('a path typed: a file opened, a folder walked into', () async {
+    test('a path typed: a file selected where it is, a folder walked '
+        'into; one not there said', () async {
       Directory(p.join(root, 'lib')).createSync();
       File(p.join(root, 'lib', 'a.dart')).writeAsStringSync('a');
-      final shown = <IdeQuickPick>[];
-      String? opened;
+      final browser = _Browser();
       final flow = OpenRemoteFileFlow(
-        show: shown.add,
-        l10n: englishLocalizations,
-        onOpen: (location) => opened = location,
-        hosts: hosts,
-        configHosts: () async => const [],
-      );
-      await flow.open('dev');
-      await until(() => shown.length >= 2);
-      final file = p.join(root, 'lib', 'a.dart');
-      final typed = shown.last.itemsFor!(file);
-      (typed.first as IdeQuickPickItem).onAccept!();
-      await until(() => opened != null);
-      expect(opened, RemoteLocation.of('dev', file));
-
-      // A folder typed is browsed, not opened.
-      await flow.open('dev');
-      await until(() => shown.length >= 4);
-      final folder = shown.last.itemsFor!(p.join(root, 'lib'));
-      (folder.first as IdeQuickPickItem).onAccept!();
-      await until(
-        () => shown.last.itemsFor!('').whereType<IdeQuickPickItem>().any(
-          (i) => i.label == 'a.dart',
-        ),
-      );
-      expect(opened, RemoteLocation.of('dev', file));
-    });
-
-    test('a host that cannot be reached: why, and Retry', () async {
-      connector.failure = const SshConnectException(
-        SshFailure.unreachable,
-        'The host could not be reached.',
-        detail: 'ssh: Could not resolve hostname nowhere',
-      );
-      final shown = <IdeQuickPick>[];
-      final flow = OpenRemoteFileFlow(
-        show: shown.add,
+        show: (_) {},
+        browse: browser.call,
         l10n: englishLocalizations,
         onOpen: (_) {},
         hosts: hosts,
         configHosts: () async => const [],
       );
-      await flow.start();
-      final items = shown.single.itemsFor!('nowhere');
-      (items.first as IdeQuickPickItem).onAccept!();
-      await until(
-        () => shown.last.items.whereType<IdeQuickPickItem>().any(
-          (i) => i.label == 'The server could not be reached: check the address, port and network.',
+      unawaited(flow.open('dev', directory: root));
+      final model = RemoteBrowserModel(browser.requests.single);
+      addTearDown(model.dispose);
+      await model.connect();
+      expect(model.directory, root);
+      final file = p.join(root, 'lib', 'a.dart');
+      expect(await model.goTo(file), isNull);
+      expect(model.directory, p.join(root, 'lib'));
+      expect(model.target, file);
+
+      expect(await model.goTo(root), isNull);
+      expect(model.directory, root);
+      // Relative to where it is.
+      expect(await model.goTo('lib'), isNull);
+      expect(model.directory, p.join(root, 'lib'));
+      expect(await model.goTo('nowhere'), p.join(root, 'lib', 'nowhere'));
+      expect(model.directory, p.join(root, 'lib'));
+      // The way back, and forward again.
+      await model.back();
+      expect(model.directory, root);
+      await model.forward();
+      expect(model.directory, p.join(root, 'lib'));
+      await model.up();
+      expect(model.directory, root);
+      expect(model.selected, 'lib');
+    });
+  });
+
+  group('the remote browser', () {
+    test('hidden entries left out until asked; a new folder made and '
+        'selected', () async {
+      Directory(p.join(root, 'app')).createSync();
+      Directory(p.join(root, '.cache')).createSync();
+      final browser = _Browser();
+      OpenRemoteFlow(
+        show: (_) {},
+        browse: browser.call,
+        l10n: englishLocalizations,
+        onOpen: (_) {},
+        hosts: hosts,
+        configHosts: () async => const [],
+      ).startAt('dev');
+      final model = RemoteBrowserModel(browser.requests.single);
+      addTearDown(model.dispose);
+      await model.connect();
+      await model.goTo(root);
+      expect(model.visible.map((e) => e.name), ['app']);
+      expect(model.hiddenCount, 1);
+      model.view = const RemoteBrowserView(hidden: true);
+      expect(model.visible.map((e) => e.name), ['.cache', 'app']);
+
+      // Filtered: the first match selected, for Enter.
+      model.filter = 'AP';
+      expect(model.visible.map((e) => e.name), ['app']);
+      expect(model.selected, 'app');
+      expect(model.target, p.join(root, 'app'));
+      model.filter = '';
+
+      final name = model.freeName('app');
+      expect(name, 'app 2');
+      await model.makeFolder(name);
+      expect(Directory(p.join(root, 'app 2')).existsSync(), isTrue);
+      expect(model.selected, 'app 2');
+      expect(model.target, p.join(root, 'app 2'));
+      model.select(null);
+      // Nothing selected: the folder it is in.
+      expect(model.target, root);
+    });
+
+    test('saving: files listed beside the folders, one clicked its name '
+        'taken; where to save, the name where it is', () async {
+      Directory(p.join(root, 'src')).createSync();
+      File(p.join(root, 'notes.md')).writeAsStringSync('');
+      final model = RemoteBrowserModel(
+        RemoteBrowseRequest(
+          host: 'dev',
+          saveName: 'Untitled-1',
+          directory: root,
+          connect: hosts['dev'].reconnect,
         ),
       );
-      final failed = shown.last.items.whereType<IdeQuickPickItem>().toList();
-      expect(
-        failed.first.label,
-        'The server could not be reached: check the address, port and network.',
+      addTearDown(model.dispose);
+      await model.connect();
+      expect(model.directory, root);
+      expect(model.visible.map((e) => e.name), ['src', 'notes.md']);
+      expect(model.name, 'Untitled-1');
+      expect(model.target, p.join(root, 'Untitled-1'));
+
+      // A folder selected keeps the name; a file gives its own.
+      model.select('src');
+      expect(model.name, 'Untitled-1');
+      model.select('notes.md');
+      expect(model.name, 'notes.md');
+      expect(model.entryNamed('notes.md')?.isDirectory, isFalse);
+      expect(model.entryNamed('src')?.isDirectory, isTrue);
+      expect(model.entryNamed('new.md'), isNull);
+
+      model.name = '  ';
+      expect(model.target, isNull);
+    });
+
+    test('recent locations: the latest first, each once, so many kept', () {
+      final model = RemoteBrowserModel(
+        RemoteBrowseRequest(
+          host: 'dev',
+          connect: () => throw UnimplementedError(),
+        ),
+        locations: ['/a', '/b'],
       );
-      expect(failed.first.detail, contains('nowhere'));
-      expect(failed.last.label, englishLocalizations.remoteRetry);
+      addTearDown(model.dispose);
+      model
+        ..remember('/b')
+        ..remember('/c');
+      expect(model.locations, ['/c', '/b', '/a']);
+      for (var i = 0; i < 30; i++) {
+        model.remember('/x$i');
+      }
+      expect(model.locations, hasLength(remoteRecentLocationsKept));
+      expect(model.locations.first, '/x29');
+    });
+
+    test('names sorted as Finder sorts them', () {
+      final names = ['file10', 'File2', 'file1', 'b', 'A'];
+      expect(names..sort(compareNames), ['A', 'b', 'file1', 'File2', 'file10']);
     });
   });
 
@@ -1332,4 +1500,20 @@ class _HostCatalog implements SessionCatalog {
 
   @override
   Future<void> delete(String id) async {}
+}
+
+/// The remote browser as the flows see it: the requests it was shown for,
+/// each answered by the test.
+class _Browser {
+  final requests = <RemoteBrowseRequest>[];
+  final _answers = <Completer<String?>>[];
+
+  Future<String?> call(RemoteBrowseRequest request) {
+    requests.add(request);
+    final answer = Completer<String?>();
+    _answers.add(answer);
+    return answer.future;
+  }
+
+  void answer(String? path) => _answers.last.complete(path);
 }

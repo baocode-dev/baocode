@@ -15,11 +15,11 @@ import '../diagnostics/frame_watch.dart';
 import '../ide/ide_find_widget.dart';
 import '../ide/ide_hover.dart';
 import '../l10n/l10n.dart';
-import '../platform/event_log.dart';
 import '../theme/app_theme.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import 'chat_column.dart';
 import 'chat_feed.dart';
+import 'selection/chat_selection.dart';
 import 'chat_find.dart';
 import 'chat_keys.dart';
 import 'chat_models.dart';
@@ -27,7 +27,6 @@ import 'chat_session.dart';
 import 'composer/composer.dart';
 import 'composer/composer_draft.dart';
 import 'reply_scroll.dart';
-import 'selection_recorder.dart';
 import 'rewind_files_prompt.dart';
 import 'side_panel/file_link_menu.dart';
 import 'steadiness.dart';
@@ -40,10 +39,8 @@ import 'widgets/own_selection.dart';
 import 'widgets/content_image.dart' show ChatImage, ChatImages;
 import 'widgets/fold_line.dart';
 import 'widgets/hover_builder.dart';
-import 'widgets/lazy_segment.dart' show SelectionEndHolder;
 import 'widgets/turn_footer.dart';
 import 'widgets/user_message_bubble.dart';
-import '../base/safe_selection_indexes.dart';
 
 /// Virtualized, selectable conversation history followed by the live turn.
 /// Sticks to the bottom while the user is there.
@@ -58,6 +55,7 @@ class ChatHistoryView extends StatefulWidget {
     this.onSetGoal,
     this.onFindClosed,
     this.after,
+    this.forkAfter,
     this.underTitle = false,
   });
 
@@ -65,9 +63,10 @@ class ChatHistoryView extends StatefulWidget {
   final ChatFeed feed;
   final double maxContentWidth;
 
-  /// Whether a minimap of it shows in the margin left of its column, when
-  /// there is room for one (see [ChatMinimap]). Its room is kept only
-  /// once the conversation is long: until then there is none to show.
+  /// Whether a minimap of it shows in the margin beside its column (on
+  /// [ChatMinimap.side]), when there is room for one (see [ChatMinimap]).
+  /// Its room is kept only once the conversation is long: until then there
+  /// is none to show.
   final bool minimap;
 
   /// Told whether the column keeps the minimap's room, for what is level
@@ -87,6 +86,10 @@ class ChatHistoryView extends StatefulWidget {
   /// conversation itself (the conversations asked beside it there); none
   /// for most.
   final Widget? Function(int index)? after;
+
+  /// What forks the conversation from the end of the turn item [index]
+  /// ends, its footer's button; none where it cannot be forked there.
+  final VoidCallback? Function(int index)? forkAfter;
 
   /// Whether a row is right over it (its card's title): room of its own
   /// above the history, which then keeps less above its first item and a
@@ -201,10 +204,24 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       (fold.kind == StepFoldKind.work && _unfoldedTurns.contains(fold.start));
 
   void _toggleFold(StepFold fold) {
+    final open = !_isFoldOpen(fold);
     for (var index = fold.start; index < fold.end; index++) {
       _animateItem(index);
     }
-    setState(() => _foldOpen[fold.key] = !_isFoldOpen(fold));
+    if (!MediaQuery.disableAnimationsOf(context)) {
+      final items = [for (var i = fold.start; i < fold.end; i++) i];
+      if (open) {
+        _entering.addAll(items);
+        WidgetsBinding.instance.addPostFrameCallback((_) => _entering.clear());
+      } else {
+        _leaving.addAll(items);
+        _leavingDone?.cancel();
+        _leavingDone = Timer(_motionDuration * 2, () {
+          if (mounted) setState(_leaving.clear);
+        });
+      }
+    }
+    setState(() => _foldOpen[fold.key] = open);
   }
 
   /// What row [index] shows. Of a run under way the user has not opened
@@ -239,7 +256,8 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   ];
 
   /// The footer under item [index], when it ends a finished turn: its
-  /// answer to copy, how fast, how long, and what it cost.
+  /// answer to copy, a fork from there, how fast, how long, and what it
+  /// cost.
   Widget? _turnFooter(int index) {
     final prompt = _folds.turnEndingAt(index);
     if (prompt == null) return null;
@@ -257,6 +275,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     }
     return TurnFooter(
       answer: words.isEmpty ? null : words.join('\n\n'),
+      onFork: widget.forkAfter?.call(index),
       worked: message.worked,
       usage: message.usage,
     );
@@ -580,11 +599,8 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     SchedulerBinding.instance.addPostFrameCallback((_) => _buildAhead());
   }
 
-  /// Where a drag on the list's text began, to check what it selected.
+  /// Where a press that selects the list's text went down, while held.
   Offset? _dragFrom;
-
-  /// A press on the list's text is held, the history focused by it.
-  bool _pressFocused = false;
   bool _isPointerInside = false;
   bool _shownAtBottom = true;
 
@@ -599,18 +615,21 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   final Set<int> _pressedDevices = {};
   int get _pointersDown => _pressedDevices.length;
 
-  late final _ChatSelectionDelegate _selectionDelegate = _ChatSelectionDelegate(
-    locate: _locateItemPoint,
-    resolve: _resolveItemPoint,
-    beyondBuilt: _beyondBuiltItems,
+  /// The conversation's selection: the one copy of it (see
+  /// [ChatSelectionController]).
+  late final ChatSelectionController _selection = ChatSelectionController(
     plainTextOf: _plainTextOf,
     itemCount: () => _feed.itemCount,
-    onDragEdge: _autoScrollToward,
-    pressHeld: () => _pressFocused && !_selectionFocusNode.hasFocus,
   );
   bool _reselectScheduled = false;
-  Timer? _reselectTimer;
-  EdgeDraggingAutoScroller? _autoScroller;
+
+  /// What the text in the list registers with: nothing comes of it (see
+  /// [ChatSelectionController]).
+  final _inertSelection = StaticSelectionContainerDelegate();
+
+  /// Scrolls the list while a drag selection is held past its edge.
+  Ticker? _autoScroll;
+  Duration _autoScrolled = Duration.zero;
 
   final GlobalKey _listKey = GlobalKey();
   final ListController _listController = ListController();
@@ -647,8 +666,10 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       });
     } else if (_listController.isAttached) {
       // In view, its marks bring the match into view themselves.
-      final (first, last) = _listController.visibleRange ?? (-1, -1);
-      if (index >= first && index <= last) return;
+      if (_listController.visibleRange case (final first, final last)
+          when index >= _itemOfRow(first) && index <= _itemOfRow(last)) {
+        return;
+      }
     }
     // Brought near, its marks bring the match into view once built.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -659,16 +680,17 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   @override
   void initState() {
     super.initState();
-    _selectionFocusNode.addListener(_recordFocus);
     _scrollController
-      ..laidOut = _keepShownLaidOut
+      ..laidOut = _keepLaidOut
       ..stopAt = _replyStart;
     _find
       ..feed = _feed
       ..addListener(_findChanged);
     _scrollController.addListener(_handleScroll);
     _feed.addListener(_handleSessionChanged);
+    _statusIndex = _lastStatusIndex();
     UserMessageStyle.current.addListener(_handleStyleChanged);
+    ChatMinimap.side.addListener(_handleStyleChanged);
     // Its size, for a slow frame's line in the event log.
     FrameWatch.notes[this] = _frameNote;
     _wasLive = _feed.isStreaming;
@@ -776,13 +798,20 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       _shownFirst = null;
       oldWidget.feed.removeListener(_handleSessionChanged);
       widget.feed.addListener(_handleSessionChanged);
+      _statusIndex = _lastStatusIndex();
       _find.feed = widget.feed;
+      // Another conversation: what was selected was in the one before.
+      _selection.clear();
       _stickyKeys.clear();
       _stickyIndices = const {};
       _editingIndex = null;
       _closingIndex = null;
       _foldOpen.clear();
       _unfoldedTurns.clear();
+      // Another conversation's rows: the list takes them as it finds them.
+      _rows = const [];
+      _leaving.clear();
+      _entering.clear();
       _wasLive = widget.feed.isStreaming;
       _refold();
       _seeItems();
@@ -856,15 +885,19 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       ..removeListener(_findChanged)
       ..dispose();
     UserMessageStyle.current.removeListener(_handleStyleChanged);
-    _reselectTimer?.cancel();
+    ChatMinimap.side.removeListener(_handleStyleChanged);
     _scrubEnded?.cancel();
-    _autoScroller?.stopAutoScroll();
+    _leavingDone?.cancel();
+    _autoScroll?.dispose();
+    _letGo();
     _editorMoved.dispose();
     _editorReveal.dispose();
     _editorClose.dispose();
     _viewerScroll.dispose();
     _handoff.dispose();
-    _selectionDelegate.dispose();
+    _selection.dispose();
+    _inertSelection.dispose();
+    _menu.remove();
     _listController.dispose();
     _scrollController.dispose();
     _selectionFocusNode.dispose();
@@ -1040,7 +1073,11 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     _motions
       ..clear()
       ..addAll(motions);
-    _hiddenRows.clear();
+    // The same rows, of the items now at their indexes; the new ones come
+    // with the next [_syncRows].
+    _rows = [for (final index in _rows) index + count];
+    _leaving.clear();
+    _entering.clear();
     _seenItems += count;
     _appearing.clear();
     _endHandoff();
@@ -1054,7 +1091,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     if (_feed.editing case (:final index, :final draft)) {
       _feed.editing = (index: index + count, draft: draft);
     }
-    _selectionDelegate.shiftItems(count);
+    _selection.shiftItems(count);
   }
 
   /// [count] rows are put before the others, not laid out yet: the list
@@ -1066,22 +1103,28 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     if (!_scrollController.hasClients ||
         !_listController.isAttached ||
         _listController.isLocked ||
-        _listController.numberOfItems + count != _feed.itemCount) {
+        _listController.numberOfItems != _rows.length) {
       return false;
     }
     final position = _scrollController.position;
     if (!position.hasPixels) return false;
-    var above = 0.0;
-    for (var i = 0; i < count; i++) {
-      // Estimated as row i.
-      _listController.addItem(i);
-      above += _listController.extentForIndex(i).$1;
+    final shown = _firstShown();
+    // Still laid out as it was, at its row before.
+    final shownRow = shown == null ? null : _rowOf(shown.index);
+    // The new rows, estimated.
+    _syncRows();
+    var added = 0;
+    while (added < _rows.length && _rows[added] < count) {
+      added++;
     }
-    if (_firstShown() case (:final index, above: _)) {
-      // Still laid out as it was, at its index before.
-      _keepShown = switch (_endAboveOf(index + count, laidOutAt: index)) {
+    var above = 0.0;
+    for (var row = 0; row < added; row++) {
+      above += _listController.extentForIndex(row).$1;
+    }
+    if (shown case (:final index, above: _)) {
+      _keepShown = switch (_endAboveOf(index, laidOutRow: shownRow)) {
         final end? => (
-          index: index + count,
+          index: index,
           above: end,
           scrolled: _scrollController.scrolled,
         ),
@@ -1115,22 +1158,209 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     return keep.above - above + _scrollController.scrolled - keep.scrolled;
   }
 
+  /// How far the list is to move once laid out: the row under a press held
+  /// to select kept where it was, if there is one ([_dragRow]); else the
+  /// row shown first, rows put before it ([_keepShown]).
+  double _keepLaidOut() {
+    final shown = _keepShownLaidOut();
+    return _keepDragRowLaidOut() ?? shown;
+  }
+
+  /// The row under a press held to select, the text in it under the
+  /// pointer (the piece the selection's end is in), how far that text's
+  /// top was above the view's top, and the list scrolled then: rows above
+  /// it folding away (a turn's steps into "Worked for…"), a thought
+  /// closing, a line come in above the text in its own row, or a row laid
+  /// out taller than taken for move what is under the pointer, and the
+  /// selection's end with it, unless the list is moved back by as much (a
+  /// browser's scroll anchoring, to the deepest thing under the pointer).
+  ({int index, RenderBox? box, double above, double scrolled})? _dragRow;
+
+  /// The row under the pointer held to select, remembered (see
+  /// [_dragRow]): at the press, as it moves, and as the list scrolls on.
+  void _rememberDragRow() {
+    final at = _dragAt ?? _dragFrom;
+    final shown = _shownRect();
+    final sliver = _findSliver();
+    if (at == null ||
+        shown == null ||
+        sliver == null ||
+        !sliver.attached ||
+        !_scrollController.hasClients) {
+      _dragRow = null;
+      return;
+    }
+    // On screen, as the rows are painted (not laid out: a row's place in
+    // the list and where it shows differ by what is over the list).
+    final y = at.dy.clamp(shown.top, shown.bottom - 1);
+    final pixels = _scrollController.position.pixels;
+    RenderBox? row;
+    var above = 0.0;
+    var bestGap = double.infinity;
+    for (var child = sliver.firstChild; child != null;) {
+      final data = child.parentData! as SliverMultiBoxAdaptorParentData;
+      final offset = data.layoutOffset;
+      if (offset != null && child.hasSize) {
+        final top = child.localToGlobal(Offset.zero).dy;
+        final gap = y < top
+            ? top - y
+            : y > top + child.size.height
+            ? y - top - child.size.height
+            : 0.0;
+        if (gap < bestGap) {
+          bestGap = gap;
+          row = child;
+          above = pixels - sliver.constraints.precedingScrollExtent - offset;
+        }
+      }
+      child = sliver.childAfter(child);
+    }
+    if (row == null) {
+      _dragRow = null;
+      return;
+    }
+    // The piece of text the end is in, if in this row: its top, not the
+    // row's.
+    RenderBox? box;
+    final end = _dragAt != null ? _selection.focus : _selection.anchor;
+    if (end != null) {
+      final item = _selection.builtItems[end.item];
+      final leaves = item != null && item.attached ? item.leaves() : null;
+      if (leaves != null && end.leaf < leaves.length) {
+        final leaf = leaves[end.leaf].box;
+        final inRow = leaf.attached ? _laidOutTopIn(leaf, row) : null;
+        if (inRow != null) {
+          box = leaf;
+          above -= inRow;
+        }
+      }
+    }
+    _dragRow = (
+      index: _indexOf(row),
+      box: box,
+      above: above,
+      scrolled: _scrollController.scrolled,
+    );
+  }
+
+  /// Where [box]'s top is in [row], by where each box on the way is laid
+  /// out in its parent (in layout: a paint transform may not be asked for
+  /// then, and one only painted, as a row coming in slides, is not where
+  /// the text is laid out); null if [box] is not in [row].
+  static double? _laidOutTopIn(RenderBox box, RenderBox row) {
+    var top = 0.0;
+    RenderObject node = box;
+    while (!identical(node, row)) {
+      final data = node.parentData;
+      final parent = node.parent;
+      if (parent == null) return null;
+      if (data is BoxParentData) top += data.offset.dy;
+      node = parent;
+    }
+    return top;
+  }
+
+  /// How far the list is to move to put the text under a press held to
+  /// select back where it was (see [_dragRow]), moved on as far as the
+  /// list was scrolled meanwhile; null while no press is held, or its row
+  /// is not laid out.
+  double? _keepDragRowLaidOut() {
+    final keep = _dragRow;
+    if (keep == null) return null;
+    if (_dragFrom == null || _pointersDown <= 0) {
+      _dragRow = null;
+      return null;
+    }
+    final sliver = _findSliver();
+    if (sliver == null) return null;
+    for (var child = sliver.firstChild; child != null;) {
+      final data = child.parentData! as SliverMultiBoxAdaptorParentData;
+      final offset = data.layoutOffset;
+      if (offset != null && _indexOf(child) == keep.index) {
+        var above =
+            _scrollController.position.pixels -
+            sliver.constraints.precedingScrollExtent -
+            offset;
+        // Its text's top, where it is in the row now (laid out already);
+        // gone (built anew), the row's, from here on.
+        var box = keep.box;
+        final inRow = box != null && box.attached
+            ? _laidOutTopIn(box, child)
+            : null;
+        if (inRow == null) {
+          box = null;
+        } else {
+          above -= inRow;
+        }
+        final index = keep.index;
+        // Taken to the end, it follows what is written (see
+        // [_BottomAnchoredScrollPosition]): that, not this, moves it.
+        if (_scrollController.anchored) {
+          _dragRow = (
+            index: index,
+            box: box,
+            above: above,
+            scrolled: _scrollController.scrolled,
+          );
+          return null;
+        }
+        // Built anew, nothing to keep to this time.
+        if (keep.box != null && box == null) {
+          _dragRow = (
+            index: index,
+            box: null,
+            above: above,
+            scrolled: _scrollController.scrolled,
+          );
+          return null;
+        }
+        // As far as the list goes: past its top or end it would be put
+        // back, and moved again, each time it is laid out.
+        final position = _scrollController.position;
+        final move =
+            (position.pixels +
+                    keep.above -
+                    above +
+                    _scrollController.scrolled -
+                    keep.scrolled)
+                .clamp(position.minScrollExtent, position.maxScrollExtent) -
+            position.pixels;
+        // Too little to move it by (see
+        // [_BottomAnchoredScrollPosition.applyContentDimensions]): kept to
+        // where it was, not to here, for what is left to add up and be made
+        // up for once it is enough.
+        if (move.abs() < 0.5) return null;
+        _dragRow = (
+          index: index,
+          box: box,
+          above: above + move,
+          scrolled: _scrollController.scrolled,
+        );
+        return move;
+      }
+      child = sliver.childAfter(child);
+    }
+    return null;
+  }
+
   /// How far row [index]'s end is above the view's top, if it is laid out:
   /// by where the list has it, so also while it is laid out. Its end, not
   /// its top: the room above it is not the same when a turn comes before
   /// it.
-  double? _endAboveOf(int index, {int? laidOutAt}) {
+  double? _endAboveOf(int index, {int? laidOutRow}) {
     final sliver = _findSliver();
     if (sliver == null || !_scrollController.hasClients) return null;
     for (var child = sliver.firstChild; child != null;) {
       final data = child.parentData! as SliverMultiBoxAdaptorParentData;
-      if (data.index == (laidOutAt ?? index)) {
+      if (laidOutRow == null
+          ? _indexOf(child) == index
+          : data.index == laidOutRow) {
         final offset = data.layoutOffset;
         if (offset == null) return null;
         return _scrollController.position.pixels -
             sliver.constraints.precedingScrollExtent -
             offset -
-            _listController.extentForIndex(index).$1;
+            _listController.extentForIndex(_rowOf(index)).$1;
       }
       child = sliver.childAfter(child);
     }
@@ -1167,10 +1397,10 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   /// view's, once the rows put before it are laid out.
   void _keepAt(int index, double above) {
     if (!_scrollController.hasClients || !_listController.isAttached) return;
-    if (index >= _feed.itemCount) return;
+    if (index >= _feed.itemCount || _rows.isEmpty) return;
     final height = _scrollController.position.viewportDimension;
     _listController.jumpToItem(
-      index: index,
+      index: _rowOf(index),
       scrollController: _scrollController,
       alignment: above < 0 && height > 0 ? -above / height : 0,
       rect: Rect.fromLTWH(0, math.max(above, 0), 0, 0),
@@ -1247,7 +1477,9 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   );
 
   void _handleScroll() {
-    if (_userScrolling) {
+    // (Held to select, it follows nothing till let go: see
+    // [_handlePointerUp].)
+    if (_userScrolling && !(_dragFrom != null && _pointersDown > 0)) {
       final position =
           _scrollController.position as _BottomAnchoredScrollPosition;
       final end = position.maxScrollExtent - 1;
@@ -1277,42 +1509,52 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     }
     _syncEdgeFades();
     _scheduleStickyUpdate();
-    if (_pointersDown > 0) {
-      if (_recordNow()) {
-        _selectionDelegate.recorder.step('scroll ${_scrollOffset()}');
-      }
-      _scheduleDragReselect();
-    }
+    if (_dragAt != null) _scheduleDragReselect();
     _wantEarlier();
   }
 
-  /// Flutter only extends a drag selection when the pointer moves (or on its
-  /// own edge auto-scroll). Scrolling with the wheel or trackpad mid-drag
-  /// moves content under a still pointer, so the next move jumps the end
-  /// across many items at once and the ones in between (some just built)
-  /// are left unselected. Re-apply the drag end after every scroll step, once
-  /// layout has registered the new items (after the frame's microtasks).
+  /// Scrolling with the wheel or trackpad mid-drag moves text under a
+  /// still pointer: the selection's end goes with the pointer, once the
+  /// rows are laid out where the list went.
   void _scheduleDragReselect() {
     if (_reselectScheduled) return;
     _reselectScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _reselectTimer = Timer(Duration.zero, () {
-        _reselectScheduled = false;
-        if (mounted && _pointersDown > 0) _selectionDelegate.reapplyDragEnd();
-      });
+      _reselectScheduled = false;
+      if (mounted) _extendToPointer();
     });
   }
 
   /// The strip at the right of the list, beside its text: the scrollbar's.
   static const _scrollbarGutter = 24.0;
 
+  /// Where the press that selects is now, once it has moved: the
+  /// selection's end follows it.
+  Offset? _dragAt;
+
+  /// Whether the list followed what is written before the press held now
+  /// (see [_handlePointerDown]).
+  bool _followedBeforePress = false;
+
+  /// Whether this view's press holds [ChatSelectionHold] now.
+  bool _holding = false;
+
+  void _letGo() {
+    if (!_holding) return;
+    _holding = false;
+    ChatSelectionHold.held.value = false;
+  }
+
+  /// Presses in a row in one place: two select a word, three a line.
+  int _clicks = 0;
+  Duration _lastPress = Duration.zero;
+  Offset? _lastPressAt;
+
+  final ContextMenuController _menu = ContextMenuController();
+
   void _handlePointerDown(PointerDownEvent event) {
     _pressedDevices.add(event.device);
-    // What a right click is on, found as it presses: the selection's menu
-    // builds as it comes up, when nothing may be hit tested.
-    _linkMenu = event.buttons & kSecondaryMouseButton != 0
-        ? fileLinkMenuAt(context, event.position)
-        : null;
+    _menu.remove();
     // A press stops the list where it is (a trackpad swipe's fling carries
     // on for a while), as it does in the platform's lists: a mouse is not
     // one of the list's drag devices, so nothing else would, and a
@@ -1332,19 +1574,29 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     // Nor one in what selects on its own (an edit card's editor): the two
     // selections are apart, and the focus is its.
     final own = OwnSelection.pressedIn(event);
-    _selectionDelegate.suspended = onBar || own;
     if ((_pressOnMinimap || onBar) && event.buttons == kPrimaryMouseButton) {
       _scrub(true);
     }
-    _dragFrom =
+    final elsewhere =
         _pressInEditor ||
-            own ||
-            _pressOnSticky ||
-            _pressOnMinimap ||
-            event.kind != PointerDeviceKind.mouse ||
-            event.buttons != kPrimaryMouseButton
+        own ||
+        onBar ||
+        _pressOnSticky ||
+        _pressOnMinimap ||
+        event.kind != PointerDeviceKind.mouse;
+    _dragFrom = elsewhere || event.buttons != kPrimaryMouseButton
         ? null
         : event.position;
+    _dragAt = null;
+    // A press that may select stops the list following what is written,
+    // while held: the text under the pointer would go on up, and the
+    // selection's start or end with it. A click lets it follow again; a
+    // drag leaves it where it is (taken to the end, it follows again).
+    _followedBeforePress = _dragFrom != null && _scrollController.anchored;
+    if (_followedBeforePress) _scrollController.anchored = false;
+    final onSticky = _pressOnSticky;
+    final onMinimap = _pressOnMinimap;
+    final inEditor = _pressInEditor;
     _pressOnSticky = false;
     _pressOnMinimap = false;
     if (_pressInEditor) {
@@ -1352,13 +1604,34 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     } else if (!own) {
       _selectionFocusNode.requestFocus();
     }
-    _pressFocused = false;
-    if (_dragFrom != null) {
-      _selectionDelegate.beginDrag();
-      // Once the focus has moved (in a microtask).
-      scheduleMicrotask(() {
-        _pressFocused = _dragFrom != null && _selectionFocusNode.hasFocus;
-      });
+    if (!elsewhere && event.buttons & kSecondaryMouseButton != 0) {
+      _openMenu(event.position);
+      return;
+    }
+    // A touch on the text (no drag selects with one) lets go of what is
+    // selected, as a click does.
+    if (elsewhere &&
+        event.kind != PointerDeviceKind.mouse &&
+        !own &&
+        !onBar &&
+        !onSticky &&
+        !onMinimap &&
+        !inEditor) {
+      _selection.clear();
+    }
+    if (_dragFrom == null) return;
+    // Presses in a row, near each other and soon after each other.
+    final again =
+        _lastPressAt != null &&
+        (event.position - _lastPressAt!).distance <= kDoubleTapSlop &&
+        event.timeStamp - _lastPress <= kDoubleTapTimeout;
+    _clicks = again ? _clicks + 1 : 1;
+    _lastPress = event.timeStamp;
+    _lastPressAt = event.position;
+    final pos = _selection.positionAt(event.position);
+    if (pos == null) {
+      _selection.clear();
+      return;
     }
     // Shift+click extends the selection (desktop only, as in Flutter).
     final desktop = switch (defaultTargetPlatform) {
@@ -1367,133 +1640,273 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       TargetPlatform.windows => true,
       _ => false,
     };
-    _selectionDelegate.extending =
-        desktop &&
-        event.kind == PointerDeviceKind.mouse &&
-        event.buttons == kPrimaryMouseButton &&
-        HardwareKeyboard.instance.isShiftPressed;
-    _selectionDelegate.recorder.step(
-      'press ${_ChatSelectionDelegate._offset(event.position)} '
-      '${event.kind.name} buttons ${event.buttons}'
-      '${_dragFrom == null ? ', no text drag' : ''}'
-      '${onBar ? ', on the bar' : ''}${own ? ', in its own selection' : ''}'
-      '${_selectionDelegate.extending ? ', shift' : ''}; '
-      '$_pointersDown held, focus '
-      '${_selectionFocusNode.hasFocus ? 'here' : 'elsewhere'}, '
-      'scroll ${_scrollOffset()}',
-    );
-  }
-
-  String _scrollOffset() => _scrollController.hasClients
-      ? _scrollController.position.pixels.toStringAsFixed(1)
-      : '-';
-
-  /// When a move or a scroll was last recorded: not more than one each
-  /// 50 ms of either.
-  DateTime _lastRecorded = DateTime(0);
-
-  bool _recordNow() {
-    final now = DateTime.now();
-    if (now.difference(_lastRecorded) < const Duration(milliseconds: 50)) {
-      return false;
+    if (desktop && HardwareKeyboard.instance.isShiftPressed) {
+      _selection.extendNearestTo(pos);
+    } else if (_clicks >= 2) {
+      final unit = _clicks == 2
+          ? TextGranularity.word
+          : TextGranularity.paragraph;
+      if (_selection.unitAt(pos, unit) case (final start, final end)) {
+        _selection.selectUnit(start, end, unit);
+      }
+    } else {
+      _selection.start(pos);
     }
-    _lastRecorded = now;
-    return true;
+    _rememberDragRow();
+    // What follows its own end in the conversation holds still meanwhile.
+    ChatSelectionHold.held.value = _holding = true;
   }
-
-  void _recordFocus() => _selectionDelegate.recorder.step(
-    'focus ${_selectionFocusNode.hasFocus ? 'here' : 'gone'}',
-  );
 
   void _handlePointerUp(PointerEvent event) {
     if (!_pressedDevices.remove(event.device)) return;
-    _selectionDelegate.recorder.step(
-      '${switch (event) {
-        PointerUpEvent() => 'release',
-        PointerCancelEvent() => 'cancel',
-        _ => 'release unseen, moved',
-      }} ${_ChatSelectionDelegate._offset(event.position)}',
-    );
-    final from = _dragFrom;
+    final selecting = _dragFrom != null;
+    if (_followedBeforePress && _dragAt == null) {
+      _scrollController.anchored = true;
+    } else if (selecting && _dragAt != null && _scrollController.hasClients) {
+      // A drag let go at the end: what is written is followed again (not
+      // while held, see [_autoScrollTick]).
+      final position = _scrollController.position;
+      if (position.pixels >= position.maxScrollExtent - 1) {
+        _setAnchored(true);
+      }
+    }
+    _followedBeforePress = false;
     _dragFrom = null;
-    if (from != null &&
-        event is PointerUpEvent &&
-        _pointersDown <= 0 &&
-        !_selectionDelegate.suspended &&
-        !_selectionDelegate.extending) {
-      // Once the selection has taken the release in.
-      final to = event.position;
-      scheduleMicrotask(() {
-        if (mounted) _selectionDelegate.checkDrag(from, to);
-      });
+    _dragAt = null;
+    _dragRow = null;
+    _letGo();
+    // Its focus taken while held (a panel come up): back, for the keys to
+    // copy what it selected.
+    if (selecting && _selection.hasSelection && !_selectionFocusNode.hasFocus) {
+      _selectionFocusNode.requestFocus();
     }
     if (_pointersDown <= 0) {
-      // Its focus taken while held: back, for the keys to copy what it
-      // selected.
-      if (_pressFocused &&
-          !_selectionFocusNode.hasFocus &&
-          _selectionDelegate.value.status == SelectionStatus.uncollapsed) {
-        _selectionFocusNode.requestFocus();
-      }
-      _pressFocused = false;
       _scrub(false);
-      _autoScroller?.stopAutoScroll();
-      _selectionDelegate
-        ..endDrag()
-        ..extending = false
-        ..suspended = false;
+      _autoScroll?.stop();
     }
   }
 
-  /// Checks what the drag made of a move once the selection's gesture has
-  /// seen it too: gestures see a move after every [Listener].
   void _handlePointerMove(PointerMoveEvent event) {
-    if (_pointersDown > 0 && _recordNow()) {
-      _selectionDelegate.recorder.step(
-        'move ${_ChatSelectionDelegate._offset(event.position)}',
-      );
-    }
     final from = _dragFrom;
     if (from == null) return;
-    final to = event.position;
-    scheduleMicrotask(() {
-      if (!mounted ||
-          _dragFrom != from ||
-          _pointersDown != 1 ||
-          _selectionDelegate.suspended ||
-          _selectionDelegate.extending) {
-        return;
-      }
-      _selectionDelegate.followDrag(from, to);
-    });
+    // A press that has not moved is a click, not a drag.
+    if (_dragAt == null &&
+        (event.position - from).distance < kPrecisePointerHitSlop) {
+      return;
+    }
+    _dragAt = event.position;
+    _extendToPointer();
+    _rememberDragRow();
+    _autoScrollToward(event.position);
+  }
+
+  /// What shows of the list, globally: below the stuck message, if one
+  /// is.
+  Rect? _shownRect() {
+    final list = _listKey.currentContext?.findRenderObject() as RenderBox?;
+    if (list == null || !list.attached || !list.hasSize) return null;
+    final rect = MatrixUtils.transformRect(
+      list.getTransformTo(null),
+      Offset.zero & list.size,
+    );
+    final under = _stickyBottom();
+    if (under == null || under < rect.top) return rect;
+    return Rect.fromLTRB(
+      rect.left,
+      math.min(under + 1, rect.bottom - 1),
+      rect.right,
+      rect.bottom,
+    );
+  }
+
+  /// The bottom of the stuck message, on screen; null while none is.
+  double? _stickyBottom() {
+    final cover = _stickyCover();
+    final list = _listKey.currentContext?.findRenderObject() as RenderBox?;
+    if (cover == null || list == null || !list.attached || !list.hasSize) {
+      return null;
+    }
+    final bottom = cover + _stickyFade;
+    if (bottom <= 0) return null;
+    return list.localToGlobal(Offset(0, bottom)).dy;
+  }
+
+  /// The selection's moving end to where the pointer is, held, on the text
+  /// that shows: past the list's top or bottom (on the title, the
+  /// composer), the line at that edge, not one built beyond it and hidden;
+  /// over the stuck message, the text just under it (what shows there is a
+  /// copy of a message above, not the text the list has under it).
+  void _extendToPointer() {
+    final at = _dragAt;
+    if (at == null) return;
+    var used = at;
+    final shown = _shownRect();
+    if (shown != null) {
+      used = Offset(
+        at.dx,
+        at.dy.clamp(shown.top, math.max(shown.top, shown.bottom - 1)),
+      );
+    }
+    final pos = _selection.positionAt(used, shown: shown);
+    if (pos != null) _selection.extendTo(pos, unitAt: _selection.unitAt);
   }
 
   /// A device moving with no button down, though its release never came
   /// here (let go outside the window, or as another window took the
-  /// focus): released now. Held on, its drag's end went on being put back
-  /// under the pointer at each wheel step (see [_scheduleDragReselect]), and
-  /// scrolling selected text.
+  /// focus): released now. Held on, its drag's end went on following the
+  /// pointer at each wheel step, and scrolling selected text.
   void _handlePointerHover(PointerHoverEvent event) {
     if (_pressedDevices.contains(event.device)) _handlePointerUp(event);
   }
 
-  /// Scrolls while a drag selection is held near or past an edge, as the
-  /// list's own selection handling would (see [_ChatSelectionDelegate]).
+  /// Scrolls while a drag selection is held past an edge.
   void _autoScrollToward(Offset globalPosition) {
-    if (_pointersDown <= 0 || !_scrollController.hasClients) return;
-    final scrollable = _scrollController.position.context as ScrollableState;
-    if (_autoScroller?.scrollable != scrollable) {
-      _autoScroller?.stopAutoScroll();
-      _autoScroller = EdgeDraggingAutoScroller(
-        scrollable,
-        onScrollViewScrolled: _selectionDelegate.reapplyDragEnd,
-        velocityScalar: 30,
-      );
+    if (_autoScrollSpeed() == 0) return;
+    final ticker = _autoScroll ??= createTicker(_autoScrollTick);
+    if (ticker.isActive) return;
+    _autoScrolled = Duration.zero;
+    ticker.start();
+  }
+
+  /// How fast the list goes for the drag held where it is, in points a
+  /// second (up, less than 0): 30 times how far past its edge, up to 20
+  /// points. Over the stuck message as past the top: the list goes on up,
+  /// the text under the message coming out from under it.
+  double _autoScrollSpeed() {
+    final at = _dragAt;
+    if (at == null || _pointersDown <= 0 || !_scrollController.hasClients) {
+      return 0;
     }
-    _autoScroller!.startAutoScrollIfNecessary(
-      Rect.fromCenter(center: globalPosition, width: 0, height: 0),
+    final scrollable = _scrollController.position.context as ScrollableState;
+    final box = scrollable.context.findRenderObject();
+    if (box is! RenderBox || !box.attached || !box.hasSize) return 0;
+    final top = box.localToGlobal(Offset.zero).dy;
+    final bottom = top + box.size.height;
+    final under = _stickyBottom();
+    final past = under != null && at.dy < under
+        ? -math.max(under - at.dy, top - at.dy)
+        : at.dy < top
+        ? at.dy - top
+        : at.dy > bottom
+        ? at.dy - bottom
+        : 0.0;
+    return past.clamp(-20.0, 20.0) * 30;
+  }
+
+  /// A frame of it: the list moved on from where it is now (not toward a
+  /// place set before, which a row laid out above, its height corrected,
+  /// would have moved: the text under the pointer leaping).
+  void _autoScrollTick(Duration elapsed) {
+    final speed = _autoScrollSpeed();
+    if (speed == 0) {
+      _autoScroll?.stop();
+      return;
+    }
+    final seconds = (elapsed - _autoScrolled).inMicroseconds / 1e6;
+    _autoScrolled = elapsed;
+    final position = _scrollController.position;
+    final to = (position.pixels + speed * math.min(seconds, 0.05)).clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
+    if ((to - position.pixels).abs() < 0.01) return;
+    // The row under the pointer as it is now, and the move counted as
+    // scrolled: kept moving on, not put back (see [_dragRow]).
+    _rememberDragRow();
+    final before = position.pixels;
+    position.jumpTo(to);
+    _scrollController.scrolled += position.pixels - before;
+    // Come to the end, it does not follow what is written while held: the
+    // text under the pointer would go on up, and the selection's end with
+    // it. Let go there, it does.
+    _scrollController.anchored = false;
+  }
+
+  void _copySelection() {
+    final text = _selection.selectedText();
+    if (text == null) return;
+    unawaited(Clipboard.setData(ClipboardData(text: text)));
+  }
+
+  late final Map<Type, Action<Intent>> _selectionActions = {
+    CopySelectionTextIntent: CallbackAction<CopySelectionTextIntent>(
+      onInvoke: (_) {
+        _copySelection();
+        return null;
+      },
+    ),
+    SelectAllTextIntent: CallbackAction<SelectAllTextIntent>(
+      onInvoke: (_) {
+        _selection.selectAll();
+        return null;
+      },
+    ),
+  };
+
+  /// A right click: a file link's menu on one; else copy and select all,
+  /// the word under the pointer selected when nothing is.
+  void _openMenu(Offset at) {
+    if (fileLinkMenuAt(context, at) case final menu?) {
+      unawaited(menu.show(context, at));
+      return;
+    }
+    if (!_selection.hasSelection) {
+      if (_selection.positionAt(at) case final pos?) {
+        if (_selection.unitAt(pos, TextGranularity.word) case (
+          final start,
+          final end,
+        )) {
+          _selection.selectUnit(start, end, TextGranularity.word);
+        }
+      }
+    }
+    _menu.show(
+      context: context,
+      contextMenuBuilder: (context) => AdaptiveTextSelectionToolbar.buttonItems(
+        anchors: TextSelectionToolbarAnchors(primaryAnchor: at),
+        buttonItems: [
+          if (_selection.hasSelection)
+            ContextMenuButtonItem(
+              type: ContextMenuButtonType.copy,
+              onPressed: () {
+                _copySelection();
+                _menu.remove();
+              },
+            ),
+          ContextMenuButtonItem(
+            type: ContextMenuButtonType.selectAll,
+            onPressed: () {
+              _selection.selectAll();
+              _menu.remove();
+            },
+          ),
+        ],
+      ),
     );
   }
+
+  /// Item [index]'s row, its text in the conversation's selection.
+  Widget _selectable(int index, Widget child) => ChatSelectionItemScope(
+    index: index,
+    controller: _selection,
+    // Text scrolled in it (a code block's) has its highlight move with it,
+    // and a drag held over it its end with the pointer.
+    child: NotificationListener<ScrollNotification>(
+      onNotification: (_) {
+        _selection.builtItems[index]?.markNeedsPaint();
+        if (_dragAt != null) _scheduleDragReselect();
+        return false;
+      },
+      child: ChatSelectionItem(
+        index: index,
+        controller: _selection,
+        color:
+            DefaultSelectionStyle.of(context).selectionColor ??
+            AppColors.textSelection,
+        child: child,
+      ),
+    ),
+  );
 
   // --- Item-relative selection points --------------------------------------
 
@@ -1518,7 +1931,14 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     final sliver = _findSliver();
     if (sliver == null || !sliver.attached) return;
     for (var child = sliver.firstChild; child != null;) {
-      if (child.hasSize && _indexOf(child) < _feed.itemCount) yield child;
+      // (One given no place in this layout yet, after a jump: not where it
+      // shows.)
+      final placed =
+          (child.parentData! as SliverMultiBoxAdaptorParentData).layoutOffset !=
+          null;
+      if (placed && child.hasSize && _indexOf(child) < _feed.itemCount) {
+        yield child;
+      }
       child = sliver.childAfter(child);
     }
   }
@@ -1540,56 +1960,9 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     return false;
   }
 
-  static int _indexOf(RenderBox item) =>
-      (item.parentData! as SliverMultiBoxAdaptorParentData).index!;
-
-  /// The item under (or nearest to) [globalPosition] and the point within it.
-  _ItemPoint? _locateItemPoint(Offset globalPosition) {
-    RenderBox? best;
-    var bestDistance = double.infinity;
-    for (final item in _laidOutItems()) {
-      final top = item.localToGlobal(Offset.zero).dy;
-      final bottom = top + item.size.height;
-      final distance = globalPosition.dy < top
-          ? top - globalPosition.dy
-          : globalPosition.dy > bottom
-          ? globalPosition.dy - bottom
-          : 0.0;
-      if (distance < bestDistance) {
-        best = item;
-        bestDistance = distance;
-        if (distance == 0) break;
-      }
-    }
-    if (best == null) return null;
-    return (index: _indexOf(best), local: best.globalToLocal(globalPosition));
-  }
-
-  /// Where [point] is now, or null when its item is not laid out.
-  Offset? _resolveItemPoint(_ItemPoint point) {
-    for (final item in _laidOutItems()) {
-      if (_indexOf(item) == point.index) return item.localToGlobal(point.local);
-    }
-    return null;
-  }
-
-  /// A point just past the laid-out items on the side of the unbuilt item
-  /// [index]: above the first for an earlier item, below the last for a
-  /// later one. A selection edge there covers every built item on that side.
-  Offset? _beyondBuiltItems(int index) {
-    RenderBox? first;
-    RenderBox? last;
-    for (final item in _laidOutItems()) {
-      first ??= item;
-      last = item;
-    }
-    if (first == null || last == null) return null;
-    if (index < _indexOf(first)) {
-      return first.localToGlobal(Offset.zero) - const Offset(0, 1);
-    }
-    return last.localToGlobal(last.size.bottomRight(Offset.zero)) +
-        const Offset(0, 1);
-  }
+  /// The item of a laid-out row.
+  int _indexOf(RenderBox item) =>
+      _itemOfRow((item.parentData! as SliverMultiBoxAdaptorParentData).index!);
 
   void _syncEdgeFades() {
     if (!_scrollController.hasClients) return;
@@ -1656,11 +2029,40 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     if (_shownAtBottom != value) setState(() => _shownAtBottom = value);
   }
 
+  /// Where the turn's status row is, while it is the last item.
+  int? _statusIndex;
+
+  int? _lastStatusIndex() {
+    final count = _feed.itemCount;
+    return count > 0 && _feed.itemAt(count - 1) is LiveStatusItem
+        ? count - 1
+        : null;
+  }
+
   void _handleSessionChanged() {
     final prepended = _session?.prependedCount ?? 0;
     final moved = prepended - _prependedSeen;
     _prependedSeen = prepended;
     if (moved > 0) _shiftIndexes(moved);
+    // The turn's status row, the last, put on below what came in before
+    // it: what is selected in it with it, not on what came in its place.
+    final statusWas = _statusIndex == null ? null : _statusIndex! + moved;
+    final count = _feed.itemCount;
+    _statusIndex = _lastStatusIndex();
+    if (statusWas != null &&
+        _statusIndex != null &&
+        statusWas < count &&
+        _feed.itemAt(statusWas) is! LiveStatusItem) {
+      _selection.moveItem(statusWas, _statusIndex!);
+      if (_dragRow case final row? when row.index == statusWas) {
+        _dragRow = (
+          index: _statusIndex!,
+          box: row.box,
+          above: row.above,
+          scrolled: row.scrolled,
+        );
+      }
+    }
     final startedStreaming = _feed.isStreaming && !_wasLive;
     final ended = _wasLive && !_feed.isStreaming;
     _wasLive = _feed.isStreaming;
@@ -1699,7 +2101,6 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       _toReplyStart = true;
     }
     if (ended) _toReplyStart = false;
-    final count = _feed.itemCount;
     final wordsOnly =
         _feed.isStreaming &&
         !startedStreaming &&
@@ -2054,6 +2455,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                         left: _columnLeft,
                         room: _room,
                         roomFrom: ChatMinimap.roomFrom,
+                        roomRight: _roomRight,
                         child: UserMessageBubble(
                           key: ValueKey(('sticky', index)),
                           text: item.text,
@@ -2103,6 +2505,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                     left: _columnLeft,
                     room: _room,
                     roomFrom: ChatMinimap.roomFrom,
+                    roomRight: _roomRight,
                     // Opening, the message's frame grows into the editor's;
                     // without one, as much of it as its placeholder has room
                     // for. It does not cover what is below it yet.
@@ -2319,6 +2722,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
         left: _columnLeft,
         room: _room,
         roomFrom: ChatMinimap.roomFrom,
+        roomRight: _roomRight,
         child: Padding(
           // All but the user's messages a little narrower than those.
           padding: EdgeInsets.only(
@@ -2328,42 +2732,95 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
           ),
           child: ChatFindRow(
             index: index,
-            child: _HeightMotion(motion: _motions[index] ?? 0, child: child),
+            child: _HeightMotion(
+              motion: _motions[index] ?? 0,
+              fromNothing: _entering.contains(index),
+              child: child,
+            ),
           ),
         ),
       );
 
-  /// The rows folded away, as last built, by what they were built from.
-  final Map<int, (Object, Widget)> _hiddenRows = {};
+  // --- Rows ------------------------------------------------------------------
+  //
+  // The list has a row for each item that shows; a closed fold's items have
+  // none. A long conversation is mostly turns' work folded away, thousands
+  // of items: rows of no height for them would all be within the list's
+  // reach, all built and laid out each time the history is (a second a
+  // frame for 5,600 of them). So the list's rows are numbered apart from
+  // the items: [_rows] has the item of each.
 
-  /// Row [index], folded away: the very widget it was last built as while
-  /// nothing it is made of changed, which Flutter then does not rebuild. A
-  /// long conversation has hundreds of these rows within the list's reach,
-  /// of no height; each rebuild of the history (a word streamed, the pointer
-  /// coming in) would otherwise build and lay them all out again. The same
-  /// rows as shown ones, all the same: a fold opening or closing animates
-  /// them in place.
-  Widget _hiddenRow(int index) {
-    final made = (
-      widget.maxContentWidth,
-      _columnRight,
-      _columnLeft,
-      _room,
-      ChatMinimap.roomFrom,
-      _insetOf(index),
-      _motions[index] ?? 0,
-    );
-    if (_hiddenRows[index] case (final from, final row) when from == made) {
-      return row;
+  /// The item of each row of the list, in order.
+  List<int> _rows = const [];
+
+  /// Items a fold closing hides: rows still while they shrink to nothing.
+  final Set<int> _leaving = {};
+  Timer? _leavingDone;
+
+  /// Items a fold opening shows: their rows, new, grow from nothing.
+  final Set<int> _entering = {};
+
+  bool _hasRow(int index) =>
+      !_isHidden(index) ||
+      index == _editingIndex ||
+      _leaving.contains(index) ||
+      widget.after?.call(index) != null;
+
+  /// The row of item [index]; for one with none, the row before it (the
+  /// first, if none is).
+  int _rowOf(int index) {
+    var low = 0;
+    var high = _rows.length;
+    while (low < high) {
+      final mid = (low + high) >> 1;
+      if (_rows[mid] <= index) {
+        low = mid + 1;
+      } else {
+        high = mid;
+      }
     }
-    final row = _row(
-      index,
-      gap: 0,
-      child: const SizedBox(width: double.infinity),
-    );
-    _hiddenRows[index] = (made, row);
-    return row;
+    return math.max(0, low - 1);
   }
+
+  /// The item of [row]; past the last item for one past the last row.
+  int _itemOfRow(int row) => row < _rows.length ? _rows[row] : _feed.itemCount;
+
+  /// The rows as the items show now. The list is told of each row come or
+  /// gone, so the extents it measured stay with their rows.
+  void _syncRows() {
+    final rows = [
+      for (var index = 0; index < _feed.itemCount; index++)
+        if (_hasRow(index)) index,
+    ];
+    if (listEquals(rows, _rows)) return;
+    final before = _rows;
+    _rows = rows;
+    // Not laid out yet, or with other rows (another conversation's): it
+    // takes them as it finds them.
+    if (!_listController.isAttached ||
+        _listController.numberOfItems != before.length) {
+      return;
+    }
+    var old = 0;
+    var row = 0;
+    while (old < before.length || row < rows.length) {
+      if (row == rows.length ||
+          (old < before.length && before[old] < rows[row])) {
+        _listController.removeItem(row);
+        old++;
+      } else if (old == before.length || rows[row] < before[old]) {
+        _listController.addItem(row);
+        row++;
+      } else {
+        old++;
+        row++;
+      }
+    }
+  }
+
+  /// Row [index], folded away while it shrinks to nothing (see [_leaving]).
+  Widget _hiddenRow(int index) =>
+      _row(index, gap: 0, child: const SizedBox(width: double.infinity));
 
   double _insetOf(int index) =>
       _feed.itemAt(index) is UserMessageItem ? 0 : UserMessageBubble.radius;
@@ -2436,10 +2893,9 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
         ),
       };
     }
-    return _ItemSelectionScope(
-      index: index,
-      delegate: _selectionDelegate,
-      child: folds.isEmpty && footer == null
+    return _selectable(
+      index,
+      folds.isEmpty && footer == null
           ? shown!
           // Steps line up on the left, folds' lines too.
           : SizedBox(
@@ -2487,16 +2943,13 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     );
   }
 
-  /// The height taken for item [index] until it is laid out, toward the
-  /// list's extent (and so its scrollbar): none for one a closed fold
-  /// hides. A long conversation is mostly turns' work folded away; taken at
-  /// the list's default for each, the bar would stand for many times the
-  /// height there is, a small drag on it going far, and the list correcting
-  /// itself all the way up. (Asked with no index, the list wants one height
-  /// for all, unless none: 0.)
-  double _estimateExtent(int? index, double crossAxisExtent) => switch (index) {
+  /// The height taken for [row] until it is laid out, toward the list's
+  /// extent (and so its scrollbar): none for one a closed fold hides (see
+  /// [_leaving]). (Asked with no row, the list wants one height for all,
+  /// unless none: 0.)
+  double _estimateExtent(int? row, double crossAxisExtent) => switch (row) {
     null => 0,
-    _ when index < _feed.itemCount && _isHidden(index) => 0,
+    _ when row < _rows.length && _isHidden(_rows[row]) => 0,
     _ => 100,
   };
 
@@ -2578,35 +3031,16 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     return (first: first, firstAt: firstAt, last: last, lastAt: lastAt);
   }
 
-  /// The file link the last right click pressed on (see [_contextMenu]).
-  ChatItemMenu? _linkMenu;
-
-  /// The selection's right click: on a file the conversation names, that
-  /// file's menu (see [FileLinkMenu]) in place of the selection's.
-  Widget _contextMenu(BuildContext context, SelectableRegionState selection) {
-    final at = selection.contextMenuAnchors.primaryAnchor;
-    if (_linkMenu case final menu?) {
-      _linkMenu = null;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        selection.hideToolbar();
-        if (mounted) unawaited(menu.show(this.context, at));
-      });
-      return const SizedBox.shrink();
-    }
-    return AdaptiveTextSelectionToolbar.selectableRegion(
-      selectableRegionState: selection,
-    );
-  }
-
   /// Scrolls row [index] to the top of the view, [fraction] of the way
   /// down it, laid out yet or not.
   void _seek(int index, double fraction) {
     if (!_scrollController.hasClients || !_listController.isAttached) return;
-    if (index >= _feed.itemCount) return;
+    if (index >= _feed.itemCount || _rows.isEmpty) return;
     _setAnchored(false);
-    final (extent, _) = _listController.extentForIndex(index);
+    final row = _rowOf(index);
+    final (extent, _) = _listController.extentForIndex(row);
     _listController.jumpToItem(
-      index: index,
+      index: row,
       scrollController: _scrollController,
       alignment: 0,
       rect: Rect.fromLTWH(0, fraction * extent, 0, 0),
@@ -2624,6 +3058,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       left: math.max(0.0, _insetLeft - gutter),
       room: _roomAt(gutter),
       roomFrom: ChatMinimap.roomFrom,
+      roomRight: _roomRight,
     );
     return (left: gutter + column.left, width: column.width);
   }
@@ -2680,6 +3115,9 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
 
   double get _room => _roomAt(_gutter);
 
+  /// Whether the room is the column's right (see [ChatMinimap.side]).
+  bool get _roomRight => ChatMinimap.side.value == ChatMinimapSide.right;
+
   /// Whether the minimap has room beside the column, as last built.
   bool _minimapFits = false;
 
@@ -2696,6 +3134,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   @override
   Widget build(BuildContext context) {
     _built = null;
+    _syncRows();
     if (widget.minimapRoom case final room? when room.value != _keepsRoom) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) room.value = _keepsRoom;
@@ -2713,7 +3152,12 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
           final left = math.max(0.0, insetLeft - gutter);
           final minimapFits =
               widget.minimap &&
-              ChatMinimap.besides(_columnIn(constraints.maxWidth)) != null;
+              ChatMinimap.besides(
+                    _columnIn(constraints.maxWidth),
+                    width: constraints.maxWidth,
+                    side: ChatMinimap.side.value,
+                  ) !=
+                  null;
           if (_built == null ||
               gutter != _gutter ||
               right != _columnRight ||
@@ -2784,18 +3228,21 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                   // What is in the list keeps the bars it had (a table's).
                   child: ScrollbarTheme(
                     data: outerBars,
-                    child: SelectionArea(
-                      focusNode: _selectionFocusNode,
-                      contextMenuBuilder: _contextMenu,
-                      // Focus on click rather than hover so the composer keeps
-                      // focus while the pointer passes over the history.
-                      child: SelectionContainer(
-                        delegate: _selectionDelegate,
-                        // Items register their text with the selection delegate
-                        // themselves (see [_ItemSelectionScope]); nothing else in
-                        // here is selectable, and the list's own selection handling
-                        // (which can only see built items) stays out of the way.
-                        child: SelectionContainer.disabled(
+                    // Focused on a press rather than hover, so the composer
+                    // keeps the keys while the pointer passes over the
+                    // history.
+                    // (Its actions around the focus, which looks for them
+                    // from where it is up.)
+                    child: Actions(
+                      actions: _selectionActions,
+                      child: Focus(
+                        focusNode: _selectionFocusNode,
+                        // The text's selection is the conversation's (see
+                        // [_selectable]), not Flutter's: the text registers
+                        // here, which says it is text to select (an icon is
+                        // not), and is sent nothing.
+                        child: SelectionContainer(
+                          delegate: _inertSelection,
                           child: Stack(
                             fit: StackFit.expand,
                             children: [
@@ -2830,7 +3277,19 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                                         child: SuperListView.builder(
                                           controller: _scrollController,
                                           listController: _listController,
-                                          itemCount: _feed.itemCount,
+                                          itemCount: _rows.length,
+                                          // Rows come and go before others
+                                          // (folds opening and closing):
+                                          // each keeps its own.
+                                          findChildIndexCallback: (key) =>
+                                              switch (key) {
+                                                ValueKey<int>(:final value)
+                                                    when _rows.isNotEmpty &&
+                                                        _rows[_rowOf(value)] ==
+                                                            value =>
+                                                  _rowOf(value),
+                                                _ => null,
+                                              },
                                           extentEstimation: _estimateExtent,
                                           cacheExtent: _cache,
                                           padding: EdgeInsets.fromLTRB(
@@ -2842,17 +3301,25 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                                             _gutter,
                                             24,
                                           ),
-                                          itemBuilder: (context, index) =>
-                                              _isHidden(index) &&
-                                                  index != _editingIndex &&
-                                                  widget.after?.call(index) ==
-                                                      null
-                                              ? _hiddenRow(index)
-                                              : _row(
-                                                  index,
-                                                  gap: _gapBefore(index),
-                                                  child: _buildItem(index),
-                                                ),
+                                          itemBuilder: (context, row) {
+                                            final index = _rows[row];
+                                            return KeyedSubtree(
+                                              key: ValueKey(index),
+                                              child:
+                                                  _isHidden(index) &&
+                                                      index != _editingIndex &&
+                                                      widget.after?.call(
+                                                            index,
+                                                          ) ==
+                                                          null
+                                                  ? _hiddenRow(index)
+                                                  : _row(
+                                                      index,
+                                                      gap: _gapBefore(index),
+                                                      child: _buildItem(index),
+                                                    ),
+                                            );
+                                          },
                                         ),
                                       ),
                                     ),
@@ -2923,6 +3390,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                         _editorMoved,
                       ]),
                       columnIn: _columnIn,
+                      at: ChatMinimap.side.value,
                       long: _long,
                       scrolling: () =>
                           _scrollController.hasClients && _userScrolling,
@@ -3162,836 +3630,6 @@ class _BottomAnchoredScrollPosition extends ScrollPositionWithSingleContext
   }
 }
 
-/// A point inside a list item, stable while the item scrolls, is re-laid out
-/// or is rebuilt (unlike a global position, or a scroll offset, which
-/// the list shifts as it corrects its estimated item extents).
-typedef _ItemPoint = ({int index, Offset local});
-
-/// One end of the selection, in model terms.
-typedef _SelectionEdge = ({_ItemPoint point, TextGranularity granularity});
-
-/// Registers the text of item [index] with [delegate], tagged with the index.
-class _ItemSelectionScope extends StatefulWidget {
-  const _ItemSelectionScope({
-    required this.index,
-    required this.delegate,
-    required this.child,
-  });
-
-  final int index;
-  final _ChatSelectionDelegate delegate;
-  final Widget child;
-
-  @override
-  State<_ItemSelectionScope> createState() => _ItemSelectionScopeState();
-}
-
-class _ItemSelectionScopeState extends State<_ItemSelectionScope> {
-  late final _ItemRegistrar _registrar = _ItemRegistrar(
-    widget.delegate,
-    widget.index,
-  );
-
-  @override
-  void didUpdateWidget(_ItemSelectionScope oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (_registrar.index != widget.index) {
-      widget.delegate._renumbered(_registrar.index, widget.index);
-    }
-    _registrar.index = widget.index;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SelectionRegistrarScope(registrar: _registrar, child: widget.child);
-  }
-}
-
-class _ItemRegistrar implements SelectionRegistrar, SelectionEndHolder {
-  _ItemRegistrar(this.delegate, this.index);
-
-  final _ChatSelectionDelegate delegate;
-  int index;
-
-  @override
-  bool get holdsSelectionEnd => delegate._holdsEnd(index);
-
-  @override
-  void add(Selectable selectable) =>
-      delegate._addItemSelectable(selectable, this);
-
-  @override
-  void remove(Selectable selectable) =>
-      delegate._removeItemSelectable(selectable);
-}
-
-/// Selection across the whole history, not just the items that are built.
-///
-/// Flutter's selection lives in the widgets: only built text can be
-/// selected, and a virtual list builds a screenful. So the selection is kept
-/// here as two model points (item index + position within the item), and
-/// the built items are kept in sync with it:
-///
-/// - Each built item's text registers here tagged with its index
-///   ([_ItemSelectionScope]), ordered by index rather than by comparing
-///   screen positions.
-/// - Whenever items are built or released, the built text is re-selected
-///   from the model: an edge in a built item goes exactly there, an edge in
-///   an unbuilt item goes just past the built items on its side, so
-///   everything in between shows as selected.
-/// - Copying takes the two end items from what is selected on screen (or
-///   what was, if they have since been released) and every item in between
-///   from the model ([chatItemPlainText]), built or not.
-///
-/// It also does what the list's own selection handling would: auto-scroll a
-/// drag held at an edge, and follow a drag while wheel-scrolling.
-class _ChatSelectionDelegate extends StaticSelectionContainerDelegate
-    with SafeSelectionIndexes {
-  _ChatSelectionDelegate({
-    required this.locate,
-    required this.resolve,
-    required this.beyondBuilt,
-    required this.plainTextOf,
-    required this.itemCount,
-    required this.onDragEdge,
-    required this.pressHeld,
-  });
-
-  final _ItemPoint? Function(Offset globalPosition) locate;
-
-  /// Where [point] is now, or null when its item is not built.
-  final Offset? Function(_ItemPoint point) resolve;
-
-  /// Where to put an edge for the unbuilt item at an index.
-  final Offset? Function(int index) beyondBuilt;
-  final String Function(int index) plainTextOf;
-  final int Function() itemCount;
-  final void Function(Offset globalPosition) onDragEdge;
-
-  /// A press on the text is held, and the focus it gave the history taken
-  /// since (a question's panel coming up, the composer built again): that
-  /// does not clear the selection, as [SelectableRegion] would — a drag
-  /// then went on with its end alone and selected nothing.
-  final bool Function() pressHeld;
-
-  /// A Shift+click is in progress: it moves the end and keeps the start.
-  bool extending = false;
-
-  /// A press in the scrollbar's gutter is under way: pointer selection
-  /// events change nothing.
-  bool suspended = false;
-
-  final Map<Selectable, _ItemRegistrar> _items = {};
-  _SelectionEdge? _start;
-  _SelectionEdge? _end;
-
-  /// The selection is the whole history (Select All), not only what was
-  /// built when it was made: its ends are the first item's start and the
-  /// last's end, whole when not built.
-  bool _all = false;
-  SelectionEdgeUpdateEvent? _dragEnd;
-
-  /// Selected text of the end items, for when they are no longer built.
-  final Map<int, String> _endText = {};
-
-  void _addItemSelectable(Selectable selectable, _ItemRegistrar item) {
-    _items[selectable] = item;
-    add(selectable);
-    _noteList(added: item.index);
-  }
-
-  void _removeItemSelectable(Selectable selectable) {
-    final item = _items.remove(selectable)?.index ?? -1;
-    remove(selectable);
-    _noteList(removed: item);
-  }
-
-  // --- The list of text, as recorded -------------------------------------
-
-  /// What a drag on the text went through, for when it goes wrong.
-  final SelectionRecorder recorder = SelectionRecorder();
-
-  // The list's changes since they were last recorded: text added, taken
-  // off, items numbered anew (the first few of each).
-  final List<int> _added = [];
-  final List<int> _removed = [];
-  final List<String> _renumberings = [];
-  int _addCount = 0;
-  int _removeCount = 0;
-  int _renumberCount = 0;
-  bool _listNoted = false;
-
-  void _noteList({int? added, int? removed}) {
-    if (added != null && _addCount++ < 6) _added.add(added);
-    if (removed != null && _removeCount++ < 6) _removed.add(removed);
-    if (_listNoted || _disposed) return;
-    _listNoted = true;
-    scheduleMicrotask(_recordList);
-  }
-
-  void _renumbered(int from, int to) {
-    if (_renumberCount++ < 4) _renumberings.add('$from→$to');
-    _noteList();
-  }
-
-  /// Records the list's changes, and whether it is still whole: each text
-  /// listed once, registered, in the order of its items. (Within an item
-  /// the order is by where the text is, checked only when written out.)
-  void _recordList() {
-    _listNoted = false;
-    if (_disposed) return;
-    String some(List<Object> listed, int count) =>
-        '${listed.join(',')}${count > listed.length ? ',…' : ''}';
-    recorder.listChanged(
-      [
-        if (_addCount > 0) '+$_addCount (items ${some(_added, _addCount)})',
-        if (_removeCount > 0)
-          '-$_removeCount (items ${some(_removed, _removeCount)})',
-        if (_renumberCount > 0)
-          'items renumbered $_renumberCount '
-              '(${some(_renumberings, _renumberCount)})',
-        '${selectables.length} listed',
-      ].join(' '),
-    );
-    _added.clear();
-    _removed.clear();
-    _renumberings.clear();
-    _addCount = _removeCount = _renumberCount = 0;
-    _checkList();
-  }
-
-  void _checkList() {
-    final off = _listOff(geometry: false);
-    if (off == null) {
-      recorder.listWhole();
-    } else {
-      recorder.listOff(off);
-    }
-  }
-
-  /// What is off in the list, or null when it is whole: text listed twice,
-  /// no longer registered, out of order (by item; with [geometry], within
-  /// an item too).
-  String? _listOff({required bool geometry}) {
-    final seen = <Selectable>{};
-    var twice = 0;
-    var unregistered = 0;
-    final misordered = <String>[];
-    var misorders = 0;
-    for (final (index, selectable) in selectables.indexed) {
-      if (!seen.add(selectable)) twice++;
-      if (!_items.containsKey(selectable)) unregistered++;
-      if (index == 0) continue;
-      final previous = selectables[index - 1];
-      final a = _itemOf(previous);
-      final b = _itemOf(selectable);
-      final off =
-          a > b ||
-          (geometry && a == b && compareOrder(previous, selectable) > 0);
-      if (off && misorders++ < 5) {
-        misordered.add('#${index - 1} (item $a) > #$index (item $b)');
-      }
-    }
-    if (twice == 0 && unregistered == 0 && misorders == 0) return null;
-    return [
-      if (twice > 0) '$twice listed twice',
-      if (unregistered > 0) '$unregistered unregistered',
-      if (misorders > 0)
-        '$misorders out of order: ${misordered.join(', ')}'
-            '${misorders > misordered.length ? ', …' : ''}',
-    ].join('; ');
-  }
-
-  int _itemOf(Selectable selectable) => _items[selectable]?.index ?? -1;
-
-  /// Whether item [index] holds an end of what is selected (not of a
-  /// click's collapsed selection).
-  bool _holdsEnd(int index) =>
-      (_all || value.status == SelectionStatus.uncollapsed) &&
-      (_start?.point.index == index || _end?.point.index == index);
-
-  @override
-  Comparator<Selectable> get compareOrder => (a, b) {
-    final byItem = _itemOf(a).compareTo(_itemOf(b));
-    return byItem != 0 ? byItem : _compareReadingOrder(a, b);
-  };
-
-  /// Reading order within an item, by where each piece of text starts: its
-  /// first line. (Comparing whole bounding boxes misorders inline tags: the
-  /// text after a tag wraps back to the left edge, so its box starts left
-  /// of the tag.)
-  static int _compareReadingOrder(Selectable a, Selectable b) {
-    Rect firstLine(Selectable selectable) {
-      final boxes = selectable.boundingBoxes;
-      return MatrixUtils.transformRect(
-        selectable.getTransformTo(null),
-        boxes.isEmpty ? Rect.zero : boxes.first,
-      );
-    }
-
-    final lineA = firstLine(a);
-    final lineB = firstLine(b);
-    final overlap =
-        math.min(lineA.bottom, lineB.bottom) - math.max(lineA.top, lineB.top);
-    if (overlap > math.min(lineA.height, lineB.height) / 2) {
-      return lineA.left.compareTo(lineB.left);
-    }
-    return lineA.top.compareTo(lineB.top);
-  }
-
-  Offset? _positionOf(_SelectionEdge edge) =>
-      resolve(edge.point) ?? beyondBuilt(edge.point.index);
-
-  _SelectionEdge? _edgeAt(Offset globalPosition, TextGranularity granularity) {
-    final point = locate(globalPosition);
-    return point == null ? null : (point: point, granularity: granularity);
-  }
-
-  /// The model point of the selection's current start or end in the built
-  /// text, after an event that placed it there (word, select all, keys).
-  _SelectionEdge? _edgeFromGeometry({required bool end}) {
-    final index = end ? currentSelectionEndIndex : currentSelectionStartIndex;
-    if (index < 0 || index >= selectables.length) return null;
-    final selectable = selectables[index];
-    final point = end
-        ? selectable.value.endSelectionPoint
-        : selectable.value.startSelectionPoint;
-    if (point == null) return null;
-    final global = MatrixUtils.transformPoint(
-      selectable.getTransformTo(null),
-      point.localPosition - Offset(0, point.lineHeight / 2),
-    );
-    return _edgeAt(global, TextGranularity.character);
-  }
-
-  @override
-  SelectionResult dispatchSelectionEvent(SelectionEvent event) {
-    final outer = _walk;
-    final walk = _walk = event is SelectionEdgeUpdateEvent ? [] : null;
-    _lastAsked = null;
-    final SelectionResult result;
-    try {
-      result = _dispatch(event);
-    } finally {
-      _walk = outer;
-    }
-    final asked = _lastAsked;
-    recorder.step(
-      '${_dispatchingOwn ? 'own' : 'got'} ${_describeEvent(event)} → '
-      '${result.name}; edges #$currentSelectionStartIndex, '
-      '#$currentSelectionEndIndex, ${value.status.name}'
-      '${walk == null || walk.isEmpty ? '' : '; asked ${walk.join(' ')}'}'
-      '${walk != null && walk.length >= _walkMost ? ' …' : ''}'
-      '${asked == null ? '' : ', the last ${_describeSelectable(asked)}'}',
-    );
-    return result;
-  }
-
-  /// The text an edge update asked, in order, and what each answered: where
-  /// the edge went and why.
-  List<String>? _walk;
-  Selectable? _lastAsked;
-  static const _walkMost = 40;
-
-  @override
-  SelectionResult dispatchSelectionEventToChild(
-    Selectable selectable,
-    SelectionEvent event,
-  ) {
-    final result = super.dispatchSelectionEventToChild(selectable, event);
-    if (_walk case final walk? when walk.length < _walkMost) {
-      final answer = switch (result) {
-        SelectionResult.next => 'next',
-        SelectionResult.previous => 'prev',
-        SelectionResult.end => 'END',
-        SelectionResult.pending => 'pending',
-        SelectionResult.none => 'none',
-      };
-      walk.add(
-        '#${selectables.indexOf(selectable)}/${_itemOf(selectable)}:$answer',
-      );
-      _lastAsked = selectable;
-    }
-    return result;
-  }
-
-  static String _describeEvent(SelectionEvent event) => switch (event) {
-    SelectionEdgeUpdateEvent(
-      :final type,
-      :final globalPosition,
-      :final granularity,
-    ) =>
-      '${type == SelectionEventType.startEdgeUpdate ? 'start' : 'end'} '
-          '${_offset(globalPosition)}'
-          '${granularity == TextGranularity.character ? '' : ' ${granularity.name}'}',
-    ClearSelectionEvent() => 'clear',
-    SelectAllSelectionEvent() => 'select all',
-    SelectWordSelectionEvent(:final globalPosition) =>
-      'word ${_offset(globalPosition)}',
-    SelectParagraphSelectionEvent(:final globalPosition) =>
-      'paragraph ${_offset(globalPosition)}',
-    GranularlyExtendSelectionEvent(:final isEnd, :final forward) =>
-      'extend ${isEnd ? 'end' : 'start'} ${forward ? 'forward' : 'back'}',
-    DirectionallyExtendSelectionEvent(:final isEnd, :final direction) =>
-      'extend ${isEnd ? 'end' : 'start'} ${direction.name}',
-    _ => event.type.name,
-  };
-
-  /// [selectable]'s place and selection, kinds only.
-  String _describeSelectable(Selectable selectable) {
-    final box = _globalBoxes(selectable)
-        .fold<Rect?>(null, (all, rect) => all?.expandToInclude(rect) ?? rect);
-    final geometry = selectable.value;
-    return '#${selectables.indexOf(selectable)} '
-        '${selectable.runtimeType} item ${_itemOf(selectable)}'
-        '${_items.containsKey(selectable) ? '' : ' unregistered'} '
-        '${box == null ? 'no box' : _rect(box)} '
-        '${geometry.status.name}, ${selectable.contentLength} long';
-  }
-
-  SelectionResult _dispatch(SelectionEvent event) {
-    if (suspended &&
-        (event is SelectionEdgeUpdateEvent ||
-            event is ClearSelectionEvent ||
-            event is SelectWordSelectionEvent ||
-            event is SelectParagraphSelectionEvent)) {
-      return SelectionResult.none;
-    }
-    if (!_dispatchingOwn) {
-      switch (event) {
-        case ClearSelectionEvent():
-          _clears++;
-        case SelectionEdgeUpdateEvent(type: SelectionEventType.startEdgeUpdate):
-          _starts++;
-        case SelectionEdgeUpdateEvent():
-          _ends++;
-        default:
-      }
-    }
-    final SelectionResult result;
-    switch (event) {
-      // [SelectableRegion] restarts the selection on a Shift+click when it
-      // cannot see the start; the start is known here, so keep it.
-      case ClearSelectionEvent() ||
-              SelectionEdgeUpdateEvent(type: SelectionEventType.startEdgeUpdate)
-          when extending && _start != null:
-        return SelectionResult.none;
-      case ClearSelectionEvent() when pressHeld():
-        return SelectionResult.none;
-      case ClearSelectionEvent():
-        _start = _end = null;
-        _all = false;
-        _dragEnd = null;
-        _endText.clear();
-        return super.dispatchSelectionEvent(event);
-      // All of it, not the built items alone: the ends in the model, which
-      // the items built later (scrolled to) are selected from.
-      case SelectAllSelectionEvent() when itemCount() > 0:
-        result = super.dispatchSelectionEvent(event);
-        const granularity = TextGranularity.character;
-        _start = (
-          point: (index: 0, local: Offset.zero),
-          granularity: granularity,
-        );
-        _end = (
-          point: (index: itemCount() - 1, local: const Offset(1e6, 1e6)),
-          granularity: granularity,
-        );
-        _all = true;
-        _dragEnd = null;
-      case SelectionEdgeUpdateEvent(type: SelectionEventType.startEdgeUpdate):
-        _all = false;
-        _start = _edgeAt(event.globalPosition, event.granularity);
-        _refreshEdgeLocations();
-        result = super.dispatchSelectionEvent(event);
-        if (!_dispatchingOwn) _startWent = currentSelectionStartIndex;
-      case SelectionEdgeUpdateEvent():
-        if (!_dispatchingOwn) _endSeen = true;
-        _all = false;
-        _end = _edgeAt(event.globalPosition, event.granularity);
-        _dragEnd = event;
-        _refreshEdgeLocations();
-        result = super.dispatchSelectionEvent(event);
-        onDragEdge(event.globalPosition);
-      case SelectAllSelectionEvent() ||
-          SelectWordSelectionEvent() ||
-          SelectParagraphSelectionEvent():
-        _all = false;
-        result = super.dispatchSelectionEvent(event);
-        _start = _edgeFromGeometry(end: false);
-        _end = _edgeFromGeometry(end: true);
-        _dragEnd = null;
-      case GranularlyExtendSelectionEvent(:final isEnd) ||
-          DirectionallyExtendSelectionEvent(:final isEnd):
-        _all = false;
-        _refreshEdgeLocations();
-        result = super.dispatchSelectionEvent(event);
-        if (isEnd) {
-          _end = _edgeFromGeometry(end: true) ?? _end;
-        } else {
-          _start = _edgeFromGeometry(end: false) ?? _start;
-        }
-      default:
-        result = super.dispatchSelectionEvent(event);
-    }
-    _rememberEndText();
-    return result;
-  }
-
-  // --- A drag on text that selects nothing ---------------------------------
-  //
-  // Seen on users' machines (#928): now and then a drag on the text selects
-  // nothing. Its edges go, in list order, to the text under them; there
-  // they went elsewhere, or nowhere. The drag is done again on a clean
-  // list, as it is dragged; and what led to it is written out ([recorder]):
-  // a line in the event log, the steps before it in hangs/selection-*.txt.
-
-  static Iterable<Rect> _globalBoxes(Selectable selectable) {
-    final transform = selectable.getTransformTo(null);
-    return selectable.boundingBoxes.map(
-      (rect) => MatrixUtils.transformRect(transform, rect),
-    );
-  }
-
-  static bool _holds(Selectable selectable, Offset position) =>
-      _globalBoxes(selectable).any((box) => box.contains(position));
-
-  /// The drag held now was done again here ([followDrag]): its end follows
-  /// the pointer from here too, when the selection's own gesture does not.
-  bool _following = false;
-
-  /// An end update came from elsewhere (the selection's gesture) since the
-  /// pointer last moved.
-  bool _endSeen = false;
-  bool _dispatchingOwn = false;
-
-  // The selection events from elsewhere (the selection's gesture, keys,
-  // wheel steps) since the press, and the listed text the last start from
-  // elsewhere went to: a gesture given up on clears; one that never came
-  // sends nothing.
-  int _clears = 0;
-  int _starts = 0;
-  int _ends = 0;
-  int _startWent = -1;
-  static int _logged = 0;
-
-  /// A press on the list: the events counted from here, and the list
-  /// checked (it may have changed where nothing tells, in Flutter's own).
-  void beginDrag() {
-    _clears = _starts = _ends = 0;
-    _startWent = -1;
-    _checkList();
-  }
-
-  /// Where the drag pressed at [from] stands, before it is done again.
-  String _trace(Offset from) {
-    String at(int index) => index < 0 || index >= selectables.length
-        ? '#$index'
-        : '#$index (item ${_itemOf(selectables[index])})';
-    return 'pressed in ${at(selectables.indexWhere((s) => _holds(s, from)))}, '
-        'its start went to ${at(_startWent)}, edges at '
-        '#$currentSelectionStartIndex, #$currentSelectionEndIndex; since the '
-        'press $_clears clears, $_starts starts, $_ends ends from elsewhere; '
-        '${selectables.length} listed, '
-        '${_listOff(geometry: true) ?? 'whole'}';
-  }
-
-  /// Drags again from [from] to [to] on the list rid of text listed twice
-  /// or no longer registered, in order; then writes what led to it, [when]
-  /// it was noticed: a line in the event log, and when that put it right
-  /// (it was no drag on blank space), the steps before it.
-  void _dragAgain(String when, Offset from, Offset to) {
-    final trace = _trace(from);
-    final around = _describeAround(from);
-    final seen = <Selectable>{};
-    selectables = [
-      for (final selectable in selectables)
-        if (_items.containsKey(selectable) && seen.add(selectable)) selectable,
-    ]..sort(compareOrder);
-    recorder.step('drag done again ($when)');
-    _dispatchingOwn = true;
-    try {
-      dispatchSelectionEvent(const ClearSelectionEvent());
-      dispatchSelectionEvent(
-        SelectionEdgeUpdateEvent.forStart(globalPosition: from),
-      );
-      dispatchSelectionEvent(
-        SelectionEdgeUpdateEvent.forEnd(globalPosition: to),
-      );
-    } finally {
-      _dispatchingOwn = false;
-    }
-    if (_logged++ >= 20) return;
-    final healed = value.status == SelectionStatus.uncollapsed;
-    final headline =
-        'a drag on text had selected nothing ($when, '
-        '${(to - from).distance.round()} px from ${_offset(from)} to '
-        '${_offset(to)}); done again, '
-        '${healed ? 'selected' : 'still nothing'}';
-    final file = healed
-        ? recorder.dump(headline, [trace, around, ..._describeHeld(from)])
-        : null;
-    appEvent(
-      'selection',
-      '$headline: $trace${file == null ? '' : '; steps in $file'}',
-    );
-  }
-
-  /// The text that holds [position], and what is selected in it now.
-  List<String> _describeHeld(Offset position) => [
-    for (final selectable in selectables)
-      if (_holds(selectable, position))
-        'now ${_describeSelectable(selectable)}',
-  ];
-
-  /// While a drag pressed on text from [from] is held, the pointer at [to]:
-  /// when it has selected nothing by now, done again there and then (see
-  /// [checkDrag]), not only once let go; and its end kept under the pointer
-  /// when nothing else moves it.
-  void followDrag(Offset from, Offset to) {
-    final seen = _endSeen;
-    _endSeen = false;
-    // Done again once, unless cleared since (its gesture given up on).
-    if (!_following || value.status == SelectionStatus.none) {
-      if (value.status == SelectionStatus.uncollapsed) return;
-      if ((to - from).distance < 12) return;
-      if (!selectables.any((s) => _holds(s, from))) return;
-      _dragAgain('while held', from, to);
-      _following = true;
-    } else if (!seen) {
-      _dispatchingOwn = true;
-      try {
-        dispatchSelectionEvent(
-          SelectionEdgeUpdateEvent.forEnd(globalPosition: to),
-        );
-      } finally {
-        _dispatchingOwn = false;
-      }
-    }
-  }
-
-  /// After a drag from [from] to [to] within one piece of text: when nothing
-  /// came of it, drags again ([_dragAgain]).
-  void checkDrag(Offset from, Offset to) {
-    if ((to - from).distance < 12) return;
-    if (!selectables.any((s) => _holds(s, from) && _holds(s, to))) return;
-    if (getSelectedContent()?.plainText.trim().isNotEmpty ?? false) return;
-    _dragAgain('let go', from, to);
-    _dragEnd = null;
-  }
-
-  // Rect's and Offset's own toString is not in a release build.
-  static String _offset(Offset offset) =>
-      '(${offset.dx.toStringAsFixed(1)}, ${offset.dy.toStringAsFixed(1)})';
-
-  static String _rect(Rect rect) =>
-      '${_offset(rect.topLeft)}-${_offset(rect.bottomRight)}';
-
-  /// The list's text near [position], for the report: kinds and places
-  /// only, none of the text.
-  String _describeAround(Offset position) {
-    final lines = [
-      'Pressed at ${_offset(position)}; ${selectables.length} listed '
-          '(${selectables.length - selectables.toSet().length} twice), '
-          'edges at #$currentSelectionStartIndex, '
-          '#$currentSelectionEndIndex.',
-    ];
-    for (final (index, selectable) in selectables.indexed) {
-      final box = _globalBoxes(selectable)
-          .fold<Rect?>(null, (all, rect) => all?.expandToInclude(rect) ?? rect);
-      if (index != currentSelectionStartIndex &&
-          index != currentSelectionEndIndex &&
-          (box == null || (box.center.dy - position.dy).abs() > 240)) {
-        continue;
-      }
-      lines.add(
-        '#$index ${selectable.runtimeType} item ${_itemOf(selectable)}'
-        '${_items.containsKey(selectable) ? '' : ' unregistered'} '
-        '${box == null ? 'no box' : _rect(box)}'
-        '${box != null && box.contains(position) ? ' (holds it)' : ''}',
-      );
-      if (lines.length > 40) break;
-    }
-    return lines.join('\n');
-  }
-
-  /// [StaticSelectionContainerDelegate] replays the last edge positions to
-  /// text that joins the selection, assuming nothing moves; in a list it
-  /// does, so give it where the edges are now.
-  void _refreshEdgeLocations() {
-    for (final (edge, forEnd) in [(_start, false), (_end, true)]) {
-      if (edge == null) continue;
-      if (_positionOf(edge) case final position?) {
-        updateLastSelectionEdgeLocation(
-          globalSelectionEdgeLocation: position,
-          forEnd: forEnd,
-        );
-      }
-    }
-  }
-
-  /// Reapplying the edges waits for the frame's other selection updates.
-  /// Text given new text this frame has none until its own container takes
-  /// the new text in (in its own update, after the frame); any event before
-  /// that takes it off its list, in the middle of the loop that sent it,
-  /// here or in a scroll view's (Flutter's).
-  @override
-  void didChangeSelectables() {
-    _reconcile();
-    if (_changePending) return;
-    _changePending = true;
-    scheduleMicrotask(() {
-      _changePending = false;
-      if (_disposed) return;
-      // The base delegate reapplies both edges to newly built items. Update
-      // its cached positions without clearing children while they are
-      // registering.
-      _refreshEdgeLocations();
-      super.didChangeSelectables();
-      _rememberEndText();
-      _checkList();
-    });
-  }
-
-  bool _changePending = false;
-  bool _disposed = false;
-
-  /// Lists each piece of registered text once, and nothing else.
-  ///
-  /// Flutter merges the text added in a frame into the list in a loop that
-  /// also brings what it merges up to date with the selection; text that
-  /// goes meanwhile (a code block's scroll view, whose content changes as
-  /// it streams) is taken off what is to be merged, not off the list it is
-  /// merged into, and stays there: unregistered, disposed, still sent the
-  /// selection's events (which throw, and leave the selection half done:
-  /// a drag then selects nothing). Text added in that loop is dropped the
-  /// same way. Called after each merge.
-  void _reconcile() {
-    final listed = <Selectable>{};
-    for (final selectable in [...selectables]) {
-      if (!_items.containsKey(selectable) || !listed.add(selectable)) {
-        remove(selectable);
-      }
-    }
-    for (final selectable in _items.keys) {
-      // Waiting to be merged, or lost: add takes either once.
-      if (!listed.contains(selectable)) add(selectable);
-    }
-  }
-
-  @override
-  void dispose() {
-    _disposed = true;
-    super.dispose();
-  }
-
-  void reapplyDragEnd() {
-    final end = _dragEnd;
-    if (end == null) return;
-    dispatchSelectionEvent(
-      SelectionEdgeUpdateEvent.forEnd(
-        globalPosition: end.globalPosition,
-        granularity: end.granularity,
-      ),
-    );
-  }
-
-  void endDrag() {
-    _dragEnd = null;
-    _following = false;
-    _endSeen = false;
-  }
-
-  /// [count] items came in before all the others (earlier history): the
-  /// selection's ends are in the items [count] on.
-  void shiftItems(int count) {
-    _SelectionEdge? shifted(_SelectionEdge? edge) => edge == null
-        ? null
-        : (
-            point: (index: edge.point.index + count, local: edge.point.local),
-            granularity: edge.granularity,
-          );
-    _start = shifted(_start);
-    _end = shifted(_end);
-    final text = {
-      for (final MapEntry(:key, :value) in _endText.entries) key + count: value,
-    };
-    _endText
-      ..clear()
-      ..addAll(text);
-  }
-
-  // --- Copy ----------------------------------------------------------------
-
-  /// The selected text of item [index] as shown, or null if not built.
-  /// Text blocks on the same row are joined by a space, rows by a newline.
-  String? _builtText(int index) {
-    String? text;
-    Rect? previous;
-    for (final selectable in selectables) {
-      if (_itemOf(selectable) != index) continue;
-      text ??= '';
-      final content = selectable.getSelectedContent()?.plainText ?? '';
-      if (content.isEmpty) continue;
-      final transform = selectable.getTransformTo(null);
-      final box = selectable.boundingBoxes
-          .map((rect) => MatrixUtils.transformRect(transform, rect))
-          .fold<Rect?>(null, (all, rect) => all?.expandToInclude(rect) ?? rect);
-      if (text.isNotEmpty) {
-        final sameRow =
-            previous != null &&
-            box != null &&
-            box.top < previous.bottom - 1 &&
-            previous.top < box.bottom - 1;
-        final spaced =
-            text.endsWith(' ') ||
-            text.endsWith('\n') ||
-            content.startsWith(' ');
-        text += !sameRow ? '\n' : (spaced ? '' : ' ');
-      }
-      text += content;
-      previous = box;
-    }
-    return text;
-  }
-
-  void _rememberEndText() {
-    final ends = {?_start?.point.index, ?_end?.point.index};
-    _endText.removeWhere((index, _) => !ends.contains(index));
-    for (final index in ends) {
-      if (_builtText(index) case final text?) _endText[index] = text;
-    }
-  }
-
-  @override
-  SelectedContent? getSelectedContent() {
-    final start = _start?.point.index;
-    final end = _end?.point.index;
-    if (start == null || end == null) return super.getSelectedContent();
-    final first = start < end ? start : end;
-    final last = start < end ? end : start;
-    final buffer = StringBuffer();
-    void write(String? text) {
-      if (text == null || text.isEmpty) return;
-      if (buffer.isNotEmpty) buffer.write('\n');
-      buffer.write(text);
-    }
-
-    // All of it: an end not built is its whole item.
-    String? whole(int index) => _all ? plainTextOf(index) : null;
-    write(_builtText(first) ?? _endText[first] ?? whole(first));
-    if (last != first) {
-      for (var index = first + 1; index < last; index++) {
-        write(plainTextOf(index));
-      }
-      write(_builtText(last) ?? _endText[last] ?? whole(last));
-    }
-    return buffer.isEmpty
-        ? null
-        : SelectedContent(plainText: buffer.toString());
-  }
-}
-
 /// Paints [child] at the offset [top] gives, read at paint time: after
 /// layout, so it tracks a widget elsewhere in the tree in the same frame.
 /// Paints nothing when [top] is null. [repaint] says when it may change.
@@ -4214,9 +3852,7 @@ class _AppearState extends State<_Appear> with SingleTickerProviderStateMixin {
             top: top,
             left: 0,
             right: 0,
-            child: IgnorePointer(
-              child: SelectionContainer.disabled(child: row),
-            ),
+            child: IgnorePointer(child: ChatUnselectable(child: row)),
           ),
       ],
     );
@@ -4227,9 +3863,17 @@ class _AppearState extends State<_Appear> with SingleTickerProviderStateMixin {
 /// over a moment rather than at once; any other change at once. Moving
 /// already, it takes a new height in its stride.
 class _HeightMotion extends StatefulWidget {
-  const _HeightMotion({required this.motion, required this.child});
+  const _HeightMotion({
+    required this.motion,
+    this.fromNothing = false,
+    required this.child,
+  });
 
   final int motion;
+
+  /// New, it grows from no height (with [motion] changed, as it would
+  /// have, had it been there).
+  final bool fromNothing;
   final Widget child;
 
   @override
@@ -4253,6 +3897,7 @@ class _HeightMotionState extends State<_HeightMotion>
   @override
   Widget build(BuildContext context) => _HeightMotionBox(
     motion: widget.motion,
+    fromNothing: widget.fromNothing,
     progress: _progress,
     onStart: () {
       if (mounted) _progress.forward(from: 0);
@@ -4264,18 +3909,25 @@ class _HeightMotionState extends State<_HeightMotion>
 class _HeightMotionBox extends SingleChildRenderObjectWidget {
   const _HeightMotionBox({
     required this.motion,
+    required this.fromNothing,
     required this.progress,
     required this.onStart,
     super.child,
   });
 
   final int motion;
+  final bool fromNothing;
   final Animation<double> progress;
   final VoidCallback onStart;
 
   @override
   _RenderHeightMotion createRenderObject(BuildContext context) =>
-      _RenderHeightMotion(motion, progress, onStart: onStart);
+      _RenderHeightMotion(
+        motion,
+        progress,
+        onStart: onStart,
+        fromNothing: fromNothing,
+      );
 
   @override
   void updateRenderObject(
@@ -4290,7 +3942,17 @@ class _HeightMotionBox extends SingleChildRenderObjectWidget {
 }
 
 class _RenderHeightMotion extends RenderProxyBox {
-  _RenderHeightMotion(this._motion, this._progress, {required this.onStart});
+  _RenderHeightMotion(
+    this._motion,
+    this._progress, {
+    required this.onStart,
+    bool fromNothing = false,
+  }) {
+    if (fromNothing) {
+      _from = _to = 0;
+      _armed = true;
+    }
+  }
 
   VoidCallback onStart;
 
@@ -4388,11 +4050,21 @@ class _RenderHeightMotion extends RenderProxyBox {
     _clip.layer = context.pushClipRect(
       needsCompositing,
       offset,
-      Rect.fromLTRB(-80, -80, size.width + 80, size.height),
+      _clipRect,
       super.paint,
       oldLayer: _clip.layer,
     );
   }
+
+  Rect get _clipRect => Rect.fromLTRB(-80, -80, size.width + 80, size.height);
+
+  // What is cut off does not show: not a place to select in (see
+  // RenderChatSelectionItem.positionAt), nor where floating elements show.
+  @override
+  Rect? describeApproximatePaintClip(RenderObject child) =>
+      this.child != null && size.height < this.child!.size.height
+      ? _clipRect
+      : null;
 }
 
 /// [child], [onLayout] called with it before it is laid out (once what is

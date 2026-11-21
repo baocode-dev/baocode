@@ -38,10 +38,11 @@ class BotToolAccess {
       (!assistant || bot.assistant) && (ability == null || bot.can(ability!));
 }
 
-/// The bots' tools (`mcp__baocode__bot_*`): the user's agents seen,
-/// managed, written to and started; the projects' files read; what the bot
-/// remembers kept. Each for the bots with its ability on (see
-/// [Bots.offersTool]); none for the agents of projects.
+/// The bots' tools (`mcp__baocode__bot_*`): the user's agents retried and
+/// archived (seen, written to and started with the session tools, as a
+/// project's agent does them); what the bot remembers kept. Each for the
+/// bots with its ability on (see [Bots.offersTool]); none for the agents
+/// of projects.
 abstract final class BotTools {
   static final Map<String, BotToolAccess> _access = {};
 
@@ -92,17 +93,9 @@ abstract final class BotTools {
     AgentThread chat(Map<String, Object?> input) {
       final id = input['chat'];
       for (final thread in chats()) {
-        if (idOf(thread) == id) return thread;
+        if (idOf(thread) == id || thread.id == id) return thread;
       }
-      throw StateError('No chat $id. List them with bot_list_chats.');
-    }
-
-    Project project(Map<String, Object?> input) {
-      final id = input['project'];
-      for (final project in workspace.sidebarProjects) {
-        if (project.path == id || project.name == id) return project;
-      }
-      throw StateError('No project $id. List them with bot_list_projects.');
+      throw StateError('No chat $id. List them with session_list.');
     }
 
     String text(Map<String, Object?> input, String key) {
@@ -136,7 +129,7 @@ abstract final class BotTools {
 
     const chatId = {
       'type': 'string',
-      'description': 'The conversation\'s id, as bot_list_chats gives it.',
+      'description': 'The conversation\'s id, as session_list gives it.',
     };
     String titled(Map<String, Object?> input, String? _) {
       try {
@@ -344,102 +337,6 @@ abstract final class BotTools {
       ),
       (
         tool(
-          'bot_list_chats',
-          "Lists the user's agent conversations, latest first: id, project, "
-              'title, status (waiting = asks the user; running; failed; '
-              'idle) and when it last moved.',
-          {
-            'status': {
-              'type': 'string',
-              'enum': ['all', 'waiting', 'running', 'failed', 'idle'],
-            },
-            'project': {
-              'type': 'string',
-              'description': 'Only this project\'s (name or id).',
-            },
-            'limit': {'type': 'integer', 'description': 'At most; 20 if none.'},
-          },
-          (input, call) async {
-            final status = input['status'] as String? ?? 'all';
-            final only = input['project'] as String?;
-            final limit = (input['limit'] as num?)?.toInt() ?? 20;
-            final lines = [
-              for (final thread in chats())
-                if ((only == null ||
-                        thread.project.name == only ||
-                        thread.project.path == only) &&
-                    (status == 'all' || statusOf(thread) == status))
-                  '${idOf(thread)} | ${thread.project.name} | ${thread.title}'
-                      ' | ${statusOf(thread)} | ${ago(thread.updatedAt)}',
-            ];
-            if (lines.isEmpty) return 'None.';
-            return lines.take(limit.clamp(1, 100)).join('\n');
-          },
-        ),
-        _agents,
-      ),
-      (
-        tool(
-          'bot_read_chat',
-          "What was said lately in one of the user's agent conversations: "
-              'the user\'s messages, the agent\'s replies, its steps in short.',
-          {
-            'chat': chatId,
-            'count': {
-              'type': 'integer',
-              'description': 'How many of the last items; 12 if none.',
-            },
-          },
-          (input, call) async {
-            final thread = chat(input);
-            final session = thread.session;
-            for (var i = 0; i < 50 && session.loadingHistory; i++) {
-              await Future<void>.delayed(const Duration(milliseconds: 100));
-            }
-            final count = ((input['count'] as num?)?.toInt() ?? 12).clamp(
-              1,
-              60,
-            );
-            final lines = <String>[];
-            for (
-              var i = session.itemCount - 1;
-              i >= 0 && lines.length < count;
-              i--
-            ) {
-              if (lineOf(session.itemAt(i)) case final line?) {
-                lines.add(line);
-              }
-            }
-            return [
-              '"${thread.title}" in ${thread.project.name}, ${statusOf(thread)}:',
-              ...lines.reversed,
-            ].join('\n');
-          },
-          required: ['chat'],
-          summary: titled,
-        ),
-        _agents,
-      ),
-      (
-        tool(
-          'bot_stop_chat',
-          'Stops the turn an agent is working on.',
-          {'chat': chatId},
-          (input, call) async {
-            final thread = chat(input);
-            if (!thread.isOpen || !thread.session.isStreaming) {
-              return 'It is not working on anything.';
-            }
-            thread.session.stop();
-            return 'Stopped.';
-          },
-          required: ['chat'],
-          summary: titled,
-        ),
-        _agents,
-      ),
-      (
-        tool(
           'bot_retry_chat',
           'Has an agent that stopped (on an error, say) try again.',
           {'chat': chatId},
@@ -467,61 +364,6 @@ abstract final class BotTools {
           },
           required: ['chat'],
           summary: titled,
-        ),
-        _agents,
-      ),
-      (
-        tool(
-          'bot_send_to_chat',
-          'Writes to an agent, as the user\'s message: only what the user '
-              'asked you to tell it.',
-          {
-            'chat': chatId,
-            'text': {'type': 'string'},
-          },
-          (input, call) async {
-            final session = chat(input).session;
-            if (!session.canSend) return 'It is busy; try later.';
-            session.send(ComposerMessage(text: text(input, 'text')));
-            // Told what comes of it.
-            bots.watch(botOf(call), chat(input));
-            return 'Sent.';
-          },
-          required: ['chat', 'text'],
-          summary: titled,
-        ),
-        _agents,
-      ),
-      (
-        tool(
-          'bot_list_projects',
-          "Lists the user's projects: name and id.",
-          const {},
-          (input, call) async => [
-            for (final project in workspace.sidebarProjects)
-              '${project.name} | ${project.path}',
-          ].join('\n'),
-        ),
-        _agents,
-      ),
-      (
-        tool(
-          'bot_new_chat',
-          'Starts a new agent in a project, with the user\'s request as its '
-              'first message. Returns its id.',
-          {
-            'project': {'type': 'string', 'description': 'Its name or id.'},
-            'text': {'type': 'string'},
-          },
-          (input, call) async {
-            final thread = workspace.startAgent(project(input));
-            thread.session.send(ComposerMessage(text: text(input, 'text')));
-            bots.watch(botOf(call), thread);
-            return 'Started: ${idOf(thread)}. You will be told when it is '
-                'done or needs the user.';
-          },
-          required: ['project', 'text'],
-          summary: (input, _) => '${input['project'] ?? ''}',
         ),
         _agents,
       ),
@@ -1291,13 +1133,13 @@ abstract final class BotTools {
   }
 
   /// [item] in a line or so, for the bot to read; null for what is not
-  /// worth it.
-  static String? lineOf(ChatItem item) => switch (item) {
+  /// worth it. Messages and replies clipped at [max].
+  static String? lineOf(ChatItem item, {int max = 600}) => switch (item) {
     UserMessageItem(:final text, fromAgent: final agent?) =>
-      'Subagent "$agent": ${_clip(text)}',
-    UserMessageItem(:final text) => 'User: ${_clip(text)}',
+      'From "$agent": ${_clip(text, max)}',
+    UserMessageItem(:final text) => 'User: ${_clip(text, max)}',
     AssistantTextItem(:final text) when text.trim().isNotEmpty =>
-      'Agent: ${_clip(text)}',
+      'Agent: ${_clip(text, max)}',
     ToolCallItem(:final kind, :final target) =>
       '[${kind.name}${target.isEmpty ? '' : ' ${_clip(target, 80)}'}]',
     TerminalItem(:final command, :final status) =>

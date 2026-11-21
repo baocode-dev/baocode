@@ -147,14 +147,7 @@ TextSpan _messageSpan(
 }
 
 class _UserMessageBubbleState extends State<UserMessageBubble> {
-  final _selection = _MessageSelectionDelegate();
   Offset? _pressedAt;
-
-  @override
-  void dispose() {
-    _selection.dispose();
-    super.dispose();
-  }
 
   /// The press went to an image or a tag (which opens it whole instead).
   /// It hears the press first, being deeper (see [PreviewPressScope]).
@@ -176,8 +169,11 @@ class _UserMessageBubbleState extends State<UserMessageBubble> {
     final pressedAt = _pressedAt;
     _pressedAt = null;
     if (pressedAt == null) return;
-    // A click, not the end of a drag selection.
-    if ((event.position - pressedAt).distance <= kTouchSlop) {
+    // A click, not the end of a drag selection: a mouse's drag of a few
+    // points selects (a character or two), and the editor or viewer that
+    // a click opens would take the focus, and the copy, from it.
+    final slop = event.kind == PointerDeviceKind.mouse ? 4.0 : kTouchSlop;
+    if ((event.position - pressedAt).distance <= slop) {
       widget.onEdit?.call();
     }
   }
@@ -237,21 +233,18 @@ class _UserMessageBubbleState extends State<UserMessageBubble> {
                   borderRadius: BorderRadius.circular(UserMessageBubble.radius),
                   border: Border.all(color: AppColors.bubbleBorder()),
                 ),
-          child: SelectionContainer(
-            delegate: _selection,
-            child: _Collapsed(
-              shrinkWrap: fitted,
-              collapsedHeight: _lineHeight * _collapsedLines,
-              // All of it while it holds the find's match at hand, which
-              // may be in the lines it hides.
-              collapseAbove: ChatFindRow.holdsCurrent(context)
-                  ? double.infinity
-                  : _lineHeight * (_collapsedLines + 1),
-              content: InlineCodeText(
-                _messageSpan(widget.text, vocabulary, widget.images),
-              ),
-              overlay: const _CollapsedOverlay(),
+          child: _Collapsed(
+            shrinkWrap: fitted,
+            collapsedHeight: _lineHeight * _collapsedLines,
+            // All of it while it holds the find's match at hand, which may
+            // be in the lines it hides.
+            collapseAbove: ChatFindRow.holdsCurrent(context)
+                ? double.infinity
+                : _lineHeight * (_collapsedLines + 1),
+            content: InlineCodeText(
+              _messageSpan(widget.text, vocabulary, widget.images),
             ),
+            overlay: const _CollapsedOverlay(),
           ),
         ),
       ),
@@ -428,162 +421,6 @@ class _CollapsedOverlay extends StatelessWidget {
           color: AppColors.textMuted,
         ),
       ),
-    );
-  }
-}
-
-/// The full message stays laid out for copying, but only its shown part
-/// receives pointer selection. Paint clips do not clip selection events.
-class _MessageSelectionDelegate extends SelectionContainerDelegate
-    with ChangeNotifier {
-  // Text.rich owns the fragment and inline-tag selection beneath this boundary.
-  Selectable? _text;
-
-  /// Text built anew comes in before the text it replaces goes (that goes
-  /// once the frame is built): the newer one stays.
-  @override
-  void add(Selectable selectable) {
-    _text?.removeListener(notifyListeners);
-    _text = selectable;
-    selectable.addListener(notifyListeners);
-    notifyListeners();
-  }
-
-  @override
-  void remove(Selectable selectable) {
-    selectable.removeListener(notifyListeners);
-    if (selectable != _text) return;
-    _text = null;
-    notifyListeners();
-  }
-
-  @override
-  int get contentLength => _text?.contentLength ?? 0;
-
-  @override
-  SelectedContent? getSelectedContent() => _text?.getSelectedContent();
-
-  @override
-  SelectedContentRange? getSelection() => _text?.getSelection();
-
-  @override
-  void pushHandleLayers(LayerLink? startHandle, LayerLink? endHandle) =>
-      _text?.pushHandleLayers(startHandle, endHandle);
-
-  @override
-  void dispose() {
-    _text?.removeListener(notifyListeners);
-    super.dispose();
-  }
-
-  SelectionResult _resultAt(Offset globalPosition) {
-    final transform = getTransformTo(null)..invert();
-    return SelectionUtils.getResultBasedOnRect(
-      Offset.zero & containerSize,
-      MatrixUtils.transformPoint(transform, globalPosition),
-    );
-  }
-
-  /// Move an outside edge past all the text, not merely past the clip: this
-  /// clears a selection on the same side and includes the full message when
-  /// a selection crosses it on its way to another item.
-  Offset _outsideText(SelectionResult result, Offset globalPosition) {
-    var bounds = Offset.zero & containerSize;
-    if (_text case final text?) {
-      final transform = getTransformFrom(text);
-      for (final rect in text.boundingBoxes) {
-        bounds = bounds.expandToInclude(
-          MatrixUtils.transformRect(transform, rect),
-        );
-      }
-    }
-    final inverse = getTransformTo(null)..invert();
-    if (SelectionUtils.getResultBasedOnRect(
-          bounds,
-          MatrixUtils.transformPoint(inverse, globalPosition),
-        ) ==
-        result) {
-      return globalPosition;
-    }
-    final local = result == SelectionResult.previous
-        ? bounds.topLeft - const Offset(0, 1)
-        : bounds.bottomRight + const Offset(0, 1);
-    return MatrixUtils.transformPoint(getTransformTo(null), local);
-  }
-
-  @override
-  SelectionResult dispatchSelectionEvent(SelectionEvent event) {
-    final text = _text;
-    if (text == null) return SelectionResult.none;
-    switch (event) {
-      case SelectionEdgeUpdateEvent():
-        final result = _resultAt(event.globalPosition);
-        if (result == SelectionResult.end) {
-          return text.dispatchSelectionEvent(event);
-        }
-        final position = _outsideText(result, event.globalPosition);
-        text.dispatchSelectionEvent(
-          event.type == SelectionEventType.startEdgeUpdate
-              ? SelectionEdgeUpdateEvent.forStart(
-                  globalPosition: position,
-                  granularity: event.granularity,
-                )
-              : SelectionEdgeUpdateEvent.forEnd(
-                  globalPosition: position,
-                  granularity: event.granularity,
-                ),
-        );
-        return result;
-      case SelectParagraphSelectionEvent(absorb: true):
-        return text.dispatchSelectionEvent(event);
-      case SelectWordSelectionEvent(:final globalPosition) ||
-          SelectParagraphSelectionEvent(:final globalPosition):
-        final result = _resultAt(globalPosition);
-        if (result == SelectionResult.end) {
-          return text.dispatchSelectionEvent(event);
-        }
-        text.dispatchSelectionEvent(const ClearSelectionEvent());
-        return result;
-      default:
-        return text.dispatchSelectionEvent(event);
-    }
-  }
-
-  @override
-  SelectionGeometry get value {
-    final text = _text;
-    if (text == null) {
-      return const SelectionGeometry(
-        status: SelectionStatus.none,
-        hasContent: false,
-      );
-    }
-    final geometry = text.value;
-    if (!hasSize) return geometry;
-    final bounds = Offset.zero & containerSize;
-    final transform = getTransformFrom(text);
-    SelectionPoint? visible(SelectionPoint? point) {
-      if (point == null) return null;
-      final local = MatrixUtils.transformPoint(transform, point.localPosition);
-      if (!bounds.inflate(0.5).contains(local)) return null;
-      return SelectionPoint(
-        localPosition: local,
-        lineHeight: point.lineHeight,
-        handleType: point.handleType,
-      );
-    }
-
-    return SelectionGeometry(
-      startSelectionPoint: visible(geometry.startSelectionPoint),
-      endSelectionPoint: visible(geometry.endSelectionPoint),
-      selectionRects: [
-        for (final rect in geometry.selectionRects)
-          if (bounds.intersect(MatrixUtils.transformRect(transform, rect))
-              case final clipped when !clipped.isEmpty && clipped.isFinite)
-            clipped,
-      ],
-      status: geometry.status,
-      hasContent: geometry.hasContent,
     );
   }
 }

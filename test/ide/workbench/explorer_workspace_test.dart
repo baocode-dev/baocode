@@ -262,7 +262,10 @@ void main() {
     );
     addTearDown(index.dispose);
     await index.refresh();
-    expect(index.relativePaths, ['api/main.go', 'site/index.html']);
+    expect(index.bestFor('', limit: 10)!, [
+      (path: '/w/api/main.go', relative: 'api/main.go'),
+      (path: '/w/site/index.html', relative: 'site/index.html'),
+    ]);
   });
 }
 

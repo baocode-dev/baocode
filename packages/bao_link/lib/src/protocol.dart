@@ -93,6 +93,11 @@ abstract final class LinkMethods {
   /// mode, an effort or a context size (see [LinkChoice]).
   static const choose = 'choose';
 
+  /// `{"session"}`: the quota of the session's model's accounts asked
+  /// again ([LinkSessionUpdate.quota]); answered once it came, the update
+  /// following.
+  static const quota = 'quota';
+
   /// `{"session", "title"}`.
   static const rename = 'rename';
 
@@ -844,6 +849,7 @@ class LinkSessionUpdate {
     this.earlier,
     this.goal,
     this.context,
+    this.quota,
   });
 
   factory LinkSessionUpdate.fromJson(Map<String, Object?> json) =>
@@ -875,6 +881,10 @@ class LinkSessionUpdate {
           _ => null,
         },
         context: switch (json['context']) {
+          final Map<String, Object?> map => map,
+          _ => null,
+        },
+        quota: switch (json['quota']) {
           final Map<String, Object?> map => map,
           _ => null,
         },
@@ -920,6 +930,14 @@ class LinkSessionUpdate {
   /// compacted, in tokens.
   final Map<String, Object?>? context;
 
+  /// How much quota is left, on a model of ChatGPT accounts: `{"provider",
+  /// "back"?, "accounts": [{"name", "plan"?, "current"?, "off"?, "until"?,
+  /// "error"?, "at"?, "windows": [{"minutes"?, "left", "resets"?}]}]}`.
+  /// `back` is when the first of them can be used again, when none can
+  /// now; an account's `until`, when it can; `at`, when its quota was
+  /// learned; `left`, a percentage. Times in milliseconds since the epoch.
+  final Map<String, Object?>? quota;
+
   Map<String, Object?> toJson() => {
     'session': session,
     'start': start,
@@ -933,6 +951,7 @@ class LinkSessionUpdate {
     'earlier': ?earlier,
     'goal': ?goal,
     'context': ?context,
+    'quota': ?quota,
   };
 }
 

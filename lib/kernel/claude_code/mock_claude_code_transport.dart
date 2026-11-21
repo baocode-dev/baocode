@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import '../../chat/reply_suggestions.dart';
 import '../mock/mock_script.dart';
 import 'claude_code_translator.dart';
 import 'claude_code_transport.dart';
@@ -603,9 +604,6 @@ class MockClaudeCodeTransport implements ClaudeCodeTransport {
         },
       },
     });
-    if (!error) {
-      _emit({'type': 'prompt_suggestion', 'suggestion': 'Run the tests'});
-    }
   }
 
   Future<void> _script(Object run, String prompt) async {
@@ -735,7 +733,12 @@ class MockClaudeCodeTransport implements ClaudeCodeTransport {
       'is_backgrounded': true,
     });
     if (!await _wait(run, 300)) return;
-    if (!await _text(run, MockScript.summary)) return;
+    if (!await _text(
+      run,
+      ReplySuggestions.write(MockScript.summary, MockScript.suggestions),
+    )) {
+      return;
+    }
     _finish(run);
 
     // The background command outlives the turn.

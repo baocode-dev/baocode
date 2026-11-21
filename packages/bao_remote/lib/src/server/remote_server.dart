@@ -8,6 +8,7 @@ import '../claude/claude_environment.dart';
 import '../claude/claude_sessions.dart';
 import '../claude/claude_settings_file.dart';
 import '../claude/claude_release.dart';
+import '../files/browse.dart';
 import '../files/ide_file.dart';
 import '../files/local_files.dart';
 import '../files/recursive_watch.dart';
@@ -221,6 +222,15 @@ class RemoteServer {
         return const <String>[];
       }
     };
+    handlers[RemoteProtocol.fsRoots] = (_, _) => [
+      for (final root in browseRoots()) root.toJson(),
+    ];
+    handlers[RemoteProtocol.fsBrowse] = (params, _) async => [
+      for (final entry in await browseDirectory(
+        paramsOf(params)['path'] as String,
+      ))
+        entry.toJson(),
+    ];
     handlers[RemoteProtocol.fsRealPath] = (params, _) async {
       final path = AppPaths.expandHome(paramsOf(params)['path'] as String);
       final absolute = p.normalize(p.absolute(path));

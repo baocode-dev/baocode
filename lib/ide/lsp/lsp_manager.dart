@@ -52,6 +52,14 @@ class _Server {
   /// Bumped to abandon a start or restart under way.
   int generation = 0;
   String? message;
+  String? statusProgress;
+  String? runtimeError;
+  LanguageServerSeverity? runtimeSeverity;
+  final projectErrors = <String, String>{};
+
+  /// The messages told the user since it started, each told once.
+  final notified = <String>{};
+  List<String> lastLog = const [];
   String? package;
   bool installable = false;
   String? missingRuntime;
@@ -68,9 +76,10 @@ class _Server {
 /// restarts them when they crash.
 ///
 /// Workspace folders are the nearest ancestor of a document holding one of
-/// the server's (else the language's) root markers, searched up to
-/// [root]; [root] itself when there is none, unless the server requires
-/// one.
+/// the server's (else the language's) root markers, searched up to [root];
+/// the outermost within [root] when the markers are a JVM build's
+/// ([_moduleBuildMarkers]); [root] itself when there is none, unless the
+/// server requires one.
 ///
 /// Hand it to the workspace, which then drives it and shuts it down:
 /// `IdeWorkspace(root, languages: LspManager(root, catalog, provider))`.
@@ -153,6 +162,7 @@ class LspManager extends ChangeNotifier
   /// Diagnostics by document path, then by server.
   final _diagnostics = <String, Map<_Server, List<LspDiagnostic>>>{};
   final _edits = StreamController<LspApplyEditRequest>.broadcast();
+  final _serverMessages = StreamController<LspServerMessage>.broadcast();
   final _progressChanges = ValueNotifier(0);
   final _installs = <String, Future<void>>{};
   StreamSubscription<LspFileEvent>? _watch;
@@ -307,52 +317,100 @@ class LspManager extends ChangeNotifier
 
   /// The workspace folder of [path] for [definition]; later where the
   /// markers are looked for on another machine.
+  ///
+  /// The nearest ancestor with a root marker, but for a JVM build's markers
+  /// inside [root]: the outermost there, so a Maven or Gradle build's modules
+  /// share the one server that imports the whole build (a module's own
+  /// pom.xml would start one per module, each importing it alone). Other
+  /// languages keep the nearest: a crate or Go module in a subfolder of
+  /// another, not a member of it, is a project of its own.
   FutureOr<String?> _workspaceFolder(
     String path,
     LspServerDefinition definition,
     LspLanguage language,
   ) {
-    final paths = _paths;
     final markers = definition.rootMarkers.isNotEmpty
         ? definition.rootMarkers
         : language.rootMarkers;
-    final inside = paths.isWithin(root, path);
+    final inside = _paths.isWithin(root, path);
     if (markers.isNotEmpty) {
-      var dir = paths.dirname(path);
-      while (true) {
-        for (final marker in markers) {
-          final found = _hasMarker(dir, marker);
+      final outermost = inside && markers.any(_moduleBuildMarkers.contains);
+      final dirs = _ancestorDirs(path, inside: inside, outermost: outermost);
+      for (var i = 0; i < dirs.length; i++) {
+        final dir = dirs[i];
+        for (var j = 0; j < markers.length; j++) {
+          final found = _hasMarker(dir, markers[j]);
           if (found is Future<bool>) {
-            return _workspaceFolderLater(path, definition, markers, inside);
+            return _workspaceFolderLater(
+              path,
+              definition,
+              dirs,
+              markers,
+              inside: inside,
+              dirIndex: i,
+              markerIndex: j,
+              pending: found,
+            );
           }
           if (found) return dir;
         }
-        if (inside && paths.equals(dir, root)) break;
-        final parent = paths.dirname(dir);
-        if (parent == dir) break;
-        dir = parent;
       }
     }
     return _noMarker(path, definition, inside: inside);
+  }
+
+  /// Build files whose modules are imported by the build at the top: Maven's
+  /// and Gradle's, sbt's and Mill's.
+  static const _moduleBuildMarkers = {
+    'pom.xml',
+    'settings.gradle',
+    'settings.gradle.kts',
+    'build.gradle',
+    'build.gradle.kts',
+    'build.sbt',
+    'build.sc',
+  };
+
+  /// Ancestor directories of [path] to search for root markers, up to [root]
+  /// when [inside]: nearest first, or from [root] down when [outermost].
+  List<String> _ancestorDirs(
+    String path, {
+    required bool inside,
+    required bool outermost,
+  }) {
+    final paths = _paths;
+    final dirs = <String>[];
+    var dir = paths.dirname(path);
+    while (true) {
+      dirs.add(dir);
+      if (inside && paths.equals(dir, root)) break;
+      final parent = paths.dirname(dir);
+      if (parent == dir) break;
+      dir = parent;
+    }
+    return outermost ? dirs.reversed.toList() : dirs;
   }
 
   /// [_workspaceFolder], waiting for each marker's answer.
   Future<String?> _workspaceFolderLater(
     String path,
     LspServerDefinition definition,
-    List<String> markers,
-    bool inside,
-  ) async {
-    final paths = _paths;
-    var dir = paths.dirname(path);
-    while (true) {
+    List<String> dirs,
+    List<String> markers, {
+    required bool inside,
+    required int dirIndex,
+    required int markerIndex,
+    required Future<bool> pending,
+  }) async {
+    if (await pending) return dirs[dirIndex];
+    for (var j = markerIndex + 1; j < markers.length; j++) {
+      if (await _hasMarker(dirs[dirIndex], markers[j])) return dirs[dirIndex];
+    }
+    for (var i = dirIndex + 1; i < dirs.length; i++) {
+      final dir = dirs[i];
       for (final marker in markers) {
         if (await _hasMarker(dir, marker)) return dir;
       }
-      if (inside && paths.equals(dir, root)) break;
-      final parent = paths.dirname(dir);
-      if (parent == dir) break;
-      dir = parent;
     }
     return _noMarker(path, definition, inside: inside);
   }
@@ -406,7 +464,13 @@ class LspManager extends ChangeNotifier
     server
       ..idleTimer?.cancel()
       ..state = LanguageServerState.starting
-      ..retryAt = null;
+      ..retryAt = null
+      ..statusProgress = null
+      ..runtimeError = null
+      ..runtimeSeverity = null
+      ..projectErrors.clear()
+      ..notified.clear()
+      ..lastLog = const [];
     _notify();
     LspClient? client;
     try {
@@ -456,12 +520,16 @@ class LspManager extends ChangeNotifier
             _progressChanges.value++;
           }
         },
+        onMessage: (type, message) =>
+            _clientMessage(server, started, type, message),
         onApplyEdit: _applyEdit,
         onExit: (code, {required crashed}) =>
             _exited(server, started, code, crashed: crashed),
         notifications: {
           'tsserver/request': (params) =>
               _tsserverRequests(server, started, params),
+          'language/status': (params) =>
+              _languageStatus(server, started, params),
         },
       );
       server.client = started;
@@ -487,6 +555,7 @@ class LspManager extends ChangeNotifier
         ..state = LanguageServerState.failed
         ..message = _describe(error, client);
       if (client != null) {
+        server.lastLog = client.log;
         server.client = null;
         client.kill();
       }
@@ -643,7 +712,14 @@ class LspManager extends ChangeNotifier
       _notify();
       return;
     }
-    server.client = null;
+    server
+      ..lastLog = client.log
+      ..client = null
+      ..statusProgress = null
+      ..runtimeError = null
+      ..runtimeSeverity = null
+      ..projectErrors.clear()
+      ..notified.clear();
     _updateWatching();
     if (_shutDown) return;
     if (!crashed) {
@@ -747,6 +823,9 @@ class LspManager extends ChangeNotifier
         ..crashes.clear()
         ..retryAt = null
         ..message = null
+        ..statusProgress = null
+        ..runtimeError = null
+        ..runtimeSeverity = null
         ..state = LanguageServerState.idle;
       if (server.documents.isNotEmpty) unawaited(_ensure(server));
     }
@@ -879,6 +958,7 @@ class LspManager extends ChangeNotifier
     unawaited(shutdown());
     _disposed = true;
     unawaited(_edits.close());
+    unawaited(_serverMessages.close());
     _progressChanges.dispose();
     super.dispose();
   }
@@ -889,6 +969,84 @@ class LspManager extends ChangeNotifier
     if (!identical(server.client, client)) return;
     _updateWatching();
     _notify();
+  }
+
+  static String _notifiedKey(LspMessageType type, String message) =>
+      '${type.name}\u0000$message';
+
+  void _clientMessage(
+    _Server server,
+    LspClient client,
+    LspMessageType type,
+    String message,
+  ) {
+    if (!identical(server.client, client) || _disposed) return;
+    if (type != LspMessageType.error && type != LspMessageType.warning) {
+      return;
+    }
+    _emitServerMessage(server, type, message);
+  }
+
+  /// Handles JDTLS-style `language/status` notifications (`Starting`,
+  /// `Message`, `ServiceReady`, `Started`, `Error`, `Warning`).
+  void _languageStatus(_Server server, LspClient client, Object? params) {
+    if (!identical(server.client, client) || _disposed) return;
+    if (params is! Map) return;
+    final type = params['type'];
+    if (type is! String) return;
+    final rawMessage = params['message'];
+    final message = rawMessage is String ? rawMessage.trim() : '';
+    client.recordLog(
+      message.isEmpty ? '[status] $type' : '[status] $type: $message',
+    );
+    switch (type) {
+      case 'Starting' || 'Message':
+        final text = message.isNotEmpty
+            ? message
+            : (type == 'Starting' ? 'Starting…' : null);
+        if (text != null && server.statusProgress != text) {
+          server.statusProgress = text;
+          _progressChanges.value++;
+        }
+      case 'ServiceReady' || 'Started':
+        if (server.statusProgress != null) {
+          server.statusProgress = null;
+          _progressChanges.value++;
+        }
+      case 'Error':
+        final text = message.isNotEmpty ? message : 'Language server error';
+        final progressChanged = server.statusProgress != null;
+        server
+          ..statusProgress = null
+          ..runtimeError = text
+          ..runtimeSeverity = LanguageServerSeverity.error;
+        if (progressChanged) _progressChanges.value++;
+        _notify();
+        _emitServerMessage(server, LspMessageType.error, text);
+      case 'Warning':
+        if (message.isEmpty) return;
+        if (server.runtimeSeverity != LanguageServerSeverity.error) {
+          server
+            ..runtimeError = message
+            ..runtimeSeverity = LanguageServerSeverity.warning;
+          _notify();
+        }
+        _emitServerMessage(server, LspMessageType.warning, message);
+    }
+  }
+
+  void _emitServerMessage(_Server server, LspMessageType type, String message) {
+    if (_disposed || _shutDown || !_serverMessages.hasListener) return;
+    // Servers repeat themselves (each build, each save): once a run.
+    if (!server.notified.add(_notifiedKey(type, message))) return;
+    _serverMessages.add(
+      LspServerMessage(
+        serverId: server.id,
+        type: type,
+        message: message,
+        path: server.documents.firstOrNull?.path,
+      ),
+    );
   }
 
   void _publish(
@@ -909,7 +1067,51 @@ class LspManager extends ChangeNotifier
     } else {
       (_diagnostics[path] ??= {})[server] = diagnostics;
     }
+    _publishProjectError(server, client, path, diagnostics);
     _notify();
+  }
+
+  /// A failed Maven/Gradle model is often a build-file diagnostic rather
+  /// than a `language/status` error. Keep it visible while editing Java files,
+  /// without turning ordinary source errors into project-wide notifications.
+  void _publishProjectError(
+    _Server server,
+    LspClient client,
+    String path,
+    List<LspDiagnostic> diagnostics,
+  ) {
+    final name = _paths.basename(path);
+    if (!const {
+      'pom.xml',
+      'build.gradle',
+      'build.gradle.kts',
+      'settings.gradle',
+      'settings.gradle.kts',
+      '.project',
+      '.classpath',
+    }.contains(name)) {
+      return;
+    }
+    if (!server.documents.any((doc) => doc.language?.id == 'java')) return;
+    final previous = server.projectErrors[path];
+    final errors = diagnostics
+        .where((d) => d.severity == LspDiagnosticSeverity.error)
+        .map((d) => d.message.trim())
+        .where((message) => message.isNotEmpty)
+        .toSet();
+    if (errors.isEmpty) {
+      server.projectErrors.remove(path);
+      // Fixed: told again should it come back.
+      if (previous != null) {
+        server.notified.remove(_notifiedKey(LspMessageType.error, previous));
+      }
+      return;
+    }
+    final message = errors.join('\n');
+    server.projectErrors[path] = message;
+    if (previous == message) return;
+    client.recordLog('[project] $path: $message');
+    _emitServerMessage(server, LspMessageType.error, message);
   }
 
   void _clearDiagnostics(_Server server) {
@@ -1644,6 +1846,9 @@ class LspManager extends ChangeNotifier
   Stream<LspApplyEditRequest> get workspaceEdits => _edits.stream;
 
   @override
+  Stream<LspServerMessage> get serverMessages => _serverMessages.stream;
+
+  @override
   Listenable get progressChanges => _progressChanges;
 
   @override
@@ -1664,7 +1869,16 @@ class LspManager extends ChangeNotifier
             state: server.state,
             message: server.message,
             progress: server.state == LanguageServerState.running
-                ? server.client?.progress
+                ? (server.client?.progress ?? server.statusProgress)
+                : null,
+            error: server.state == LanguageServerState.running
+                ? (server.projectErrors.values.firstOrNull ??
+                      server.runtimeError)
+                : null,
+            severity: server.state == LanguageServerState.running
+                ? (server.projectErrors.isNotEmpty
+                      ? LanguageServerSeverity.error
+                      : server.runtimeSeverity)
                 : null,
             installable:
                 server.installable &&
@@ -1680,8 +1894,10 @@ class LspManager extends ChangeNotifier
 
   /// What a server attached to [path] (or any server named [serverId])
   /// logged and printed, newest last, for an output view.
+  @override
   List<String> logFor(String serverId, {String? path}) => [
-    for (final server in _serversNamed(serverId, path)) ...?server.client?.log,
+    for (final server in _serversNamed(serverId, path))
+      ...(server.client?.log ?? server.lastLog),
   ];
 
   /// The running client of [serverId] for [path] (or any), for tests and

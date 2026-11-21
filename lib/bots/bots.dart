@@ -40,7 +40,7 @@ typedef BotAvatarImage = ({Uint8List bytes, String type});
 /// sidebar does not list. Their tools are theirs ([ClaudeSdkGate]): those
 /// of the abilities the user turned on; and they write first of what
 /// happens to the agents, paced ([BotPacer]).
-class Bots extends ChangeNotifier implements ClaudeSdkGate {
+class Bots extends ChangeNotifier implements ClaudeSdkGate, SessionToolsBots {
   Bots({
     required this.workspace,
     BotFolders? folders,
@@ -120,8 +120,10 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
   /// The bots to start again once they stop answering: changed meanwhile.
   final Set<String> _restartWhenIdle = {};
 
-  /// The last turn end of each bot's the user has seen, by its id.
-  final Map<String, int> _seen = {};
+  /// Where the user has read each bot's chat to, by its id: the index then,
+  /// and how many items its history had put before the others by then
+  /// ([ChatSession.prependedCount]), which move it on.
+  final Map<String, (int, int)> _seen = {};
 
   /// How each agent stood when last looked at, to tell what changed.
   final Map<AgentThread, ThreadStatus> _statuses = {};
@@ -169,7 +171,7 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
     workspace.agentSetup = _setup;
     ClaudeSdkTools.gate = this;
     BotTools.register(this);
-    SessionTools.register(workspace);
+    SessionTools.register(workspace, bots: this);
     // The conversations kept from the last run listed first: else each
     // bot, finding none yet, would start another and go on in that.
     if (workspace.loading) await workspace.loaded;
@@ -535,6 +537,10 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
   bool offersTool(String cwd, String tool) {
     final ability = BotTools.abilityOf(tool);
     final bot = botAt(cwd);
+    // A project agent's as well, for one looking after the agents.
+    if (SessionTools.names.contains(tool)) {
+      return bot == null || bot.can(BotAbility.agents);
+    }
     if (bot == null) return ability == null;
     if (ability != null) return ability.allows(bot);
     // The app's other tools: pictures made; the browser's, if it may use
@@ -546,6 +552,38 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
     if (browser) return bot.can(BotAbility.browser);
     return !bot.chatOnly;
   }
+
+  // --- The session tools, a bot's ---------------------------------------------
+
+  @override
+  String? botNameAt(String cwd) => botAt(cwd)?.name;
+
+  @override
+  void handed(String cwd, AgentThread thread) {
+    if (botAt(cwd) case final bot?) watch(bot, thread);
+  }
+
+  @override
+  Set<AgentThread> handedBy(String cwd) => switch (botAt(cwd)) {
+    final bot? => {
+      for (final id in watching(bot)) ?SessionTools.threadOf(workspace, id),
+    },
+    null => const {},
+  };
+
+  @override
+  String toldOf(String cwd) => switch (botAt(cwd)) {
+    final bot? when bot.can(BotAbility.proactive) && _hasPhone =>
+      'You are told when it is done or needs the user, as your rules say '
+          '(bot_watch).',
+    _ => 'You are not told of it: look (session_read) when the user asks.',
+  };
+
+  /// The session tools, a bot's own as its bot_* are: never behind the
+  /// tool search, which one that only chats may not have.
+  @override
+  bool loadsTool(String cwd, String tool) =>
+      SessionTools.names.contains(tool) && botAt(cwd) != null;
 
   /// Not a bot's: there is no one at the computer to ask, its user on the
   /// phone.
@@ -649,8 +687,11 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
     final thread = threadOf(bot);
     if (thread == null || !thread.isOpen) return 0;
     final session = thread.session;
+    // Its history being read (as the app starts): none of it new.
+    if (session.loadingHistory) return 0;
     final count = session.itemCount;
-    final seen = (_seen[bot.id] ??= count).clamp(0, count);
+    final (at, before) = _seen[bot.id] ??= (count, session.prependedCount);
+    final seen = (at + session.prependedCount - before).clamp(0, count);
     final places = _places(session);
     var unread = 0;
     for (var i = seen; i < count; i++) {
@@ -663,7 +704,8 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
   void seen(Bot bot) {
     final thread = threadOf(bot);
     if (thread == null || !thread.isOpen) return;
-    _seen[bot.id] = thread.session.itemCount;
+    final session = thread.session;
+    _seen[bot.id] = (session.itemCount, session.prependedCount);
     notifyListeners();
   }
 
@@ -1506,12 +1548,21 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
   /// look at. None for the others, not even of the agents they started or
   /// wrote to (off is off), nor without a phone to write to.
   void _tell(List<BotEvent> events) {
+    _settleWatching();
     if (events.isEmpty || !_hasPhone) return;
     var notified = false;
     for (final bot in _bots) {
       if (!bot.can(BotAbility.proactive)) continue;
       final rules = watchRules(bot);
-      final mine = {...?_watching[bot.id]};
+      // As kept, and as its events name them this run (one new then, by
+      // the id it went by before its session's).
+      final mine = {
+        for (final id in _watching[bot.id] ?? const <String>[]) ...[
+          id,
+          if (SessionTools.threadOf(workspace, id) case final thread?)
+            BotTools.idOf(thread),
+        ],
+      };
       final kept = <(BotEvent, BotWatchAction)>[];
       for (final event in events) {
         final action = BotWatch.actionFor(
@@ -1587,9 +1638,29 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
     }
   }
 
+  /// Those watched by the id a new agent goes by until its session starts
+  /// (`new-…`, this run's alone), kept by its session's once it has one:
+  /// known again in the next run.
+  void _settleWatching() {
+    var changed = false;
+    for (final watching in _watching.values) {
+      for (var i = 0; i < watching.length; i++) {
+        if (!watching[i].startsWith('new-')) continue;
+        final id = switch (SessionTools.threadOf(workspace, watching[i])) {
+          AgentThread(id: final id?) => id,
+          _ => null,
+        };
+        if (id == null) continue;
+        watching[i] = id;
+        changed = true;
+      }
+    }
+    if (changed) _save();
+  }
+
   /// [bot] started [thread], or wrote to it: told what becomes of it.
   void watch(Bot bot, AgentThread thread) {
-    final id = BotTools.idOf(thread);
+    final id = SessionTools.idOf(thread);
     final watching = _watching[bot.id] ??= [];
     watching
       ..remove(id)

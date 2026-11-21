@@ -62,8 +62,8 @@ class ClaudeSdkTool {
     this.asksItself = false,
   });
 
-  /// Whether it asks the user itself, each time, whatever the mode
-  /// ([ClaudeSdkCall.ask]): the CLI's leave not asked for it too.
+  /// Whether it asks the user itself ([ClaudeSdkCall.ask], which answers
+  /// for them in full access): the CLI's leave not asked for it too.
   final bool asksItself;
 
   /// Whether an agent working in a folder (its location) is offered it, as
@@ -113,6 +113,10 @@ Map<String, Object?> claudeSdkText(String text) => {
 /// them.
 abstract interface class ClaudeSdkGate {
   bool offersTool(String cwd, String tool);
+
+  /// Whether [tool] is always in the prompt of an agent working in [cwd]
+  /// ([ClaudeSdkTool.alwaysLoad]), though not everywhere.
+  bool loadsTool(String cwd, String tool);
 
   /// Whether what [feature] tells of its tools ([ClaudeSdkTools.instruct])
   /// is told there.
@@ -224,7 +228,9 @@ abstract final class ClaudeSdkTools {
                   'name': tool.name,
                   'description': tool.description,
                   'inputSchema': tool.inputSchema,
-                  if (tool.alwaysLoad) '_meta': {'anthropic/alwaysLoad': true},
+                  if (tool.alwaysLoad ||
+                      (gate?.loadsTool(call.cwd, tool.name) ?? false))
+                    '_meta': {'anthropic/alwaysLoad': true},
                 },
           ],
         });

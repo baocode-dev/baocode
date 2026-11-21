@@ -3,6 +3,7 @@
 
 import 'dart:async';
 
+import 'package:bao_remote/client.dart' show SshConnection;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -12,6 +13,8 @@ import 'package:baocode/kernel/agent_kernel.dart';
 import 'package:baocode/kernel/mock/mock_kernels.dart';
 import 'package:baocode/main.dart';
 import 'package:baocode/remote/open_remote.dart';
+import 'package:baocode/remote/remote_browser_view.dart';
+import 'package:baocode/remote/ssh_host.dart';
 import 'package:baocode/workspace/new_chat_folder_bar.dart';
 import 'package:baocode/workspace/workspace.dart';
 
@@ -284,5 +287,34 @@ void main() {
           ?.placeholder,
       'Select a host, add one, or type user@host[:port]',
     );
+  }, variant: _mac);
+
+  testWidgets('on a host, the button opens its folders, not Finder', (
+    tester,
+  ) async {
+    final hosts = SshHosts.instance;
+    // Never connected here.
+    SshHosts.instance = SshHosts(
+      connect: (target, {onProgress}) => Completer<SshConnection>().future,
+    );
+    addTearDown(() => SshHosts.instance = hosts);
+    final workspace = await _pumpNew(tester);
+    var picked = false;
+    NewChatFolderBar.pickDirectory = () async {
+      picked = true;
+      return null;
+    };
+    await workspace.openFolder('ssh://dev/home/me/app');
+    await tester.pumpAndSettle();
+    expect(find.text('Open from Finder'), findsNothing);
+
+    await tester.tap(find.text('Open from dev'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byType(RemoteBrowserDialog), findsOneWidget);
+    expect(picked, isFalse);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byType(RemoteBrowserDialog), findsNothing);
   }, variant: _mac);
 }

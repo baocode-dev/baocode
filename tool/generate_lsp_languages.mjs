@@ -342,6 +342,15 @@ function masonPackageFor(id, command, registry) {
  * are typescript-language-server's too, rooted where `.ts` files are so one
  * tsserver serves both. */
 const LANGUAGE_FIXES = {
+  java: {
+    roots: [
+      'pom.xml',
+      'settings.gradle',
+      'settings.gradle.kts',
+      'build.gradle',
+      'build.gradle.kts',
+    ],
+  },
   vue: {
     roots: ['package.json', 'tsconfig.json'],
     servers: ['vuels', 'typescript-language-server'],

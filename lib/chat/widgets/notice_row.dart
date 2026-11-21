@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../chat_models.dart';
+import '../compaction_text.dart';
 import 'markdown_view.dart';
 
 /// A line from the runtime rather than the agent: a compaction divider, a
@@ -14,7 +16,10 @@ class NoticeRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final text = item.text;
+    final text = switch (item.compaction) {
+      final note? => note.describe(context.l10n),
+      null => item.text,
+    };
     switch (item.kind) {
       case NoticeKind.compaction:
         return Padding(

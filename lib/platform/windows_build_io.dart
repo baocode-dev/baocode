@@ -4,6 +4,9 @@ import 'dart:io';
 /// Windows from another host, which reports no build.
 bool get hostReportsWindows => Platform.isWindows;
 
+/// Whether this process is a `flutter test` run, which sets FLUTTER_TEST.
+bool get hostIsTest => Platform.environment.containsKey('FLUTTER_TEST');
+
 /// The OS build, from `Platform.operatingSystemVersion` (`Build 26100`).
 /// Zero when it is not Windows, or the string has no build.
 int get hostWindowsBuild {

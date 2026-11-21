@@ -707,6 +707,9 @@ class IdeEditorState extends State<IdeEditor> {
       _hideLineChange();
       return KeyEventResult.handled;
     }
+    if (!_modifierKeys.contains(event.logicalKey)) {
+      _language?.onKeyDown(event);
+    }
     if (widget.keyResolver != null) return _onTextKey(event);
     final session = _language;
     if (session == null) return KeyEventResult.ignored;
@@ -2837,7 +2840,7 @@ class IdeEditorState extends State<IdeEditor> {
     keyResolver: widget.keyResolver == null ? null : _resolveTextKey,
     onHover: _language == null
         ? null
-        : (offset, _) => _language?.onPointerHover(offset),
+        : (offset, position) => _language?.onPointerHover(offset, position),
     onContentPointerDown: _language?.onPointerDown,
     onContextMenu: _showContextMenu,
     onViewChanged: _viewChanged,

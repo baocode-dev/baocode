@@ -8,6 +8,7 @@ import '../bots/bots.dart';
 import '../customize/customization_store.dart';
 import '../workspace/workspace.dart';
 import 'link_platform.dart';
+import 'link_quota.dart';
 import 'phone_push.dart';
 import 'workspace_bridge.dart';
 
@@ -217,6 +218,7 @@ class LinkHost extends ChangeNotifier {
     this.offerLifetime = const Duration(minutes: 10),
     this.customizations,
     this.bots,
+    this.quota,
     this.filesOf = hostFilesOf,
     this.reachHost = reachProjectHost,
     this.pathSettle = const Duration(seconds: 15),
@@ -229,6 +231,9 @@ class LinkHost extends ChangeNotifier {
 
   /// The user's bots, for the phones to chat with and edit.
   final Bots? bots;
+
+  /// The conversations' quota, for the phones to show.
+  final LinkQuota? quota;
 
   /// A project's files, for the phones to browse.
   final ProjectFiles Function(Project project) filesOf;
@@ -993,6 +998,7 @@ class LinkHost extends ChangeNotifier {
         reachHost: reachHost,
         customizations: customizations,
         bots: bots,
+        quota: quota,
       )..start());
     notifyListeners();
   }

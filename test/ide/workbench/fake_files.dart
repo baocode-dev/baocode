@@ -179,6 +179,8 @@ Future<IdeWorkspace> pumpWorkbench(
   Set<String> ignoredRecommendations = const {},
   ValueChanged<String>? onIgnoreRecommendation,
   IdeGitRepository? git,
+  // [files]' in-memory service unless given (a remote one's, say).
+  IdeFileService? fileService,
   IdeTextSearch? textSearch,
   IdeCommitMessageModel? commitMessage,
   ValueChanged<bool>? onPinnedChanged,
@@ -209,9 +211,12 @@ Future<IdeWorkspace> pumpWorkbench(
   tester.view.devicePixelRatio = 1;
   final workspace = IdeWorkspace(
     testRoot,
-    files: TreeFiles({
-      for (final MapEntry(:key, :value) in files.entries) inRoot(key): value,
-    }),
+    files:
+        fileService ??
+        TreeFiles({
+          for (final MapEntry(:key, :value) in files.entries)
+            inRoot(key): value,
+        }),
     languages: languages,
     git: git,
     // A multi-folder workspace's: its folders (in the project).

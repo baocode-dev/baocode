@@ -7,6 +7,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 
+import '../../network/tls.dart';
 import '../../usage/usage_capture.dart';
 import '../../usage/usage_ledger.dart';
 import '../../usage/usage_trace.dart';
@@ -114,7 +115,7 @@ class ModelProxy {
 
   Future<HttpClient> _upstream() async {
     if (_client case final client?) return client;
-    return _client = HttpClient()
+    return _client = HttpClient(context: await upstreamSecurityContext())
       ..connectionTimeout = const Duration(seconds: 30)
       ..idleTimeout = const Duration(seconds: 30)
       ..findProxy = _findProxy ?? (_) => 'DIRECT';
@@ -728,8 +729,18 @@ class ModelProxy {
     var stripped = false;
     String? lastError;
     var lastStatus = 429;
+    var askedQuota = false;
     while (true) {
       final account = codex.pick(provider, session: cacheKey, exclude: tried);
+      // Out of quota as last learned: asked again first (not more often
+      // than its age allows), as it may have started over early. Nothing
+      // else asks while the desktop's window is not shown, as when the
+      // user is on the phone.
+      if (account == null && !askedQuota && codex.backAt(provider) != null) {
+        askedQuota = true;
+        await codex.refreshUsage(provider, force: false).catchError((_) {});
+        continue;
+      }
       if (account == null) {
         final back = codex.backAt(provider);
         final message = back != null
@@ -771,7 +782,6 @@ class ModelProxy {
           accountId: account.accountId,
           session: '${outgoing['prompt_cache_key'] ?? cacheKey ?? ''}',
           events: true,
-          version: codexVersionOf(provider),
         ).forEach(request.headers.set);
         custom.forEach(request.headers.set);
         request.headers.contentType = ContentType.json;

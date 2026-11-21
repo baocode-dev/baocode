@@ -4,6 +4,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
+import '../selection/chat_selection.dart';
 import 'finite_selection_edges.dart';
 
 /// The cells of a table that scrolls sideways, selected as text is, and
@@ -65,7 +66,10 @@ class _TableSelectionState extends State<TableSelection> {
     return SelectionContainer(
       registrar: widget.registrar,
       delegate: _delegate,
-      child: widget.child,
+      // A row's cells copied apart by tabs, as a spreadsheet takes them.
+      child: widget.lines
+          ? widget.child
+          : ChatTextRow(separator: '\t', child: widget.child),
     );
   }
 }
@@ -91,8 +95,11 @@ class _TableCellSelectionState extends State<TableCellSelection> {
   }
 
   @override
-  Widget build(BuildContext context) =>
-      SelectionContainer(delegate: _delegate, child: widget.child);
+  Widget build(BuildContext context) => SelectionContainer(
+    delegate: _delegate,
+    // Its pieces (a file link's icon splits it) one piece.
+    child: ChatTextRow(separator: '', child: widget.child),
+  );
 }
 
 class _TableSelectionDelegate extends FiniteEdgesDelegate {

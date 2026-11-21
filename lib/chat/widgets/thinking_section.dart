@@ -6,9 +6,9 @@ import 'package:flutter/material.dart';
 import '../../base/smooth_scroll.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
+import '../selection/chat_selection.dart' show ChatSelectionHold;
 import 'agent_step.dart' show AgentStep;
 import 'edge_fade_mask.dart';
-import 'finite_selection_edges.dart';
 import 'live_selectable_text.dart';
 import 'step_header.dart';
 import 'wheel_latch.dart';
@@ -126,6 +126,19 @@ class _ThinkingSectionState extends State<ThinkingSection> {
   void initState() {
     super.initState();
     _syncClock();
+    ChatSelectionHold.held.addListener(_heldChanged);
+  }
+
+  /// New lines come in while a press that selects is held: followed once
+  /// it is let go (not meanwhile, see [ChatSelectionHold]).
+  bool _followWhenLetGo = false;
+
+  void _heldChanged() {
+    if (ChatSelectionHold.held.value || !_followWhenLetGo) return;
+    _followWhenLetGo = false;
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    position.jumpTo(position.maxScrollExtent);
   }
 
   /// A summarized thought's title and body, or null for a thought in full.
@@ -143,7 +156,14 @@ class _ThinkingSectionState extends State<ThinkingSection> {
     // Follow new lines, unless scrolled up to read earlier ones (or a wheel
     // is taking it there).
     final position = _scrollController.position;
-    if (_scrollController.headedTo < position.maxScrollExtent - 2) return;
+    if (!_followWhenLetGo &&
+        _scrollController.headedTo < position.maxScrollExtent - 2) {
+      return;
+    }
+    if (ChatSelectionHold.held.value) {
+      _followWhenLetGo = true;
+      return;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_scrollController.hasClients) return;
       final position = _scrollController.position;
@@ -153,6 +173,7 @@ class _ThinkingSectionState extends State<ThinkingSection> {
 
   @override
   void dispose() {
+    ChatSelectionHold.held.removeListener(_heldChanged);
     _clock?.cancel();
     _scrollController.dispose();
     super.dispose();
@@ -249,12 +270,10 @@ class _ThinkingSectionState extends State<ThinkingSection> {
             child: SingleChildScrollView(
               controller: _scrollController,
               // Selectable text that keeps its selection as it grows.
-              child: FiniteSelectionEdges(
-                child: WheelLatch(
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: LiveSelectableText(_text, style: _textStyle),
-                  ),
+              child: WheelLatch(
+                child: SizedBox(
+                  width: double.infinity,
+                  child: LiveSelectableText(_text, style: _textStyle),
                 ),
               ),
             ),

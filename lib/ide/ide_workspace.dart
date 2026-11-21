@@ -802,19 +802,33 @@ class IdeWorkspace extends ChangeNotifier
   }
 
   /// Opens [path]'s text at a revision, which [read] reads, read-only and
-  /// titled with [label], or selects it.
+  /// titled with [label], or selects it. When [refresh] is true and the tab
+  /// is already open, [read] is called again to update its content.
   Future<void> openRevision(
     String path, {
     required String label,
     required Future<String> Function() read,
+    bool refresh = false,
   }) async {
     if (_disposed) return;
     path = paths.normalize(paths.absolute(path));
     _dropReveal(path);
     final request = ++_selection;
     final key = '$path\u0000$label';
-    if (_documents.any((d) => d.key == key)) {
-      select(key);
+    final existing = _documents.where((d) => d.key == key).firstOrNull;
+    if (existing != null) {
+      if (refresh) {
+        try {
+          final text = await read();
+          if (_disposed || !_documents.contains(existing)) return;
+          if (text != existing.text) {
+            existing.text = text;
+            existing.savedText = text;
+            notifyListeners();
+          }
+        } catch (_) {}
+      }
+      if (request == _selection) select(key);
       return;
     }
     String text;
@@ -1256,19 +1270,13 @@ class IdeWorkspace extends ChangeNotifier
     return doc;
   }
 
-  /// Saves [doc] to a path asked for ([askSavePath]), its tab then that
-  /// file's: the new document, or null when not saved. A remote project's
-  /// file is saved to this machine, where the save panel is: a copy of its
-  /// text, its tab still the host's file.
+  /// Saves [doc] to a path asked for ([askSavePath]; a remote project's on
+  /// its host), its tab then that file's: the new document, or null when
+  /// not saved.
   Future<IdeDocument?> saveAs(IdeDocument doc) async {
     if (_disposed || !_documents.contains(doc) || doc.readOnly) return null;
-    final text = doc.text;
     final path = await askSavePath?.call(doc);
     if (path == null || _disposed || !_documents.contains(doc)) return null;
-    if (files is IdeHostFiles && !doc.isUntitled) {
-      await saveCopyTo(files, doc.path, path, text: text);
-      return null;
-    }
     return saveTo(doc, path);
   }
 

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -33,6 +34,7 @@ class IdeHoverState {
     required this.markdown,
     required this.diagnostics,
     required this.keyboard,
+    this.loading = false,
   });
 
   final int start;
@@ -42,6 +44,9 @@ class IdeHoverState {
 
   /// Opened with ⌘K ⌘I (stays until the caret moves) rather than the mouse.
   final bool keyboard;
+
+  /// Only upstream's `Loading...`: the language server has not answered.
+  final bool loading;
 }
 
 /// Signature help showing above the caret.
@@ -181,8 +186,14 @@ class EditorLanguageSession extends ChangeNotifier
     _scheduleSemanticTokens(delay: Duration.zero);
   }
 
+  /// `editor.hover.delay`. The request goes out after half of it and the
+  /// card shows no sooner than all of it (hoverOperation.ts); `Loading...`
+  /// after three times it.
   static const hoverDelay = Duration(milliseconds: 300);
-  static const hoverHideDelay = Duration(milliseconds: 300);
+
+  /// `editor.hover.hidingDelay`: with a card up, the pointer's moves are
+  /// acted on this long after the first of them, however it keeps moving.
+  static const hoverHidingDelay = Duration(milliseconds: 300);
   static const lightbulbDelay = Duration(milliseconds: 250);
   static const semanticTokensDelay = Duration(milliseconds: 300);
   static const signatureHelpDelay = Duration(milliseconds: 120);
@@ -264,7 +275,8 @@ class EditorLanguageSession extends ChangeNotifier
     languages.removeListener(_languagesChanged);
     for (final timer in [
       _hoverTimer,
-      _hoverHideTimer,
+      _hoverLoadingTimer,
+      _hoverReactTimer,
       _lightbulbTimer,
       _semanticTimer,
       _signatureTimer,
@@ -285,7 +297,13 @@ class EditorLanguageSession extends ChangeNotifier
       _version = version;
       _selection = selection;
       final typed = controller.lastTypedText;
-      _hideHover();
+      // Upstream keeps the hover through edits (`_cancelScheduler`); the
+      // keys of the ones from the keyboard hid it already ([onKeyDown]).
+      if (typed != null) {
+        _hideHover();
+      } else {
+        _cancelHoverReact();
+      }
       _message = null;
       _codeActionMenu = null;
       if (_rename != null) cancelRename();
@@ -483,74 +501,232 @@ class EditorLanguageSession extends ChangeNotifier
 
   // ---- hover -----------------------------------------------------------------
 
+  // The mouse's hover follows upstream's ContentHoverController and
+  // ContentHoverWidgetWrapper: a request per character under the pointer
+  // (not per pixel it moves), and with a card up, the pointer's moves
+  // acted on [hoverHidingDelay] after the first, the card kept while the
+  // pointer heads for it.
+
   IdeHoverState? _hover;
+
+  /// The request's first wait, then the card's: [hoverDelay] in all.
   Timer? _hoverTimer;
-  Timer? _hoverHideTimer;
+  Timer? _hoverLoadingTimer;
+
+  /// Upstream's `_reactToEditorMouseMoveRunner`.
+  Timer? _hoverReactTimer;
   int _hoverRequest = 0;
+
+  /// The text offset the mouse's hover was last asked for (its anchor).
+  int? _hoverAnchor;
+  bool _hoverPending = false;
+  bool _pointerOnCard = false;
+
+  /// For [_pointerGettingCloser]: where the pointer was when first asked
+  /// since the card showed, and its closest to the card since.
+  Offset? _hoverInitialPointer;
+  double? _hoverClosest;
   int? _pointerOffset;
+
+  /// The pointer's global position over the editor; null once it left.
+  Offset? _pointerPosition;
   (int, int)? _link;
+
+  /// On the hover card, for where it is on screen.
+  final hoverCardKey = GlobalKey(debugLabel: 'ide-hover-card');
 
   IdeHoverState? get hover => _hover;
 
   /// The Cmd/Ctrl+hover link under the pointer, if any.
   (int, int)? get link => _link;
 
-  /// The pointer is over the text at [offset] (null: it left the text).
-  void onPointerHover(int? offset) {
-    _pointerOffset = offset;
+  bool get _mouseHoverShowing => _hover != null && !_hover!.keyboard;
+
+  /// The pointer moved to [position] (global) over the text at [offset]
+  /// (null: off the text); [position] null: it left the editor.
+  void onPointerHover(int? offset, Offset? position) {
+    _pointerOffset = position == null ? null : offset;
+    _pointerPosition = position;
     _updateLink();
-    final current = _hover;
-    if (offset == null) {
-      _hoverTimer?.cancel();
-      if (current != null && !current.keyboard) _scheduleHoverHide();
+    // One from the keyboard stays while the pointer wanders.
+    if (_hover?.keyboard ?? false) return;
+    if (position == null) {
+      _cancelHoverReact();
+      // Onto the card (its enter comes right after this exit), it stays.
+      scheduleMicrotask(() {
+        if (_disposed || _pointerOnCard || _pointerPosition != null) return;
+        final showing = _hover != null;
+        _hideHover();
+        if (showing) changed();
+      });
       return;
     }
-    if (current != null &&
-        !current.keyboard &&
-        offset >= current.start &&
-        offset <= current.end) {
-      _hoverHideTimer?.cancel();
+    if (_hover != null) {
+      _hoverReactTimer ??= Timer(hoverHidingDelay, () {
+        _hoverReactTimer = null;
+        _reactToPointer();
+      });
       return;
     }
-    if (current != null && !current.keyboard) _scheduleHoverHide();
-    _hoverTimer?.cancel();
-    _hoverTimer = Timer(
-      hoverDelay,
-      () => unawaited(_showHover(offset, keyboard: false)),
-    );
+    _reactToPointer();
   }
 
   /// The pointer entered (true) or left the hover card.
   void onHoverCardPointer(bool inside) {
+    _pointerOnCard = inside;
     if (inside) {
-      _hoverHideTimer?.cancel();
-    } else if (_hover != null && !_hover!.keyboard) {
-      _scheduleHoverHide();
+      _cancelHoverReact();
+    } else if (_mouseHoverShowing && _hoverReactTimer == null) {
+      // Back over the text, its moves take over; out of the editor, the
+      // card goes.
+      _hoverReactTimer = Timer(hoverHidingDelay, () {
+        _hoverReactTimer = null;
+        _reactToPointer();
+      });
     }
   }
 
-  void _scheduleHoverHide() {
-    _hoverHideTimer?.cancel();
-    _hoverHideTimer = Timer(hoverHideDelay, () {
+  /// Upstream's `_startShowingOrUpdateHover`, for where the pointer is.
+  void _reactToPointer() {
+    if (_disposed || _pointerOnCard) return;
+    final offset = _pointerOffset;
+    final current = _hover;
+    if (current != null && !current.keyboard) {
+      if (_pointerGettingCloser()) {
+        if (offset != null) _startHover(offset, keepVisible: true);
+        return;
+      }
+      if (offset != null && offset >= current.start && offset <= current.end) {
+        return;
+      }
       _hideHover();
       changed();
+    }
+    if (offset == null) {
+      _cancelHoverRequest();
+    } else {
+      _startHover(offset);
+    }
+  }
+
+  /// Asks for the hover at [offset] unless it already was; [keepVisible]:
+  /// an empty answer leaves the card up (the pointer is heading for it).
+  void _startHover(int offset, {bool keepVisible = false}) {
+    if (_hoverAnchor == offset) return;
+    _cancelHoverRequest();
+    _hoverAnchor = offset;
+    _hoverPending = true;
+    final firstWait = hoverDelay ~/ 2;
+    _hoverTimer = Timer(
+      firstWait,
+      () => unawaited(
+        _showHover(
+          offset,
+          keyboard: false,
+          wait: hoverDelay - firstWait,
+          keepVisible: keepVisible,
+        ),
+      ),
+    );
+    _hoverLoadingTimer = Timer(hoverDelay * 3, () {
+      if (!_hoverPending || _hover != null || _hoverAnchor != offset) return;
+      final (start, end) = lspWordAt(_snapshot, offset);
+      _hover = IdeHoverState(
+        start: start,
+        end: end,
+        markdown: null,
+        diagnostics: const [],
+        keyboard: false,
+        loading: true,
+      );
+      _resetHoverPointer();
+      notifyListeners();
     });
   }
 
-  void _hideHover() {
+  void _cancelHoverRequest() {
     _hoverTimer?.cancel();
-    _hoverHideTimer?.cancel();
+    _hoverLoadingTimer?.cancel();
+    _hoverTimer = _hoverLoadingTimer = null;
     _hoverRequest++;
+    _hoverAnchor = null;
+    _hoverPending = false;
+  }
+
+  void _cancelHoverReact() {
+    _hoverReactTimer?.cancel();
+    _hoverReactTimer = null;
+  }
+
+  void _resetHoverPointer() {
+    _hoverInitialPointer = null;
+    _hoverClosest = null;
+  }
+
+  /// Upstream's `isMouseGettingCloser`: the pointer is no more than 4px
+  /// further from the card than it has been since the card showed, and
+  /// this is not the first time asked.
+  bool _pointerGettingCloser() {
+    final position = _pointerPosition;
+    final card = _hoverCardRect;
+    if (position == null || card == null) return false;
+    final initial = _hoverInitialPointer;
+    if (initial == null) {
+      _hoverInitialPointer = position;
+      return false;
+    }
+    final closest = _hoverClosest ??= _distanceToRect(initial, card);
+    final distance = _distanceToRect(position, card);
+    if (distance > closest + 4) return false;
+    _hoverClosest = math.min(closest, distance);
+    return true;
+  }
+
+  Rect? get _hoverCardRect {
+    final box = hoverCardKey.currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.attached || !box.hasSize) return null;
+    return box.localToGlobal(Offset.zero) & box.size;
+  }
+
+  static double _distanceToRect(Offset point, Rect rect) {
+    final dx = math.max(
+      (point.dx - rect.center.dx).abs() - rect.width / 2,
+      0.0,
+    );
+    final dy = math.max(
+      (point.dy - rect.center.dy).abs() - rect.height / 2,
+      0.0,
+    );
+    return math.sqrt(dx * dx + dy * dy);
+  }
+
+  void _hideHover() {
+    _cancelHoverRequest();
+    _cancelHoverReact();
+    _resetHoverPointer();
+    // Its exit does not come when the card goes from under the pointer.
+    _pointerOnCard = false;
     _hover = null;
   }
 
   /// ⌘K ⌘I: the hover at the caret.
-  Future<void> showHoverAtCaret() => _showHover(_caret, keyboard: true);
+  Future<void> showHoverAtCaret() {
+    _cancelHoverRequest();
+    _cancelHoverReact();
+    return _showHover(_caret, keyboard: true);
+  }
 
-  Future<void> _showHover(int offset, {required bool keyboard}) async {
+  /// Asks for the hover at [offset] and shows it, no sooner than [wait]
+  /// from now; [keepVisible]: an empty answer leaves the card up.
+  Future<void> _showHover(
+    int offset, {
+    required bool keyboard,
+    Duration wait = Duration.zero,
+    bool keepVisible = false,
+  }) async {
     if (_disposed) return;
     final request = ++_hoverRequest;
-    final version = document.model.version;
+    final earliest = wait == Duration.zero ? null : Future<void>.delayed(wait);
     final snapshot = _snapshot;
     final position = lspPositionAt(snapshot, offset);
     final diagnostics = [
@@ -565,13 +741,18 @@ class EditorLanguageSession extends ChangeNotifier
         hover = null;
       }
     }
-    if (_disposed ||
-        request != _hoverRequest ||
-        version != document.model.version) {
-      return;
-    }
+    if (earliest != null) await earliest;
+    // An edit since (not typing, which drops it) leaves it, as upstream.
+    if (_disposed || request != _hoverRequest) return;
+    _hoverPending = false;
+    _hoverLoadingTimer?.cancel();
     if (hover == null && diagnostics.isEmpty) {
+      if (keepVisible && _hover != null && !_hover!.loading) return;
       if (_hover != null) {
+        // Not [_hideHover]: the anchor stays asked for.
+        _cancelHoverReact();
+        _resetHoverPointer();
+        _pointerOnCard = false;
         _hover = null;
         notifyListeners();
       }
@@ -583,7 +764,7 @@ class EditorLanguageSession extends ChangeNotifier
     } else if (start == end && diagnostics.isNotEmpty) {
       (start, end) = ideDiagnosticOffsets(snapshot, diagnostics.first.range);
     }
-    _hoverHideTimer?.cancel();
+    _resetHoverPointer();
     _hover = IdeHoverState(
       start: start,
       end: end,
@@ -629,7 +810,43 @@ class EditorLanguageSession extends ChangeNotifier
 
   /// Cmd/Ctrl+click goes to the definition under the pointer. Returns
   /// whether it took the click.
+  /// The last key was ⌘K/Ctrl+K, the start of a chord.
+  bool _afterChordPrefix = false;
+
+  /// A key (not a modifier) went down in the editor. Upstream's
+  /// `_onKeyDown`: it hides the hover, and the one on its way, but for
+  /// ⌘K/Ctrl+K and the key after it (⌘K ⌘I shows one).
+  void onKeyDown(KeyEvent event) {
+    // Escape's own handling hides it, and takes the key ([handleKey]).
+    if (event is KeyUpEvent || event.logicalKey == LogicalKeyboardKey.escape) {
+      return;
+    }
+    final keyboard = HardwareKeyboard.instance;
+    final primary = ideUsesMacKeys
+        ? keyboard.isMetaPressed
+        : keyboard.isControlPressed;
+    final chord = _afterChordPrefix;
+    _afterChordPrefix =
+        event.logicalKey == LogicalKeyboardKey.keyK &&
+        primary &&
+        !keyboard.isAltPressed &&
+        !keyboard.isShiftPressed;
+    if (chord || _afterChordPrefix) return;
+    if (_hover != null || _hoverPending) {
+      final showing = _hover != null;
+      _hideHover();
+      if (showing) changed();
+    }
+  }
+
   bool onPointerDown(int offset, PointerDownEvent event) {
+    // Upstream's `_onEditorMouseDown`: a press hides the hover, and the
+    // one on its way.
+    if (_hover != null || _hoverPending) {
+      final showing = _hover != null;
+      _hideHover();
+      if (showing) changed();
+    }
     final keyboard = HardwareKeyboard.instance;
     if (event.buttons & kPrimaryButton == 0 ||
         !_linkModifier ||
@@ -657,6 +874,28 @@ class EditorLanguageSession extends ChangeNotifier
   String _noneFound(IdeGoToKind kind, String word) => word.isEmpty
       ? l10n.langNoneFound(kind.name)
       : l10n.langNoneFoundFor(kind.name, word);
+
+  /// Explains an empty navigation result when a server attached to [path] is
+  /// still initializing/importing or has reported a project-load error, so the
+  /// user is not misled by a plain "No references found".
+  String? _serverIssueNotice() {
+    final statuses = languages.statusFor(path);
+    for (final status in statuses) {
+      if (status.state == LanguageServerState.running &&
+          (status.severity == LanguageServerSeverity.error ||
+              (status.severity == null && status.error != null))) {
+        return l10n.langServerImportError(status.serverId);
+      }
+    }
+    for (final status in statuses) {
+      if (status.state == LanguageServerState.starting ||
+          (status.state == LanguageServerState.running &&
+              status.progress != null)) {
+        return l10n.langServerInitializing(status.serverId);
+      }
+    }
+    return null;
+  }
 
   /// Go to Definition (and friends) at [offset] or the caret: one target
   /// opens, several also list in the references panel, references always
@@ -697,10 +936,13 @@ class EditorLanguageSession extends ChangeNotifier
     if (targets.isEmpty) {
       if (!supports(_goToLanguage[kind]!)) {
         if (onNavigationUnavailable?.call(path) != true) {
-          showMessage(l10n.langNavigationUnavailable, offset: at);
+          showMessage(
+            _serverIssueNotice() ?? l10n.langNavigationUnavailable,
+            offset: at,
+          );
         }
       } else {
-        showMessage(_noneFound(kind, word), offset: at);
+        showMessage(_serverIssueNotice() ?? _noneFound(kind, word), offset: at);
       }
       return;
     }

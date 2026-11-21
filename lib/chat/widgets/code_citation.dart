@@ -19,6 +19,7 @@ import '../side_panel/file_open.dart' show FileOpenScope;
 import 'hover_builder.dart';
 import 'table_selection.dart';
 import 'will_change_paint.dart';
+import '../selection/chat_selection.dart';
 
 /// Code the agent cited from a file, as it is asked to
 /// (`ClaudeLaunch.citingCode`): a block fenced as ```` ```12:15:lib/a.dart ````.
@@ -285,7 +286,7 @@ class _MarkdownQuoteBlockState extends State<MarkdownQuoteBlock> {
             Positioned(
               top: 5,
               right: 6,
-              child: SelectionContainer.disabled(
+              child: ChatUnselectable(
                 child: Visibility.maintain(
                   visible: _hovered || _copied,
                   child: CodeBlockIconButton(
@@ -502,7 +503,7 @@ class _CodeCardState extends State<_CodeCard> {
     );
   }
 
-  Widget _copyButton(BuildContext context) => SelectionContainer.disabled(
+  Widget _copyButton(BuildContext context) => ChatUnselectable(
     child: Visibility.maintain(
       visible: _hovered || _copied,
       child: CodeBlockIconButton(
@@ -517,7 +518,7 @@ class _CodeCardState extends State<_CodeCard> {
   Widget _title(BuildContext context) {
     final l10n = context.l10n;
     final hover = AppColors.hover;
-    return SelectionContainer.disabled(
+    return ChatUnselectable(
       child: HoverBuilder(
         builder: (context, hovered) => GestureDetector(
           behavior: HitTestBehavior.opaque,
@@ -685,7 +686,7 @@ class _CodeCardState extends State<_CodeCard> {
     final count = (lines.length + _linesPerParagraph - 1) ~/ _linesPerParagraph;
     final numbers = switch (citation) {
       // As the code's paragraphs, so a line's number lies beside it.
-      final citation? => SelectionContainer.disabled(
+      final citation? => ChatUnselectable(
         child: Padding(
           padding: const EdgeInsets.only(left: 12, right: 14),
           child: Column(

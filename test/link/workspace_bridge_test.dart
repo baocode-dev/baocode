@@ -6,12 +6,16 @@ import 'package:bao_link/bao_link.dart';
 import 'package:bao_remote/claude.dart' show ClaudeHistoryPage;
 import 'package:baocode/chat/chat_session.dart' show ComposerMessage, UserPlace;
 import 'package:baocode/chat/chat_models.dart';
+import 'package:baocode/chat/reply_suggestions.dart';
 import 'package:baocode/bots/bot_folders.dart';
 import 'package:baocode/bots/bot_groups.dart';
 import 'package:baocode/bots/bots.dart';
 import 'package:baocode/kernel/agent_kernel.dart';
 import 'package:baocode/kernel/claude_code/claude_code_kernel.dart';
+import 'package:baocode/models/codex/codex_service.dart';
+import 'package:baocode/models/model_providers.dart';
 import 'package:baocode/link/chat_codec.dart';
+import 'package:baocode/link/link_quota.dart';
 import 'package:baocode/link/workspace_bridge.dart';
 import 'package:baocode/workspace/workspace.dart';
 import 'package:flutter/material.dart';
@@ -102,6 +106,10 @@ void main() {
       workspace: workspace,
       peer: desktop,
       device: () => const DeviceInfo(name: 'Mac', kind: 'mac', system: 'macOS'),
+      quota: LinkQuota(
+        providers: ModelProviders.memory(),
+        codex: CodexUnavailable(),
+      ),
       throttle: const Duration(milliseconds: 10),
     )..start();
     final sub = phone.events
@@ -346,7 +354,9 @@ void main() {
     final content = (cli.users.last['message']! as Map)['content']! as List;
     expect(
       [for (final block in content) (block as Map)['text']],
-      [UserPlace.phone.note, 'go'],
+      // The user's, as one written at the computer is: suggestions asked
+      // for too.
+      [UserPlace.phone.note, ReplySuggestions.on, 'go'],
     );
   });
 
@@ -833,6 +843,37 @@ void main() {
     expect(WorkspaceBridge.uploadName('..'), 'file');
     expect(WorkspaceBridge.uploadName(null), 'file');
     expect(WorkspaceBridge.uploadName('合同 v2.docx'), '合同 v2.docx');
+  });
+
+  test('the plan\'s limits, as the phone reads them', () async {
+    ClaudeCodeKernel.forgetAccount();
+    addTearDown(ClaudeCodeKernel.forgetAccount);
+    final opened = await open();
+    expect(opened.quota, isNull);
+    workspace.threads.first.session.send(const ComposerMessage(text: 'hi'));
+    await settle();
+    cli.push({
+      'type': 'rate_limit_event',
+      'rate_limit_info': {
+        'status': 'allowed',
+        'unifiedWindows': {
+          'five_hour': {'utilization': 0.4, 'resetsAt': 4102444800},
+          'seven_day': {'utilization': 1.0, 'resetsAt': 4102531200},
+          'seven_day_opus': {'utilization': 0.25, 'resetsAt': 4102531200},
+        },
+      },
+    });
+    await settle();
+    final quota = updates.last.quota!;
+    expect(quota['provider'], isA<String>());
+    expect(quota['back'], 4102531200000);
+    expect((quota['accounts']! as List).single, {
+      'windows': [
+        {'minutes': 300, 'left': 60, 'resets': 4102444800000},
+        {'minutes': 10080, 'left': 0, 'resets': 4102531200000},
+        {'minutes': 10080, 'name': 'Opus', 'left': 75, 'resets': 4102531200000},
+      ],
+    });
   });
 }
 

@@ -18,6 +18,9 @@ import 'package:baocode/chat/panels/interaction_panel.dart';
 import 'package:baocode/chat/panels/context_usage_panel.dart';
 import 'package:baocode/chat/panels/mcp_servers_panel.dart';
 import 'package:baocode/chat/panels/queue_panel.dart';
+import 'package:baocode/chat/panels/reply_suggestion_bar.dart';
+import 'package:baocode/chat/reply_suggestions.dart';
+import 'package:baocode/kernel/mock/mock_script.dart';
 import 'package:baocode/chat/side_panel/file_open.dart';
 import 'package:baocode/chat/composer/composer_embeds.dart';
 import 'package:baocode/chat/widgets/activity_row.dart';
@@ -36,6 +39,7 @@ import 'package:baocode/main.dart';
 import 'package:baocode/sidebar/sidebar.dart';
 import 'package:baocode/theme/app_theme.dart';
 import 'package:baocode/theme/codicons.dart';
+import 'package:baocode/theme/ui_zoom.dart';
 import 'package:baocode/workspace/workspace.dart';
 import 'package:baocode/chat/agent_view.dart';
 import 'package:baocode/chat/widgets/plan_card.dart';
@@ -76,9 +80,12 @@ Finder picker(String label) =>
 Future<({ChatSession session, FakeCli cli})> pumpScripted(
   WidgetTester tester, {
   FakeCli? cli,
+  double zoom = 1,
+  TargetPlatform? platform,
+  double devicePixelRatio = 1,
 }) async {
-  tester.view.physicalSize = const Size(1200, 900);
-  tester.view.devicePixelRatio = 1;
+  tester.view.physicalSize = const Size(1200, 900) * devicePixelRatio;
+  tester.view.devicePixelRatio = devicePixelRatio;
   addTearDown(tester.view.reset);
   cli ??= FakeCli();
   final fake = cli;
@@ -99,7 +106,13 @@ Future<({ChatSession session, FakeCli cli})> pumpScripted(
   addTearDown(session.dispose);
   await tester.pumpWidget(
     MaterialApp(
-      theme: buildAppTheme(),
+      theme: buildAppTheme().copyWith(platform: platform),
+      builder: zoom == 1
+          ? null
+          : (context, child) => MediaQuery(
+              data: UiZoom.zoomed(MediaQuery.of(context), zoom),
+              child: UiZoom(scale: zoom, child: child),
+            ),
       home: ChatScreen(session: session),
     ),
   );
@@ -278,58 +291,134 @@ void main() {
     expect(find.textContaining('and lint', findRichText: true), findsOneWidget);
   });
 
-  testWidgets('a queued message dragged above another waits before it', (
+  for (final (zoom, touch) in [
+    (0.8, false),
+    (1.0, false),
+    (1.25, false),
+    (1.25, true),
+  ]) {
+    final input = touch ? 'a long press' : 'the mouse';
+    testWidgets('a queued message follows $input and reorders at $zoom×', (
+      tester,
+    ) async {
+      final (:session, :cli) = await pumpScripted(
+        tester,
+        zoom: zoom,
+        platform: touch ? TargetPlatform.iOS : TargetPlatform.macOS,
+        devicePixelRatio: zoom > 1 ? 2 : 1,
+        cli: FakeCli(
+          answers: {
+            'cancel_async_message': {'cancelled': true},
+          },
+        ),
+      );
+      session
+        ..send(const ComposerMessage(text: 'then the tests'))
+        ..send(const ComposerMessage(text: 'and lint'));
+      await tester.pump(const Duration(milliseconds: 100));
+      List<String> order() => [
+        for (final (_, item) in session.queued) item.text,
+      ];
+      expect(order(), ['then the tests', 'and lint']);
+
+      final row = find.text('and lint');
+      final before = tester.getRect(row);
+      final gesture = await tester.startGesture(
+        tester.getCenter(row),
+        kind: touch ? ui.PointerDeviceKind.touch : ui.PointerDeviceKind.mouse,
+      );
+      if (touch) await tester.pump(kLongPressTimeout);
+      const step = Offset(0, -15);
+      await gesture.moveBy(step);
+      await tester.pump();
+      final proxy = find.descendant(
+        of: find.byWidgetPredicate(
+          (widget) => widget is Material && widget.elevation == 3,
+        ),
+        matching: row,
+      );
+      expect(
+        tester.getTopLeft(proxy),
+        offsetMoreOrLessEquals(before.topLeft + step, epsilon: 0.01),
+      );
+      await gesture.moveBy(step);
+      await tester.pump();
+      expect(
+        tester.getTopLeft(proxy),
+        offsetMoreOrLessEquals(before.topLeft + step * 2, epsilon: 0.01),
+      );
+      expect(
+        tester.getBottomRight(proxy),
+        offsetMoreOrLessEquals(before.bottomRight + step * 2, epsilon: 0.01),
+      );
+      expect(order(), ['then the tests', 'and lint']);
+      await gesture.up();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(order(), ['and lint', 'then the tests']);
+      // The one given the CLI taken back, all sent again in the new order.
+      expect(cli.requests('cancel_async_message'), hasLength(1));
+      expect(cli.requests('interrupt'), isEmpty);
+    });
+  }
+
+  testWidgets('a queued message scrolls toward the edge and cancels cleanly', (
     tester,
   ) async {
-    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
-    tester.view.physicalSize = const Size(1200, 900);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
     final (:session, :cli) = await pumpScripted(
       tester,
+      zoom: 1.25,
+      platform: TargetPlatform.macOS,
       cli: FakeCli(
         answers: {
           'cancel_async_message': {'cancelled': true},
         },
       ),
     );
-    session
-      ..send(const ComposerMessage(text: 'then the tests'))
-      ..send(const ComposerMessage(text: 'and lint'));
+    final messages = List.generate(10, (i) => 'follow-up $i');
+    for (final text in messages) {
+      session.send(ComposerMessage(text: text));
+    }
     await tester.pump(const Duration(milliseconds: 100));
-    final panel = find.byType(QueuePanel);
+    final viewport = find.byType(ReorderableListView);
+    final scroll = tester
+        .state<ScrollableState>(
+          find.descendant(of: viewport, matching: find.byType(Scrollable)),
+        )
+        .position;
+    Future<TestGesture> dragToBottom() async {
+      final first = tester.getCenter(find.text(messages.first));
+      final gesture = await tester.startGesture(
+        first,
+        kind: ui.PointerDeviceKind.mouse,
+      );
+      await gesture.moveTo(Offset(first.dx, tester.getBottomLeft(viewport).dy));
+      for (var i = 0; i < 30 && scroll.pixels < scroll.maxScrollExtent; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      expect(scroll.pixels, scroll.maxScrollExtent);
+      return gesture;
+    }
+
+    final canceled = await dragToBottom();
+    await canceled.cancel();
+    await tester.pump();
+    expect([for (final (_, item) in session.queued) item.text], messages);
+    expect(cli.requests('cancel_async_message'), isEmpty);
+
+    scroll.jumpTo(0);
+    await tester.pump();
+    final dropped = await dragToBottom();
+    await dropped.up();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 100));
     expect(
       [for (final (_, item) in session.queued) item.text],
-      ['then the tests', 'and lint'],
+      [...messages.skip(1), messages.first],
     );
-
-    // The second dragged above the first.
-    final gesture = await tester.startGesture(
-      tester.getCenter(
-        find.descendant(of: panel, matching: find.text('and lint')),
-      ),
-    );
-    await tester.pump(kPressTimeout);
-    // A little to start it, then well past the one above.
-    await gesture.moveBy(const Offset(0, -10));
-    await tester.pump();
-    await gesture.moveBy(const Offset(0, -30));
-    await tester.pump();
-    await gesture.moveBy(const Offset(0, -30));
-    await tester.pump();
-    await gesture.up();
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
-    await tester.pump(const Duration(milliseconds: 100));
-
-    expect(
-      [for (final (_, item) in session.queued) item.text],
-      ['and lint', 'then the tests'],
-    );
-    // The one given the CLI taken back, all sent again in the new order.
-    expect(cli.requests('cancel_async_message'), hasLength(1));
-    expect(cli.requests('interrupt'), isEmpty);
-    debugDefaultTargetPlatformOverride = null;
   });
 
   testWidgets('an earlier conversation says it is loading until it is read', (
@@ -700,13 +789,14 @@ void main() {
     );
   });
 
-  testWidgets('after a turn, Tab takes the prompt Claude suggests', (
+  testWidgets('after a turn, its suggested replies show over the composer: '
+      'Tab takes the first, a click puts one in, a double click sends it', (
     tester,
   ) async {
     final session = await pumpSession(tester, MockKernels.claudeCode);
     session.send(const ComposerMessage(text: '把输入框改成随内容增高'));
     await tester.pump();
-    expect(session.promptSuggestion, isNull);
+    expect(find.byType(ReplySuggestionBar), findsNothing);
     // Answering whatever it asks, until it is done.
     for (var i = 0; i < 400 && session.isStreaming; i++) {
       switch (session.pendingInteraction) {
@@ -716,37 +806,119 @@ void main() {
           session.answer(const ApprovalAnswer(ApprovalDecision.allowOnce));
         default:
       }
+      // Never their tags, while written.
+      expect(
+        find.textContaining(ReplySuggestions.tag, findRichText: true),
+        findsNothing,
+      );
       await tester.pump(const Duration(milliseconds: 100));
     }
     await tester.pump(const Duration(milliseconds: 300));
-    expect(session.promptSuggestion, 'Run the tests');
+    expect(session.replySuggestions, MockScript.suggestions);
+    final bar = find.byType(ReplySuggestionBar);
+    expect(bar, findsOneWidget);
+    // On top of all over the composer: the changes under it.
     expect(
-      find.descendant(
-        of: find.byType(ChatComposer),
-        matching: find.textContaining('Run the tests', findRichText: true),
-      ),
+      tester.getBottomLeft(bar).dy,
+      lessThan(tester.getTopLeft(find.byType(ActivityStrip)).dy),
+    );
+    // No key shown on them.
+    expect(
+      find.descendant(of: bar, matching: find.text(MockScript.suggestions[0])),
       findsOneWidget,
+    );
+    expect(
+      find.textContaining(ReplySuggestions.tag, findRichText: true),
+      findsNothing,
     );
 
     await tester.sendKeyEvent(LogicalKeyboardKey.tab);
     await tester.pump();
     final editor = tester.widget<MarkdownEditor>(find.byType(MarkdownEditor));
-    expect(editor.controller.text, 'Run the tests');
+    expect(editor.controller.text, MockScript.suggestions.first);
+    // Something typed: gone, once faded.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(bar, findsNothing);
+
+    editor.controller.replace(0, editor.controller.length, '');
+    await tester.pump();
+    expect(bar, findsOneWidget);
+    // Its room opened.
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.tap(
+      find.descendant(
+        of: bar,
+        matching: find.textContaining(
+          MockScript.suggestions[1],
+          findRichText: true,
+        ),
+      ),
+    );
+    // At once, not once it is no double click.
+    await tester.pump();
+    expect(editor.controller.text, MockScript.suggestions[1]);
+    // The bar kept for a second click till then; gone after.
+    expect(bar, findsOneWidget);
+    await tester.pump(kDoubleTapTimeout);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(bar, findsNothing);
+    expect(session.isStreaming, isFalse);
+
+    // A double click sends it as it is.
+    editor.controller.replace(0, editor.controller.length, '');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    final last = find.descendant(
+      of: bar,
+      matching: find.textContaining(
+        MockScript.suggestions.last,
+        findRichText: true,
+      ),
+    );
+    await tester.tap(last);
+    await tester.pump(kDoubleTapMinTime);
+    await tester.tap(last);
+    await tester.pump();
+    expect(session.isStreaming, isTrue);
+    expect(editor.controller.text, isEmpty);
+    // In the conversation; the bar faded.
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(bar, findsNothing);
+    expect(
+      find.textContaining(MockScript.suggestions.last, findRichText: true),
+      findsWidgets,
+    );
+    session.stop();
     await tester.pump(const Duration(seconds: 5));
   });
 
-  testWidgets('Tab takes the suggested prompt past an empty composition an '
+  testWidgets('Tab takes the suggested reply past an empty composition an '
       'input method left', (tester) async {
     // #143: a macOS input method, its letters deleted or committed, may
     // leave an empty composition until its next; the composer took it for
     // one under way and Tab went in as a tab.
     final (:session, :cli) = await pumpScripted(tester);
     cli
-      ..push({'type': 'result', 'subtype': 'success', 'is_error': false})
-      ..push({'type': 'prompt_suggestion', 'suggestion': 'Run the tests'});
+      ..push({
+        'type': 'assistant',
+        'parent_tool_use_id': null,
+        'message': {
+          'id': 'msg-done',
+          'role': 'assistant',
+          'content': [
+            {
+              'type': 'text',
+              'text': ReplySuggestions.write('Done.', ['Run the tests']),
+            },
+          ],
+        },
+      })
+      ..push({'type': 'result', 'subtype': 'success', 'is_error': false});
     await tester.pump();
     await tester.pump();
-    expect(session.promptSuggestion, 'Run the tests');
+    expect(session.replySuggestions, ['Run the tests']);
     tester.testTextInput.updateEditingValue(
       const TextEditingValue(
         text: '',
@@ -767,41 +939,6 @@ void main() {
         selection: TextSelection.collapsed(offset: 13),
       ),
     );
-    await tester.pump(const Duration(seconds: 5));
-  });
-
-  testWidgets('a suggested prompt with a Windows path, quotes and a line '
-      'break shows in the placeholder, the input still there', (tester) async {
-    // A backslash or a line break in the placeholder once broke the
-    // editor's build, and the input turned into a grey box until the app
-    // restarted.
-    const suggestion =
-        r'Run release\win-unpacked\BaoCode.exe'
-        '\n'
-        r'then open "C:\Users"';
-    final (:session, :cli) = await pumpScripted(tester);
-    cli
-      ..push({'type': 'result', 'subtype': 'success', 'is_error': false})
-      ..push({'type': 'prompt_suggestion', 'suggestion': suggestion});
-    await tester.pump();
-    await tester.pump();
-    expect(session.promptSuggestion, suggestion);
-    expect(
-      find.descendant(
-        of: find.byType(ChatComposer),
-        matching: find.text(
-          r'Run release\win-unpacked\BaoCode.exe then open "C:\Users"    Tab',
-          findRichText: true,
-        ),
-      ),
-      findsOneWidget,
-    );
-
-    // Taken, it is the text as suggested.
-    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-    await tester.pump();
-    final editor = tester.widget<MarkdownEditor>(find.byType(MarkdownEditor));
-    expect(editor.controller.text, suggestion);
     await tester.pump(const Duration(seconds: 5));
   });
 
@@ -1169,6 +1306,51 @@ void main() {
     final send = tester.getRect(find.byTooltip('Send (Enter)'));
     expect(first.left - box.left, lessThan(12));
     expect(box.right - send.right, lessThan(12));
+  });
+
+  testWidgets('a model answering in place of the one picked shows in its '
+      'pill, the picked one a click away', (tester) async {
+    final (:session, :cli) = await pumpScripted(tester);
+    Future<void> settle() async {
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump();
+    }
+
+    session.models!.onSelected(
+      session.models!.options.firstWhere((o) => o.id == 'opus'),
+    );
+    await settle();
+    final label = find.byWidgetPredicate(
+      (w) => w is Text && (w.data?.startsWith('Opus') ?? false),
+    );
+    expect(label, findsOneWidget);
+
+    cli.push({
+      'type': 'system',
+      'subtype': 'model_refusal_fallback',
+      'scope': 'session',
+      'original_model': 'claude-opus-5-5',
+      'fallback_model': 'claude-opus-4-8',
+      'content': 'Switched to Opus 4.8.',
+      'uuid': 'f1',
+    });
+    await settle();
+    final fallback = find.byWidgetPredicate(
+      (w) => w is Text && (w.data?.startsWith('Opus 4.8') ?? false),
+    );
+    expect(fallback, findsOneWidget);
+    expect(find.text('Switched to Opus 4.8.'), findsOneWidget);
+
+    final asked = cli.requests('set_model').length;
+    await tester.tap(fallback);
+    await settle();
+    await tester.tap(find.text('Switch Back to Opus'));
+    await settle();
+    expect(cli.requests('set_model'), hasLength(asked + 1));
+    expect(session.fallbackModel, isNull);
+    expect(label, findsOneWidget);
+    expect(fallback, findsNothing);
   });
 
   testWidgets('the model menu lists models only; context and effort are '

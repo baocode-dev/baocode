@@ -76,15 +76,32 @@ async function hello() {
   // The browser shows that switch only to an extension that could want it:
   // activeTab, in the manifest for that alone, makes this one such.
   const fileAccess = await chrome.extension.isAllowedFileSchemeAccess().catch(() => null);
+  // The engine, which tells a browser that borrows another's name (Cent
+  // Browser says Google Chrome): its version is what differs.
+  const version = await chromiumVersion();
   if (!connected) return;
   send({
     type: 'hello',
     protocol: BRIDGE,
     capabilities: CAPABILITIES,
     browser: browserName(),
+    engine: version ? `Chromium ${version}` : 'Chromium',
     version: chrome.runtime.getManifest().version,
     fileAccess,
   });
+}
+
+// The Chromium under the browser: the one in its user agent's full list,
+// where it says, else its user agent's Chrome/…
+async function chromiumVersion() {
+  try {
+    const { fullVersionList } = await navigator.userAgentData.getHighEntropyValues(['fullVersionList']);
+    const chromium = fullVersionList?.find((b) => b.brand === 'Chromium');
+    if (chromium?.version) return chromium.version;
+  } catch (error) {
+    // Not there, or not let: the user agent says.
+  }
+  return /(?:Chrome|Chromium)\/([\d.]+)/.exec(navigator.userAgent)?.[1] ?? null;
 }
 
 // The toolbar button's badge and title: recording, connected, or not.
@@ -371,7 +388,14 @@ chrome.tabs.onCreated.addListener(async (tab) => {
 // --- The tabs shared: the "BaoCode" group's, in any window.
 
 async function groups() {
-  return chrome.tabGroups.query({ title: GROUP });
+  try {
+    return await chrome.tabGroups.query({ title: GROUP });
+  } catch (error) {
+    // No window open: a browser left running in the background. It has no
+    // group, and a window is made with the first tab asked for (createTab).
+    if (/No current window/i.test(String(error?.message))) return [];
+    throw error;
+  }
 }
 
 async function sharedTabs() {

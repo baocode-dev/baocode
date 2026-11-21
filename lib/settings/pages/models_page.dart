@@ -17,7 +17,6 @@ import '../../kernel/claude_code/claude_haiku.dart';
 import '../../l10n/l10n.dart';
 import '../../models/claude_resets.dart';
 import '../../models/claude_resets_io.dart';
-import '../../models/codex/codex_api.dart' show codexClientVersion;
 import '../../models/codex/codex_quota_format.dart';
 import '../../models/codex/codex_service.dart';
 import '../../models/codex/codex_usage.dart';
@@ -1949,31 +1948,6 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
           value: provider.promptCacheKey,
           onChanged: (value) =>
               unawaited(_save(_providerNow.copyWith(promptCacheKey: value))),
-        ),
-      if (provider.protocol == ProviderProtocol.codex)
-        SettingsRow(
-          label: l10n.modelsCodexVersion,
-          description: l10n.modelsCodexVersionDescription,
-          trailing: _Field(
-            value: provider.clientVersion ?? '',
-            label: l10n.modelsCodexVersion,
-            placeholder: codexClientVersion,
-            onCommit: (text) {
-              final version = text.trim();
-              // Not one: left as it was.
-              if (version.isNotEmpty &&
-                  !ModelProvider.isClientVersion(version)) {
-                return;
-              }
-              unawaited(
-                _save(
-                  _providerNow.copyWith(
-                    clientVersion: () => version.isEmpty ? null : version,
-                  ),
-                ),
-              );
-            },
-          ),
         ),
       SettingsRow(
         label: l10n.modelsEnv,

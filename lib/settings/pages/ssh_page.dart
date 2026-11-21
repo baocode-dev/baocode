@@ -182,7 +182,10 @@ class _SshSettingsPageState extends State<SshSettingsPage> {
                     ),
                 ],
               ),
-            if ([...{...servers, ..._config}] case final hosts when hosts.isNotEmpty)
+            if ([
+                  ...{...servers, ..._config},
+                ]
+                case final hosts when hosts.isNotEmpty)
               _localAccess(l10n, workspace, hosts),
           ],
         );
@@ -294,6 +297,7 @@ class _HostRow extends StatelessWidget {
         final state = ssh.state;
         final status = switch (state) {
           SshHostState.connected => l10n.sidebarHostConnected,
+          SshHostState.reconnecting when ssh.down => l10n.sidebarHostDown,
           SshHostState.connecting ||
           SshHostState.reconnecting => l10n.sidebarHostConnecting,
           SshHostState.failed =>

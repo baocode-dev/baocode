@@ -9,7 +9,11 @@ import 'dart:async';
 import 'package:bao_editor/monaco/vs/editor/common/core/position.dart';
 import 'package:flutter/widgets.dart';
 
+import '../../keybindings/default_keybindings.dart'
+    show openLspSettingsCommandId;
 import '../../l10n/l10n.dart';
+import '../../theme/codicons.dart';
+import '../ide_menu.dart';
 import '../ide_notifications.dart';
 import '../ide_status_bar.dart' show IdeLanguageNames;
 import '../ide_workspace.dart';
@@ -46,6 +50,7 @@ class LanguageService extends ChangeNotifier {
   LanguageFeatures? _languages;
   IdeDocumentSymbols? _symbols;
   StreamSubscription<LspApplyEditRequest>? _editRequests;
+  StreamSubscription<LspServerMessage>? _serverMessages;
 
   /// The servers recommended this session.
   final Set<String> _recommended = {};
@@ -68,12 +73,15 @@ class LanguageService extends ChangeNotifier {
       ?..addListener(notifyListeners);
     languages?.addListener(_languagesChanged);
     _editRequests = languages?.workspaceEdits.listen(_applyEditRequest);
+    _serverMessages = languages?.serverMessages.listen(_showServerMessage);
   }
 
   void detach() {
     _languages?.removeListener(_languagesChanged);
     unawaited(_editRequests?.cancel());
     _editRequests = null;
+    unawaited(_serverMessages?.cancel());
+    _serverMessages = null;
     _symbols
       ?..removeListener(notifyListeners)
       ..dispose();
@@ -108,6 +116,113 @@ class LanguageService extends ChangeNotifier {
       request.complete(false);
       host.report(error);
     }
+  }
+
+  /// Surfaces error and warning messages from a language server in the
+  /// notification center with quick actions for its log and LSP settings.
+  void _showServerMessage(LspServerMessage message) {
+    final workspace = _workspace;
+    if (workspace == null) return;
+    final severity = switch (message.type) {
+      LspMessageType.error => IdeSeverity.error,
+      LspMessageType.warning => IdeSeverity.warning,
+      _ => null,
+    };
+    if (severity == null) return;
+    final text = message.message.trim();
+    if (text.isEmpty) return;
+    final l10n = host.context?.l10n ?? englishLocalizations;
+    workspace.notifications.notify(
+      severity,
+      '[${message.serverId}] $text',
+      source: message.serverId,
+      primary: [
+        IdeNotificationAction(
+          l10n.langViewLog,
+          () => unawaited(openServerLog(message.serverId, path: message.path)),
+        ),
+        IdeNotificationAction(l10n.langOpenLspSettings, openLspSettings),
+      ],
+    );
+  }
+
+  /// Opens a read-only editor tab with [serverId]'s recent log output,
+  /// refreshing it when already open.
+  Future<void> openServerLog(String serverId, {String? path}) async {
+    final workspace = _workspace;
+    final languages = _languages;
+    if (workspace == null || languages == null) return;
+    final l10n = host.context?.l10n ?? englishLocalizations;
+    final targetPath = path ?? workspace.active?.path;
+    Future<String> read() async {
+      var lines = languages.logFor(serverId, path: targetPath);
+      if (lines.isEmpty && targetPath != null) {
+        lines = languages.logFor(serverId);
+      }
+      if (lines.isNotEmpty) return lines.join('\n');
+      if (targetPath != null) {
+        final status = languages
+            .statusFor(targetPath)
+            .where((s) => s.serverId == serverId)
+            .firstOrNull;
+        final fallback = status?.error ?? status?.message;
+        if (fallback != null && fallback.isNotEmpty) return fallback;
+      }
+      return l10n.langNoLogOutput(serverId);
+    }
+
+    final safeId = serverId.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+    final logPath = workspace.paths.join(workspace.root, '$safeId.log');
+    await workspace.openRevision(
+      logPath,
+      label: l10n.langServerLogLabel,
+      read: read,
+      refresh: true,
+    );
+  }
+
+  /// Opens the user's LSP configuration (`lsp.json`).
+  void openLspSettings() => host.executeCommand(openLspSettingsCommandId);
+
+  /// Shows the actions menu for a language server status bar entry.
+  void showServerMenu(
+    BuildContext context,
+    LanguageServerStatus status, {
+    required String path,
+    Rect? anchor,
+    Offset? position,
+  }) {
+    final l10n = context.l10n;
+    final id = status.serverId;
+    final entries = <IdeMenuEntry>[
+      IdeMenuAction(
+        l10n.langViewLog,
+        icon: const Icon(Codicons.output),
+        onSelected: () => unawaited(openServerLog(id, path: path)),
+      ),
+      IdeMenuAction(
+        l10n.langOpenLspSettings,
+        icon: const Icon(Codicons.json),
+        onSelected: openLspSettings,
+      ),
+      if (status.state == LanguageServerState.failed ||
+          status.state == LanguageServerState.restarting) ...[
+        const IdeMenuSeparator(),
+        IdeMenuAction(
+          l10n.cmdRetryLanguageServices,
+          icon: const Icon(Codicons.refresh),
+          onSelected: () => _languages?.retry(id, path: path),
+        ),
+      ],
+    ];
+    unawaited(
+      showIdeMenu(
+        context,
+        anchor: anchor,
+        position: position,
+        entries: entries,
+      ),
+    );
   }
 
   /// The caret's place, as the servers count.

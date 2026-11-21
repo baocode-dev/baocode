@@ -534,6 +534,13 @@ void main() {
       );
     });
 
+    test("baocode.dev's Codex version, none where it has none", () {
+      expect(parseCodexVersion('{"clientVersion": " 0.170.0 "}'), '0.170.0');
+      expect(parseCodexVersion('{"clientVersion": ""}'), isNull);
+      expect(parseCodexVersion('{"clientVersion": 170}'), isNull);
+      expect(parseCodexVersion('<html>'), isNull);
+    });
+
     test('the models it lists, with their efforts', () {
       final models = parseCodexModels({
         'models': [
@@ -844,12 +851,15 @@ void main() {
       expect(asked.headers['chatgpt-account-id'], 'ws-a');
       expect(asked.query['client_version'], codexClientVersion);
 
-      // A version of the provider's own: asked as that Codex CLI.
-      await providers.save(provider().copyWith(clientVersion: () => '0.170.0'));
+      // A version baocode.dev says now: asked as that Codex CLI.
+      codexFeed = (url) async {
+        expect(url, codexVersionFeed);
+        return '{"clientVersion": "0.170.0"}';
+      };
       await accounts.listModels(provider());
       final newer = openai.to('/backend-api/codex/models').last;
       expect(newer.query['client_version'], '0.170.0');
-      expect(newer.headers['user-agent'], codexUserAgent('0.170.0'));
+      expect(newer.headers['user-agent'], contains('codex-tui/0.170.0'));
     });
 
     group('reset credits', () {
@@ -1896,6 +1906,34 @@ void main() {
         expect(errors.last, isNotNull);
       });
 
+      test('all out of quota as last learned: asked again first', () async {
+        openai.reply = (path, _, _) => switch (path) {
+          '/oauth/token' => tokens('access'),
+          '/backend-api/wham/usage' => (
+            200,
+            const {},
+            [
+              jsonEncode({
+                'rate_limit': {
+                  'primary_window': {'used_percent': 0},
+                },
+              }),
+            ],
+          ),
+          _ => (200, const {}, _stream),
+        };
+        // Started over early, as nothing here watched.
+        final later = DateTime.now().add(const Duration(days: 3));
+        accounts
+          ..markLimited(provider(), a, later)
+          ..markLimited(provider(), b, later);
+        final answer = await ask();
+        expect(answer.status, 200);
+        expect(answer.text, contains('"text":"hi"'));
+        expect(openai.to('/backend-api/wham/usage'), hasLength(2));
+        expect(accounts.backAt(provider()), isNull);
+      });
+
       test('reasoning another account encrypted is dropped', () async {
         openai.reply = (path, _, body) {
           if (path == '/oauth/token') return tokens('access');
@@ -1965,6 +2003,6 @@ void main() {
       UpstreamUrls.conversation(provider),
       const CodexEndpoints().responses,
     );
-    expect(UpstreamUrls.models(provider), [const CodexEndpoints().models()]);
+    expect(UpstreamUrls.models(provider), [const CodexEndpoints().models]);
   });
 }

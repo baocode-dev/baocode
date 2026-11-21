@@ -50,8 +50,8 @@ class _Feed extends ChangeNotifier implements ChatFeed {
 }
 
 void main() {
-  testWidgets('a long conversation rebuilt builds its shown rows, not the '
-      'hundreds folded away', (tester) async {
+  testWidgets('a long conversation has rows for what shows, not the '
+      'hundreds folded away; rebuilt, it builds them anew', (tester) async {
     tester.view.physicalSize = const Size(1000, 700);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -87,7 +87,9 @@ void main() {
     feed.notifyListeners();
     await tester.pump();
 
-    expect(alive, greaterThan(200));
+    // 20 turns of 80 steps each, all in reach: their prompts, lines and
+    // answers.
+    expect(alive, lessThan(70));
     expect(rebuilt, lessThan(40));
     // What the shown rows say is as it was: not parsed nor laid out anew.
     expect(markdown, 0);

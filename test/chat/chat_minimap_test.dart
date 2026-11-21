@@ -1,6 +1,8 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:baocode/chat/chat_column.dart';
 import 'package:baocode/chat/chat_feed.dart';
 import 'package:baocode/chat/chat_history_view.dart';
 import 'package:baocode/chat/chat_models.dart';
@@ -12,6 +14,7 @@ import 'package:baocode/chat/widgets/chat_minimap.dart';
 import 'package:baocode/chat/widgets/hover_scrollbar.dart';
 import 'package:baocode/chat/widgets/user_message_bubble.dart';
 import 'package:baocode/theme/app_theme.dart';
+import 'package:baocode/theme/ui_zoom.dart';
 
 class _Feed extends ChangeNotifier implements ChatFeed {
   _Feed(this.items);
@@ -65,29 +68,75 @@ List<ChatItem> _conversation(int turns) => [
   ],
 ];
 
-Future<void> _pump(
+/// Pumps [feed]'s history [width] wide (on screen; in the window's own
+/// units, [zoom]ed, as wide over [zoom]). With an [inset], a rail floats over
+/// it where [ChatColumnInset.rail]'s rect says, in the window's units: kept
+/// as far from the nearer edge as the window is resized. Returns the rail's
+/// rect, to move it.
+Future<ValueNotifier<Rect?>?> _pump(
   WidgetTester tester,
   ChatFeed feed, {
   double width = 1200,
   double maxWidth = 720,
   bool minimap = true,
+  ChatMinimapSide side = ChatMinimapSide.left,
+  ({double left, double right, Rect? rail})? inset,
+  double zoom = 1,
 }) async {
   tester.view.physicalSize = Size(width, 800);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
+  ChatMinimap.side.value = side;
+  addTearDown(() => ChatMinimap.side.value = ChatMinimap.defaultSide);
+  Widget history = ChatHistoryView(
+    feed: feed,
+    maxContentWidth: maxWidth,
+    minimap: minimap,
+  );
+  ValueNotifier<Rect?>? rect;
+  if (inset != null) {
+    final rail = ChatRail();
+    addTearDown(rail.dispose);
+    final at = rect = ValueNotifier<Rect?>(inset.rail);
+    addTearDown(at.dispose);
+    final wide = width / zoom;
+    history = Stack(
+      children: [
+        Positioned.fill(
+          child: ChatColumnInset(
+            left: inset.left,
+            right: inset.right,
+            rail: rail,
+            child: history,
+          ),
+        ),
+        ValueListenableBuilder(
+          valueListenable: at,
+          builder: (context, rect, _) => rect == null
+              ? const SizedBox.shrink()
+              : Positioned(
+                  left: rect.center.dx < wide / 2 ? rect.left : null,
+                  right: rect.center.dx < wide / 2 ? null : wide - rect.right,
+                  top: rect.top,
+                  width: rect.width,
+                  height: rect.height,
+                  child: ChatRailReport(rail: rail, child: const SizedBox()),
+                ),
+        ),
+      ],
+    );
+  }
   await tester.pumpWidget(
     MaterialApp(
       theme: buildAppTheme(),
-      home: Scaffold(
-        body: ChatHistoryView(
-          feed: feed,
-          maxContentWidth: maxWidth,
-          minimap: minimap,
-        ),
-      ),
+      home: Scaffold(body: history),
+      builder: zoom == 1
+          ? null
+          : (context, child) => UiZoom(scale: zoom, child: child),
     ),
   );
   await tester.pumpAndSettle();
+  return rect;
 }
 
 ScrollPosition _position(WidgetTester tester) =>
@@ -162,6 +211,195 @@ void main() {
       },
     );
   }
+
+  // At the right: the column's right clear of the minimap, and no room kept
+  // at its left, which stays level with the composer's.
+  for (final (width, maxWidth) in [
+    (1300.0, 1200.0),
+    (1200.0, 720.0),
+    (790.0, 1200.0),
+    (600.0, 720.0),
+  ]) {
+    testWidgets('at the right of a column ${maxWidth.round()} at most, in a '
+        '${width.round()} window', (tester) async {
+      await _pump(
+        tester,
+        _Feed(_conversation(30)),
+        width: width,
+        maxWidth: maxWidth,
+        minimap: false,
+      );
+      final without = tester.getRect(find.byType(AssistantText).first).left;
+      await tester.pumpWidget(const SizedBox());
+      await _pump(
+        tester,
+        _Feed(_conversation(30)),
+        width: width,
+        maxWidth: maxWidth,
+        side: ChatMinimapSide.right,
+      );
+      expect(_opacity(tester), 1);
+      final strip = _track(tester);
+      expect(strip.width, 24);
+      expect(width - strip.right, greaterThanOrEqualTo(12));
+      for (final text in find.byType(AssistantText).evaluate()) {
+        final rect = tester.getRect(find.byWidget(text.widget));
+        expect(strip.left, greaterThanOrEqualTo(rect.right + 20));
+      }
+      // Its left where it is without a minimap.
+      expect(tester.getRect(find.byType(AssistantText).first).left, without);
+      expect(_scrollbar(tester).interactive, isFalse);
+    });
+  }
+
+  testWidgets('the side chosen moves it, and the column, at once', (
+    tester,
+  ) async {
+    await _pump(tester, _Feed(_conversation(30)), width: 790, maxWidth: 1200);
+    final text = tester.getRect(find.byType(AssistantText).first);
+    expect(_track(tester).right, lessThanOrEqualTo(text.left - 20));
+    ChatMinimap.side.value = ChatMinimapSide.right;
+    await tester.pumpAndSettle();
+    final moved = tester.getRect(find.byType(AssistantText).first);
+    expect(_track(tester).left, greaterThanOrEqualTo(moved.right + 20));
+    // The room at the left given back.
+    expect(moved.left, lessThan(text.left));
+  });
+
+  // The side panel's rail floats over the margin's top: a minimap on its
+  // side is under it at any width, in line with it, from below it.
+  for (final side in ChatMinimapSide.values) {
+    for (final width in [900.0, 1400.0]) {
+      testWidgets('under the rail at the ${side.name} of a ${width.round()} '
+          'window, in line with it', (tester) async {
+        final right = side == ChatMinimapSide.right;
+        final rail = right
+            ? Rect.fromLTWH(width - 48, 12, 36, 130)
+            : const Rect.fromLTWH(12, 12, 36, 130);
+        await _pump(
+          tester,
+          _Feed(_conversation(30)),
+          width: width,
+          maxWidth: 1200,
+          side: side,
+          inset: (left: right ? 0 : 56, right: right ? 56 : 0, rail: rail),
+        );
+        expect(_opacity(tester), 1);
+        final strip = _track(tester);
+        expect(strip.center.dx, moreOrLessEquals(rail.center.dx));
+        expect(strip.top, moreOrLessEquals(rail.bottom + 10));
+        expect(strip.bottom, 800 - 14);
+        // Clear of the text still.
+        for (final text in find.byType(AssistantText).evaluate()) {
+          final rect = tester.getRect(find.byWidget(text.widget));
+          if (right) {
+            expect(strip.left, greaterThan(rect.right));
+          } else {
+            expect(strip.right, lessThan(rect.left));
+          }
+        }
+      });
+    }
+  }
+
+  // Settings → Appearance's zoom: the window laid out in units of its own.
+  testWidgets('under the rail, in line with it, in a zoomed window', (
+    tester,
+  ) async {
+    const zoom = 0.94;
+    const wide = 1000 / zoom;
+    // In the window's units: 12 in from the right, at 12 down.
+    const rail = Rect.fromLTWH(wide - 48, 12, 36, 130);
+    await _pump(
+      tester,
+      _Feed(_conversation(30)),
+      width: 1000,
+      maxWidth: 1200,
+      side: ChatMinimapSide.right,
+      inset: (left: 0, right: 56, rail: rail),
+      zoom: zoom,
+    );
+    expect(_opacity(tester), 1);
+    final strip = tester.getRect(_strip);
+    expect(strip.center.dx, moreOrLessEquals(rail.center.dx * zoom));
+    expect(strip.top, moreOrLessEquals((rail.bottom + 10) * zoom));
+  });
+
+  // The window resized, or zoomed: the rail moves with its edge, and the
+  // minimap with it in the same frame, not one after.
+  for (final zoomed in [false, true]) {
+    testWidgets('in line with the rail in the very frame the window is '
+        '${zoomed ? 'zoomed' : 'resized'}', (tester) async {
+      await _pump(
+        tester,
+        _Feed(_conversation(30)),
+        width: 900,
+        maxWidth: 1200,
+        side: ChatMinimapSide.right,
+        inset: (
+          left: 0,
+          right: 56,
+          rail: const Rect.fromLTWH(900 - 48, 12, 36, 130),
+        ),
+      );
+      expect(_track(tester).center.dx, moreOrLessEquals(900 - 30));
+      if (zoomed) {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: buildAppTheme(),
+            home: Scaffold(
+              body: tester.widget<Scaffold>(find.byType(Scaffold)).body,
+            ),
+            builder: (context, child) => UiZoom(scale: 0.9, child: child),
+          ),
+        );
+      } else {
+        tester.view.physicalSize = const Size(1100, 800);
+        await tester.pump();
+      }
+      final strip = tester.getRect(_strip);
+      final rail = tester.getRect(find.byType(ChatRailReport));
+      expect(strip.center.dx, moreOrLessEquals(rail.center.dx));
+      expect(
+        strip.top,
+        moreOrLessEquals(rail.bottom + 10 * (zoomed ? 0.9 : 1)),
+      );
+    });
+  }
+
+  testWidgets('with the rail at the other side, beside the column from the '
+      'top', (tester) async {
+    const rail = Rect.fromLTWH(1400 - 48, 12, 36, 130);
+    await _pump(
+      tester,
+      _Feed(_conversation(30)),
+      width: 1400,
+      inset: (left: 0, right: 56, rail: rail),
+    );
+    final strip = _track(tester);
+    final text = tester.getRect(find.byType(AssistantText).first);
+    expect(strip.right, lessThanOrEqualTo(text.left - 20));
+    expect(strip.top, 14);
+  });
+
+  testWidgets('the rail grown, the minimap follows it down at once, though '
+      'nothing else moves', (tester) async {
+    const rail = Rect.fromLTWH(900 - 48, 12, 36, 130);
+    final told = await _pump(
+      tester,
+      _Feed(_conversation(30)),
+      width: 900,
+      side: ChatMinimapSide.right,
+      inset: (left: 0, right: 56, rail: rail),
+    );
+    expect(_track(tester).top, moreOrLessEquals(rail.bottom + 10));
+    told!.value = const Rect.fromLTWH(900 - 48, 12, 36, 160);
+    await tester.pump();
+    // A frame of its own to look again in.
+    expect(SchedulerBinding.instance.hasScheduledFrame, isTrue);
+    await tester.pump();
+    expect(_track(tester).top, moreOrLessEquals(12 + 160 + 10));
+  });
 
   testWidgets('gives way in a very narrow pane only', (tester) async {
     await _pump(tester, _Feed(_conversation(30)), width: 600);
@@ -366,6 +604,29 @@ void main() {
     await tester.sendEventToBinding(pointer.hover(history.center));
     await tester.pumpAndSettle();
     expect(peek, findsNothing);
+  });
+
+  testWidgets('at the right, it peeks to its left', (tester) async {
+    await _pump(tester, _Feed(_conversation(30)), side: ChatMinimapSide.right);
+    final strip = tester.getRect(_strip);
+    final pointer = TestPointer(1, PointerDeviceKind.mouse);
+    final peek = find.descendant(
+      of: find.byType(ChatMinimap),
+      matching: find.textContaining('问题'),
+    );
+    for (var y = strip.top + 2; y < strip.bottom; y += 3) {
+      // Beside it, toward the edge: near enough.
+      await tester.sendEventToBinding(
+        pointer.hover(Offset(strip.right + 6, y)),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+      if (peek.evaluate().isNotEmpty) break;
+    }
+    expect(peek, findsOneWidget);
+    await tester.pumpAndSettle();
+    final card = tester.getRect(peek);
+    expect(card.right, lessThanOrEqualTo(strip.left));
+    expect(card.left, greaterThan(0));
   });
 
   testWidgets('the wheel over it scrolls the history', (tester) async {

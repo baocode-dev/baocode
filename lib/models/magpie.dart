@@ -6,6 +6,8 @@
 /// magpie's files (docs/integrating.md in its repository).
 library;
 
+import 'dart:convert';
+
 import 'model_provider.dart';
 import 'upstream.dart';
 
@@ -65,6 +67,62 @@ abstract final class Magpie {
           baseUrl: baseUrl(port),
           modelsUrl: () => modelsUrl(port),
         );
+
+  /// The id magpie lists model [id] by to Claude Code's model discovery
+  /// when the id says neither claude nor anthropic, as it listed them to
+  /// BaoCode while BaoCode asked with Claude Code's user agent:
+  /// `anthropic/magpie-` and ten digits, FNV-1a 64 of [id] (its gateway's
+  /// aliasFor). It still serves a model asked for by it.
+  static String alias(String id) {
+    final mask = (BigInt.one << 64) - BigInt.one;
+    final prime = BigInt.parse('100000001b3', radix: 16);
+    var hash = BigInt.parse('cbf29ce484222325', radix: 16);
+    for (final byte in utf8.encode(id)) {
+      hash = ((hash ^ BigInt.from(byte)) * prime) & mask;
+    }
+    final number = (hash % BigInt.from(10000000000)).toString();
+    return '$_aliasPrefix${number.padLeft(10, '0')}';
+  }
+
+  static const _aliasPrefix = 'anthropic/magpie-';
+
+  /// Whether [id] reads as one of magpie's aliases ([alias]).
+  static bool isAlias(String id) =>
+      id.startsWith(_aliasPrefix) &&
+      RegExp(r'^\d{10}$').hasMatch(id.substring(_aliasPrefix.length));
+
+  /// [provider] with the models it keeps by an [alias] of one of [ids]
+  /// kept by that id instead, as they were (on or off, named); its roles
+  /// that pick them, picking them by it.
+  static ModelProvider unaliased(ModelProvider provider, Iterable<String> ids) {
+    final known = {for (final model in provider.models) model.id};
+    final real = {
+      for (final id in ids)
+        if (!isAlias(id) && !known.contains(id)) alias(id): id,
+    };
+    if (!known.any(real.containsKey)) return provider;
+    String? rename(String? picked) {
+      if (picked == null) return null;
+      if (real[picked] case final id?) return id;
+      if (parseModelRef(picked) case (provider: final owner, :final model)
+          when owner == provider.id && real.containsKey(model)) {
+        return modelRef(owner, real[model]!);
+      }
+      return picked;
+    }
+
+    var roles = provider.roles;
+    for (final key in ProviderRoles.keys) {
+      roles = roles.copyWith(key, rename(roles[key]));
+    }
+    return provider.copyWith(
+      models: [
+        for (final model in provider.models)
+          if (real[model.id] case final id?) model.copyWith(id: id) else model,
+      ],
+      roles: roles,
+    );
+  }
 
   /// Whether [id] is a routing group's: one magpie found (`auto/<model>`,
   /// a model several providers serve) or the user made (`group/<id>`).
@@ -143,6 +201,7 @@ abstract final class Magpie {
     Map<String, String> picks,
   ) {
     final ids = [for (final model in listed) model.id];
+    provider = unaliased(provider, ids);
     final picked = {
       for (final MapEntry(key: role, value: pick) in picks.entries)
         role: ?match(pick, ids),

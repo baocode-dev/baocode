@@ -107,6 +107,10 @@ abstract interface class LanguageFeatures implements Listenable {
   /// edit and completes with whether it did.
   Stream<LspApplyEditRequest> get workspaceEdits;
 
+  /// Error and warning notifications from servers (`window/showMessage`,
+  /// `window/showMessageRequest`, or `language/status`).
+  Stream<LspServerMessage> get serverMessages;
+
   /// Notifies as a server's progress ([LanguageServerStatus.progress])
   /// changes, which this does not: many times a second while a server
   /// indexes, and only the status bar shows it.
@@ -115,11 +119,35 @@ abstract interface class LanguageFeatures implements Listenable {
   /// Servers for [path] and how they stand, for the status bar.
   List<LanguageServerStatus> statusFor(String path);
 
+  /// What a server attached to [path] (or any server named [serverId])
+  /// logged and printed, newest last.
+  List<String> logFor(String serverId, {String? path});
+
   /// Restarts a failed or stopped server now, resetting its backoff.
   void retry(String serverId, {String? path});
 
   /// Installs the package a missing server needs, then starts it.
   Future<void> install(String serverId, {String? path});
+}
+
+/// LSP `MessageType` (`window/showMessage`, `window/logMessage`, …).
+enum LspMessageType { error, warning, info, log }
+
+/// A message surfaced by a language server for the user.
+class LspServerMessage {
+  const LspServerMessage({
+    required this.serverId,
+    required this.type,
+    required this.message,
+    this.path,
+  });
+
+  final String serverId;
+  final LspMessageType type;
+  final String message;
+
+  /// An open document path attached to this server, if known, for log lookup.
+  final String? path;
 }
 
 enum LanguageRequest {
@@ -180,12 +208,18 @@ enum LanguageServerState {
   installing,
 }
 
+/// Severity badge for a running language server's runtime status (e.g.
+/// JDTLS `language/status` `Error` or `Warning`).
+enum LanguageServerSeverity { warning, error }
+
 class LanguageServerStatus {
   const LanguageServerStatus({
     required this.serverId,
     required this.state,
     this.message,
     this.progress,
+    this.error,
+    this.severity,
     this.installable = false,
     this.missingRuntime,
     this.retryAt,
@@ -197,8 +231,16 @@ class LanguageServerStatus {
   /// Why it failed, or what an install is doing.
   final String? message;
 
-  /// A `$/progress` title and message from the server (e.g. indexing).
+  /// A `$/progress` or `language/status` title and message from the server
+  /// (e.g. indexing or importing a project).
   final String? progress;
+
+  /// The latest runtime error or warning reported while running (e.g. JDTLS
+  /// `language/status` `Error`).
+  final String? error;
+
+  /// Severity badge for a running server (warning or error).
+  final LanguageServerSeverity? severity;
 
   /// Whether [LanguageFeatures.install] can install it.
   final bool installable;

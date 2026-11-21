@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 
+import '../update/version.dart';
 import 'codex/codex_api.dart';
 import 'model_provider.dart';
 
@@ -89,9 +90,7 @@ abstract final class UpstreamUrls {
   /// rest still after: should they move it, or list at the endpoint.
   static List<Uri> modelsByBase(ModelProvider provider) =>
       switch (provider.protocol) {
-        ProviderProtocol.codex => [
-          const CodexEndpoints().models(codexVersionOf(provider)),
-        ],
+        ProviderProtocol.codex => [const CodexEndpoints().models],
         ProviderProtocol.anthropic => switch (anthropicBase(provider.baseUrl)) {
           final base? => _anthropicModels(Uri.parse(base)),
           null => const [],
@@ -211,9 +210,14 @@ bool sendsApiKeyHeader(ModelProvider provider) =>
 /// version it is, it leaves to us.
 const claudeCodeUserAgent = 'claude-cli/2.0.1 (external, cli)';
 
+/// BaoCode's own user agent, for magpie: there Claude Code's is answered
+/// as Claude Code's model discovery, by ids made to pass its filter
+/// (`anthropic/magpie-<number>`, [Magpie.alias]); its key names the app.
+const baoCodeUserAgent = 'BaoCode/$appVersionString';
+
 /// The headers [provider] is asked with, [key] in them.
 Map<String, String> upstreamHeaders(ModelProvider provider, String? key) => {
-  'user-agent': claudeCodeUserAgent,
+  'user-agent': provider.followsMagpie ? baoCodeUserAgent : claudeCodeUserAgent,
   if (provider.protocol == ProviderProtocol.anthropic)
     'anthropic-version': '2023-06-01',
   if (key != null && key.isNotEmpty)

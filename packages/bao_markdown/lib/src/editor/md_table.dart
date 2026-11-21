@@ -1463,18 +1463,42 @@ class _MdTableState extends State<MdTable> implements MdTableEditing {
     TextAlign alignOf(int c) => c < aligns.length ? aligns[c] : TextAlign.left;
 
     // Its scrollbar, over its bottom edge, while the mouse is over it.
-    Widget scrolled(EdgeInsets padding, Widget child) => embeds.tableScrollbar(
-      context,
-      _sideways,
-      hovered: _hovered || _drag != null,
-      padding: padding,
-      style: style,
-      child: SingleChildScrollView(
-        controller: _sideways,
-        scrollDirection: Axis.horizontal,
-        child: child,
-      ),
-    );
+    Widget scrolled(EdgeInsets padding, Widget child) {
+      var hitContent = false;
+      return Listener(
+        onPointerDown: (event) {
+          // The scrollbar's painter hits its track without hitting its child.
+          // Leave only those presses to it, not the host's text selection.
+          if (!hitContent) _host?.claimPointer(event.pointer);
+          hitContent = false;
+        },
+        child: MouseRegion(
+          cursor: SystemMouseCursors.basic,
+          child: embeds.tableScrollbar(
+            context,
+            _sideways,
+            hovered: _hovered || _drag != null,
+            padding: padding,
+            style: style,
+            child: Listener(
+              onPointerDown: (_) => hitContent = true,
+              child: MouseRegion(
+                cursor: SystemMouseCursors.text,
+                child: ScrollConfiguration(
+                  behavior: ScrollConfiguration.of(context)
+                      .copyWith(scrollbars: false),
+                  child: SingleChildScrollView(
+                    controller: _sideways,
+                    scrollDirection: Axis.horizontal,
+                    child: child,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
 
     if (!_editable) {
       return MouseRegion(

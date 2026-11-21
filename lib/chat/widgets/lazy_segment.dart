@@ -3,12 +3,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
 import '../chat_find.dart' show ChatFind, ChatFindRow;
-
-/// The registrar of a list's item for its text, knowing whether the item
-/// holds an end of the list's selection.
-abstract interface class SelectionEndHolder {
-  bool get holdsSelectionEnd;
-}
+import '../selection/chat_selection.dart';
 
 /// A long text's segment (see [markdownSegments]), let go of while far out
 /// of the list's view: a box as tall in its place, its text selected and
@@ -16,11 +11,11 @@ abstract interface class SelectionEndHolder {
 ///
 /// The list builds what it shows, but a long reply is one of its items: a
 /// 240,000-character one held the engine's paragraphs of all of it, some
-/// 150MB. Only in a list's item that knows its selection's ends
-/// ([SelectionEndHolder]), where it does not go while it holds one of them
-/// (whose edge would fall in a box), nor while it [keep]s (the segment still
-/// written), nor while the row holds the find's match at hand (counted from
-/// every segment's marks).
+/// 150MB. Only in an item of the conversation's selection
+/// ([ChatSelectionItemScope]), where it does not go while the item holds
+/// one of its ends (which would fall in a box), nor while it [keep]s (the
+/// segment still written), nor while the row holds the find's match at
+/// hand (counted from every segment's marks).
 class LazySegment extends StatefulWidget {
   const LazySegment({
     super.key,
@@ -46,7 +41,7 @@ class LazySegment extends StatefulWidget {
 class _LazySegmentState extends State<LazySegment> {
   bool _hidden = false;
   bool _keep = true;
-  SelectionRegistrar? _registrar;
+  ChatSelectionItemScope? _scope;
 
   /// The segment as last laid out: its height at that width.
   ({String text, double width, double height})? _measured;
@@ -101,25 +96,22 @@ class _LazySegmentState extends State<LazySegment> {
       return;
     }
     final measured = _measured;
-    final registrar = _registrar;
+    final scope = _scope;
     if (distance > LazySegment.hideBeyond &&
         !_keep &&
         measured != null &&
         measured.text == widget.text &&
         measured.width == box.constraints.maxWidth &&
-        registrar is SelectionEndHolder &&
-        !(registrar as SelectionEndHolder).holdsSelectionEnd) {
+        scope != null &&
+        !scope.holdsEnd) {
       setState(() => _hidden = true);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final registrar = _registrar = SelectionContainer.maybeOf(context);
-    _keep =
-        widget.keep ||
-        registrar is! SelectionEndHolder ||
-        ChatFindRow.holdsCurrent(context);
+    final scope = _scope = ChatSelectionItemScope.maybeOf(context);
+    _keep = widget.keep || scope == null || ChatFindRow.holdsCurrent(context);
     final height = _measured?.height;
     if (_keep || height == null || _measured?.text != widget.text) {
       _hidden = false;
@@ -128,7 +120,6 @@ class _LazySegmentState extends State<LazySegment> {
     return _SegmentSlot(
       placeholder: _hidden ? height : null,
       text: widget.text,
-      registrar: _hidden ? registrar : null,
       onLaidOut: _laidOut,
       child: _hidden ? null : widget.child,
     );
@@ -139,22 +130,19 @@ class _SegmentSlot extends SingleChildRenderObjectWidget {
   const _SegmentSlot({
     required this.placeholder,
     required this.text,
-    required this.registrar,
     required this.onLaidOut,
     super.child,
   });
 
   final double? placeholder;
   final String text;
-  final SelectionRegistrar? registrar;
   final void Function(double width, double height) onLaidOut;
 
   @override
   RenderObject createRenderObject(BuildContext context) =>
       _RenderSegmentSlot(onLaidOut)
         ..placeholder = placeholder
-        ..text = text
-        ..registrar = registrar;
+        ..text = text;
 
   @override
   void updateRenderObject(
@@ -164,15 +152,29 @@ class _SegmentSlot extends SingleChildRenderObjectWidget {
     renderObject
       ..onLaidOut = onLaidOut
       ..placeholder = placeholder
-      ..text = text
-      ..registrar = registrar;
+      ..text = text;
   }
 }
 
 /// The segment laid out, or, as a [placeholder], a box that tall with its
 /// text to select whole.
-class _RenderSegmentSlot extends RenderProxyBox {
+class _RenderSegmentSlot extends RenderProxyBox implements ChatTextLeafSource {
   _RenderSegmentSlot(this.onLaidOut);
+
+  /// Let go of: its text, whole.
+  @override
+  ChatTextLeaf? get chatTextLeaf =>
+      _placeholder == null ? null : AtomicChatTextLeaf(this, _plainText);
+
+  String? _plainOf;
+  String _plain = '';
+  String get _plainText {
+    if (_plainOf != text) {
+      _plainOf = text;
+      _plain = ChatFind.markdownText(text).trim();
+    }
+    return _plain;
+  }
 
   void Function(double width, double height) onLaidOut;
 
@@ -182,50 +184,9 @@ class _RenderSegmentSlot extends RenderProxyBox {
     if (value == _placeholder) return;
     _placeholder = value;
     markNeedsLayout();
-    _syncSelectable();
   }
 
   String text = '';
-
-  SelectionRegistrar? _registrar;
-  set registrar(SelectionRegistrar? value) {
-    if (value == _registrar) return;
-    _registrar = value;
-    _syncSelectable();
-  }
-
-  _WholeSelectable? _selectable;
-
-  void _syncSelectable() {
-    final registrar = _registrar;
-    if (_placeholder != null && registrar != null && attached) {
-      (_selectable ??= _WholeSelectable(this)).registrar = registrar;
-    } else if (_selectable case final selectable?) {
-      _selectable = null;
-      selectable
-        ..registrar = null
-        ..dispose();
-    }
-  }
-
-  @override
-  void attach(PipelineOwner owner) {
-    super.attach(owner);
-    _syncSelectable();
-  }
-
-  @override
-  void detach() {
-    super.detach();
-    _syncSelectable();
-  }
-
-  @override
-  void dispose() {
-    _registrar = null;
-    _syncSelectable();
-    super.dispose();
-  }
 
   bool get _shown => _placeholder == null && child != null;
 
@@ -263,132 +224,4 @@ class _RenderSegmentSlot extends RenderProxyBox {
   @override
   bool hitTestChildren(BoxHitTestResult result, {required Offset position}) =>
       _shown && super.hitTestChildren(result, position: position);
-}
-
-/// A segment let go of, as text to select: all of it or none, its ends
-/// where an edge goes before or after it.
-class _WholeSelectable extends ChangeNotifier
-    with Selectable, SelectionRegistrant {
-  _WholeSelectable(this._slot);
-
-  final _RenderSegmentSlot _slot;
-
-  /// Where the selection's edges are: 0 its start, 1 its end; null for none.
-  int? _start;
-  int? _end;
-
-  bool get _selected => _start != null && _end != null && _start != _end;
-
-  String? _plainOf;
-  String _plain = '';
-  String get _plainText {
-    if (_plainOf != _slot.text) {
-      _plainOf = _slot.text;
-      _plain = ChatFind.markdownText(_slot.text).trim();
-    }
-    return _plain;
-  }
-
-  @override
-  SelectionResult dispatchSelectionEvent(SelectionEvent event) {
-    final before = (_start, _end);
-    final SelectionResult result;
-    switch (event) {
-      case SelectAllSelectionEvent():
-        _start = 0;
-        _end = 1;
-        result = SelectionResult.none;
-      case ClearSelectionEvent():
-        _start = _end = null;
-        result = SelectionResult.none;
-      case SelectionEdgeUpdateEvent(:final globalPosition, :final type):
-        final transform = Matrix4.tryInvert(getTransformTo(null));
-        final local = transform == null
-            ? Offset.zero
-            : MatrixUtils.transformPoint(transform, globalPosition);
-        final height = size.height;
-        final int edge;
-        if (local.dy < 0) {
-          edge = 0;
-          result = SelectionResult.previous;
-        } else if (local.dy > height) {
-          edge = 1;
-          result = SelectionResult.next;
-        } else {
-          edge = local.dy < height / 2 ? 0 : 1;
-          result = SelectionResult.end;
-        }
-        if (type == SelectionEventType.startEdgeUpdate) {
-          _start = edge;
-        } else {
-          _end = edge;
-        }
-      default:
-        result = SelectionResult.end;
-    }
-    if ((_start, _end) != before) notifyListeners();
-    return result;
-  }
-
-  @override
-  SelectionGeometry get value {
-    if (!_selected) {
-      return const SelectionGeometry(
-        status: SelectionStatus.none,
-        hasContent: true,
-      );
-    }
-    final box = Offset.zero & size;
-    final forward = _start! < _end!;
-    final top = SelectionPoint(
-      localPosition: box.topLeft,
-      lineHeight: 0,
-      handleType: forward
-          ? TextSelectionHandleType.left
-          : TextSelectionHandleType.right,
-    );
-    final bottom = SelectionPoint(
-      localPosition: box.bottomRight,
-      lineHeight: 0,
-      handleType: forward
-          ? TextSelectionHandleType.right
-          : TextSelectionHandleType.left,
-    );
-    return SelectionGeometry(
-      startSelectionPoint: forward ? top : bottom,
-      endSelectionPoint: forward ? bottom : top,
-      selectionRects: [box],
-      status: SelectionStatus.uncollapsed,
-      hasContent: true,
-    );
-  }
-
-  @override
-  SelectedContent? getSelectedContent() =>
-      _selected ? SelectedContent(plainText: _plainText) : null;
-
-  @override
-  SelectedContentRange? getSelection() {
-    if (!_selected) return null;
-    final length = contentLength;
-    return _start! < _end!
-        ? SelectedContentRange(startOffset: 0, endOffset: length)
-        : SelectedContentRange(startOffset: length, endOffset: 0);
-  }
-
-  @override
-  int get contentLength => _plainText.length;
-
-  @override
-  Size get size => _slot.hasSize ? _slot.size : Size.zero;
-
-  @override
-  Matrix4 getTransformTo(RenderObject? ancestor) =>
-      _slot.getTransformTo(ancestor);
-
-  @override
-  List<Rect> get boundingBoxes => [Offset.zero & size];
-
-  @override
-  void pushHandleLayers(LayerLink? startHandle, LayerLink? endHandle) {}
 }
