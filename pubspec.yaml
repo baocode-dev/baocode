@@ -85,6 +85,7 @@ dependencies:
   quill_native_bridge: ^11.0.0
   super_sliver_list: ^0.4.1
   xml: ^7.0.1
+  image: ^4.13.1
 
 dev_dependencies:
   flutter_test:

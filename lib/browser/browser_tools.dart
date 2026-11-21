@@ -11,6 +11,7 @@ import 'package:flutter/painting.dart';
 import 'package:path/path.dart' as p;
 
 import '../chat/chat_models.dart' show ToolKind;
+import '../images/jpeg_images.dart';
 import '../kernel/claude_code/claude_sdk_tools.dart';
 import '../platform/data_dir.dart';
 import 'browser_analysis.dart';
@@ -397,6 +398,13 @@ Do not use the browser tools to scrape or bulk-collect data from government, hea
       final marked = await _mark(image, marks);
       image.dispose();
       image = marked;
+    }
+    // As JPEG again, as the browser gave it: a PNG of a page is several
+    // times the bytes, sent again on every call that has it in context.
+    final jpeg = await imageAsJpeg(image, quality: 75);
+    if (jpeg != null) {
+      image.dispose();
+      return claudeSdkImage(base64Encode(jpeg), 'image/jpeg');
     }
     final png = await image.toByteData(format: ui.ImageByteFormat.png);
     image.dispose();

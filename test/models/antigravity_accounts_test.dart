@@ -51,9 +51,12 @@ class FakeGoogle {
   ) => requests.where((r) => r.path == path);
 
   Future<void> _handle(HttpRequest request) async {
-    final body = await utf8.decodeStream(request);
     final headers = <String, String>{};
     request.headers.forEach((name, values) => headers[name] = values.join(','));
+    final bytes = [for (final chunk in await request.toList()) ...chunk];
+    final body = utf8.decode(
+      headers['content-encoding'] == 'gzip' ? gzip.decode(bytes) : bytes,
+    );
     requests.add((path: request.uri.path, headers: headers, body: body));
     Object? json;
     try {
@@ -264,6 +267,24 @@ void main() {
       google.to('/v1internal:streamGenerateContent').last.body,
     ) as Map;
     expect((other['request'] as Map)['sessionId'], isNot(request['sessionId']));
+  });
+
+  test('a large request goes gzipped, a small one as it is', () async {
+    google.reply = (path, body) => switch (path) {
+      '/v1internal:streamGenerateContent' => (200, _stream('hello')),
+      _ => common(path, body),
+    };
+    await ask('gemini-4-neon(high)');
+    final small = google.to('/v1internal:streamGenerateContent').last;
+    expect(small.headers['content-encoding'], isNull);
+    final long = 'screenshot ' * 5000;
+    final answer = await ask('gemini-4-neon(high)', first: long);
+    expect(answer.status, 200);
+    final large = google.to('/v1internal:streamGenerateContent').last;
+    expect(large.headers['content-encoding'], 'gzip');
+    expect(int.parse(large.headers['content-length']!), lessThan(long.length));
+    final request = (jsonDecode(large.body) as Map)['request'] as Map;
+    expect(jsonEncode(request['contents']), contains(long.trim()));
   });
 
   test('kept in usage: the account, the cache and the reasoning', () async {

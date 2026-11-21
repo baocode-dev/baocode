@@ -1052,6 +1052,7 @@ void main() {
       final codec = await ui.instantiateImageCodec(large!.bytes);
       final frame = await codec.getNextFrame();
       expect([frame.image.width, frame.image.height], [1568, 500]);
+      expect(large.mediaType, 'image/jpeg', reason: 'opaque: as JPEG');
 
       expect(
         await prepareImage(
