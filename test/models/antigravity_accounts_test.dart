@@ -1,8 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:baocode/models/antigravity/antigravity_accounts_io.dart';
 import 'package:baocode/models/antigravity/antigravity_api.dart';
+import 'package:baocode/models/codex/codex_accounts_io.dart';
+import 'package:baocode/models/image_api.dart';
+import 'package:baocode/models/image_generation_io.dart';
 import 'package:baocode/models/model_provider.dart';
 import 'package:baocode/models/model_providers.dart';
 import 'package:baocode/models/proxy/model_proxy.dart';
@@ -459,6 +463,81 @@ void main() {
         'gemini-4-neon': ['low', 'high'],
         'claude-opus-5-5-high': <String>[],
       },
+    );
+  });
+
+  test('image generation: image_gen envelope, rotates on 429', () async {
+    final png = Uint8List.fromList([0x89, 0x50, 0x4E, 0x47, 1, 2, 3, 4]);
+    var streamCalls = 0;
+    google.reply = (path, body) {
+      if (path != '/v1internal:streamGenerateContent') {
+        return common(path, body);
+      }
+      streamCalls++;
+      if (streamCalls == 1) {
+        return (
+          429,
+          [
+            jsonEncode({
+              'error': {
+                'message':
+                    'You have exhausted your capacity on this model. '
+                    'Your quota will reset after 1h.',
+              },
+            }),
+          ],
+        );
+      }
+      return (
+        200,
+        [
+          'data: ${jsonEncode({
+            'response': {
+              'candidates': [
+                {
+                  'content': {
+                    'parts': [
+                      {
+                        'inlineData': {'mimeType': 'image/png', 'data': base64Encode(png)},
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          })}',
+          '',
+        ],
+      );
+    };
+    final codex = CodexAccounts(providers: () => providers);
+    addTearDown(codex.close);
+    final generator = ImageGenerator(
+      codex: codex,
+      antigravity: accounts,
+      key: (_) async => null,
+    );
+    final images = await generator.generate(
+      provider(),
+      const ProviderModel(id: 'gemini-3.1-flash-image'),
+      const ImageRequest(prompt: 'A red fox', aspectRatio: '16:9', count: 2),
+      session: 's-img',
+    );
+    expect(images, hasLength(2));
+    expect(images.first.bytes, png);
+    expect(images.last.bytes, png);
+    // First call hit 429 on a@x, second and third ran on b@x.
+    final sent = google.to('/v1internal:streamGenerateContent').toList();
+    expect(sent, hasLength(3));
+    final first = jsonDecode(sent.first.body) as Map;
+    expect(first['requestType'], 'image_gen');
+    expect(first['requestId'], startsWith('image_gen/'));
+    expect(first['model'], 'gemini-3.1-flash-image');
+    expect(first['project'], 'proj-a');
+    expect((jsonDecode(sent[1].body) as Map)['project'], 'proj-b');
+    expect(
+      accounts.limitedFor('ag', 'a@x', 'gemini-3.1-flash-image'),
+      isNotNull,
     );
   });
 }

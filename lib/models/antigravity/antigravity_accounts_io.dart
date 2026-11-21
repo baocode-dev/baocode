@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi' show Abi;
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
@@ -825,6 +826,120 @@ class AntigravityAccounts extends CodexService {
     HttpHeaders.authorizationHeader: 'Bearer $token',
     HttpHeaders.userAgentHeader: userAgent,
   };
+
+  /// Sends an `image_gen` request for [model] to Antigravity's stream
+  /// endpoint as one of [provider]'s Google accounts: refreshes on 401,
+  /// waits once on a short rate limit, moves to the next account when out
+  /// of quota on [model]. Throws [UpstreamException] when no account can
+  /// take it or the transport fails.
+  Future<(int, String)> postImage(
+    ModelProvider provider,
+    String model,
+    Map<String, Object?> body, {
+    String? session,
+    Duration timeout = const Duration(minutes: 5),
+  }) async {
+    await loadVersion();
+    final tried = <String>{};
+    String? lastError;
+    while (true) {
+      final account = pick(
+        provider,
+        session: session,
+        model: model,
+        exclude: tried,
+      );
+      if (account == null) {
+        throw UpstreamException(
+          lastError ??
+              (provider.accounts.isEmpty
+                  ? 'Sign in to a Google account first.'
+                  : 'No account can be used now.'),
+        );
+      }
+      tried.add(account.id);
+      try {
+        final projectId = await project(provider, account);
+        final envelope = jsonEncode({
+          'project': projectId,
+          'model': model,
+          'userAgent': 'antigravity',
+          'requestType': 'image_gen',
+          'requestId':
+              'image_gen/${_now().millisecondsSinceEpoch}/${_uuid()}/12',
+          'request': body,
+        });
+        final payload = utf8.encode(envelope);
+        final custom = customUpstreamHeaders(provider, model: model);
+        String? rejected;
+        var waited = false;
+        while (true) {
+          final token = await accessToken(
+            provider,
+            account,
+            rejected: rejected,
+          );
+          final request = await _http.postUrl(endpoints.stream);
+          headers(token).forEach(request.headers.set);
+          custom.forEach(request.headers.set);
+          request.headers
+            ..contentType = ContentType.json
+            ..set(HttpHeaders.acceptHeader, 'text/event-stream');
+          request.add(payload);
+          final response = await request.close().timeout(timeout);
+          final text = await utf8.decodeStream(response).timeout(timeout);
+          final status = response.statusCode;
+          if (status == 401 && rejected == null) {
+            rejected = token;
+            continue;
+          }
+          if (status == 429) {
+            if (antigravityLimitReset(status, text, _now()) case final until?) {
+              markLimited(provider, account, model, until);
+            } else if (antigravityRetryAfter(text) case final delay?
+                when !waited) {
+              waited = true;
+              await Future<void>.delayed(delay);
+              continue;
+            }
+          }
+          if (status == 401 || status == 403 || status == 429) {
+            final message = upstreamErrorMessage(status, text);
+            markError(provider, account, message);
+            lastError = '${account.displayName}: $message';
+            break;
+          }
+          markError(provider, account, null);
+          return (status, text);
+        }
+      } on CodexException catch (error) {
+        lastError = '${account.displayName}: ${error.message}';
+      } on SocketException catch (error) {
+        throw UpstreamException('Could not connect: ${error.message}');
+      } on HandshakeException catch (error) {
+        throw UpstreamException('TLS failed: ${handshakeFailure(error)}');
+      } on TimeoutException {
+        throw const UpstreamException('No answer in time.');
+      } on HttpException catch (error) {
+        throw UpstreamException(error.message);
+      }
+    }
+  }
+
+  static String _uuid() {
+    final random = Random.secure();
+    final bytes = [for (var i = 0; i < 16; i++) random.nextInt(256)];
+    bytes[6] = bytes[6] & 0x0f | 0x40;
+    bytes[8] = bytes[8] & 0x3f | 0x80;
+    final hex = [for (final b in bytes) b.toRadixString(16).padLeft(2, '0')];
+    return [
+      hex.sublist(0, 4),
+      hex.sublist(4, 6),
+      hex.sublist(6, 8),
+      hex.sublist(8, 10),
+      hex.sublist(10, 16),
+    ].map((part) => part.join()).join('-');
+  }
 
   /// Code Assist's [method] with [body] as [account], its token refreshed
   /// once if refused.

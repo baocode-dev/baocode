@@ -63,6 +63,7 @@ final ModelProxy _proxy = ModelProxy(
 /// The app's image generation, over [ModelProviders.current].
 final ImageGenerator _images = ImageGenerator(
   codex: _codex,
+  antigravity: _antigravity,
   key: (id) => ModelProviders.current.key(id),
 );
 
