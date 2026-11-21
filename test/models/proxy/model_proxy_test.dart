@@ -901,6 +901,7 @@ void main() {
         {
           'model': '@gw/plain',
           'max_tokens': 100,
+          'output_config': {'effort': 'max'},
           'stream': true,
           'messages': [
             {'role': 'user', 'content': 'hi'},
@@ -912,6 +913,7 @@ void main() {
       expect(anthropic.requests, isEmpty);
       final sent = upstream.requests.single;
       expect((sent.body! as Map)['model'], 'plain');
+      expect((sent.body! as Map)['reasoning_effort'], 'max');
       expect(sent.headers['authorization'], 'Bearer sk-gw');
 
       // And the other way: an OpenAI session's subagents on Anthropic.

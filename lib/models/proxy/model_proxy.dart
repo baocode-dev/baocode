@@ -112,8 +112,7 @@ class ModelProxy {
   Future<ProxyEndpoint> endpoint(String providerId) async {
     final server = await (_server ??= _bind());
     return (
-      baseUrl:
-          'http://127.0.0.1:${server.port}/p/${Uri.encodeComponent(providerId)}',
+      baseUrl: modelProxyUrl(server.port, providerId).toString(),
       token: token,
     );
   }
@@ -260,23 +259,28 @@ class ModelProxy {
       }
       // A model of another upstream (a subagent's, `@<id>/<model>`): to
       // that one, by its own name.
-      var wanted = providerId;
-      if (parseModelRef('${body['model'] ?? ''}') case (
-        provider: final id,
-        :final model,
-      )) {
-        wanted = id;
-        body['model'] = model;
-      }
+      final ref = parseModelRef('${body['model'] ?? ''}');
+      final wanted = ref?.provider ?? providerId;
       final found = wanted == builtinProviderId ? null : _provider(wanted);
       if (found == null) {
         return await _fail(response, 404, 'No such provider: $wanted');
       }
       // A model of an endpoint of its own (a relay's Claude at its Messages
       // API): spoken to there, its effort after its name as ever.
-      final provider = found.speakingFor(
-        parseSuffix('${body['model'] ?? ''}').modelName.trim(),
-      );
+      final requested = parseSuffix(ref?.model ?? '${body['model'] ?? ''}');
+      final provider = found.speakingFor(requested.modelName.trim());
+      if (ref != null) {
+        // Agent definitions send effort separately; the picker uses a suffix.
+        body['model'] = switch ((body['thinking'], body['output_config'])) {
+          ({'type': 'disabled'}, _) => ref.model,
+          (_, {'effort': final String effort})
+              when provider.protocol.proxied &&
+                  !requested.hasSuffix &&
+                  ProviderModel.defaultEfforts.contains(effort) =>
+            '${ref.model}($effort)',
+          _ => ref.model,
+        };
+      }
       if (!countTokens) {
         ledger = _usage?.call();
         if (ledger != null && ledger.enabled) {
