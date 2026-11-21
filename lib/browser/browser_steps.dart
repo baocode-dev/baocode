@@ -12,8 +12,8 @@ import '../theme/app_theme.dart';
 import '../workspace/window_controls.dart';
 import 'browser_tools.dart';
 
-/// The browser's icon (Basil's chrome-solid), a browser step's.
-const browserIcon = 'assets/icons/chrome-solid.svg';
+/// The browser's icon (Lucide's chrome), a browser step's.
+const browserIcon = 'assets/icons/lucide-chrome.svg';
 
 /// What a call of a browser tool is about, in a few words: its step's
 /// line after the verb, when the agent did not say it. From its input and,

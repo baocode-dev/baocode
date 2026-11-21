@@ -89,7 +89,7 @@ List<Uri> webSearchResultSites(String? output) {
 }
 
 /// Renders the globe icon for a web search step.
-Widget webSearchGlobe({double size = 16, Color? color}) => SvgPicture.asset(
+Widget webSearchGlobe({double size = 14, Color? color}) => SvgPicture.asset(
   webSearchIcon,
   width: size,
   height: size,
