@@ -261,6 +261,11 @@ void main() {
       expect(model.initialEffort, 'high');
       expect(model.contextOptions, [64000, 131072, 1000000]);
       expect(model.initialContext, 131072);
+      // Its own window in place of the one offered shown as the same.
+      expect(
+        const ProviderModel(id: 'm', contextWindow: 1048576).contextOptions,
+        [200000, 256000, 300000, 400000, 500000, 800000, 1048576],
+      );
       expect(const ProviderModel(id: 'm', efforts: []).initialEffort, isNull);
       expect(
         const ProviderModel(id: 'm', contexts: [64000]).initialContext,

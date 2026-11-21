@@ -253,10 +253,16 @@ class ProviderModel {
   }
 
   /// The contexts offered in the picker, smallest first: [initialContext]
-  /// among them.
+  /// among them, in place of one shown as the same (a 1,048,576 window
+  /// and the 1M offered would both be `1M`).
   List<int> get contextOptions {
-    final offered = {...(contexts ?? defaultContexts), initialContext}.toList()
-      ..sort();
+    final initial = initialContext;
+    final shown = formatTokens(initial);
+    final offered = {
+      for (final tokens in contexts ?? defaultContexts)
+        if (formatTokens(tokens) != shown) tokens,
+      initial,
+    }.toList()..sort();
     return offered;
   }
 
