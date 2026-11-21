@@ -441,6 +441,148 @@ List<GeneratedImage> parseResponsesImages(String text) {
   throw UpstreamException(error ?? 'No picture in the answer.');
 }
 
+const _geminiAspectRatios = [
+  '1:1',
+  '3:2',
+  '2:3',
+  '4:3',
+  '3:4',
+  '16:9',
+  '9:16',
+  '21:9',
+];
+
+String? _antigravityAspectRatio(ImageRequest request) {
+  if (request.aspectRatio case final aspect?
+      when parseAspectRatio(aspect) != null) {
+    return aspect.trim();
+  }
+  final size = parseImageSize(request.size);
+  if (size == null) return null;
+  final ratio = size.width / size.height;
+  String? nearest;
+  var distance = double.infinity;
+  for (final candidate in _geminiAspectRatios) {
+    final off = (parseAspectRatio(candidate)! / ratio - 1).abs();
+    if (off < distance) {
+      distance = off;
+      nearest = candidate;
+    }
+  }
+  return nearest;
+}
+
+String? _antigravityImageSize(ImageRequest request) {
+  final size = parseImageSize(request.size);
+  if (size == null) return null;
+  final side = math.max(size.width, size.height);
+  if (side >= 3840) return '4K';
+  if (side >= 2048) return '2K';
+  return null;
+}
+
+/// The inner `request` of an Antigravity Code Assist call that makes
+/// [request]'s pictures: its prompt and references as Gemini `contents`,
+/// asking for image output and any aspect ratio given.
+Map<String, Object?> antigravityImageRequest(ImageRequest request) {
+  final aspect = _antigravityAspectRatio(request);
+  final size = _antigravityImageSize(request);
+  return {
+    'contents': [
+      {
+        'role': 'user',
+        'parts': [
+          {'text': request.prompt},
+          for (final image in request.references)
+            {
+              'inlineData': {
+                'mimeType': image.mediaType,
+                'data': base64Encode(image.bytes),
+              },
+            },
+        ],
+      },
+    ],
+    'generationConfig': {
+      'responseModalities': ['TEXT', 'IMAGE'],
+      if (aspect != null || size != null)
+        'imageConfig': {'aspectRatio': ?aspect, 'imageSize': ?size},
+    },
+  };
+}
+
+/// The pictures in an Antigravity `streamGenerateContent` SSE stream (or a
+/// single JSON reply): each non-thought `inlineData` part's bytes. Throws
+/// [UpstreamException] with what failed, or when there is none.
+List<GeneratedImage> parseAntigravityImages(String text) {
+  final images = <GeneratedImage>[];
+  final said = StringBuffer();
+  String? error;
+
+  void inspect(Object? event) {
+    if (event is! Map) return;
+    if (event['error'] case final Map e) {
+      error = '${e['message'] ?? jsonEncode(e)}';
+      return;
+    }
+    final response = event['response'] is Map
+        ? event['response'] as Map
+        : event;
+    if (response['error'] case final Map e) {
+      error = '${e['message'] ?? jsonEncode(e)}';
+      return;
+    }
+    final candidates = response['candidates'];
+    if (candidates is! List) return;
+    for (final candidate in candidates.whereType<Map>()) {
+      final content = candidate['content'];
+      if (content is! Map) continue;
+      final parts = content['parts'];
+      if (parts is! List) continue;
+      for (final part in parts.whereType<Map>()) {
+        if (part['thought'] == true) continue;
+        final inline = part['inlineData'] ?? part['inline_data'];
+        if (inline case {'data': final String data} when data.isNotEmpty) {
+          if (_bytes(data) case final bytes?) {
+            images.add(GeneratedImage(bytes: bytes));
+          }
+        }
+        if (part['text'] case final String chunk when chunk.isNotEmpty) {
+          said.write(chunk);
+        }
+      }
+    }
+  }
+
+  var sawEvent = false;
+  for (final line in const LineSplitter().convert(text)) {
+    if (!line.startsWith('data:')) continue;
+    sawEvent = true;
+    final raw = line.substring(5).trim();
+    if (raw.isEmpty || raw == '[DONE]') continue;
+    try {
+      inspect(jsonDecode(raw));
+    } on FormatException {
+      continue;
+    }
+  }
+  if (!sawEvent && text.trim().isNotEmpty) {
+    try {
+      inspect(jsonDecode(text));
+    } on FormatException {
+      // Fall through to no-picture error.
+    }
+  }
+  if (images.isNotEmpty) return images;
+  if (error != null) throw UpstreamException(error!);
+  final note = said.toString().trim();
+  throw UpstreamException(
+    note.isEmpty
+        ? 'No picture in the answer.'
+        : 'No picture in the answer: ${_clip(note)}',
+  );
+}
+
 /// The kind of picture [bytes] is, by its header: `image/png`,
 /// `image/jpeg`, `image/webp` or `image/gif`; null for another.
 String? imageMediaType(Uint8List bytes) {

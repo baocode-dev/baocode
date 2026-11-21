@@ -9,6 +9,7 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 
 import '../codex/codex_usage.dart';
+import '../model_provider.dart' show guessModelKind;
 import '../upstream.dart';
 
 /// Where Antigravity's requests go.
@@ -286,9 +287,7 @@ List<AntigravityModel> parseAntigravityModels(Object? json) {
       if (key is! String || value is! Map) continue;
       if (_hiddenModels.contains(key) ||
           key.startsWith('chat_') ||
-          key.startsWith('tab_') ||
-          // Pictures, which no conversation is on.
-          key.contains('-image')) {
+          key.startsWith('tab_')) {
         continue;
       }
       if (value['disabled'] == true) continue;
@@ -484,6 +483,7 @@ List<RemoteModel> antigravityRemoteModels(List<AntigravityModel> models) {
 /// level, Gemini 2.5 and Claude's thinking ids within a budget; the rest
 /// not at all.
 List<String> antigravityOwnEfforts(String id) {
+  if (guessModelKind(id).generatesImages) return const [];
   final lower = id.toLowerCase();
   if (lower.startsWith('gpt-oss')) return const [];
   if (lower.startsWith('claude')) {

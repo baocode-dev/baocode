@@ -338,6 +338,112 @@ void main() {
     });
   });
 
+  group("Antigravity's image generation", () {
+    test('builds Gemini contents, references and imageConfig', () {
+      final body = antigravityImageRequest(
+        ImageRequest(
+          prompt: 'A red fox',
+          aspectRatio: '16:9',
+          references: [ImageInput(_png, mediaType: 'image/png')],
+        ),
+      );
+      expect(body['contents'], [
+        {
+          'role': 'user',
+          'parts': [
+            {'text': 'A red fox'},
+            {
+              'inlineData': {
+                'mimeType': 'image/png',
+                'data': base64Encode(_png),
+              },
+            },
+          ],
+        },
+      ]);
+      expect(body['generationConfig'], {
+        'responseModalities': ['TEXT', 'IMAGE'],
+        'imageConfig': {'aspectRatio': '16:9'},
+      });
+
+      final sized = antigravityImageRequest(
+        const ImageRequest(prompt: 'A poster', size: '2048x1365'),
+      );
+      expect(sized['generationConfig'], {
+        'responseModalities': ['TEXT', 'IMAGE'],
+        'imageConfig': {'aspectRatio': '3:2', 'imageSize': '2K'},
+      });
+    });
+
+    test('parses SSE inlineData, skips thought parts, surfaces errors', () {
+      final events = [
+        'data: ${jsonEncode({
+          'response': {
+            'candidates': [
+              {
+                'content': {
+                  'parts': [
+                    {
+                      'thought': true,
+                      'inlineData': {
+                        'mimeType': 'image/png',
+                        'data': base64Encode([1, 2, 3]),
+                      },
+                    },
+                    {'text': 'Here it is.'},
+                  ],
+                },
+              },
+            ],
+          },
+        })}',
+        '',
+        'data: ${jsonEncode({
+          'response': {
+            'candidates': [
+              {
+                'content': {
+                  'parts': [
+                    {
+                      'inlineData': {'mimeType': 'image/png', 'data': base64Encode(_png)},
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        })}',
+        '',
+      ].join('\n');
+      expect(parseAntigravityImages(events).single.bytes, _png);
+
+      expect(
+        () => parseAntigravityImages(
+          'data: ${jsonEncode({
+            'response': {
+              'candidates': [
+                {
+                  'content': {
+                    'parts': [
+                      {'text': 'I cannot draw that.'},
+                    ],
+                  },
+                },
+              ],
+            },
+          })}',
+        ),
+        throwsA(
+          isA<UpstreamException>().having(
+            (e) => e.message,
+            'message',
+            contains('I cannot draw that.'),
+          ),
+        ),
+      );
+    });
+  });
+
   group('the tool', () {
     test('says where it saved them, which the step reads back', () {
       final text = describeSaved(

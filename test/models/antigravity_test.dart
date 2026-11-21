@@ -45,7 +45,7 @@ void main() {
       'gpt-oss-120b-medium': _model('GPT-OSS 120B (Medium)'),
       'chat_20706': _model('internal'),
       'tab_flash_lite_preview': _model('tab'),
-      'gemini-3.1-flash-image': _model('Gemini 3.1 Flash Image'),
+      'gemini-3.1-flash-image': _model('Gemini 3.1 Flash Image', left: 0.9),
       'gemini-4-argon-high': _model('Gemini 4 Argon', disabled: true),
     },
     'agentModelSorts': [
@@ -67,7 +67,7 @@ void main() {
       expect(ids[1], 'gemini-4-neon-high');
       expect(ids, isNot(contains('chat_20706')));
       expect(ids, isNot(contains('tab_flash_lite_preview')));
-      expect(ids, isNot(contains('gemini-3.1-flash-image')));
+      expect(ids, contains('gemini-3.1-flash-image'));
       expect(ids, isNot(contains('gemini-4-argon-high')));
       // Left out once none is left.
       expect(
@@ -90,6 +90,11 @@ void main() {
       final oss = remote.firstWhere((m) => m.id == 'gpt-oss-120b-medium');
       expect(oss.efforts, isEmpty);
       expect(oss.images, isFalse);
+      final painter = remote.firstWhere(
+        (m) => m.id == 'gemini-3.1-flash-image',
+      );
+      expect(painter.label, 'Gemini 3.1 Flash Image');
+      expect(painter.efforts, isEmpty);
     });
 
     test('a family is asked at the level nearest the effort', () {
