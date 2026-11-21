@@ -54,6 +54,7 @@ class _ChatQuotaBarState extends State<ChatQuotaBar>
 
   /// The provider of the model picked, when its accounts are shown.
   String? _providerId;
+  String? _modelId;
   Timer? _poll;
   Timer? _reset;
   bool _hidden = false;
@@ -72,6 +73,7 @@ class _ChatQuotaBarState extends State<ChatQuotaBar>
     _providers.addListener(_providersChanged);
     _codex.addListener(_quotaChanged);
     _providerId = _provider?.id;
+    _modelId = _model;
     _watch();
   }
 
@@ -116,11 +118,19 @@ class _ChatQuotaBarState extends State<ChatQuotaBar>
   String? get _model =>
       parseModelRef(widget.session.selected(KernelChoiceKind.model))?.model;
 
-  /// The session tells of each streamed word: only another provider
-  /// picked matters here; the account a reply took, the quota tells.
+  /// The session tells of each streamed word: only another provider or
+  /// model picked matters here (the windows shown are the model's, where
+  /// an account's quota is of some); the account a reply took, the quota
+  /// tells.
   void _sessionChanged() {
     final id = _provider?.id;
-    if (id == _providerId) return;
+    final model = _model;
+    if (id == _providerId && model == _modelId) return;
+    _modelId = model;
+    if (id == _providerId) {
+      setState(() {});
+      return;
+    }
     _providerId = id;
     setState(() {});
     _watch();
@@ -305,7 +315,15 @@ class _QuotaPillState extends State<_QuotaPill> {
           account,
     ];
     final free = inUse
-        .where((account) => codex.limitedUntil(provider.id, account.id) == null)
+        .where(
+          (account) =>
+              codex.limitedUntilFor(
+                provider.id,
+                account.id,
+                model: widget.model,
+              ) ==
+              null,
+        )
         .length;
     final current = codex.accountForModel(
       provider,
@@ -331,7 +349,7 @@ class _QuotaPillState extends State<_QuotaPill> {
         else
           for (final (i, window) in usage.windowsFor(widget.model).indexed)
             l10n.quotaBarWindowLeft(
-              _windowName(l10n, usage, window, i),
+              quotaLabelBeforeText(l10n, _windowName(l10n, usage, window, i)),
               window.leftPercent.round(),
             ),
         if (inUse.length > 1) l10n.quotaBarAvailable(free, inUse.length),
@@ -514,9 +532,10 @@ class _QuotaPanel extends StatelessWidget {
                           current: account.id == current,
                           usage: codex.usage(provider.id, account.id),
                           error: codex.error(provider.id, account.id),
-                          limitedUntil: codex.limitedUntil(
+                          limitedUntil: codex.limitedUntilFor(
                             provider.id,
                             account.id,
+                            model: model,
                           ),
                         ),
                     ],

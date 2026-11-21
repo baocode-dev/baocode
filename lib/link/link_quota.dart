@@ -99,7 +99,7 @@ class LinkQuota {
               if (!account.enabled || codex.signedOut(provider.id, account.id))
                 'off': true,
               'until': ?codex
-                  .limitedUntil(provider.id, account.id)
+                  .limitedUntilFor(provider.id, account.id, model: model)
                   ?.millisecondsSinceEpoch,
               'error': ?codex.error(provider.id, account.id),
               'at': ?usage?.at.millisecondsSinceEpoch,

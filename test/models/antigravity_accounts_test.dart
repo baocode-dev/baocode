@@ -331,6 +331,93 @@ void main() {
     expect(provider().account('a@x')?.plan, 'Google AI Pro');
   });
 
+  test(
+    'signing in: the browser back with its code, the account kept',
+    () async {
+      // A free port, for Google's 51121.
+      final probe = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      final port = probe.port;
+      await probe.close();
+      final endpoints = AntigravityEndpoints(
+        token: '${google.base}/token',
+        userInfo: '${google.base}/userinfo',
+        base: google.base,
+        loadBase: google.base,
+        versionFeed: '${google.base}/feed',
+        callbackPort: port,
+      );
+      google.reply = (path, body) => switch (path) {
+        '/token' when body['grant_type'] == 'authorization_code' => (
+          200,
+          [
+            jsonEncode({
+              'access_token': 'access-new',
+              'refresh_token': 'refresh-new',
+              'expires_in': 3600,
+            }),
+          ],
+        ),
+        '/userinfo' => (
+          200,
+          [
+            jsonEncode({'email': 'New@X'}),
+          ],
+        ),
+        _ => common(path, body),
+      };
+      final browser = HttpClient();
+      final signIn = AntigravityAccounts(
+        providers: () => providers,
+        endpoints: endpoints,
+        // The browser: Google sends it back with a code.
+        openBrowser: (url) async {
+          final asked = Uri.parse(url);
+          final back = Uri.parse(asked.queryParameters['redirect_uri']!)
+              .replace(
+                queryParameters: {
+                  'code': 'the-code',
+                  'state': asked.queryParameters['state'],
+                },
+              );
+          final response = await (await browser.getUrl(back)).close();
+          await response.drain<void>();
+          return true;
+        },
+      );
+      addTearDown(() {
+        signIn.close();
+        browser.close(force: true);
+      });
+
+      final login = await signIn.login('ag');
+      expect(login.url.queryParameters['client_id'], antigravityClientId);
+      expect(
+        login.url.queryParameters['redirect_uri'],
+        'http://localhost:$port/oauth-callback',
+      );
+      expect(login.url.queryParameters['code_challenge_method'], 'S256');
+      final account = await login.result;
+
+      expect(account.id, 'new@x');
+      final exchanged = Uri(query: google.to('/token').first.body)
+          .queryParameters;
+      expect(exchanged['code'], 'the-code');
+      expect(exchanged['client_secret'], antigravityClientSecret);
+      expect(exchanged['code_verifier'], isNotEmpty);
+      expect(
+        google.to('/userinfo').single.headers['authorization'],
+        'Bearer access-new',
+      );
+      final kept = provider().account('new@x')!;
+      expect(kept.accountId, 'proj-found');
+      expect(kept.plan, 'Google AI Pro');
+      expect(
+        await secrets.read(ModelProvider.accountRefFor('ag', 'new@x')),
+        'refresh-new',
+      );
+    },
+  );
+
   test('the models listed are families with their levels', () async {
     google.reply = common;
     final models = await accounts.listModels(provider());

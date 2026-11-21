@@ -7,8 +7,9 @@ import 'dart:convert';
 /// OpenAPI-style subset with no references, unions, or keywords outside
 /// it. Antigravity refuses a request over any keyword it does not know.
 Map<String, Object?> antigravitySchema(Object? schema) {
-  if (schema is! Map)
+  if (schema is! Map) {
     return {'type': 'object', 'properties': <String, Object?>{}};
+  }
   final root = _deepCopy(schema) as Map<String, Object?>;
   final out = _SchemaWalk(root).walk(root, 0, '');
   return out is Map<String, Object?> ? out : {'type': 'object'};

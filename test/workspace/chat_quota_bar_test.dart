@@ -1,6 +1,7 @@
 import 'package:baocode/chat/chat_session.dart';
 import 'package:baocode/kernel/agent_kernel.dart' show KernelChoiceKind;
 import 'package:baocode/l10n/app_localizations.dart';
+import 'package:baocode/models/antigravity/antigravity_api.dart';
 import 'package:baocode/models/codex/codex_service.dart';
 import 'package:baocode/models/codex/codex_usage.dart';
 import 'package:baocode/models/model_provider.dart';
@@ -57,6 +58,16 @@ class _Codex extends CodexService {
   @override
   DateTime? limitedUntil(String providerId, String accountId) =>
       limited[accountId];
+
+  /// Out of quota on a model alone, as Antigravity's accounts are.
+  final limitedOn = <String, DateTime>{};
+
+  @override
+  DateTime? limitedUntilFor(
+    String providerId,
+    String accountId, {
+    String? model,
+  }) => limitedOn['$accountId/$model'] ?? limited[accountId];
 
   @override
   bool signedOut(String providerId, String accountId) => false;
@@ -275,6 +286,101 @@ void main() {
     await tester.tap(find.byIcon(Codicons.refresh));
     await tester.pump();
     expect(codex.refreshed.last, isTrue);
+    await _unmount(tester);
+  });
+
+  testWidgets("Antigravity's: the windows of the model's pool, named", (
+    tester,
+  ) async {
+    const ag = ModelProvider(
+      id: 'ag',
+      name: 'Antigravity',
+      protocol: ProviderProtocol.antigravity,
+      accounts: [_alice, _bob],
+    );
+    await providers.save(ag);
+    final models = parseAntigravityModels({
+      'models': {
+        'gemini-4-neon-high': {'displayName': 'Gemini 4 Neon (High)'},
+        'claude-opus-5-5-high': {'displayName': 'Claude Opus 5.5 (High)'},
+      },
+    });
+    // As Antigravity answered, its pools' windows.
+    CodexUsage usage(double gemini) => antigravityUsage(
+      models: models,
+      now: DateTime.now(),
+      plan: 'Google AI Ultra',
+      summary: {
+        'groups': [
+          {
+            'displayName': 'Gemini Models',
+            'buckets': [
+              {'window': '5h', 'remainingFraction': gemini},
+              {'window': 'weekly', 'remainingFraction': 0.5},
+            ],
+          },
+          {
+            'displayName': 'Claude and GPT models',
+            'buckets': [
+              {'window': '5h', 'remainingFraction': 1},
+              {'window': 'weekly', 'remainingFraction': 0.9},
+            ],
+          },
+        ],
+      },
+    );
+    session.select(modelRef('ag', 'gemini-4-neon'));
+    codex
+      ..current = _bob
+      ..usages['a'] = usage(0)
+      ..usages['b'] = usage(0.75)
+      ..limitedOn['a/gemini-4-neon'] = DateTime.now().add(
+        const Duration(hours: 1),
+      );
+    await _pump(tester, session: session, providers: providers, codex: codex);
+    // Gemini's pool alone; Alice is out of it.
+    expect(
+      find.text(
+        'bob · 5h Gemini 75% left · Weekly Gemini 50% left · 1/2 available',
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byIcon(Codicons.dashboard));
+    await tester.pumpAndSettle();
+    expect(find.text('Google AI Ultra'), findsNWidgets(2));
+    expect(find.text('5h Gemini'), findsNWidgets(2));
+    expect(find.text('Weekly Claude & GPT'), findsNWidgets(2));
+    expect(find.textContaining('Out of quota'), findsOneWidget);
+    await tester.tapAt(Offset.zero);
+    await tester.pumpAndSettle();
+
+    // On Claude, Alice's account goes.
+    session.select(modelRef('ag', 'claude-opus-5-5'));
+    await tester.pump();
+    expect(
+      find.text(
+        'bob · 5h Claude & GPT 100% left · Weekly Claude & GPT 90% left · '
+        '2/2 available',
+      ),
+      findsOneWidget,
+    );
+    await _unmount(tester);
+
+    // In Chinese, the pool's name a space apart.
+    await _pump(
+      tester,
+      session: session,
+      providers: providers,
+      codex: codex,
+      locale: const Locale('zh'),
+    );
+    expect(
+      find.text(
+        'bob · 5 小时 Claude & GPT 剩 100% · 每周 Claude & GPT 剩 90% · 2/2 可用',
+      ),
+      findsOneWidget,
+    );
     await _unmount(tester);
   });
 
