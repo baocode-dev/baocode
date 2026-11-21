@@ -20,6 +20,9 @@ import 'web_step_icons.dart';
 /// A message to another agent's icon (Remix Icon's speak-ai-line).
 const speakIcon = 'assets/icons/speak-ai-line.svg';
 
+/// An MCP tool call's icon (Simple Icons' modelcontextprotocol).
+const mcpIcon = 'assets/icons/mcp.svg';
+
 /// A todo's mark by its status (Remix Icon's): done, in progress, to do.
 const todoDoneIcon = 'assets/icons/checkbox-circle-fill.svg';
 const todoDoingIcon = 'assets/icons/progress-4-line.svg';
@@ -213,8 +216,8 @@ class ToolCallRow extends StatelessWidget {
             // A message to another agent: someone speaking, standing out.
             ToolKind.message => SvgPicture.asset(
               speakIcon,
-              width: 15,
-              height: 15,
+              width: 14,
+              height: 14,
               colorFilter: ColorFilter.mode(_amber, BlendMode.srcIn),
             ),
             ToolKind.goal => Icon(Icons.flag_outlined, size: 15, color: _amber),
@@ -224,6 +227,15 @@ class ToolCallRow extends StatelessWidget {
               color: AppColors.textMuted,
             ),
             ToolKind.web => webSearchGlobe(),
+            ToolKind.mcp => SvgPicture.asset(
+              mcpIcon,
+              width: 13,
+              height: 13,
+              colorFilter: ColorFilter.mode(
+                AppColors.textMuted,
+                BlendMode.srcIn,
+              ),
+            ),
             _ => null,
           });
     // A file read or edit shows only its name: the whole path on hover.
