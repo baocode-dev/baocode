@@ -1021,6 +1021,11 @@ class _SidebarState extends State<Sidebar>
             where((t) => t.shownStatus == ThreadStatus.unread),
           ),
           _Group(
+            'failed',
+            l10n.sidebarFailed,
+            where((t) => t.shownStatus == ThreadStatus.failed),
+          ),
+          _Group(
             'idle',
             l10n.sidebarDone,
             where((t) => t.shownStatus == ThreadStatus.idle),
@@ -2998,6 +3003,7 @@ class _GroupHeader extends StatelessWidget {
         (ThreadStatus.running, l10n.sidebarRunning),
         (ThreadStatus.needsInput, l10n.sidebarNeedsInput),
         (ThreadStatus.unread, l10n.sidebarUnread),
+        (ThreadStatus.failed, l10n.sidebarFailed),
       ])
         if (statuses[status] case final count?) '$label $count',
     ].join(' · ');
@@ -3005,6 +3011,8 @@ class _GroupHeader extends StatelessWidget {
         ? ThreadStatus.needsInput
         : statuses.containsKey(ThreadStatus.unread)
         ? ThreadStatus.unread
+        : statuses.containsKey(ThreadStatus.failed)
+        ? ThreadStatus.failed
         : null;
     return _RowHover(
       content: (context) => Text(told),
@@ -3763,6 +3771,7 @@ class _ThreadRow extends StatelessWidget {
       ThreadStatus.needsInput => l10n.sidebarNeedsInput,
       ThreadStatus.running => l10n.sidebarRunning,
       ThreadStatus.unread => l10n.sidebarUnread,
+      ThreadStatus.failed => l10n.sidebarFailed,
       ThreadStatus.idle => null,
     };
     final faint = TextStyle(color: AppColors.textMuted, fontSize: 12);
@@ -4228,6 +4237,7 @@ class StatusIndicator extends StatelessWidget {
       ThreadStatus.running => const PixelLoader.agent(size: 12),
       ThreadStatus.needsInput => _Dot(needsInputColor),
       ThreadStatus.unread => _Dot(AppColors.accent),
+      ThreadStatus.failed => _Dot(themeColors['errorForeground']),
       ThreadStatus.idle => const SizedBox.shrink(),
     };
   }

@@ -480,7 +480,8 @@ class _ChatTab extends StatelessWidget {
       onRenamed: onRename,
       mark: switch (status) {
         ThreadStatus.needsInput ||
-        ThreadStatus.unread => (_) => Center(child: ThreadStatusMark(status)),
+        ThreadStatus.unread ||
+        ThreadStatus.failed => (_) => Center(child: ThreadStatusMark(status)),
         _ => null,
       },
       closeTooltip: closeTooltip,

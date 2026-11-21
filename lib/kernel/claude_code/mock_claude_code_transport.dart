@@ -610,6 +610,19 @@ class MockClaudeCodeTransport implements ClaudeCodeTransport {
     final target =
         RegExp(r'@(\S+)').firstMatch(prompt)?.group(1) ??
         'lib/chat/chat_screen.dart';
+    // Told to fail: the turn ends in an error, as a real one may.
+    if (prompt.contains('fail')) {
+      if (!await _thinking(run, MockScript.thoughtFor(target))) return;
+      _emit({
+        'type': 'result',
+        'subtype': 'error_during_execution',
+        'is_error': true,
+        'result': 'API Error: 500 {"error":{"message":"overloaded_error"}}',
+        'total_cost_usd': _cost,
+      });
+      _run = null;
+      return;
+    }
     if (!await _thinking(run, MockScript.thoughtFor(target))) return;
     if (!await _wait(run, 500)) return;
     await _tool(run, 'Read', {

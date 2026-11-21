@@ -3488,6 +3488,12 @@ abstract class AppLocalizations {
   /// **'Unread'**
   String get sidebarUnread;
 
+  /// No description provided for @sidebarFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed'**
+  String get sidebarFailed;
+
   /// A conversation's hover in the sidebar: the model it runs on.
   ///
   /// In en, this message translates to:
@@ -6476,6 +6482,18 @@ abstract class AppLocalizations {
   /// **'It is done and waiting for your next message.'**
   String get notificationsEventFinishedDetail;
 
+  /// Notification event: the agent's turn failed with an error.
+  ///
+  /// In en, this message translates to:
+  /// **'Fails a turn'**
+  String get notificationsEventFailed;
+
+  /// No description provided for @notificationsEventFailedDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'An error ended its turn; open it to see what went wrong.'**
+  String get notificationsEventFailedDetail;
+
   /// No description provided for @notificationsWhen.
   ///
   /// In en, this message translates to:
@@ -6619,6 +6637,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Finished'**
   String get attentionFinished;
+
+  /// Notification: the agent's turn failed with an error.
+  ///
+  /// In en, this message translates to:
+  /// **'This turn failed'**
+  String get attentionFailed;
 
   /// No description provided for @attentionPlanReady.
   ///

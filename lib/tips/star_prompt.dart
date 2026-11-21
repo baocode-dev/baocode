@@ -116,7 +116,11 @@ class StarPrompt {
         continue;
       }
       final session = thread.session;
-      if (session.lastTurnInterrupted || session.lastTurnUnprompted) continue;
+      if (session.lastTurnInterrupted ||
+          session.lastTurnFailed ||
+          session.lastTurnUnprompted) {
+        continue;
+      }
       _count(
         _conversationOf(thread) ??
             (_runKeys[thread] ??= 'run-$_runStart-${_runKeys.length}'),

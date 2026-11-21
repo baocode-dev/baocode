@@ -130,6 +130,7 @@ class AttentionService {
           badge++;
           waiting.add(thread);
         case ThreadStatus.unread:
+        case ThreadStatus.failed:
           badge++;
         case ThreadStatus.running:
           running++;
@@ -138,6 +139,9 @@ class AttentionService {
       if (before == null || before == status) continue;
       if (status == ThreadStatus.needsInput) {
         _notify(thread, AttentionEvent.needsInput);
+      } else if (before == ThreadStatus.running &&
+          status == ThreadStatus.failed) {
+        _notify(thread, AttentionEvent.failed);
       } else if (before == ThreadStatus.running &&
           (status == ThreadStatus.unread || status == ThreadStatus.idle) &&
           !thread.session.lastTurnInterrupted) {
@@ -223,6 +227,8 @@ class AttentionService {
         body = reply == null
             ? l10n.attentionFinished
             : '${l10n.attentionFinished} · $reply';
+      case AttentionEvent.failed:
+        body = l10n.attentionFailed;
     }
     unawaited(
       host.notify(

@@ -576,7 +576,9 @@ class _HistoryRowState extends State<_HistoryRow> {
         ThreadStatusBuilder(
           thread,
           (context, status) => switch (status) {
-            ThreadStatus.needsInput || ThreadStatus.unread => Padding(
+            ThreadStatus.needsInput ||
+            ThreadStatus.unread ||
+            ThreadStatus.failed => Padding(
               padding: const EdgeInsetsDirectional.only(start: 6),
               child: ThreadStatusMark(status),
             ),

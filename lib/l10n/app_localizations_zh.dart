@@ -1880,6 +1880,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sidebarUnread => '未读';
 
   @override
+  String get sidebarFailed => '失败';
+
+  @override
   String sidebarHoverModel(String model) {
     return '模型：$model';
   }
@@ -3709,6 +3712,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get notificationsEventFinishedDetail => '它做完了，等你发下一条消息。';
 
   @override
+  String get notificationsEventFailed => '一轮失败';
+
+  @override
+  String get notificationsEventFailedDetail => '出错了，它的这轮中断；打开看看哪里出了问题。';
+
+  @override
   String get notificationsWhen => '何时通知';
 
   @override
@@ -3788,6 +3797,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get attentionFinished => '已完成';
+
+  @override
+  String get attentionFailed => '本轮对话失败';
 
   @override
   String get attentionPlanReady => '计划待确认';

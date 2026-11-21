@@ -5,6 +5,9 @@ enum AttentionEvent {
 
   /// It ended a turn.
   finished,
+
+  /// Its turn failed: an error ended it.
+  failed,
 }
 
 /// When an agent's news is notified.
@@ -20,7 +23,8 @@ enum NotifyWhen {
 /// * `notifications.enabled`: whether agents notify at all (true);
 /// * `notifications.sound`: [NotificationSoundValue]s (`microwave`);
 /// * `notifications.when`: `unfocused` or `always` (`unfocused`);
-/// * `notifications.events`: of `needsInput` and `finished` (both);
+/// * `notifications.events`: of `needsInput`, `finished` and `failed`
+///   (all);
 /// * `tray.enabled`: the menu bar / system tray icon, which the window's
 ///   close button hides the window to (true).
 class AttentionSettings {
@@ -28,7 +32,11 @@ class AttentionSettings {
     this.enabled = true,
     this.sound = NotificationSoundValue.microwave,
     this.when = NotifyWhen.unfocused,
-    this.events = const {AttentionEvent.needsInput, AttentionEvent.finished},
+    this.events = const {
+      AttentionEvent.needsInput,
+      AttentionEvent.finished,
+      AttentionEvent.failed,
+    },
     this.tray = true,
   });
 

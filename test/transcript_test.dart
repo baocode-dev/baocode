@@ -135,6 +135,27 @@ void main() {
     expect(transcript.lastTurnUnprompted, isFalse);
   });
 
+  test('a failed turn is told of, apart from one stopped or done', () {
+    final failed = Transcript()
+      ..apply(const TurnStarted(1, 't1'))
+      ..apply(const TurnEnded(2, 't1', failed: true));
+    expect(failed.lastTurnFailed, isTrue);
+    expect(failed.lastTurnInterrupted, isFalse);
+    final stopped = Transcript()
+      ..apply(const TurnStarted(1, 't1'))
+      ..apply(const TurnEnded(2, 't1', interrupted: true));
+    expect(stopped.lastTurnFailed, isFalse);
+    final done = Transcript()
+      ..apply(const TurnStarted(1, 't1'))
+      ..apply(const TurnEnded(2, 't1'));
+    expect(done.lastTurnFailed, isFalse);
+    // The next turn's end replaces it.
+    failed
+      ..apply(const TurnStarted(3, 't2'))
+      ..apply(const TurnEnded(4, 't2'));
+    expect(failed.lastTurnFailed, isFalse);
+  });
+
   test('a turn that ends mid-thought settles it', () {
     final transcript = Transcript()
       ..apply(const TurnStarted(1, 't1'))
@@ -291,7 +312,7 @@ void main() {
     expect(transcript.length, 4);
   });
 
-  test('a turn done is timed on its message; a stopped one is not', () {
+  test('a turn done is timed on its message; a stopped one too, told so', () {
     const worked = Duration(minutes: 4, seconds: 32);
     Duration? workedOn(Transcript transcript) =>
         (transcript.itemAt(0) as UserMessageItem).worked;
@@ -301,12 +322,14 @@ void main() {
       ..apply(const TurnEnded(3, 'u', worked: worked));
     expect(workedOn(done), worked);
     expect((done.itemAt(0) as UserMessageItem).text, 'hi');
+    expect((done.itemAt(0) as UserMessageItem).stopped, isFalse);
 
     final stopped = Transcript()
       ..apply(const TurnStarted(1, 'u'))
       ..apply(const ItemUpserted(2, 'u', UserMessageItem(text: 'hi')))
       ..apply(const TurnEnded(3, 'u', interrupted: true, worked: worked));
-    expect(workedOn(stopped), isNull);
+    expect(workedOn(stopped), worked);
+    expect((stopped.itemAt(0) as UserMessageItem).stopped, isTrue);
   });
 
   test('tasks are replaced whole', () {

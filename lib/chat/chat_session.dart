@@ -741,6 +741,10 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
   /// Whether the last turn to end was stopped rather than done.
   bool get lastTurnInterrupted => _transcript.lastTurnInterrupted;
 
+  /// Whether the last turn to end failed (an error ended it, not the user
+  /// stopping it).
+  bool get lastTurnFailed => _transcript.lastTurnFailed;
+
   /// Whether the last turn to end was one the agent took up on its own,
   /// e.g. about a background subagent's report.
   bool get lastTurnUnprompted => _transcript.lastTurnUnprompted;

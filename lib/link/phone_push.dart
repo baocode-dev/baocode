@@ -218,7 +218,7 @@ class PushWatcher {
       }
       final id = WorkspaceBridge.idOf(thread);
       final status = switch (thread.shownStatus) {
-        ThreadStatus.unread => ThreadStatus.idle,
+        ThreadStatus.unread || ThreadStatus.failed => ThreadStatus.idle,
         final status => status,
       };
       sessions[id] = status;

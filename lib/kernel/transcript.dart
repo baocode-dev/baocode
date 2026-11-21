@@ -71,6 +71,10 @@ class Transcript {
   /// Whether the last turn to end was stopped rather than done.
   bool lastTurnInterrupted = false;
 
+  /// Whether the last turn to end failed (an error ended it, not the user
+  /// stopping it).
+  bool lastTurnFailed = false;
+
   /// Whether the last turn to end was one the agent took up on its own
   /// (see [TurnStarted.unprompted]).
   bool lastTurnUnprompted = false;
@@ -167,6 +171,7 @@ class Transcript {
       case TurnEnded(
         :final turnId,
         :final interrupted,
+        :final failed,
         :final worked,
         :final usage,
       ):
@@ -180,6 +185,7 @@ class Transcript {
         output = null;
         lastTurnEndSeq = event.seq;
         lastTurnInterrupted = interrupted;
+        lastTurnFailed = failed;
         _pending.clear();
         _settleStreaming();
         if (worked != null) {

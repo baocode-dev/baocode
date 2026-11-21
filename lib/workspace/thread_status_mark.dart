@@ -26,7 +26,7 @@ class ThreadStatusBuilder extends StatelessWidget {
 
 /// What an agent needs, as the sidebar shows it: a spinner while it runs,
 /// an amber dot when it waits on a question, a blue dot when it finished
-/// unseen; nothing when idle.
+/// unseen, a red one when its turn failed; nothing when idle.
 class ThreadStatusMark extends StatelessWidget {
   const ThreadStatusMark(this.status, {super.key});
 
@@ -37,6 +37,7 @@ class ThreadStatusMark extends StatelessWidget {
     ThreadStatus.running => const PixelLoader.agent(),
     ThreadStatus.needsInput => _dot(themeColors['list.warningForeground']),
     ThreadStatus.unread => _dot(AppColors.accent),
+    ThreadStatus.failed => _dot(themeColors['errorForeground']),
     ThreadStatus.idle => const SizedBox.shrink(),
   };
 

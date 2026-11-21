@@ -956,6 +956,7 @@
   "sidebarNeedsInput": "Needs input",
   "sidebarRunning": "Running",
   "sidebarUnread": "Unread",
+  "sidebarFailed": "Failed",
   "sidebarHoverModel": "Model: {model}",
   "@sidebarHoverModel": {
     "description": "A conversation's hover in the sidebar: the model it runs on.",
@@ -2609,6 +2610,11 @@
     "description": "Notification event: the agent ended its turn."
   },
   "notificationsEventFinishedDetail": "It is done and waiting for your next message.",
+  "notificationsEventFailed": "Fails a turn",
+  "@notificationsEventFailed": {
+    "description": "Notification event: the agent's turn failed with an error."
+  },
+  "notificationsEventFailedDetail": "An error ended its turn; open it to see what went wrong.",
   "notificationsWhen": "When",
   "notificationsWhenDescription": "Whether to notify about the agent you are looking at, the window in front.",
   "notificationsWhenUnfocused": "When I'm not looking at it",
@@ -2691,6 +2697,10 @@
   "attentionFinished": "Finished",
   "@attentionFinished": {
     "description": "Notification: the agent ended its turn."
+  },
+  "attentionFailed": "This turn failed",
+  "@attentionFailed": {
+    "description": "Notification: the agent's turn failed with an error."
   },
   "attentionPlanReady": "Plan ready for review",
   "placeholderBinary": "The file is not displayed in the text editor because it is either binary or uses an unsupported text encoding.",
