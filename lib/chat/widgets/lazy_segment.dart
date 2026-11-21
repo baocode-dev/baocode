@@ -2,8 +2,9 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
-import '../chat_find.dart' show ChatFind, ChatFindRow;
+import '../chat_find.dart' show ChatFindRow;
 import '../selection/chat_selection.dart';
+import 'markdown_view.dart';
 
 /// A long text's segment (see [markdownSegments]), let go of while far out
 /// of the list's view: a box as tall in its place, its text selected and
@@ -171,7 +172,7 @@ class _RenderSegmentSlot extends RenderProxyBox implements ChatTextLeafSource {
   String get _plainText {
     if (_plainOf != text) {
       _plainOf = text;
-      _plain = ChatFind.markdownText(text).trim();
+      _plain = MarkdownView.copyText(text);
     }
     return _plain;
   }

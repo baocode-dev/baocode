@@ -66,6 +66,94 @@ class MarkdownView extends StatefulWidget {
 
   static final _document = document(tags: true);
 
+  /// [markdown]'s text as a copy of it shown takes it, for what of it is
+  /// not built: each block on a line of its own, a list's markers, a
+  /// table's cells apart by tabs, inline code a space each side.
+  static String copyText(String markdown) {
+    final lines = <String>[];
+    final line = StringBuffer();
+    // A list item's marker, before the first text in it.
+    String? marker;
+    void end() {
+      if (line.isNotEmpty) lines.add(line.toString());
+      line.clear();
+    }
+
+    void write(String text) {
+      if (text.isEmpty) return;
+      if (marker case final pending?) {
+        line.write(pending);
+        marker = null;
+      }
+      line.write(text);
+    }
+
+    void visit(md.Node node) {
+      switch (node) {
+        case md.Text(:final text):
+          write(text.replaceAll(_htmlComment, ''));
+        case md.Element(tag: 'pre'):
+          end();
+          write(_unescape(node.textContent).replaceAll(RegExp(r'\n+$'), ''));
+          end();
+        case md.Element(tag: 'code'):
+          write(' ${_unescape(node.textContent)} ');
+        case md.Element(tag: 'math' || 'img' || 'input' || 'hr'):
+          break;
+        case md.Element(tag: TagBlockSyntax.tag, :final children):
+          end();
+          if (TagSection.titleOf(node) case final title?) {
+            write(title);
+            end();
+          }
+          children?.forEach(visit);
+          end();
+        case md.Element(tag: 'ul' || 'ol', :final children):
+          end();
+          final ordered = node.tag == 'ol';
+          final start = int.tryParse(node.attributes['start'] ?? '') ?? 1;
+          var i = 0;
+          for (final item in children ?? const <md.Node>[]) {
+            if (item is! md.Element || item.tag != 'li') continue;
+            end();
+            final task = switch (item.children?.firstOrNull) {
+              md.Element(tag: 'input') => true,
+              _ => false,
+            };
+            marker = task ? null : (ordered ? '${start + i}. ' : '• ');
+            item.children?.forEach(visit);
+            marker = null;
+            end();
+            i++;
+          }
+        case md.Element(tag: 'tr', :final children):
+          end();
+          var first = true;
+          for (final cell in children ?? const <md.Node>[]) {
+            if (!first) line.write('\t');
+            first = false;
+            if (cell is md.Element) cell.children?.forEach(visit);
+          }
+          end();
+        case md.Element(:final tag, :final children):
+          final block = _copyBlocks.contains(tag);
+          if (block) end();
+          children?.forEach(visit);
+          if (block) end();
+      }
+    }
+
+    _document.parse(markdown).forEach(visit);
+    end();
+    return lines.join('\n');
+  }
+
+  static final _htmlComment = RegExp(r'<!--[\s\S]*?-->');
+  static const _copyBlocks = {
+    'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'blockquote', 'br', //
+    'table', 'thead', 'tbody',
+  };
+
   /// GitHub's, but struck through only between `~~`: a single `~` is how
   /// a range is written (`10-12~10-16`), and two of them on a line would
   /// strike out what is between.

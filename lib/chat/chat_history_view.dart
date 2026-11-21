@@ -323,8 +323,8 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       if (row.steps case final fold?)
         StepsFoldLine.text(StepTally(_itemsIn(fold)), l10n: l10n),
       if (row.item)
-        chatItemPlainText(item, expanded: _isExpanded(index), l10n: l10n),
-    ].join('\n');
+        chatItemCopyText(item, expanded: _isExpanded(index), l10n: l10n),
+    ].where((text) => text.isNotEmpty).join('\n');
   }
 
   // --- Motion --------------------------------------------------------------

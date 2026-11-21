@@ -28,16 +28,22 @@ class PlanCard extends StatelessWidget {
         PlanStatus.sentBack => l10n.planSentBack,
       };
 
-  /// The card as text, e.g. for copying; in [l10n]'s language (English
-  /// when null).
+  /// The card's text as it shows, for copying it unbuilt; in [l10n]'s
+  /// language (English when null).
   static String plainText(PlanItem item, {AppLocalizations? l10n}) {
     final strings = l10n ?? englishLocalizations;
+    if (item.status == PlanStatus.sentBack) {
+      return '${strings.planCardLabel} ${strings.planCardRound(item.round)} '
+          '· ${strings.planSentBack}'
+          '${item.feedback == null ? '' : '：${item.feedback}'}';
+    }
     return [
-      '${strings.planCardLabel} ${strings.planCardRound(item.round)}',
-      item.name,
-      status(item.status, strings),
-      ?item.feedback,
-    ].join(' · ');
+      [
+        item.name,
+        if (item.round > 1) strings.planCardRound(item.round),
+      ].join(' '),
+      if (_body(item) case final body?) MarkdownView.copyText(body),
+    ].join('\n');
   }
 
   @override

@@ -9,6 +9,7 @@ import 'package:baocode/chat/chat_history_view.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 
 import 'package:baocode/chat/mock_conversation.dart';
+import 'package:baocode/chat/selection/chat_selection.dart';
 import 'package:baocode/chat/widgets/chat_minimap.dart';
 import 'package:baocode/chat/widgets/fold_line.dart';
 import 'package:baocode/chat/composer/composer.dart';
@@ -25,7 +26,7 @@ void main() {
     // Opens at the bottom of the conversation, above the composer.
     expect(find.textContaining('已完成修改'), findsWidgets);
     expect(find.textContaining('第 1 轮'), findsNothing);
-    expect(find.byType(SelectionArea), findsOneWidget);
+    expect(find.byType(ChatSelectionItem), findsWidgets);
     expect(find.byType(ChatComposer), findsOneWidget);
   });
 
@@ -50,19 +51,17 @@ void main() {
 
       await tester.pumpWidget(BaoCodeApp(workspace: Workspace.mock()));
       await tester.pump();
-      final selectionArea = tester.widget<SelectionArea>(
-        find.byType(SelectionArea),
-      );
+      final selection = _selectionFocus(tester);
       final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
       await mouse.addPointer();
       await mouse.moveTo(tester.getCenter(find.textContaining('已完成修改').last));
       await tester.pump();
       // Hovering leaves focus in the composer; clicking moves it.
-      expect(selectionArea.focusNode!.hasFocus, isFalse);
+      expect(selection.hasFocus, isFalse);
       await mouse.down(tester.getCenter(find.textContaining('已完成修改').last));
       await mouse.up();
       await tester.pump(const Duration(milliseconds: 500));
-      expect(selectionArea.focusNode!.hasFocus, isTrue);
+      expect(selection.hasFocus, isTrue);
 
       await tester.sendKeyDownEvent(modifier);
       await tester.sendKeyEvent(LogicalKeyboardKey.keyA);
@@ -536,8 +535,9 @@ void main() {
     final thoughts = _foldedSteps.allMatches(text).length;
     expect(thoughts, greaterThanOrEqualTo(3));
     // Whole turns, except that the first may start partway (after its
-    // folded steps, before its edit and command).
-    expect(_edits.allMatches(text).length - thoughts, inInclusiveRange(0, 1));
+    // folded steps, before its command). An edit's card does not copy,
+    // built or not: its diff selects in its own editor.
+    expect(_edits.allMatches(text), isEmpty);
     expect(
       'Ran flutter test'.allMatches(text).length - thoughts,
       inInclusiveRange(0, 1),
@@ -650,7 +650,8 @@ void main() {
         final thoughts = _foldedSteps.allMatches(text).length;
         expect(thoughts, greaterThanOrEqualTo(3));
         expect('flutter test'.allMatches(text).length, thoughts + 1);
-        expect(_edits.allMatches(text).length, thoughts);
+        // An edit's card does not copy (its diff selects on its own).
+        expect(_edits.allMatches(text), isEmpty);
       }
 
       final first = await scrollAndShiftClick();
@@ -751,7 +752,7 @@ void main() {
         )
         .where(
           (paragraph) =>
-              paragraph.registrar != null && // Text, not icons.
+              _selectable(paragraph) && // Text, not icons or a card's own.
               viewport.overlaps(
                 paragraph.localToGlobal(Offset.zero) & paragraph.size,
               ),
@@ -759,19 +760,10 @@ void main() {
         .toList();
     expect(visible, isNotEmpty);
     for (final paragraph in visible) {
-      // Inline tags are placeholders, selected (and copied) on their own.
-      final plain = paragraph.text
-          .toPlainText(includeSemanticsLabels: false)
-          .replaceAll('\uFFFC', '');
-      final selected = paragraph.selections.fold(
-        0,
-        (sum, s) => sum + s.end - s.start,
-      );
-      // Ellipsized lines only select what they show.
       expect(
-        paragraph.didExceedMaxLines ? selected > 0 : selected == plain.length,
+        _selectionItemOf(paragraph)!.showsSelected(paragraph),
         isTrue,
-        reason: 'not fully selected: $plain',
+        reason: 'not selected: ${paragraph.text.toPlainText()}',
       );
     }
     copied = null;
@@ -789,6 +781,28 @@ final _foldedSteps = RegExp(r'Read 1 file, searched 1 pattern');
 
 /// An edit's card, as it copies: its file's name and counts.
 final _edits = RegExp(r'^main\.dart \+', multiLine: true);
+
+/// The focus the conversation's selection takes on a press.
+FocusNode _selectionFocus(WidgetTester tester) => tester
+    .widgetList<Focus>(find.byType(Focus))
+    .map((focus) => focus.focusNode)
+    .firstWhere((node) => node?.debugLabel == 'BaoCode chat selection')!;
+
+/// Whether [paragraph] is text of the conversation's selection.
+bool _selectable(RenderParagraph paragraph) =>
+    _selectionItemOf(paragraph)
+        ?.leaves()
+        .any((leaf) => identical(leaf.box, paragraph)) ??
+    false;
+
+/// The item of the conversation [paragraph] is in, if any.
+RenderChatSelectionItem? _selectionItemOf(RenderParagraph paragraph) {
+  RenderObject? node = paragraph.parent;
+  while (node != null && node is! RenderChatSelectionItem) {
+    node = node.parent;
+  }
+  return node as RenderChatSelectionItem?;
+}
 
 /// The scrollbar, not the minimap that stands in for it where there is room.
 void _scrollbarOnly() {

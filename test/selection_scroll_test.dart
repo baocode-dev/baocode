@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
@@ -55,10 +56,13 @@ void main() {
           return (
             text: (element.widget as RichText).text.toPlainText(),
             rect: box.localToGlobal(Offset.zero) & box.size,
+            // Cut short, it copies only what shows of it.
+            cut: (box as RenderParagraph).didExceedMaxLines,
           );
         })
         .firstWhere(
           (line) =>
+              !line.cut &&
               line.rect.height < 40 &&
               line.rect.width > 60 &&
               line.rect.top > view.top + 150 &&
