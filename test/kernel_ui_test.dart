@@ -39,6 +39,7 @@ import 'package:baocode/main.dart';
 import 'package:baocode/sidebar/sidebar.dart';
 import 'package:baocode/theme/app_theme.dart';
 import 'package:baocode/theme/codicons.dart';
+import 'package:baocode/theme/ui_zoom.dart';
 import 'package:baocode/workspace/workspace.dart';
 import 'package:baocode/chat/agent_view.dart';
 import 'package:baocode/chat/widgets/plan_card.dart';
@@ -79,9 +80,12 @@ Finder picker(String label) =>
 Future<({ChatSession session, FakeCli cli})> pumpScripted(
   WidgetTester tester, {
   FakeCli? cli,
+  double zoom = 1,
+  TargetPlatform? platform,
+  double devicePixelRatio = 1,
 }) async {
-  tester.view.physicalSize = const Size(1200, 900);
-  tester.view.devicePixelRatio = 1;
+  tester.view.physicalSize = const Size(1200, 900) * devicePixelRatio;
+  tester.view.devicePixelRatio = devicePixelRatio;
   addTearDown(tester.view.reset);
   cli ??= FakeCli();
   final fake = cli;
@@ -102,7 +106,13 @@ Future<({ChatSession session, FakeCli cli})> pumpScripted(
   addTearDown(session.dispose);
   await tester.pumpWidget(
     MaterialApp(
-      theme: buildAppTheme(),
+      theme: buildAppTheme().copyWith(platform: platform),
+      builder: zoom == 1
+          ? null
+          : (context, child) => MediaQuery(
+              data: UiZoom.zoomed(MediaQuery.of(context), zoom),
+              child: UiZoom(scale: zoom, child: child),
+            ),
       home: ChatScreen(session: session),
     ),
   );
@@ -281,58 +291,134 @@ void main() {
     expect(find.textContaining('and lint', findRichText: true), findsOneWidget);
   });
 
-  testWidgets('a queued message dragged above another waits before it', (
+  for (final (zoom, touch) in [
+    (0.8, false),
+    (1.0, false),
+    (1.25, false),
+    (1.25, true),
+  ]) {
+    final input = touch ? 'a long press' : 'the mouse';
+    testWidgets('a queued message follows $input and reorders at $zoom×', (
+      tester,
+    ) async {
+      final (:session, :cli) = await pumpScripted(
+        tester,
+        zoom: zoom,
+        platform: touch ? TargetPlatform.iOS : TargetPlatform.macOS,
+        devicePixelRatio: zoom > 1 ? 2 : 1,
+        cli: FakeCli(
+          answers: {
+            'cancel_async_message': {'cancelled': true},
+          },
+        ),
+      );
+      session
+        ..send(const ComposerMessage(text: 'then the tests'))
+        ..send(const ComposerMessage(text: 'and lint'));
+      await tester.pump(const Duration(milliseconds: 100));
+      List<String> order() => [
+        for (final (_, item) in session.queued) item.text,
+      ];
+      expect(order(), ['then the tests', 'and lint']);
+
+      final row = find.text('and lint');
+      final before = tester.getRect(row);
+      final gesture = await tester.startGesture(
+        tester.getCenter(row),
+        kind: touch ? ui.PointerDeviceKind.touch : ui.PointerDeviceKind.mouse,
+      );
+      if (touch) await tester.pump(kLongPressTimeout);
+      const step = Offset(0, -15);
+      await gesture.moveBy(step);
+      await tester.pump();
+      final proxy = find.descendant(
+        of: find.byWidgetPredicate(
+          (widget) => widget is Material && widget.elevation == 3,
+        ),
+        matching: row,
+      );
+      expect(
+        tester.getTopLeft(proxy),
+        offsetMoreOrLessEquals(before.topLeft + step, epsilon: 0.01),
+      );
+      await gesture.moveBy(step);
+      await tester.pump();
+      expect(
+        tester.getTopLeft(proxy),
+        offsetMoreOrLessEquals(before.topLeft + step * 2, epsilon: 0.01),
+      );
+      expect(
+        tester.getBottomRight(proxy),
+        offsetMoreOrLessEquals(before.bottomRight + step * 2, epsilon: 0.01),
+      );
+      expect(order(), ['then the tests', 'and lint']);
+      await gesture.up();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(order(), ['and lint', 'then the tests']);
+      // The one given the CLI taken back, all sent again in the new order.
+      expect(cli.requests('cancel_async_message'), hasLength(1));
+      expect(cli.requests('interrupt'), isEmpty);
+    });
+  }
+
+  testWidgets('a queued message scrolls toward the edge and cancels cleanly', (
     tester,
   ) async {
-    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
-    tester.view.physicalSize = const Size(1200, 900);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
     final (:session, :cli) = await pumpScripted(
       tester,
+      zoom: 1.25,
+      platform: TargetPlatform.macOS,
       cli: FakeCli(
         answers: {
           'cancel_async_message': {'cancelled': true},
         },
       ),
     );
-    session
-      ..send(const ComposerMessage(text: 'then the tests'))
-      ..send(const ComposerMessage(text: 'and lint'));
+    final messages = List.generate(10, (i) => 'follow-up $i');
+    for (final text in messages) {
+      session.send(ComposerMessage(text: text));
+    }
     await tester.pump(const Duration(milliseconds: 100));
-    final panel = find.byType(QueuePanel);
+    final viewport = find.byType(ReorderableListView);
+    final scroll = tester
+        .state<ScrollableState>(
+          find.descendant(of: viewport, matching: find.byType(Scrollable)),
+        )
+        .position;
+    Future<TestGesture> dragToBottom() async {
+      final first = tester.getCenter(find.text(messages.first));
+      final gesture = await tester.startGesture(
+        first,
+        kind: ui.PointerDeviceKind.mouse,
+      );
+      await gesture.moveTo(Offset(first.dx, tester.getBottomLeft(viewport).dy));
+      for (var i = 0; i < 30 && scroll.pixels < scroll.maxScrollExtent; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      expect(scroll.pixels, scroll.maxScrollExtent);
+      return gesture;
+    }
+
+    final canceled = await dragToBottom();
+    await canceled.cancel();
+    await tester.pump();
+    expect([for (final (_, item) in session.queued) item.text], messages);
+    expect(cli.requests('cancel_async_message'), isEmpty);
+
+    scroll.jumpTo(0);
+    await tester.pump();
+    final dropped = await dragToBottom();
+    await dropped.up();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 100));
     expect(
       [for (final (_, item) in session.queued) item.text],
-      ['then the tests', 'and lint'],
+      [...messages.skip(1), messages.first],
     );
-
-    // The second dragged above the first.
-    final gesture = await tester.startGesture(
-      tester.getCenter(
-        find.descendant(of: panel, matching: find.text('and lint')),
-      ),
-    );
-    await tester.pump(kPressTimeout);
-    // A little to start it, then well past the one above.
-    await gesture.moveBy(const Offset(0, -10));
-    await tester.pump();
-    await gesture.moveBy(const Offset(0, -30));
-    await tester.pump();
-    await gesture.moveBy(const Offset(0, -30));
-    await tester.pump();
-    await gesture.up();
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
-    await tester.pump(const Duration(milliseconds: 100));
-
-    expect(
-      [for (final (_, item) in session.queued) item.text],
-      ['and lint', 'then the tests'],
-    );
-    // The one given the CLI taken back, all sent again in the new order.
-    expect(cli.requests('cancel_async_message'), hasLength(1));
-    expect(cli.requests('interrupt'), isEmpty);
-    debugDefaultTargetPlatformOverride = null;
   });
 
   testWidgets('an earlier conversation says it is loading until it is read', (
