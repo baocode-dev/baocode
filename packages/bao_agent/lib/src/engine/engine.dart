@@ -698,6 +698,7 @@ class AgentEngine {
   /// What the main agent is told besides the conversation.
   AgentPrompt _mainPrompt(ToolSet tools) => session.context.main(
     own: options.systemPrompt,
+    core: options.coreSystemPrompt,
     appended: [?options.appendSystemPrompt, ?_appendedByHost],
     notes: [
       if (_startContext case final start?)

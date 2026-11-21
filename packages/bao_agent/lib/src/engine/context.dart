@@ -212,10 +212,12 @@ class SessionContext {
   };
 
   /// The main agent's prompt: its system prompt ([own] in place of the
-  /// agent's, when the host gave one), the notes with the first message,
-  /// and where it works.
+  /// agent's, when the host gave one; [core] in place of the default core
+  /// instructions while keeping memory, output style, budget and appended
+  /// instructions), the notes with the first message, and where it works.
   AgentPrompt main({
     String? own,
+    String? core,
     List<String> appended = const [],
     List<String> notes = const [],
     required ToolSet tools,
@@ -231,9 +233,11 @@ class SessionContext {
       system: own != null
           ? [own, ...extra]
           : [
-              identityLine(productName: productName),
+              if (core == null) identityLine(productName: productName),
               [
-                if (style == null || style.keepCodingInstructions)
+                if (core != null)
+                  core
+                else if (style == null || style.keepCodingInstructions)
                   coreInstructions(productName: productName),
                 ?_autoMemory(),
                 ?_outputStyle(),

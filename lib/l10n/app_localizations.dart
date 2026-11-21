@@ -15093,6 +15093,144 @@ abstract class AppLocalizations {
   /// **'Stash'**
   String get settingsSectionStash;
 
+  /// No description provided for @settingsSectionBuiltinCore.
+  ///
+  /// In en, this message translates to:
+  /// **'Built-in Core'**
+  String get settingsSectionBuiltinCore;
+
+  /// No description provided for @settingsBuiltinCoreKeywords.
+  ///
+  /// In en, this message translates to:
+  /// **'builtin core system prompt instructions agent'**
+  String get settingsBuiltinCoreKeywords;
+
+  /// No description provided for @builtinCoreSettingsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Built-in Core'**
+  String get builtinCoreSettingsTitle;
+
+  /// No description provided for @builtinCoreSettingsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Customize the system prompt used by BaoCode\'s built-in core. Changes apply to new conversations; bots keep their own prompts.'**
+  String get builtinCoreSettingsDescription;
+
+  /// No description provided for @builtinCoreSystemPromptGroup.
+  ///
+  /// In en, this message translates to:
+  /// **'System Prompt'**
+  String get builtinCoreSystemPromptGroup;
+
+  /// No description provided for @builtinCoreSystemPromptMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Mode'**
+  String get builtinCoreSystemPromptMode;
+
+  /// No description provided for @builtinCoreSystemPromptModeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'System Prompt: {mode}'**
+  String builtinCoreSystemPromptModeLabel(String mode);
+
+  /// No description provided for @builtinCoreModeDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Default'**
+  String get builtinCoreModeDefault;
+
+  /// No description provided for @builtinCoreModeAppend.
+  ///
+  /// In en, this message translates to:
+  /// **'Append to Default'**
+  String get builtinCoreModeAppend;
+
+  /// No description provided for @builtinCoreModeReplace.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace Default'**
+  String get builtinCoreModeReplace;
+
+  /// No description provided for @builtinCoreModeDefaultDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Uses BaoCode\'s default core instructions.'**
+  String get builtinCoreModeDefaultDetail;
+
+  /// No description provided for @builtinCoreModeAppendDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Keeps the default core instructions and appends your text at the end.'**
+  String get builtinCoreModeAppendDetail;
+
+  /// No description provided for @builtinCoreModeReplaceDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Replaces the default core instructions while keeping auto memory, output style, CLAUDE.md, and formatting rules.'**
+  String get builtinCoreModeReplaceDetail;
+
+  /// No description provided for @builtinCoreAppendLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Appended Instructions'**
+  String get builtinCoreAppendLabel;
+
+  /// No description provided for @builtinCoreAppendPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'Write instructions to append to the default system prompt…'**
+  String get builtinCoreAppendPlaceholder;
+
+  /// No description provided for @builtinCoreReplaceLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom Core Instructions'**
+  String get builtinCoreReplaceLabel;
+
+  /// No description provided for @builtinCoreReplacePlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'Write the system prompt that replaces the default core instructions…'**
+  String get builtinCoreReplacePlaceholder;
+
+  /// No description provided for @builtinCoreLoadDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Load Default'**
+  String get builtinCoreLoadDefault;
+
+  /// No description provided for @builtinCoreResetDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset to Default'**
+  String get builtinCoreResetDefault;
+
+  /// No description provided for @builtinCoreDefaultPromptTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Default System Prompt'**
+  String get builtinCoreDefaultPromptTitle;
+
+  /// No description provided for @builtinCoreDefaultPromptDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'The built-in core instructions used when no replacement is set, for reference.'**
+  String get builtinCoreDefaultPromptDescription;
+
+  /// No description provided for @builtinCoreCopyDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get builtinCoreCopyDefault;
+
+  /// No description provided for @builtinCoreCopiedDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Copied'**
+  String get builtinCoreCopiedDefault;
+
   /// No description provided for @settingsSectionCustomize.
   ///
   /// In en, this message translates to:

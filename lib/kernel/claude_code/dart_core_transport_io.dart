@@ -8,6 +8,7 @@ import '../../models/launch_environment.dart';
 import '../../network/network_proxy_io.dart';
 import '../../network/tls.dart';
 import 'claude_code_transport.dart';
+import 'claude_core_setting.dart';
 import 'claude_environment.dart';
 import 'core_ripgrep_io.dart';
 
@@ -67,6 +68,12 @@ class DartCoreTransport implements ClaudeCodeTransport {
     // picks (Windows): BaoCode Bash where installed, unless another.
     environment.addAll(BaoBash.coreEnvironment());
     final instructions = launch.instructions;
+    final customPrompt = launch.ownPrompt ? null : CoreSystemPrompt.current();
+    final appendedParts = [
+      ClaudeLaunch.appendedSystemPrompt,
+      ?customPrompt?.appended,
+      if (instructions != null && instructions.isNotEmpty) instructions,
+    ];
     return EngineOptions(
       cwd: launch.cwd,
       resume: launch.resume,
@@ -90,11 +97,8 @@ class DartCoreTransport implements ClaudeCodeTransport {
       // Only the app's servers then, as the CLI's --strict-mcp-config.
       strictMcpConfig: launch.tools != null && !launch.userServers,
       systemPrompt: launch.ownPrompt ? instructions ?? '' : null,
-      appendSystemPrompt: launch.ownPrompt
-          ? null
-          : instructions == null || instructions.isEmpty
-          ? ClaudeLaunch.appendedSystemPrompt
-          : '${ClaudeLaunch.appendedSystemPrompt}\n\n$instructions',
+      coreSystemPrompt: customPrompt?.coreOverride,
+      appendSystemPrompt: launch.ownPrompt ? null : appendedParts.join('\n\n'),
       environment: environment,
       // The machine's own certificates, as the app's requests trust them:
       // the core bundles Mozilla's roots alone.

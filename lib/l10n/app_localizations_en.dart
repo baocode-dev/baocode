@@ -9353,6 +9353,85 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsSectionStash => 'Stash';
 
   @override
+  String get settingsSectionBuiltinCore => 'Built-in Core';
+
+  @override
+  String get settingsBuiltinCoreKeywords =>
+      'builtin core system prompt instructions agent';
+
+  @override
+  String get builtinCoreSettingsTitle => 'Built-in Core';
+
+  @override
+  String get builtinCoreSettingsDescription =>
+      'Customize the system prompt used by BaoCode\'s built-in core. Changes apply to new conversations; bots keep their own prompts.';
+
+  @override
+  String get builtinCoreSystemPromptGroup => 'System Prompt';
+
+  @override
+  String get builtinCoreSystemPromptMode => 'Mode';
+
+  @override
+  String builtinCoreSystemPromptModeLabel(String mode) {
+    return 'System Prompt: $mode';
+  }
+
+  @override
+  String get builtinCoreModeDefault => 'Default';
+
+  @override
+  String get builtinCoreModeAppend => 'Append to Default';
+
+  @override
+  String get builtinCoreModeReplace => 'Replace Default';
+
+  @override
+  String get builtinCoreModeDefaultDetail =>
+      'Uses BaoCode\'s default core instructions.';
+
+  @override
+  String get builtinCoreModeAppendDetail =>
+      'Keeps the default core instructions and appends your text at the end.';
+
+  @override
+  String get builtinCoreModeReplaceDetail =>
+      'Replaces the default core instructions while keeping auto memory, output style, CLAUDE.md, and formatting rules.';
+
+  @override
+  String get builtinCoreAppendLabel => 'Appended Instructions';
+
+  @override
+  String get builtinCoreAppendPlaceholder =>
+      'Write instructions to append to the default system prompt…';
+
+  @override
+  String get builtinCoreReplaceLabel => 'Custom Core Instructions';
+
+  @override
+  String get builtinCoreReplacePlaceholder =>
+      'Write the system prompt that replaces the default core instructions…';
+
+  @override
+  String get builtinCoreLoadDefault => 'Load Default';
+
+  @override
+  String get builtinCoreResetDefault => 'Reset to Default';
+
+  @override
+  String get builtinCoreDefaultPromptTitle => 'Default System Prompt';
+
+  @override
+  String get builtinCoreDefaultPromptDescription =>
+      'The built-in core instructions used when no replacement is set, for reference.';
+
+  @override
+  String get builtinCoreCopyDefault => 'Copy';
+
+  @override
+  String get builtinCoreCopiedDefault => 'Copied';
+
+  @override
   String get settingsSectionCustomize => 'Customize';
 
   @override

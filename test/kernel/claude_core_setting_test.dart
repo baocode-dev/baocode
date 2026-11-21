@@ -62,6 +62,7 @@ void main() {
     tearDown(() {
       ClaudePathSetting.current = () => null;
       ClaudeCore.current = () => ClaudeCore.fallback;
+      CoreSystemPrompt.current = () => const CoreSystemPrompt();
       ClaudeEnvironment.use(null);
       root.deleteSync(recursive: true);
     });
@@ -118,6 +119,69 @@ void main() {
         args.readAsLinesSync(),
         containsAllInOrder(['-p', '--input-format', 'stream-json']),
       );
+    });
+
+    test('built-in core custom system prompt modes wire into engineOptions', () async {
+      environment();
+      // Parsing modes and blank fallback.
+      final parsedDefault = CoreSystemPrompt.parse(null, null);
+      expect(parsedDefault.mode, CoreSystemPromptMode.defaultPrompt);
+      expect(parsedDefault.text, isEmpty);
+      expect(
+        CoreSystemPrompt.parse('nonsense', 'x').mode,
+        CoreSystemPromptMode.defaultPrompt,
+      );
+      expect(CoreSystemPrompt.parse('append', '   ').appended, isNull);
+      expect(CoreSystemPrompt.parse('replace', '\n\t').coreOverride, isNull);
+
+      // Default mode: no core override, keeps app rules and session instructions.
+      CoreSystemPrompt.current = () => const CoreSystemPrompt();
+      final defaultOpts = await DartCoreTransport.engineOptions(
+        ClaudeLaunch(cwd: cwd, instructions: 'SESSION NOTE'),
+      );
+      expect(defaultOpts.systemPrompt, isNull);
+      expect(defaultOpts.coreSystemPrompt, isNull);
+      expect(
+        defaultOpts.appendSystemPrompt,
+        '${ClaudeLaunch.appendedSystemPrompt}\n\nSESSION NOTE',
+      );
+
+      // Append mode: appends custom text after app rules and before session note.
+      CoreSystemPrompt.current = () => const CoreSystemPrompt(
+        mode: CoreSystemPromptMode.append,
+        text: 'EXTRA APPEND RULE',
+      );
+      final appendOpts = await DartCoreTransport.engineOptions(
+        ClaudeLaunch(cwd: cwd, instructions: 'SESSION NOTE'),
+      );
+      expect(appendOpts.coreSystemPrompt, isNull);
+      expect(
+        appendOpts.appendSystemPrompt,
+        '${ClaudeLaunch.appendedSystemPrompt}\n\nEXTRA APPEND RULE\n\nSESSION NOTE',
+      );
+
+      // Replace mode: sets coreSystemPrompt and keeps app rules + session note.
+      CoreSystemPrompt.current = () => const CoreSystemPrompt(
+        mode: CoreSystemPromptMode.replace,
+        text: 'CUSTOM CORE PROMPT',
+      );
+      final replaceOpts = await DartCoreTransport.engineOptions(
+        ClaudeLaunch(cwd: cwd, instructions: 'SESSION NOTE'),
+      );
+      expect(replaceOpts.systemPrompt, isNull);
+      expect(replaceOpts.coreSystemPrompt, 'CUSTOM CORE PROMPT');
+      expect(
+        replaceOpts.appendSystemPrompt,
+        '${ClaudeLaunch.appendedSystemPrompt}\n\nSESSION NOTE',
+      );
+
+      // Bot conversations (ownPrompt: true) are untouched by core prompt settings.
+      final botOpts = await DartCoreTransport.engineOptions(
+        ClaudeLaunch(cwd: cwd, instructions: 'BOT PROMPT', ownPrompt: true),
+      );
+      expect(botOpts.systemPrompt, 'BOT PROMPT');
+      expect(botOpts.coreSystemPrompt, isNull);
+      expect(botOpts.appendSystemPrompt, isNull);
     });
   });
 }

@@ -571,6 +571,10 @@ void followSettingsFiles(SettingsFiles files) {
   ClaudeCore.current = () =>
       ClaudeCore.parse(files.settings[ClaudeCore.settingKey]);
   ClaudeCore.changes = files.settings;
+  CoreSystemPrompt.current = () => CoreSystemPrompt.parse(
+    files.settings[CoreSystemPrompt.modeKey],
+    files.settings[CoreSystemPrompt.textKey],
+  );
   // Settings → Models: the upstreams, kept in settings.json.
   ModelProviders.current = ModelProviders.settings(files.settings);
   // The upstream that follows magpie: its models got again as it starts,

@@ -42,6 +42,67 @@ enum ClaudeCore {
       'Code CLI in Settings → General.';
 }
 
+/// How Settings → Built-in Core customizes the built-in core's system prompt
+/// (`claudeCode.core.systemPromptMode` in settings.json).
+enum CoreSystemPromptMode {
+  /// Use BaoCode's built-in core instructions as-is.
+  defaultPrompt('default'),
+
+  /// Keep the default core instructions and append custom text after them.
+  append('append'),
+
+  /// Replace the default core instructions (identity + core instructions)
+  /// while keeping memory, output style, CLAUDE.md, and formatting rules.
+  replace('replace');
+
+  const CoreSystemPromptMode(this.setting);
+
+  /// The value kept in settings.json (`default` is omitted when saving).
+  final String setting;
+
+  static CoreSystemPromptMode parse(Object? value) =>
+      values.where((mode) => mode.setting == value).firstOrNull ??
+      defaultPrompt;
+}
+
+/// The built-in core's custom system prompt setting, read as each session on
+/// BaoCode's own core starts.
+class CoreSystemPrompt {
+  const CoreSystemPrompt({
+    this.mode = CoreSystemPromptMode.defaultPrompt,
+    this.text = '',
+  });
+
+  static const modeKey = 'claudeCode.core.systemPromptMode';
+  static const textKey = 'claudeCode.core.systemPrompt';
+
+  final CoreSystemPromptMode mode;
+  final String text;
+
+  static CoreSystemPrompt parse(Object? mode, Object? text) => CoreSystemPrompt(
+    mode: CoreSystemPromptMode.parse(mode),
+    text: text is String ? text : '',
+  );
+
+  /// The setting as it is now, read as each built-in core session starts;
+  /// main() points it at settings.json.
+  static CoreSystemPrompt Function() current = () => const CoreSystemPrompt();
+
+  /// Non-null when [mode] is [CoreSystemPromptMode.replace] and [text] is
+  /// non-empty: replaces the default core instructions.
+  String? get coreOverride =>
+      mode == CoreSystemPromptMode.replace && text.trim().isNotEmpty
+      ? text.trim()
+      : null;
+
+  /// Non-null when [mode] is [CoreSystemPromptMode.append] and [text] is
+  /// non-empty: appended after the default instructions.
+  String? get appended =>
+      mode == CoreSystemPromptMode.append && text.trim().isNotEmpty
+      ? text.trim()
+      : null;
+}
+
 /// Tells nothing: no settings file to follow.
 class _Never implements Listenable {
   const _Never();
