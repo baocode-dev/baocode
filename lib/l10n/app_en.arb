@@ -3601,6 +3601,13 @@
       }
     }
   },
+  "langSourceReadFailed": "Cannot read library source '{name}'.",
+  "@langSourceReadFailed": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "langSourceUnavailable": "No source or decompiled content is available.",
   "langNavigationUnavailable": "No language server is available for code navigation in this file.",
   "langNavigationInstall": "Install the '{id}' language server to enable code navigation in this file.",
   "@langNavigationInstall": {

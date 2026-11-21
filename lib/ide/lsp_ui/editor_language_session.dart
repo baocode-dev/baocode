@@ -237,7 +237,19 @@ class EditorLanguageSession extends ChangeNotifier
   DocumentSnapshot get _snapshot => document.model.snapshot;
   int get _caret => controller.value.selection.extentOffset;
 
-  bool supports(LanguageRequest request) => languages.supports(path, request);
+  bool supports(LanguageRequest request) {
+    if (document.readOnly &&
+        const {
+          LanguageRequest.completion,
+          LanguageRequest.rename,
+          LanguageRequest.format,
+          LanguageRequest.rangeFormat,
+          LanguageRequest.codeActions,
+        }.contains(request)) {
+      return false;
+    }
+    return languages.supports(path, request);
+  }
 
   @override
   bool get isDisposed => _disposed;
@@ -254,6 +266,7 @@ class EditorLanguageSession extends ChangeNotifier
 
   @override
   void runCommand(LspCommand command, {String? serverId}) {
+    if (_disposed || document.readOnly) return;
     switch (command.command) {
       case 'editor.action.triggerParameterHints':
         triggerSignatureHelp();
@@ -1067,7 +1080,7 @@ class EditorLanguageSession extends ChangeNotifier
 
   /// F2: asks where to rename, then shows the input.
   Future<void> startRename() async {
-    if (_disposed) return;
+    if (_disposed || document.readOnly) return;
     final at = _caret;
     if (!supports(LanguageRequest.rename)) {
       showMessage(l10n.langCantRename, offset: at);
@@ -1116,6 +1129,7 @@ class EditorLanguageSession extends ChangeNotifier
 
   /// Enter in the rename input.
   Future<void> acceptRename() async {
+    if (_disposed || document.readOnly) return;
     final state = _rename;
     if (state == null) return;
     final newName = state.text.text;
@@ -1163,17 +1177,18 @@ class EditorLanguageSession extends ChangeNotifier
   /// Whether Format Document (Format Selection with [selection]) can run:
   /// the language server formats, else the IDE does ([BuiltinFormatting]).
   bool canFormat({bool selection = false}) =>
-      supports(
-        selection ? LanguageRequest.rangeFormat : LanguageRequest.format,
-      ) ||
-      BuiltinFormatting.supports(_languageId);
+      !document.readOnly &&
+      (supports(
+            selection ? LanguageRequest.rangeFormat : LanguageRequest.format,
+          ) ||
+          BuiltinFormatting.supports(_languageId));
 
   /// Format Document, or Format Selection with [selection] (the caret's
   /// line when nothing is selected), as one undo step keeping the cursors;
   /// by the IDE itself where no language server formats it. Returns whether
   /// the document changed.
   Future<bool> format({bool selection = false}) async {
-    if (_disposed) return false;
+    if (_disposed || document.readOnly) return false;
     final request = selection
         ? LanguageRequest.rangeFormat
         : LanguageRequest.format;
@@ -1321,7 +1336,7 @@ class EditorLanguageSession extends ChangeNotifier
   /// those of kind [only] and its subkinds for Refactor... (`refactor`) and
   /// Source Action... (`source`).
   Future<void> showCodeActions({String? only}) async {
-    if (_disposed) return;
+    if (_disposed || document.readOnly) return;
     final at = _caret;
     final none = switch (only) {
       'refactor' => l10n.langNoRefactorings,
@@ -1369,7 +1384,7 @@ class EditorLanguageSession extends ChangeNotifier
   /// Applies [action]: resolves it when it came without an edit, applies the
   /// edit, then runs its command.
   Future<void> applyCodeAction(IdeCodeAction action) async {
-    if (action.isDisabled) return;
+    if (_disposed || document.readOnly || action.isDisabled) return;
     _codeActionMenu = null;
     changed();
     onFocusEditor();

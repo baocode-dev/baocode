@@ -5070,6 +5070,15 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String langSourceReadFailed(String name) {
+    return 'Cannot read library source \'$name\'.';
+  }
+
+  @override
+  String get langSourceUnavailable =>
+      'No source or decompiled content is available.';
+
+  @override
   String get langNavigationUnavailable =>
       'No language server is available for code navigation in this file.';
 

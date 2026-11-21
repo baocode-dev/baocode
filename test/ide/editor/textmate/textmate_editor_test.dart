@@ -10,6 +10,10 @@ import 'package:bao_editor/textmate/textmate_worker.dart';
 import 'package:baocode/ide/file_service.dart';
 import 'package:baocode/ide/ide_editor.dart';
 import 'package:baocode/ide/ide_workspace.dart';
+import 'package:baocode/ide/lsp/lsp_protocol.dart';
+
+import '../../lsp_ui/fake_language_features.dart';
+
 import 'package:baocode/theme/app_theme.dart';
 import 'package:baocode/theme/workbench_theme.dart';
 import 'package:path/path.dart' as p;
@@ -33,7 +37,7 @@ class _MemoryFiles with ReadWriteOnlyFiles implements IdeFileService {
       contents[path] = text;
 }
 
-final _root = p.join(p.separator, 'textmate-project');
+final _root = p.absolute(p.join(p.separator, 'textmate-project'));
 
 /// Opens [name] holding [text] in the native editor.
 Future<IdeWorkspace> _open(
@@ -96,6 +100,56 @@ Color? _colorOf(List<TextSpan> spans, String text) =>
     spans.firstWhere((span) => span.text == text).style?.color;
 
 void main() {
+  testWidgets(
+    'virtual Java source is highlighted without treating its URI as a file',
+    (tester) async {
+      const source = LspVirtualDocument(
+        path: 'baocode-lsp://sources-1/0/BigDecimal.java',
+        uri: 'jdt://contents/java.base/java.math/BigDecimal.class',
+        name: 'BigDecimal.java',
+      );
+      const code = 'public class BigDecimal {\n  private int value = 42;\n}\n';
+      final languages = FakeVirtualLanguageFeatures({source: code});
+      final workspace = IdeWorkspace(
+        _root,
+        files: _MemoryFiles({}),
+        languages: languages,
+      );
+      addTearDown(() {
+        workspace.dispose();
+        languages.dispose();
+      });
+      await workspace.open(source.path);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: IdeEditor(
+              workspace: workspace,
+              active: workspace.active!,
+              nativeEditorEnabled: true,
+              onError: (error) =>
+                  fail('Unexpected virtual source error: $error'),
+              onLspStatus: (_) {},
+              onPositionChanged: (_) {},
+            ),
+          ),
+        ),
+      );
+      final expected = await _textMate(tester, 'java', code);
+      for (var line = 1; line <= 3; line++) {
+        final spans = await _line(tester, line);
+        expect(
+          [for (final span in spans) (span.text, span.style?.color)],
+          [
+            for (final span in expected[line - 1])
+              (span.text, span.style?.color),
+          ],
+        );
+      }
+      expect(_surface(tester).readOnly, isTrue);
+    },
+  );
+
   testWidgets('TypeScript is highlighted by TextMate in Dark 2026', (
     tester,
   ) async {

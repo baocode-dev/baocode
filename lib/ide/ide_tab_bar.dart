@@ -263,7 +263,7 @@ class _IdeTabBarState extends State<IdeTabBar>
         [
           // The editor's Save As; a picture's or binary file's is copied.
           // Not a revision's.
-          if (canSaveFileCopy && doc.readRevision == null && doc.label == null)
+          if (canSaveFileCopy && !doc.readOnly && doc.label == null)
             item(
               IdeTabAction.saveAs,
               l10n.cmdSaveAs,
@@ -272,7 +272,8 @@ class _IdeTabBarState extends State<IdeTabBar>
           // Not a revision's tab, whose file may be gone.
           if (widget.local &&
               WindowControls.canRevealInFileManager &&
-              doc.readRevision == null)
+              doc.readRevision == null &&
+              doc.virtualDocument == null)
             item(
               IdeTabAction.revealInFileManager,
               l10n.revealInFileManager,
@@ -280,9 +281,11 @@ class _IdeTabBarState extends State<IdeTabBar>
             ),
           if (widget.local &&
               WindowControls.canOpenInDefaultApp &&
-              doc.readRevision == null)
+              doc.readRevision == null &&
+              doc.virtualDocument == null)
             item(IdeTabAction.openInDefaultApp, l10n.openInDefaultApp),
-          item(IdeTabAction.revealInExplorer, l10n.tabRevealInExplorerView),
+          if (doc.virtualDocument == null)
+            item(IdeTabAction.revealInExplorer, l10n.tabRevealInExplorerView),
         ],
         // A code tab's: one choice for every editor (EditorMinimap). Not a
         // diff's, whose editors have none.
@@ -293,11 +296,11 @@ class _IdeTabBarState extends State<IdeTabBar>
   }
 
   /// [tab], dragged onto the chat's composer, puts its file in; not a
-  /// revision's tab, whose text is not the file's. Dragged along the
-  /// tabs, it goes among them.
+  /// revision's or virtual source's tab. Dragged along the tabs, it goes
+  /// among them.
   Widget _draggable(IdeDocument doc, Widget tab) {
     if (widget.onMove != null) tab = reorderable(doc, tab);
-    return doc.readRevision != null
+    return doc.readRevision != null || doc.virtualDocument != null
         ? KeyedSubtree(key: ObjectKey(doc), child: tab)
         : FileDraggable(
             key: ObjectKey(doc),
@@ -309,11 +312,15 @@ class _IdeTabBarState extends State<IdeTabBar>
   @override
   Widget build(BuildContext context) {
     final docs = widget.documents;
-    final descriptions = ideTabDescriptions(
-      [for (final doc in docs) doc.path],
+    final files = docs.where((doc) => doc.virtualDocument == null).toList();
+    final fileDescriptions = ideTabDescriptions(
+      [for (final doc in files) doc.path],
       widget.root,
-      names: [for (final doc in docs) doc.title],
+      names: [for (final doc in files) doc.title],
     );
+    final descriptions = {
+      for (final (i, doc) in files.indexed) doc: fileDescriptions[i],
+    };
     return IdeTabStrip(
       child: Row(
         children: [
@@ -341,7 +348,7 @@ class _IdeTabBarState extends State<IdeTabBar>
                           child: _Tab(
                             key: _keys.putIfAbsent(doc, GlobalKey.new),
                             doc: doc,
-                            description: descriptions[i],
+                            description: descriptions[doc],
                             active: identical(doc, widget.active),
                             onSelect: () => widget.onSelect(doc),
                             onClose: () => widget.onClose(doc),

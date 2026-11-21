@@ -118,7 +118,8 @@ class EditorPart extends StatelessWidget {
                     ? null
                     : ExtensionPageTab(service: extensions),
                 actions: switch (options.agentEdits) {
-                  final edits? when !pageShown && active != null =>
+                  final edits?
+                      when !pageShown && active != null && !active.readOnly =>
                     ListenableBuilder(
                       listenable: edits,
                       builder: (context, _) => switch (edits.of(active.path)) {
@@ -135,7 +136,10 @@ class EditorPart extends StatelessWidget {
               ),
               // On the card, under the tabs.
               if (dockedToolbar) DebugToolbar(service: debug),
-              if (!pageShown && active != null && !active.isUntitled)
+              if (!pageShown &&
+                  active != null &&
+                  !active.isUntitled &&
+                  active.virtualDocument == null)
                 ListenableBuilder(
                   listenable: Listenable.merge([editors.caret, language]),
                   builder: (context, _) => IdeBreadcrumbs(

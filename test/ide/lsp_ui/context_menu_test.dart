@@ -47,6 +47,46 @@ List<String> _menuLabels(WidgetTester tester) => [
 ];
 
 void main() {
+  testWidgets('virtual source context menu keeps navigation, not rewrites', (
+    tester,
+  ) async {
+    const source = LspVirtualDocument(
+      path: 'baocode-lsp://jdtls/library/Greeter.java',
+      uri: 'jdt://contents/library/Greeter.class',
+      name: 'Greeter.java',
+    );
+    final languages = FakeVirtualLanguageFeatures({source: _source});
+    final workspace = await pumpLanguageWorkbench(
+      tester,
+      {_a: _source},
+      languages,
+      open: [_a],
+    );
+    await workspace.open(source.path);
+    await settle(tester);
+    await _rightClick(tester, offsetOf(tester, 'greet'));
+    for (final label in const [
+      'Go to Definition',
+      'Go to Type Definition',
+      'Go to Implementations',
+      'Go to References',
+      'Copy',
+    ]) {
+      expect(find.text(label), findsOneWidget, reason: label);
+    }
+    for (final label in const [
+      'Rename Symbol',
+      'Format Document',
+      'Format Selection',
+      'Refactor...',
+      'Source Action...',
+      'Compare With',
+    ]) {
+      expect(find.text(label), findsNothing, reason: label);
+    }
+    await press(tester, LogicalKeyboardKey.escape);
+  });
+
   testWidgets('without a language server: editing, the clipboard and the '
       'palette', (tester) async {
     final languages = FakeLanguageFeatures(supported: {});

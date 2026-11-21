@@ -3,12 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
+import 'package:baocode/chat/composer/file_drag.dart';
 import 'package:baocode/ide/ide_breadcrumbs.dart';
 import 'package:baocode/ide/ide_explorer.dart';
 import 'package:baocode/ide/ide_hover.dart';
 import 'package:baocode/ide/ide_tab_bar.dart';
 import 'package:baocode/ide/ide_welcome.dart';
+import 'package:baocode/ide/lsp/lsp_protocol.dart';
 
+import '../lsp_ui/fake_language_features.dart';
 import 'fake_files.dart';
 
 Finder _tab(String name) =>
@@ -39,6 +42,68 @@ void main() {
     'lib/util.dart': 'u',
     'test/util.dart': 't',
   };
+
+  testWidgets('virtual tabs copy their URI but have no file actions or drag', (
+    tester,
+  ) async {
+    const source = LspVirtualDocument(
+      path: 'baocode-lsp://jdtls/opaque/Foo.java',
+      uri: 'jdt://contents/library/Foo.class',
+      name: 'Foo.java',
+    );
+    final languages = FakeVirtualLanguageFeatures({source: 'class Foo {}'});
+    addTearDown(languages.dispose);
+    final workspace = await pumpWorkbench(
+      tester,
+      {'Foo.java': 'class Foo {}'},
+      languages: languages,
+      open: ['Foo.java'],
+    );
+    final copied = <String>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied.add((call.arguments as Map)['text'] as String);
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+    await workspace.open(source.path);
+    await tester.pumpAndSettle();
+    final tabs = find.byType(IdeTabBar);
+    expect(_tabNames(tester), ['Foo.java', 'Foo.java']);
+    expect(
+      find.descendant(of: tabs, matching: find.byType(FileDraggable)),
+      findsOneWidget,
+    );
+    expect(find.byType(IdeBreadcrumbs), findsNothing);
+    final virtualTab = _tab('Foo.java').last;
+    await tester.tap(virtualTab, buttons: kSecondaryMouseButton);
+    await tester.pumpAndSettle();
+    for (final label in const [
+      'Save As...',
+      'Reveal in File Explorer',
+      'Open in Default App',
+      'Reveal in Explorer View',
+    ]) {
+      expect(find.text(label), findsNothing, reason: label);
+    }
+    expect(find.textContaining('baocode-lsp:'), findsNothing);
+    await tester.tap(find.text('Copy Path'));
+    await tester.pumpAndSettle();
+    await tester.tap(virtualTab, buttons: kSecondaryMouseButton);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Copy Relative Path'));
+    await tester.pumpAndSettle();
+    expect(copied, [source.uri, source.uri]);
+  });
 
   testWidgets('tab context menu closes others, to the right and saved', (
     tester,

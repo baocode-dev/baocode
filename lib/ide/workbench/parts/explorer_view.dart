@@ -71,7 +71,9 @@ class ExplorerViewPart extends StatelessWidget {
     final terminalView = services.get<TerminalViewService>();
     final caret = services.get<EditorService>().caret;
     final local = workspace.files is! IdeHostFiles;
-    final activePath = workspace.active?.path;
+    final activePath = workspace.active?.virtualDocument == null
+        ? workspace.active?.path
+        : null;
     final timelinePath = IdeTimelineView.pathOf(explorer.timeline, activePath);
     // The folder's actions are the explorer's commands: their keybindings
     // in their tooltips (upstream's `MenuEntryActionViewItem.getTooltip`).
