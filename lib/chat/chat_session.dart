@@ -393,7 +393,7 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
   };
 
   /// Whether picking [model] (one of [models]' options) restarts the
-  /// conversation's agent on another upstream: asked first.
+  /// conversation's agent on another upstream.
   bool switchRestarts(String model) => switch (_kernel) {
     final ConfirmsModelSwitch kernel => kernel.switchRestarts(model),
     _ => false,

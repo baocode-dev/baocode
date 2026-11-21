@@ -7522,18 +7522,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get modelsManage => 'Manage Models…';
 
   @override
-  String modelsSwitchTitle(String name) {
-    return 'Switch to $name?';
-  }
-
-  @override
-  String get modelsSwitchDetail =>
-      'Claude Code restarts on the other upstream and resumes this conversation (--resume). Its history is sent to the new model as it is; some upstreams take it slower the first time. A reply still running stops when you send the next message.';
-
-  @override
-  String get modelsSwitchConfirm => 'Switch';
-
-  @override
   String modelsFallbackHint(String picked, String fallback) {
     return '$picked flagged a message, so Claude Code answers on $fallback instead. Switch back from the menu.';
   }

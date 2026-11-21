@@ -12153,24 +12153,6 @@ abstract class AppLocalizations {
   /// **'Manage Models…'**
   String get modelsManage;
 
-  /// No description provided for @modelsSwitchTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Switch to {name}?'**
-  String modelsSwitchTitle(String name);
-
-  /// No description provided for @modelsSwitchDetail.
-  ///
-  /// In en, this message translates to:
-  /// **'Claude Code restarts on the other upstream and resumes this conversation (--resume). Its history is sent to the new model as it is; some upstreams take it slower the first time. A reply still running stops when you send the next message.'**
-  String get modelsSwitchDetail;
-
-  /// No description provided for @modelsSwitchConfirm.
-  ///
-  /// In en, this message translates to:
-  /// **'Switch'**
-  String get modelsSwitchConfirm;
-
   /// No description provided for @modelsFallbackHint.
   ///
   /// In en, this message translates to:

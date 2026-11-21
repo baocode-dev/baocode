@@ -5323,16 +5323,6 @@
   "modelsImageNone": "None turned on",
   "modelsSave": "Save",
   "modelsManage": "Manage Models…",
-  "modelsSwitchTitle": "Switch to {name}?",
-  "@modelsSwitchTitle": {
-    "placeholders": {
-      "name": {
-        "type": "String"
-      }
-    }
-  },
-  "modelsSwitchDetail": "Claude Code restarts on the other upstream and resumes this conversation (--resume). Its history is sent to the new model as it is; some upstreams take it slower the first time. A reply still running stops when you send the next message.",
-  "modelsSwitchConfirm": "Switch",
   "modelsFallbackHint": "{picked} flagged a message, so Claude Code answers on {fallback} instead. Switch back from the menu.",
   "@modelsFallbackHint": {
     "placeholders": {
