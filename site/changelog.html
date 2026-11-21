@@ -30,6 +30,43 @@
   <h1>Changelog</h1>
   <p class="subtitle">What changed in each version of BaoCode.</p>
 
+  <section class="release" id="v2.0.4">
+    <h2 class="plain"><a href="#v2.0.4">2.0.4</a></h2>
+    <p>This release adds Antigravity account support, letting you sign in with a Google account for chat, web search and image generation, along with forking from any finished turn, a Built-in Core settings page, and much faster file search.</p>
+    <p>New</p>
+    <ul>
+    <li>Antigravity account provider: sign in with Google OAuth to view per-model quotas, rotate automatically across accounts when a pool runs out, and use native web search and image generation.</li>
+    <li>Fork from any finished turn: click the fork button in a turn's footer to open a new conversation branched from that point.</li>
+    <li>Built-in Core settings page: customize the system prompt by keeping the default, appending your own instructions, or replacing the default instructions.</li>
+    <li>Web search and web fetch steps show the source sites' favicons, and MCP steps now have their own icon.</li>
+    <li>Conversation minimap position: place the minimap on the left or right in Settings → Appearance → Minimap Position, aligned below the side panel's rail.</li>
+    <li>Forked skill runs (such as /code-review) appear as a subagent card with live progress instead of looking idle.</li>
+    </ul>
+    <p>Improved</p>
+    <ul>
+    <li>Switching to a model on another upstream mid-conversation takes effect directly without a confirmation dialog.</li>
+    <li>Turn footer costs are computed live from Usage Prices and the usage ledger, updating as soon as prices change; unpriced calls no longer show a misleading $0.00.</li>
+    <li>Pressing Esc alone no longer stops a running turn (use Ctrl+Esc, Cmd+Esc, Alt+Backspace, or the stop button instead).</li>
+    <li>File search runs in parallel across worker threads, dramatically speeding up large projects and matching VS Code's results.</li>
+    <li>Reduced sidebar sorting overhead and turned off accessibility semantics on macOS for smoother performance.</li>
+    </ul>
+    <p>Phone (phone app 0.2.4)</p>
+    <ul>
+    <li>Switching models across upstreams no longer pops up a confirmation dialog.</li>
+    <li>Antigravity providers show Google's logo, and quota pool names are spaced cleanly in Chinese.</li>
+    </ul>
+    <p>Fixed</p>
+    <ul>
+    <li>Conversation text selection and copying: drag selection stays anchored while scrolling and ignores inner scrollbars, and copied text matches what is shown on screen.</li>
+    <li>Fixed IME composition and Enter submission in the model picker search field. Thanks to @DedSecer.</li>
+    <li>Fixed queued message drag alignment when the window is zoomed. Thanks to @clddup.</li>
+    <li>Fixed Rollback in a remote workspace accidentally touching the local Trash. Thanks to @Sxuan-Coder.</li>
+    <li>Windows: fixed apps launched by the installer failing to follow directory junctions, Fast IDE opening in a background window, and window resize border detection.</li>
+    <li>Fixed API keys failing to save when PowerShell is restricted or no system keychain is available, and specified the default keychain in macOS security commands.</li>
+    <li>Fixed remote hosts staying stuck on &quot;Connecting&quot; after being unreachable, Full Access still asking for confirmation in Plan mode, and started plans prompting again.</li>
+    </ul>
+  </section>
+
   <section class="release" id="v2.0.3">
     <h2 class="plain"><a href="#v2.0.3">2.0.3</a></h2>
     <p>Mostly about bots looking after your agents: they start conversations, hand out work, wait for it and check the files changed, just as an agent in a conversation does. Also, Quick Open finds every file of a large project, and big folders on a Linux remote host no longer stall the connection.</p>
@@ -37,7 +74,7 @@
     <ul>
     <li>Bots manage agents with the same tools as a conversation: a new conversation can be given a model or a worktree on a new branch; a message to a busy one is queued instead of refused; whole replies are read, a conversation waited for, and the files it changed checked.</li>
     <li>When a conversation is compacted early, the divider says why: the provider refused the request as too long, the model taking less than the context set. The divider is translated too.</li>
-    <li>Java: the modules of a multi-module project share one language server; when a project fails to import you get a notice with its log, instead of only "No references found". Thanks to @bestK.</li>
+    <li>Java: the modules of a multi-module project share one language server; when a project fails to import you get a notice with its log, instead of only &quot;No references found&quot;. Thanks to @bestK.</li>
     </ul>
     <p>Fixed</p>
     <ul>
