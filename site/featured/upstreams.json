@@ -52,6 +52,19 @@
       "hosts": [
         "newapi.it120.cloud"
       ]
+    },
+    {
+      "id": "mxouai",
+      "name": "1元中转",
+      "url": "https://www.mxouai.com/register?aff=KQLSHNQ6RVTC",
+      "logo": "mxouai.png",
+      "description": {
+        "en": "Cursor BYOK's first sponsor",
+        "zh": "1元中转，Cursor BYOK 的首位赞助商"
+      },
+      "hosts": [
+        "www.mxouai.com"
+      ]
     }
   ]
 }
