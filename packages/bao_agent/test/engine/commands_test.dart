@@ -204,6 +204,53 @@ void main() {
       },
     );
 
+    test(
+      '/compact uses the model set for compaction, not the main one',
+      () async {
+        h = await Harness.start(
+          environment: {'CLAUDE_CODE_COMPACT_MODEL': 'cheap-model'},
+          script: [
+            Reply.text('first answer'),
+            Reply.text('<summary>We talked about apples.</summary>'),
+            Reply.text('after'),
+          ],
+        );
+        await h.turn('tell me about apples');
+        await h.turn('/compact keep the fruit');
+        final summarizing = h.model.requests.firstWhere(
+          (r) =>
+              jsonEncode(r.body['system'])
+                  .contains('summary of a conversation'),
+        );
+        expect(summarizing.model, 'cheap-model');
+        final normal = h.model.turns.firstWhere(
+          (r) =>
+              jsonEncode(r.body['messages']).contains('tell me about apples'),
+        );
+        expect(normal.model, isNot('cheap-model'));
+      },
+    );
+
+    test('/compact falls back to the main model when none is set', () async {
+      h = await Harness.start(
+        script: [
+          Reply.text('first answer'),
+          Reply.text('<summary>We talked about apples.</summary>'),
+          Reply.text('after'),
+        ],
+      );
+      await h.turn('tell me about apples');
+      await h.turn('/compact keep the fruit');
+      final summarizing = h.model.requests.firstWhere(
+        (r) =>
+            jsonEncode(r.body['system']).contains('summary of a conversation'),
+      );
+      final normal = h.model.turns.firstWhere(
+        (r) => jsonEncode(r.body['messages']).contains('tell me about apples'),
+      );
+      expect(summarizing.model, normal.model);
+    });
+
     test('a long conversation is compacted on its own', () async {
       h = await Harness.start();
       h.model.script.addAll([

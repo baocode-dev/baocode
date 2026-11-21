@@ -401,6 +401,7 @@ class ProviderRoles {
     this.opus,
     this.sonnet,
     this.haiku,
+    this.compact,
     this.subagent,
   });
 
@@ -419,16 +420,32 @@ class ProviderRoles {
   /// the app's (agents' titles).
   final String? haiku;
 
+  /// `CLAUDE_CODE_COMPACT_MODEL`: the model used to compact a conversation.
+  final String? compact;
+
   /// `CLAUDE_CODE_SUBAGENT_MODEL`.
   final String? subagent;
 
-  static const _keys = ['main', 'opus', 'sonnet', 'haiku', 'subagent'];
+  static const _keys = [
+    'main',
+    'opus',
+    'sonnet',
+    'haiku',
+    'compact',
+    'subagent',
+  ];
 
   /// Every role, as settings.json names it.
   static const keys = _keys;
 
   /// The roles that may pick another upstream's model.
-  static const crossUpstream = ['opus', 'sonnet', 'haiku', 'subagent'];
+  static const crossUpstream = [
+    'opus',
+    'sonnet',
+    'haiku',
+    'compact',
+    'subagent',
+  ];
 
   /// The other upstreams (not [own]) its roles pick models of.
   Set<String> upstreamsBesides(String own) => {
@@ -456,6 +473,7 @@ class ProviderRoles {
     'opus' => opus,
     'sonnet' => sonnet,
     'haiku' => haiku,
+    'compact' => compact,
     'subagent' => subagent,
     _ => null,
   };
@@ -469,6 +487,7 @@ class ProviderRoles {
       opus: values['opus'],
       sonnet: values['sonnet'],
       haiku: values['haiku'],
+      compact: values['compact'],
       subagent: values['subagent'],
     );
   }
@@ -488,6 +507,7 @@ class ProviderRoles {
       opus: read('opus'),
       sonnet: read('sonnet'),
       haiku: read('haiku'),
+      compact: read('compact'),
       subagent: read('subagent'),
     );
   }

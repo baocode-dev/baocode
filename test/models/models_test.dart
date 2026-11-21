@@ -117,7 +117,7 @@ void main() {
             enabled: false,
           ),
         ],
-        roles: ProviderRoles(main: 'm', subagent: 'm'),
+        roles: ProviderRoles(main: 'm', compact: 'm', subagent: 'm'),
         disableNonessentialTraffic: true,
         preserveThinking: true,
         promptCacheKey: false,
@@ -383,12 +383,13 @@ void main() {
         opus: '@a/big',
         sonnet: 'own',
         haiku: '@b/small',
+        compact: '@c/cheap',
         subagent: '@me/self',
       );
-      expect(roles.upstreamsBesides('me'), {'a', 'b'});
+      expect(roles.upstreamsBesides('me'), {'a', 'b', 'c'});
       expect(
         const ModelProvider(id: 'me', name: 'Me', roles: roles).otherUpstreams,
-        {'a', 'b'},
+        {'a', 'b', 'c'},
       );
       // Its own, by ref: not another's.
       expect(
@@ -407,11 +408,13 @@ void main() {
           main: '@x/m',
           sonnet: 'own',
           haiku: '@b/small',
+          compact: '@c/cheap',
           subagent: '@me/self',
         ),
       );
       expect(roles.without('b', {'other'}), roles);
       expect(roles.without('b', {'small'}).haiku, isNull);
+      expect(roles.without('c', {'cheap'}).compact, isNull);
       // A plain id is the upstream's own: not another's to unset.
       expect(roles.without('own'), roles);
     });
@@ -1085,12 +1088,55 @@ void main() {
         'ANTHROPIC_DEFAULT_SONNET_MODEL': 'big',
         'ANTHROPIC_DEFAULT_HAIKU_MODEL': 'small',
         'CLAUDE_CODE_SUBAGENT_MODEL': 'sub',
+        'CLAUDE_CODE_COMPACT_MODEL': '',
         // Over what a subagent's definition or the agent's call names.
         'CLAUDE_CODE_SUBAGENT_MODEL_FORCE': '1',
         'CLAUDE_CODE_ALWAYS_ENABLE_EFFORT': '1',
         'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC': '1',
         'API_TIMEOUT_MS': '600000',
       });
+    });
+
+    test('the compact model is the one picked, or a cross-upstream ref', () {
+      // A bare id is this upstream's own: kept as written.
+      final bare = launchEnvironment(
+        provider: const ModelProvider(
+          id: 'a',
+          name: 'A',
+          baseUrl: 'https://api.anthropic.com',
+          roles: ProviderRoles(compact: 'claude-haiku-4-5'),
+        ),
+        model: 'claude-opus-4-5',
+        key: 'sk-ant',
+      );
+      expect(bare['CLAUDE_CODE_COMPACT_MODEL'], 'claude-haiku-4-5');
+      // Its own, picked as a ref: the prefix is stripped.
+      final ownRef = launchEnvironment(
+        provider: const ModelProvider(
+          id: 'a',
+          name: 'A',
+          baseUrl: 'https://api.anthropic.com',
+          roles: ProviderRoles(compact: '@a/claude-haiku-4-5'),
+        ),
+        model: 'claude-opus-4-5',
+        key: 'sk-ant',
+      );
+      expect(ownRef['CLAUDE_CODE_COMPACT_MODEL'], 'claude-haiku-4-5');
+      // Another upstream's, as its ref, through the proxy.
+      const cross = ModelProvider(
+        id: 'a',
+        name: 'A',
+        baseUrl: 'https://api.anthropic.com',
+        roles: ProviderRoles(compact: '@ds/deepseek-chat'),
+      );
+      expect(cross.otherUpstreams, {'ds'});
+      final env = launchEnvironment(
+        provider: cross,
+        model: 'claude-opus-4-5',
+        key: 'sk-ant',
+        proxy: (baseUrl: 'http://127.0.0.1:5000/p/a', token: 'tok'),
+      );
+      expect(env['CLAUDE_CODE_COMPACT_MODEL'], '@ds/deepseek-chat');
     });
 
     test('Anthropic\'s own API takes the key as x-api-key', () {

@@ -11709,6 +11709,24 @@ abstract class AppLocalizations {
   /// **'Unset, background work runs on the model picked, which may be slower and cost more. Pick a small, fast model.'**
   String get modelsRoleHaikuWarning;
 
+  /// No description provided for @modelsRoleCompact.
+  ///
+  /// In en, this message translates to:
+  /// **'Compaction'**
+  String get modelsRoleCompact;
+
+  /// No description provided for @modelsRoleCompactDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'CLAUDE_CODE_COMPACT_MODEL: the model used to compact conversations. Built-in core only; the CLI core compacts inside Claude Code, which cannot be given a separate model.'**
+  String get modelsRoleCompactDescription;
+
+  /// No description provided for @modelsRoleCompactWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Unset, compaction runs on the model picked, which may cost more. Pick a small, fast model.'**
+  String get modelsRoleCompactWarning;
+
   /// No description provided for @modelsRoleSubagent.
   ///
   /// In en, this message translates to:

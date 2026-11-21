@@ -332,6 +332,12 @@ class ModelCatalog {
       _envModel('ANTHROPIC_DEFAULT_HAIKU_MODEL') ??
       _familyDefaults['haiku']!;
 
+  /// The model picked for compaction, when one is set for it.
+  String? get compactModel {
+    final value = _envModel('CLAUDE_CODE_COMPACT_MODEL');
+    return value == null ? null : resolve(value);
+  }
+
   /// What [id] can do: the table's entry for it (or for the snapshot it
   /// names), else an unknown model's.
   ModelInfo info(String id) {

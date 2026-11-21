@@ -75,6 +75,7 @@ Map<String, String> launchEnvironment({
     ClaudeModelVariables.haiku: role(roles.haiku) ?? model,
     // Empty for none: not one the user's own settings name.
     ClaudeModelVariables.subagent: role(roles.subagent) ?? '',
+    ClaudeModelVariables.compactModel: role(roles.compact) ?? '',
     // Over the model a subagent's definition names, or the agent asks for
     // ("sonnet", "haiku": the model picked, here): else the one set for
     // subagents is used only where neither says.
@@ -146,6 +147,7 @@ List<String> allowedModels(Map<String, String>? env, Iterable<String> models) =>
         ClaudeModelVariables.sonnet,
         ClaudeModelVariables.haiku,
         ClaudeModelVariables.subagent,
+        ClaudeModelVariables.compactModel,
       ])
         if (env?[name] case final value? when value.isNotEmpty) value,
       'opus',
@@ -163,6 +165,7 @@ abstract final class ClaudeModelVariables {
   static const sonnet = 'ANTHROPIC_DEFAULT_SONNET_MODEL';
   static const haiku = 'ANTHROPIC_DEFAULT_HAIKU_MODEL';
   static const subagent = 'CLAUDE_CODE_SUBAGENT_MODEL';
+  static const compactModel = 'CLAUDE_CODE_COMPACT_MODEL';
 
   /// [subagent] for every subagent, whatever its definition or the call
   /// names (but `inherit`).
@@ -203,6 +206,7 @@ abstract final class ClaudeModelVariables {
     sonnet,
     haiku,
     subagent,
+    compactModel,
     subagentForce,
     ...cleared,
   ];

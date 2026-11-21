@@ -6832,6 +6832,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get modelsRoleHaikuWarning => '未设置时，后台任务会使用所选模型，可能更慢、更贵。建议选一个小而快的模型。';
 
   @override
+  String get modelsRoleCompact => '对话压缩';
+
+  @override
+  String get modelsRoleCompactDescription =>
+      'CLAUDE_CODE_COMPACT_MODEL：压缩对话时使用的模型。仅 built-in 内核生效；CLI 内核的压缩在 Claude Code 内部完成，无法单独指定模型。';
+
+  @override
+  String get modelsRoleCompactWarning => '未设置时，压缩会使用所选模型，可能更贵。建议选一个小而快的模型。';
+
+  @override
   String get modelsRoleSubagent => '子 Agent';
 
   @override
