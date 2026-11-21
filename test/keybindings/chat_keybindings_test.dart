@@ -137,9 +137,10 @@ void main() {
     expect(commandFor('enter', menu), ChatCommandIds.acceptSelectedSuggestion);
     expect(commandFor('up', menu), ChatCommandIds.selectPrevSuggestion);
     expect(commandFor('escape', menu), ChatCommandIds.hideSuggestWidget);
+    // Esc does not stop a turn; ⌘Esc/Ctrl+Esc does.
     expect(
       commandFor('escape', {...input, ChatContextKeys.requestInProgress: true}),
-      ChatCommandIds.cancel,
+      isNull,
     );
     expect(
       commandFor('escape', {

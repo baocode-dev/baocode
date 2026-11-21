@@ -177,7 +177,7 @@ void main() {
 
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await press(tester, LogicalKeyboardKey.keyC, control: true);
-    // The chat's keys too (Escape cancels its turn there).
+    // The chat's keys too (Escape closes a subagent there).
     await press(tester, LogicalKeyboardKey.escape);
     expect(ptys.single.written, '\r\x03\x1b');
 
