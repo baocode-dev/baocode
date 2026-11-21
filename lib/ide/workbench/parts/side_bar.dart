@@ -12,6 +12,7 @@ import '../../../theme/app_theme.dart';
 import '../../../theme/workbench_theme.dart';
 import '../../../workspace/islands.dart';
 import '../../../workspace/window_controls.dart';
+import '../../file_service.dart';
 import '../../git/ide_git_commit_panel.dart';
 import '../../git/ide_git_log_view.dart';
 import '../../ide_modern_ui.dart';
@@ -165,7 +166,10 @@ class SideBarPart extends StatelessWidget {
             services.get<ExplorerService>().reveal(path);
           },
           onAddToChat: options.onAddToChat,
-          trash: WindowControls.canMoveToTrash
+          // A remote workspace's paths are its host's: the Trash here would
+          // not have them (and would move a same-named local file).
+          trash:
+              workspace.files is! IdeHostFiles && WindowControls.canMoveToTrash
               ? WindowControls.moveToTrash
               : null,
           commitMessage: options.commitMessage,
