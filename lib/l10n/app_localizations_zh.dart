@@ -8833,6 +8833,79 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsSectionStash => 'Stash';
 
   @override
+  String get settingsSectionBuiltinCore => '内置内核';
+
+  @override
+  String get settingsBuiltinCoreKeywords => '内置内核 系统提示词 提示词 指令 prompt';
+
+  @override
+  String get builtinCoreSettingsTitle => '内置内核';
+
+  @override
+  String get builtinCoreSettingsDescription =>
+      '自定义 BaoCode 内置内核使用的系统提示词。修改仅对新对话生效，Bot 对话仍使用各自的提示词。';
+
+  @override
+  String get builtinCoreSystemPromptGroup => '系统提示词';
+
+  @override
+  String get builtinCoreSystemPromptMode => '模式';
+
+  @override
+  String builtinCoreSystemPromptModeLabel(String mode) {
+    return '系统提示词：$mode';
+  }
+
+  @override
+  String get builtinCoreModeDefault => '默认';
+
+  @override
+  String get builtinCoreModeAppend => '追加到默认';
+
+  @override
+  String get builtinCoreModeReplace => '替换默认';
+
+  @override
+  String get builtinCoreModeDefaultDetail => '使用 BaoCode 默认的核心指令。';
+
+  @override
+  String get builtinCoreModeAppendDetail => '保留默认核心指令，在末尾追加自定义内容。';
+
+  @override
+  String get builtinCoreModeReplaceDetail =>
+      '替换默认核心指令，仍保留自动记忆、输出风格、CLAUDE.md 和格式约定。';
+
+  @override
+  String get builtinCoreAppendLabel => '追加指令';
+
+  @override
+  String get builtinCoreAppendPlaceholder => '填写要追加到默认系统提示词末尾的指令…';
+
+  @override
+  String get builtinCoreReplaceLabel => '自定义核心指令';
+
+  @override
+  String get builtinCoreReplacePlaceholder => '填写用于替换默认核心指令的系统提示词…';
+
+  @override
+  String get builtinCoreLoadDefault => '载入默认原文';
+
+  @override
+  String get builtinCoreResetDefault => '恢复默认';
+
+  @override
+  String get builtinCoreDefaultPromptTitle => '默认系统提示词';
+
+  @override
+  String get builtinCoreDefaultPromptDescription => '未替换时内置内核使用的默认核心指令，可供参考。';
+
+  @override
+  String get builtinCoreCopyDefault => '复制';
+
+  @override
+  String get builtinCoreCopiedDefault => '已复制';
+
+  @override
   String get settingsSectionCustomize => '自定义';
 
   @override

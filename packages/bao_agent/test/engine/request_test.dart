@@ -173,4 +173,67 @@ void main() {
     expect(third.body['thinking'], {'type': 'adaptive'});
     expect(jsonEncode(third.body['output_config']), contains('high'));
   });
+
+  test(
+    'coreSystemPrompt replaces the default core prompt while keeping '
+    'appended rules, memory and CLAUDE.md; systemPrompt still wins',
+    () async {
+      final roundTripped = EngineOptions.fromJson(
+        EngineOptions(
+          cwd: '/tmp/project',
+          coreSystemPrompt: 'CUSTOM CORE',
+        ).toJson(),
+      );
+      expect(roundTripped.coreSystemPrompt, 'CUSTOM CORE');
+      expect(
+        EngineOptions.fromJson(EngineOptions(cwd: '/tmp/project').toJson())
+            .coreSystemPrompt,
+        isNull,
+      );
+      expect(
+        defaultCoreSystemPrompt(),
+        allOf(
+          contains('You are the coding agent built into BaoCode.'),
+          contains('# How you write'),
+        ),
+      );
+
+      h = await Harness.start(
+        firstParty: false,
+        files: {'CLAUDE.md': 'Always run the unit tests.'},
+        coreSystemPrompt: 'MY CUSTOM CORE INSTRUCTIONS',
+        appendSystemPrompt: 'APP EXTRA RULE',
+        script: [Reply.text('ok')],
+      );
+      await h.turn('hi');
+      final request = h.model.turns.first;
+      final system = jsonEncode(request.body['system']);
+      final messages = jsonEncode(request.body['messages']);
+      expect(system, contains('MY CUSTOM CORE INSTRUCTIONS'));
+      expect(system, contains('APP EXTRA RULE'));
+      expect(system, contains('# Memory'));
+      expect(system, contains('<total_tokens>'));
+      expect(
+        system,
+        isNot(contains('You are the coding agent built into BaoCode.')),
+      );
+      expect(system, isNot(contains('# Honesty over agreement')));
+      expect(messages, contains('Always run the unit tests.'));
+      await h.dispose();
+
+      // Own systemPrompt (bot conversations) takes precedence over coreSystemPrompt.
+      h = await Harness.start(
+        firstParty: false,
+        systemPrompt: 'BOT OWN PROMPT',
+        coreSystemPrompt: 'MY CUSTOM CORE INSTRUCTIONS',
+        appendSystemPrompt: 'APP EXTRA RULE',
+        script: [Reply.text('ok')],
+      );
+      await h.turn('hi');
+      final botSystem = jsonEncode(h.model.turns.first.body['system']);
+      expect(botSystem, contains('BOT OWN PROMPT'));
+      expect(botSystem, contains('APP EXTRA RULE'));
+      expect(botSystem, isNot(contains('MY CUSTOM CORE INSTRUCTIONS')));
+    },
+  );
 }

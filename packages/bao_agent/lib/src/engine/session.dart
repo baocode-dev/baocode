@@ -53,6 +53,7 @@ class EngineOptions {
     this.configDir,
     this.productName = 'BaoCode',
     this.systemPrompt,
+    this.coreSystemPrompt,
     this.tools,
     this.maxTurns,
     this.strictMcpConfig = false,
@@ -83,6 +84,7 @@ class EngineOptions {
     configDir: asText(json['configDir']),
     productName: asText(json['productName']) ?? 'BaoCode',
     systemPrompt: asString(json['systemPrompt']),
+    coreSystemPrompt: asString(json['coreSystemPrompt']),
     tools: json['tools'] is List
         ? [...asList(json['tools']).whereType<String>()]
         : null,
@@ -142,6 +144,10 @@ class EngineOptions {
   /// The system prompt in place of the agent's own (`--system-prompt`).
   final String? systemPrompt;
 
+  /// Replaces the agent's own default core instructions while keeping memory,
+  /// output style, budget, and any appended host instructions.
+  final String? coreSystemPrompt;
+
   /// The only tools offered (`--tools`); all when null.
   final List<String>? tools;
 
@@ -179,6 +185,7 @@ class EngineOptions {
     'configDir': ?configDir,
     'productName': productName,
     'systemPrompt': ?systemPrompt,
+    'coreSystemPrompt': ?coreSystemPrompt,
     'tools': ?tools,
     'maxTurns': ?maxTurns,
     'strictMcpConfig': strictMcpConfig,
