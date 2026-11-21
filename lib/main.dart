@@ -269,6 +269,11 @@ Future<void> main(List<String> arguments) async {
               (locale.locale ?? AppLocale.systemLocale()).languageCode == 'zh',
         );
   unawaited(bots?.start());
+  // What a key's and a frame's work grows with, for their slow lines.
+  FrameWatch.counts[workspace] = () =>
+      '${workspace.threads.length} agents, '
+      '${workspace.projects.length} projects, '
+      '${bots?.bots.length ?? 0} bots';
   final link = kIsWeb
       ? null
       : LinkHost(
