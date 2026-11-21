@@ -1593,13 +1593,12 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     final l10n = context.l10n;
     return [
       for (final section in SettingsSection.values)
-        if (SettingsDialogState.isVisible(section))
-          PaletteAction(
-            id: 'settings.${section.name}',
-            label: SettingsDialogState.label(context, section),
-            icon: SettingsDialogState.icon(section),
-            run: () => unawaited(openSettings(section)),
-          ),
+        PaletteAction(
+          id: 'settings.${section.name}',
+          label: SettingsDialogState.label(context, section),
+          icon: SettingsDialogState.icon(section),
+          run: () => unawaited(openSettings(section)),
+        ),
       if (widget.customizations != null)
         for (final kind in CustomizationKind.values)
           PaletteAction(

@@ -16,7 +16,7 @@ import 'settings_widgets.dart';
 
 /// Settings → Built-in Core: customizes the system prompt of BaoCode's own
 /// core (`claudeCode.core.systemPromptMode` and `claudeCode.core.systemPrompt`
-/// in settings.json). Shown only while [ClaudeCore.builtin] is active.
+/// in settings.json).
 class BuiltinCoreSettingsPage extends StatefulWidget {
   const BuiltinCoreSettingsPage({super.key, this.settings});
 

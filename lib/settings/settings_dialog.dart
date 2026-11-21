@@ -8,7 +8,6 @@ import '../base/mouse_navigation.dart';
 import '../base/smooth_scroll.dart';
 import '../channel/channel_setup.dart' show ChannelSetup;
 import '../ide/ide_color_theme_picker.dart' show ideSelectColorThemeCommandId;
-import '../kernel/claude_code/claude_core_setting.dart';
 import '../keybindings/default_keybindings.dart' show openKeybindingsCommandId;
 import '../keybindings/key_chord.dart';
 import '../keybindings/keybinding_service.dart';
@@ -179,21 +178,12 @@ class SettingsDialogState extends State<SettingsDialog> {
     _keptDocked = true;
   }
 
-  /// Whether [section] is shown in the settings navigation and command palette.
-  static bool isVisible(SettingsSection section) =>
-      section != SettingsSection.builtinCore ||
-      ClaudeCore.current() == ClaudeCore.builtin;
-
-  late SettingsSection _section = isVisible(widget.section)
-      ? widget.section
-      : SettingsSection.general;
+  late SettingsSection _section = widget.section;
 
   SettingsSection get section => _section;
 
   /// Shows [section]'s page.
-  void show(SettingsSection section) => setState(
-    () => _section = isVisible(section) ? section : SettingsSection.general,
-  );
+  void show(SettingsSection section) => setState(() => _section = section);
 
   /// The width set by dragging, shown as [_shownWidth]. A drag sets it
   /// without building the dialog again (see the window's sidebar).
@@ -370,25 +360,15 @@ class SettingsDialogState extends State<SettingsDialog> {
   }
 
   final TextEditingController _search = TextEditingController();
-  late final Listenable _coreChanges;
-
-  void _onCoreChanged() {
-    setState(() {
-      if (!isVisible(_section)) _section = SettingsSection.general;
-    });
-  }
 
   @override
   void initState() {
     super.initState();
     _search.addListener(() => setState(() {}));
-    _coreChanges = ClaudeCore.changes;
-    _coreChanges.addListener(_onCoreChanged);
   }
 
   @override
   void dispose() {
-    _coreChanges.removeListener(_onCoreChanged);
     _search.dispose();
     _width.dispose();
     super.dispose();
@@ -697,7 +677,7 @@ class SettingsDialogState extends State<SettingsDialog> {
       for (final category in SettingsCategory.values)
         [
           for (final section in category.sections)
-            if (isVisible(section) && _matches(section)) section,
+            if (_matches(section)) section,
         ],
     ].where((sections) => sections.isNotEmpty).toList();
     final hide = SidebarIconButton(
