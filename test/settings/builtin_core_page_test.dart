@@ -14,10 +14,8 @@ import 'package:path/path.dart' as p;
 void main() {
   late Directory data;
   late UserSettings settings;
-  late Listenable savedCoreChanges;
 
   setUp(() async {
-    savedCoreChanges = ClaudeCore.changes;
     data = await Directory.systemTemp.createTemp('baocode-builtin-core');
     settings = UserSettings(p.join(data.path, 'settings.json'));
     await settings.load();
@@ -25,7 +23,6 @@ void main() {
 
   tearDown(() async {
     ClaudeCore.current = () => ClaudeCore.fallback;
-    ClaudeCore.changes = savedCoreChanges;
     SettingsDialogState.resetLayout();
     settings.dispose();
     await data.delete(recursive: true);
@@ -162,56 +159,32 @@ void main() {
   });
 
   testWidgets(
-    'Built-in Core menu item tracks ClaudeCore dynamically and falls back when hidden',
+    'Built-in Core menu item is always shown and searchable regardless of active core',
     (tester) async {
       tester.view.physicalSize = const Size(1000, 700);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
 
-      var core = ClaudeCore.cli;
-      final changes = ChangeNotifier();
-      addTearDown(changes.dispose);
-      ClaudeCore.current = () => core;
-      ClaudeCore.changes = changes;
+      ClaudeCore.current = () => ClaudeCore.cli;
 
       await tester.pumpWidget(
         MaterialApp(
           home: SettingsDialog(
-            section: SettingsSection.builtinCore,
             pageBuilder: (context, section) => Text('page ${section.name}'),
           ),
         ),
       );
       await tester.pumpAndSettle();
 
-      // Hidden while CLI is active; opening on builtinCore falls back to general.
-      expect(find.text('Built-in Core'), findsNothing);
-      expect(find.text('page general'), findsOneWidget);
-
-      // Search must not match hidden Built-in Core.
-      await tester.enterText(find.byType(TextField), 'prompt');
-      await tester.pump();
-      expect(find.text('Built-in Core'), findsNothing);
-      await tester.enterText(find.byType(TextField), '');
-      await tester.pump();
-
-      // Switching to built-in core dynamically shows the menu entry.
-      core = ClaudeCore.builtin;
-      changes.notifyListeners();
-      await tester.pumpAndSettle();
       expect(find.text('Built-in Core'), findsOneWidget);
 
-      // Navigate into Built-in Core.
+      await tester.enterText(find.byType(TextField), 'prompt');
+      await tester.pump();
+      expect(find.text('Built-in Core'), findsOneWidget);
+
       await tester.tap(find.text('Built-in Core'));
       await tester.pumpAndSettle();
       expect(find.text('page builtinCore'), findsOneWidget);
-
-      // Switching back to CLI hides the entry and falls back to General.
-      core = ClaudeCore.cli;
-      changes.notifyListeners();
-      await tester.pumpAndSettle();
-      expect(find.text('Built-in Core'), findsNothing);
-      expect(find.text('page general'), findsOneWidget);
     },
   );
 }
