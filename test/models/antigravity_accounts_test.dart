@@ -8,6 +8,7 @@ import 'package:baocode/models/model_providers.dart';
 import 'package:baocode/models/proxy/model_proxy.dart';
 import 'package:baocode/models/proxy/translate/antigravity_signature.dart';
 import 'package:baocode/models/secret_store.dart';
+import 'package:baocode/usage/usage_ledger.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 typedef Answer = (int status, List<String> lines);
@@ -81,7 +82,7 @@ const _models = {
   },
 };
 
-List<String> _stream(String text) => [
+List<String> _stream(String text, {int thoughts = 0}) => [
   'data: ${jsonEncode({
     'response': {
       'responseId': 'r1',
@@ -96,7 +97,7 @@ List<String> _stream(String text) => [
           'finishReason': 'STOP',
         },
       ],
-      'usageMetadata': {'promptTokenCount': 100, 'cachedContentTokenCount': 60, 'candidatesTokenCount': 5},
+      'usageMetadata': {'promptTokenCount': 100, 'cachedContentTokenCount': 60, 'candidatesTokenCount': 5, if (thoughts > 0) 'thoughtsTokenCount': thoughts},
     },
   })}',
   '',
@@ -108,6 +109,7 @@ void main() {
   late ModelProviders providers;
   late AntigravityAccounts accounts;
   late ModelProxy proxy;
+  late UsageLedger ledger;
   const a = ProviderAccount(id: 'a@x', email: 'a@x', accountId: 'proj-a');
   const b = ProviderAccount(id: 'b@x', email: 'b@x', accountId: 'proj-b');
 
@@ -116,6 +118,7 @@ void main() {
   setUp(() async {
     HttpOverrides.global = null;
     google = await FakeGoogle.start();
+    ledger = UsageLedger(MemoryUsageStorage());
     secrets = MemorySecretStore({
       ModelProvider.accountRefFor('ag', 'a@x'): 'refresh-a',
       ModelProvider.accountRefFor('ag', 'b@x'): 'refresh-b',
@@ -143,6 +146,7 @@ void main() {
       findProxy: (_) => 'DIRECT',
       antigravity: accounts,
       signatures: MemorySignatureStore(),
+      usage: () => ledger,
       token: 'tok',
     );
   });
@@ -151,6 +155,7 @@ void main() {
     await proxy.close();
     accounts.close();
     await google.close();
+    ledger.dispose();
   });
 
   Answer common(String path, Map<String, Object?> body) => switch (path) {
@@ -252,6 +257,33 @@ void main() {
       google.to('/v1internal:streamGenerateContent').last.body,
     ) as Map;
     expect((other['request'] as Map)['sessionId'], isNot(request['sessionId']));
+  });
+
+  test('kept in usage: the account, the cache and the reasoning', () async {
+    google.reply = (path, body) => switch (path) {
+      '/v1internal:streamGenerateContent' => (
+        200,
+        _stream('hello', thoughts: 20),
+      ),
+      _ => common(path, body),
+    };
+    final answer = await ask('gemini-4-neon(high)');
+    expect(answer.status, 200);
+    ledger.flush();
+    final call = (await ledger.ofSession('session-1')).single;
+    expect(call.provider, 'ag');
+    expect(call.providerName, 'Antigravity');
+    expect(call.protocol, 'antigravity');
+    expect(call.model, 'gemini-4-neon');
+    expect(call.effort, 'high');
+    expect(call.account, 'a@x');
+    // Gemini's prompt counts its cached part too.
+    expect(call.input, 40);
+    expect(call.cacheRead, 60);
+    expect(call.output, 25);
+    expect(call.reasoning, 20);
+    expect(call.status, 200);
+    expect(call.failed, isFalse);
   });
 
   test('an account out of quota on a model gives way on it alone', () async {
