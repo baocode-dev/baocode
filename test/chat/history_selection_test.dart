@@ -1244,6 +1244,230 @@ void main() {
     expect(controller.anchor?.item, 3);
     await mouse.up();
   });
+
+  testWidgets('dragging a table horizontal scrollbar scrolls without selecting '
+      'text or clearing an existing selection', (tester) async {
+    tester.view
+      ..devicePixelRatio = 1
+      ..physicalSize = const Size(900, 700);
+    addTearDown(tester.view.reset);
+    const wideTable =
+        'Before the table.\n\n'
+        '| Column A | Column B | Column C | Column D | Column E |\n'
+        '| --- | --- | --- | --- | --- |\n'
+        '| alpha_value_11111111 | beta_value_22222222 | gamma_value_33333333 | delta_value_44444444 | epsilon_value_55555555 |\n'
+        '| bottom_row_111111111 | bottom_row_222222222 | bottom_row_333333333 | bottom_row_444444444 | bottom_row_555555555 |';
+    final feed = _Feed([
+      const UserMessageItem(text: 'Show pricing table'),
+      const AssistantTextItem(wideTable),
+    ]);
+    addTearDown(feed.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(body: ChatHistoryView(feed: feed)),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final controller = tester
+        .renderObject<RenderChatSelectionItem>(
+          find.byType(ChatSelectionItem).first,
+        )
+        .controller;
+    final tableScroll = find.byWidgetPredicate(
+      (w) => w is SingleChildScrollView && w.scrollDirection == Axis.horizontal,
+    );
+    expect(tableScroll, findsOneWidget);
+    final position = tester
+        .state<ScrollableState>(
+          find.descendant(of: tableScroll, matching: find.byType(Scrollable)),
+        )
+        .position;
+    expect(position.maxScrollExtent, greaterThan(0));
+
+    // Hover over the table so HoverScrollbar shows its thumb.
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: Offset.zero);
+    addTearDown(mouse.removePointer);
+    final tableRect = tester.getRect(tableScroll);
+    await mouse.moveTo(tableRect.center);
+    await tester.pumpAndSettle();
+
+    // Drag the horizontal scrollbar thumb near the bottom edge of the table.
+    final thumbStart = Offset(tableRect.left + 20, tableRect.bottom - 3);
+    await mouse.moveTo(thumbStart);
+    await tester.pump();
+    await mouse.down(thumbStart);
+    await tester.pump();
+    await mouse.moveTo(Offset(tableRect.left + 220, tableRect.bottom - 3));
+    await tester.pumpAndSettle();
+    await mouse.up();
+    await tester.pumpAndSettle();
+
+    expect(position.pixels, greaterThan(0));
+    expect(controller.hasSelection, isFalse);
+
+    // Select text above the table, then drag the scrollbar back: selection stays.
+    final intro = tester.renderObject<RenderParagraph>(
+      find.byWidgetPredicate(
+        (w) => w is RichText && w.text.toPlainText() == 'Before the table.',
+      ),
+    );
+    final start = intro.localToGlobal(Offset(2, intro.size.height / 2));
+    final end = intro.localToGlobal(
+      Offset(intro.size.width - 2, intro.size.height / 2),
+    );
+    await mouse.moveTo(start);
+    await mouse.down(start);
+    await tester.pump();
+    await mouse.moveTo(end);
+    await tester.pump();
+    await mouse.up();
+    await tester.pump();
+    final kept = controller.selectedText();
+    expect(kept, isNotNull);
+
+    await mouse.moveTo(tableRect.center);
+    await tester.pumpAndSettle();
+    final trackTap = Offset(tableRect.left + 4, tableRect.bottom - 3);
+    await mouse.moveTo(trackTap);
+    await mouse.down(trackTap);
+    await tester.pump();
+    await mouse.up();
+    await tester.pumpAndSettle();
+    expect(controller.selectedText(), kept);
+  }, variant: TargetPlatformVariant.desktop());
+
+  testWidgets(
+    'dragging a code block horizontal scrollbar does not select text',
+    (tester) async {
+      tester.view
+        ..devicePixelRatio = 1
+        ..physicalSize = const Size(900, 700);
+      addTearDown(tester.view.reset);
+      final longLine = List.generate(30, (i) => 'segment_$i').join(' + ');
+      final feed = _Feed([
+        const UserMessageItem(text: 'Show wide code'),
+        AssistantTextItem(
+          '```dart\nfinal first = "$longLine";\nfinal last = "$longLine";\n```',
+        ),
+      ]);
+      addTearDown(feed.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildAppTheme(),
+          home: Scaffold(body: ChatHistoryView(feed: feed)),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final controller = tester
+          .renderObject<RenderChatSelectionItem>(
+            find.byType(ChatSelectionItem).first,
+          )
+          .controller;
+      final codeScroll = find.byWidgetPredicate(
+        (w) =>
+            w is SingleChildScrollView && w.scrollDirection == Axis.horizontal,
+      );
+      expect(codeScroll, findsOneWidget);
+      final position = tester
+          .state<ScrollableState>(
+            find.descendant(of: codeScroll, matching: find.byType(Scrollable)),
+          )
+          .position;
+      expect(position.maxScrollExtent, greaterThan(0));
+
+      final codeBar = find
+          .ancestor(of: codeScroll, matching: find.byType(Scrollbar))
+          .first;
+      final barRect = tester.getRect(codeBar);
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(barRect.center);
+      await tester.pumpAndSettle();
+
+      final thumbStart = Offset(barRect.left + 32, barRect.bottom - 3);
+      await mouse.moveTo(thumbStart);
+      await tester.pump();
+      await mouse.down(thumbStart);
+      await tester.pump();
+      await mouse.moveTo(Offset(barRect.left + 220, barRect.bottom - 3));
+      await tester.pumpAndSettle();
+      await mouse.up();
+      await tester.pumpAndSettle();
+
+      expect(position.pixels, greaterThan(0));
+      expect(controller.hasSelection, isFalse);
+    },
+    variant: TargetPlatformVariant.desktop(),
+  );
+
+  testWidgets(
+    'dragging a command step vertical scrollbar does not select text',
+    (tester) async {
+      tester.view
+        ..devicePixelRatio = 1
+        ..physicalSize = const Size(900, 700);
+      addTearDown(tester.view.reset);
+      final feed = _Feed([
+        const UserMessageItem(text: 'Run command'),
+        TerminalItem(
+          command: 'seq 1 100',
+          description: 'List numbers',
+          output: List.generate(100, (i) => 'output line $i').join('\n'),
+        ),
+      ]);
+      addTearDown(feed.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildAppTheme(),
+          home: Scaffold(body: ChatHistoryView(feed: feed)),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('List numbers', findRichText: true));
+      await tester.pumpAndSettle();
+
+      final controller = tester
+          .renderObject<RenderChatSelectionItem>(
+            find.byType(ChatSelectionItem).first,
+          )
+          .controller;
+      final bar = find.descendant(
+        of: find.byType(StepBody),
+        matching: find.byType(Scrollbar),
+      );
+      expect(bar, findsOneWidget);
+      final inner = tester
+          .state<ScrollableState>(
+            find.descendant(of: bar, matching: find.byType(Scrollable)),
+          )
+          .position;
+      expect(inner.maxScrollExtent, greaterThan(0));
+
+      final barRect = tester.getRect(bar);
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(barRect.center);
+      await tester.pumpAndSettle();
+
+      final thumbStart = Offset(barRect.right - 3, barRect.top + 16);
+      await mouse.moveTo(thumbStart);
+      await tester.pump();
+      await mouse.down(thumbStart);
+      await tester.pump();
+      await mouse.moveTo(Offset(barRect.right - 3, barRect.bottom - 16));
+      await tester.pumpAndSettle();
+      await mouse.up();
+      await tester.pumpAndSettle();
+
+      expect(inner.pixels, greaterThan(0));
+      expect(controller.hasSelection, isFalse);
+    },
+    variant: TargetPlatformVariant.desktop(),
+  );
 }
 
 /// A piece of text, in a box of its own.

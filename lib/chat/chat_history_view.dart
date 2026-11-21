@@ -1552,6 +1552,32 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
 
   final ContextMenuController _menu = ContextMenuController();
 
+  /// Whether [event] landed on an interactive scrollbar anywhere inside this
+  /// view (a table's sideways bar, a code block's, a step card's, …).
+  bool _hitScrollbar(PointerDownEvent event) {
+    final box = context.findRenderObject();
+    if (box is! RenderBox || !box.hasSize) return false;
+    final result = BoxHitTestResult();
+    box.hitTest(result, position: box.globalToLocal(event.position));
+    for (final entry in result.path) {
+      if (entry is! BoxHitTestEntry) continue;
+      final target = entry.target;
+      if (target is RenderCustomPaint) {
+        final foreground = target.foregroundPainter;
+        if (foreground is ScrollbarPainter &&
+            foreground.hitTestInteractive(entry.localPosition, event.kind)) {
+          return true;
+        }
+        final background = target.painter;
+        if (background is ScrollbarPainter &&
+            background.hitTestInteractive(entry.localPosition, event.kind)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   void _handlePointerDown(PointerDownEvent event) {
     _pressedDevices.add(event.device);
     _menu.remove();
@@ -1571,9 +1597,17 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       final right = list.localToGlobal(Offset(list.size.width, 0)).dx;
       onBar = !_minimapShown && event.position.dx >= right - _scrollbarGutter;
     }
-    // Nor one in what selects on its own (an edit card's editor): the two
-    // selections are apart, and the focus is its.
+    // Nor one in what selects on its own (an edit card's editor) or on an
+    // inner scrollbar (a table's, a code block's, a step card's): dragging a
+    // bar must not select text under it or take focus.
     final own = OwnSelection.pressedIn(event);
+    final onInnerBar =
+        !onBar &&
+        !own &&
+        !_pressInEditor &&
+        !_pressOnSticky &&
+        !_pressOnMinimap &&
+        _hitScrollbar(event);
     if ((_pressOnMinimap || onBar) && event.buttons == kPrimaryMouseButton) {
       _scrub(true);
     }
@@ -1581,6 +1615,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
         _pressInEditor ||
         own ||
         onBar ||
+        onInnerBar ||
         _pressOnSticky ||
         _pressOnMinimap ||
         event.kind != PointerDeviceKind.mouse;
@@ -1601,7 +1636,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     _pressOnMinimap = false;
     if (_pressInEditor) {
       _pressInEditor = false;
-    } else if (!own) {
+    } else if (!own && !onInnerBar) {
       _selectionFocusNode.requestFocus();
     }
     if (!elsewhere && event.buttons & kSecondaryMouseButton != 0) {
@@ -1614,6 +1649,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
         event.kind != PointerDeviceKind.mouse &&
         !own &&
         !onBar &&
+        !onInnerBar &&
         !onSticky &&
         !onMinimap &&
         !inEditor) {
