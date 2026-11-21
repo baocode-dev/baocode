@@ -307,6 +307,15 @@ class UsageLedger extends ChangeNotifier {
   int get version => _version;
   int _version = 0;
 
+  /// Per-session version: grows only when a call of that session is kept or
+  /// calls are cleared, so open conversations ignore each other's traffic.
+  final Map<String, int> _sessionVersions = {};
+  int _clearedVersion = 0;
+
+  /// Version of [session]'s kept calls.
+  int sessionVersion(String session) =>
+      _sessionVersions[session] ?? _clearedVersion;
+
   final Map<String, List<String>> _unwritten = {};
   Timer? _flush;
   Timer? _notify;
@@ -326,6 +335,9 @@ class UsageLedger extends ChangeNotifier {
 
   /// Today's, as kept this run (and read).
   final Map<String, List<UsageCall>> _live = {};
+
+  /// Today's days already read whole from [storage] into [_live].
+  final Set<String> _liveLoaded = {};
 
   /// Keeps [call], unless calls are not kept; and its [trace], where it
   /// was followed whole.
@@ -371,6 +383,7 @@ class UsageLedger extends ChangeNotifier {
     }
     _flush ??= Timer(const Duration(milliseconds: 600), flush);
     _changed();
+    if (session != null) _sessionVersions[session] = _version;
   }
 
   void _changed() {
@@ -481,12 +494,19 @@ class UsageLedger extends ChangeNotifier {
 
   Future<List<UsageCall>> _readDays(List<String> days) async {
     final today = dayOf(_clock());
+    _liveLoaded.removeWhere((day) => day != today);
     final missing = [
       for (final day in days)
-        if (!_decoded.containsKey(day)) day,
+        if (!_decoded.containsKey(day) &&
+            !(day == today && _liveLoaded.contains(day)))
+          day,
     ];
     if (missing.isNotEmpty) {
       flush();
+      final liveBefore = {
+        for (final day in missing)
+          if (day == today) day: _live[day]?.length ?? 0,
+      };
       final read = await storage.read(missing);
       final byDay = <String, List<UsageCall>>{};
       for (final call in read) {
@@ -494,10 +514,15 @@ class UsageLedger extends ChangeNotifier {
       }
       for (final day in missing) {
         final calls = byDay[day] ?? <UsageCall>[];
-        // Today's grows: read again each time it is asked for, but as
-        // kept this run meanwhile.
+        // Today's grows: read whole once, then kept up to date by record().
         if (day == today) {
+          final before = liveBefore[day] ?? 0;
+          final live = _live[day];
+          if (live != null && live.length > before) {
+            calls.addAll(live.skip(before));
+          }
           _live[day] = calls;
+          _liveLoaded.add(day);
         } else {
           _decoded[day] = calls;
         }
@@ -606,6 +631,7 @@ class UsageLedger extends ChangeNotifier {
       }
       _decoded.remove(day);
       _live.remove(day);
+      _liveLoaded.remove(day);
       if (whole) _forgetDay(day);
     }
     // A conversation's own calls all gone: none of it is kept.
@@ -621,6 +647,8 @@ class UsageLedger extends ChangeNotifier {
     _labeled.clear();
     _titles.clear();
     _changed();
+    _clearedVersion = _version;
+    _sessionVersions.clear();
     notifyListeners();
     return changed;
   }
