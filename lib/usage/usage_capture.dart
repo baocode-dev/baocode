@@ -659,8 +659,12 @@ class UsageMeter {
   /// what it says of the reasoning, the service tier it answered at and
   /// the web searches it ran, which are not passed on.
   void upstreamLine(String line) {
-    if (line.contains('reasoning_tokens')) {
-      final match = RegExp(r'"reasoning_tokens"\s*:\s*(\d+)').firstMatch(line);
+    // OpenAI's `reasoning_tokens`; Gemini's (Antigravity's) `thoughtsTokenCount`.
+    if (line.contains('reasoning_tokens') ||
+        line.contains('thoughtsTokenCount')) {
+      final match = RegExp(
+        r'"(?:reasoning_tokens|thoughtsTokenCount)"\s*:\s*(\d+)',
+      ).firstMatch(line);
       if (match != null) {
         final tokens = int.parse(match.group(1)!);
         if (tokens > _reasoning) _reasoning = tokens;
