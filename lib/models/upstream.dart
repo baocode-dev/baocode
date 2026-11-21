@@ -91,6 +91,8 @@ abstract final class UpstreamUrls {
   static List<Uri> modelsByBase(ModelProvider provider) =>
       switch (provider.protocol) {
         ProviderProtocol.codex => [const CodexEndpoints().models],
+        // Listed by its accounts (AntigravityAccounts.listModels).
+        ProviderProtocol.antigravity => const [],
         ProviderProtocol.anthropic => switch (anthropicBase(provider.baseUrl)) {
           final base? => _anthropicModels(Uri.parse(base)),
           null => const [],
@@ -154,7 +156,9 @@ abstract final class UpstreamUrls {
           final base? => switch (provider.protocol) {
             ProviderProtocol.openaiChat => Uri.parse('$base/chat/completions'),
             ProviderProtocol.openaiResponses => Uri.parse('$base/responses'),
-            ProviderProtocol.anthropic || ProviderProtocol.codex => null,
+            ProviderProtocol.anthropic ||
+            ProviderProtocol.codex ||
+            ProviderProtocol.antigravity => null,
           },
           null => null,
         };

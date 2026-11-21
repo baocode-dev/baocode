@@ -11,6 +11,8 @@ import '../../network/tls.dart';
 import '../../usage/usage_capture.dart';
 import '../../usage/usage_ledger.dart';
 import '../../usage/usage_trace.dart';
+import '../antigravity/antigravity_accounts_io.dart';
+import '../antigravity/antigravity_api.dart';
 import '../codex/codex_accounts_io.dart';
 import '../codex/codex_api.dart';
 import '../codex/codex_service.dart';
@@ -18,6 +20,9 @@ import '../launch_environment.dart';
 import '../model_provider.dart';
 import '../upstream.dart';
 import 'prompt_cache_key.dart';
+import 'translate/antigravity_request.dart';
+import 'translate/antigravity_response.dart';
+import 'translate/antigravity_signature.dart';
 import 'translate/openai_chat_request.dart';
 import 'translate/openai_chat_response.dart';
 import 'translate/responses_request.dart';
@@ -44,7 +49,8 @@ import 'watched_socket.dart';
 /// here: read as each request goes out, so a key changed applies at once.
 ///
 /// A ChatGPT (Codex) provider's request goes as one of its accounts
-/// ([CodexAccounts]): to another when that one is out of quota.
+/// ([CodexAccounts]), an Antigravity one's as one of its Google accounts
+/// ([AntigravityAccounts]): to another when that one is out of quota.
 ///
 /// `/p/<provider>/v1/messages` and `/p/<provider>/v1/messages/count_tokens`
 /// (an estimate: the upstreams have none).
@@ -59,6 +65,8 @@ class ModelProxy {
     this._onError,
     this._findProxy,
     this._codex,
+    this._antigravity,
+    this._signatures,
     this._usage,
     @visibleForTesting String? token,
   }) : token = token ?? _newToken();
@@ -67,6 +75,13 @@ class ModelProxy {
 
   /// The ChatGPT (Codex) providers' accounts.
   final CodexAccounts? _codex;
+
+  /// The Antigravity providers' accounts.
+  final AntigravityAccounts? _antigravity;
+
+  /// Where Gemini's thought signatures are kept, which its calls' ids
+  /// refer to; in the ids themselves without it.
+  final SignatureStore? _signatures;
   final Future<String?> Function(String id) _key;
   final void Function(String id, String? error)? _onError;
 
@@ -390,6 +405,18 @@ class ModelProxy {
             .trim();
     final thinking = effort.isNotEmpty && effort != ThinkingLevel.none;
     final stream = body['stream'] == true;
+    if (provider.protocol == ProviderProtocol.antigravity) {
+      return _forwardAntigravity(
+        provider,
+        body,
+        response,
+        modelId: modelId,
+        effort: effort,
+        stream: stream,
+        sessionHeader: sessionHeader,
+        meter: meter,
+      );
+    }
     final Map<String, Object?> outgoing;
     if (provider.protocol == ProviderProtocol.openaiChat) {
       outgoing = convertClaudeRequestToOpenAI(
@@ -873,6 +900,242 @@ class ModelProxy {
       }
       tried.add(account.id);
     }
+  }
+
+  /// [body] to an Antigravity provider, as Code Assist's request, as one of
+  /// its Google accounts; its stream back as Anthropic's. The conversation
+  /// keeps one session ([antigravitySessionId]) and, while it can, one
+  /// account: its prompt is cached there. An account out of quota on the
+  /// model, or signed out, gives way to the next.
+  Future<void> _forwardAntigravity(
+    ModelProvider provider,
+    Map<String, Object?> body,
+    HttpResponse response, {
+    required String modelId,
+    required String effort,
+    required bool stream,
+    String? sessionHeader,
+    UsageMeter? meter,
+  }) async {
+    final accounts = _antigravity;
+    if (accounts == null) {
+      return _fail(
+        response,
+        501,
+        'Antigravity accounts are not available here',
+      );
+    }
+    final session = sessionId(body, header: sessionHeader);
+    final cacheKey = promptCacheKey(body, header: sessionHeader);
+    final conversation = antigravitySessionId(
+      '${session ?? ''}\n${antigravityFirstUserText(body)}',
+    );
+    final custom = customUpstreamHeaders(
+      provider,
+      session: session,
+      model: modelId,
+    );
+    await accounts.loadVersion();
+    final client = await _upstream();
+    final tried = <String>{};
+    String? lastError;
+    var lastStatus = 429;
+    var askedQuota = false;
+    while (true) {
+      final account = accounts.pick(
+        provider,
+        session: cacheKey,
+        model: modelId,
+        exclude: tried,
+      );
+      // Out of quota as last learned: asked again first, as it may have
+      // started over.
+      if (account == null &&
+          !askedQuota &&
+          accounts.backAtFor(provider, model: modelId) != null) {
+        askedQuota = true;
+        await accounts.refreshUsage(provider, force: false).catchError((_) {});
+        continue;
+      }
+      if (account == null) {
+        final back = accounts.backAtFor(provider, model: modelId);
+        final message = back != null
+            ? [
+                'Every Google account of ${provider.name} is out of quota on '
+                    '$modelId until ${back.toLocal().toString().substring(0, 16)}',
+                ?lastError,
+              ].join(': ')
+            : lastError ??
+                  (provider.accounts.isEmpty
+                      ? '${provider.name} is not signed in to a Google account'
+                      : 'No Google account of ${provider.name} can be used now');
+        if (back != null) response.headers.set('x-should-retry', 'false');
+        meter?.fail(message);
+        _onError?.call(provider.id, message);
+        return _json(response, lastStatus, anthropicError(lastStatus, message));
+      }
+      final String project;
+      final List<String> ids;
+      try {
+        project = await accounts.project(provider, account);
+        ids = await accounts.modelIds(provider, account);
+      } on CodexException catch (error) {
+        lastError = '${account.displayName}: ${error.message}';
+        lastStatus = 401;
+        tried.add(account.id);
+        continue;
+      }
+      final sent = antigravityModelId(
+        ids,
+        modelId,
+        effort.isEmpty ? null : effort,
+      );
+      final request = convertClaudeRequestToAntigravity(
+        body,
+        model: sent,
+        effort: effort.isEmpty ? null : effort,
+        store: _signatures,
+      )..['sessionId'] = conversation;
+      final (payload, encoded) = await _encodeJson({
+        'model': sent,
+        'project': project,
+        'userAgent': 'antigravity',
+        'requestType': 'agent',
+        'requestId': 'agent-${_uuid()}',
+        'request': request,
+      });
+      String? rejected;
+      var waited = false;
+      for (var attempt = 0; attempt < 3; attempt++) {
+        final String token;
+        try {
+          token = await accounts.accessToken(
+            provider,
+            account,
+            rejected: rejected,
+          );
+        } on CodexException catch (error) {
+          lastError = '${account.displayName}: ${error.message}';
+          lastStatus = 401;
+          break;
+        }
+        final upstreamRequest = await client.postUrl(accounts.endpoints.stream);
+        accounts.headers(token).forEach(upstreamRequest.headers.set);
+        custom.forEach(upstreamRequest.headers.set);
+        upstreamRequest.headers
+          ..contentType = ContentType.json
+          ..set(HttpHeaders.acceptHeader, 'text/event-stream');
+        meter?.trace?.sending(
+          method: 'POST',
+          url: accounts.endpoints.stream,
+          headers: UsageTraceMessage.headersOf(upstreamRequest.headers.forEach),
+          body: payload,
+        );
+        upstreamRequest.add(encoded);
+        _dropWithClient(response, upstreamRequest);
+        final upstream = await upstreamRequest.close();
+        final status = upstream.statusCode;
+        meter?.trace?.answered(
+          status,
+          UsageTraceMessage.headersOf(upstream.headers.forEach),
+        );
+        if (status >= 400) {
+          final text = await utf8.decodeStream(upstream);
+          meter?.trace?.upstreamText(text);
+          if (status == 401 && rejected == null) {
+            rejected = token;
+            continue;
+          }
+          final message = upstreamErrorMessage(status, text);
+          if (status == 429) {
+            final now = DateTime.now();
+            if (antigravityLimitReset(status, text, now) case final until?) {
+              accounts.markLimited(provider, account, modelId, until);
+            } else if (antigravityRetryAfter(text) case final delay?
+                when !waited) {
+              // A moment's rate limit: the same account, once more.
+              waited = true;
+              await Future<void>.delayed(delay);
+              continue;
+            }
+          }
+          if (status == 401 || status == 403 || status == 429) {
+            accounts.markError(provider, account, message);
+            lastError = '${account.displayName}: $message';
+            lastStatus = status;
+            break;
+          }
+          meter?.fail(message);
+          _onError?.call(provider.id, message);
+          return _json(response, status, anthropicError(status, message));
+        }
+        accounts.markError(provider, account, null);
+        _onError?.call(provider.id, null);
+        meter
+          ?..answered()
+          ..account = account.displayName;
+        final trace = meter?.trace;
+        final lines = _whileClient(upstream)
+            .transform(const Utf8Decoder(allowMalformed: true))
+            .transform(const LineSplitter());
+        final translator = AntigravityResponseTranslator(
+          model: '${body['model'] ?? modelId}',
+          store: _signatures,
+        );
+        if (!stream) {
+          await for (final line in lines) {
+            trace?.upstreamText('$line\n');
+            meter?.upstreamLine(line);
+            translator.convert(line);
+          }
+          translator.finish();
+          final message = antigravityMessage(translator.events);
+          if (message == null) {
+            meter?.fail('${provider.name} ended without a reply');
+            return _fail(
+              response,
+              502,
+              '${provider.name} ended without a reply',
+            );
+          }
+          meter?.message(message);
+          return _json(response, 200, message);
+        }
+        _startEvents(response);
+        await for (final line in lines) {
+          trace?.upstreamText('$line\n');
+          meter?.upstreamLine(line);
+          final frames = translator.convert(line);
+          if (frames.isEmpty) continue;
+          response.write(frames);
+          meter?.events(frames);
+          await response.flush();
+        }
+        final end = translator.finish();
+        if (end.isNotEmpty) {
+          response.write(end);
+          meter?.events(end);
+        }
+        return response.close();
+      }
+      tried.add(account.id);
+    }
+  }
+
+  /// A version 4 UUID.
+  static String _uuid() {
+    final random = Random.secure();
+    final bytes = [for (var i = 0; i < 16; i++) random.nextInt(256)];
+    bytes[6] = bytes[6] & 0x0f | 0x40;
+    bytes[8] = bytes[8] & 0x3f | 0x80;
+    final hex = [for (final b in bytes) b.toRadixString(16).padLeft(2, '0')];
+    return [
+      hex.sublist(0, 4),
+      hex.sublist(4, 6),
+      hex.sublist(6, 8),
+      hex.sublist(8, 10),
+      hex.sublist(10),
+    ].map((part) => part.join()).join('-');
   }
 
   static Stream<String> _rest(

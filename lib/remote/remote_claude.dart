@@ -33,10 +33,12 @@ const remoteClaudeInstallCommand =
 
 /// Claude Code where [launch]'s project is: on its host for a remote one.
 /// BaoCode's own core only on an upstream's model ([ClaudeLaunch.env]):
-/// never on what the machine's Claude Code setup names.
+/// never on what the machine's Claude Code setup names; always on one
+/// only it runs on ([ClaudeLaunch.builtinCore]).
 Future<ClaudeCodeTransport> startClaude(ClaudeLaunch launch) async {
   final host = RemoteLocation.hostOf(launch.cwd);
   if (host == null) {
+    if (launch.builtinCore && launch.env != null) return startDartCore(launch);
     // On this machine: BaoCode's own core, unless the CLI is picked.
     return switch (ClaudeCore.current()) {
       ClaudeCore.builtin when launch.env == null => throw const ClaudeNoModel(
@@ -62,13 +64,16 @@ SshCore remoteCoreOf(String host) =>
 /// one, the CLI where the host has it. Where the CLI is picked and the
 /// host has none, it is installed there when [install], as VS Code's
 /// extension sets itself up; automatic installs nothing: without the CLI
-/// there nor an upstream, a model is asked for.
+/// there nor an upstream, a model is asked for. [builtin]: BaoCode's own
+/// core whatever is picked, on an upstream only it runs on.
 Future<RemoteProcess> startRemoteCore(
   SshHost host, {
   required bool model,
+  bool builtin = false,
   bool install = true,
   required Future<RemoteProcess> Function(String? core) start,
 }) async {
+  if (builtin && model) return start('builtin');
   Future<RemoteProcess> cli() async {
     try {
       return await start(null);
@@ -381,6 +386,7 @@ class RemoteClaudeTransport implements ClaudeCodeTransport {
       final process = await startRemoteCore(
         host,
         model: env != null,
+        builtin: launch.builtinCore,
         start: (core) => client.startClaude(
           cwd: cwd,
           // A key in its flag settings: written to a file there instead.
