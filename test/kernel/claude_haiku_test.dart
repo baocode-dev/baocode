@@ -8,6 +8,8 @@ import 'package:baocode/chat/chat_models.dart';
 import 'package:baocode/kernel/claude_code/claude_core_setting.dart';
 import 'package:baocode/kernel/claude_code/claude_environment.dart';
 import 'package:baocode/kernel/claude_code/claude_haiku.dart';
+import 'package:baocode/kernel/claude_code/claude_haiku_io.dart'
+    show claudeHaikuBuiltinOnly;
 import 'package:baocode/models/model_provider.dart';
 import 'package:baocode/models/model_providers.dart';
 import 'package:baocode/network/network_proxy_io.dart';
@@ -15,6 +17,42 @@ import 'package:baocode/network/proxy_settings.dart';
 import 'package:path/path.dart' as p;
 
 void main() {
+  test("on BaoCode's own core where Antigravity's is in it: the provider's, "
+      'one of its roles, or the model asked for', () {
+    ModelProviders providers(Map<String, Object?> roles) =>
+        ModelProviders.memory(
+          providers: [
+            ModelProvider.fromJson({
+              'id': 'ds',
+              'name': 'DeepSeek',
+              'protocol': 'anthropic',
+              'baseUrl': 'https://example.com',
+              'roles': roles,
+            })!,
+            ModelProvider.fromJson({
+              'id': 'ag',
+              'name': 'Antigravity',
+              'protocol': 'antigravity',
+            })!,
+          ],
+        );
+    Map<String, String> at(String id) => {
+      'ANTHROPIC_BASE_URL': 'http://127.0.0.1:4000/p/$id',
+    };
+    bool builtin(
+      Map<String, String>? env,
+      String? model, [
+      Map<String, Object?> roles = const {},
+    ]) => claudeHaikuBuiltinOnly(env, model, providers: providers(roles));
+
+    expect(builtin(at('ds'), 'deepseek-v4'), isFalse);
+    expect(builtin(null, null), isFalse);
+    expect(builtin(at('ag'), 'gemini-4-neon'), isTrue);
+    expect(builtin(at('ds'), 'x', {'haiku': '@ag/gemini-4-neon'}), isTrue);
+    expect(builtin(at('ds'), 'x', {'subagent': '@ag/gemini-4-neon'}), isTrue);
+    expect(builtin(null, '@ag/gemini-4-neon'), isTrue);
+  });
+
   test('a question alone goes on stdin, its answer one JSON result', () {
     final arguments = claudeHaikuArguments('Be brief.');
     expect(arguments, isNot(contains('--input-format')));

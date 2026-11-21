@@ -103,6 +103,18 @@ class ModelProviders extends ChangeNotifier {
   ModelProvider? provider(String? id) =>
       providers.where((provider) => provider.id == id).firstOrNull;
 
+  /// Whether a session on [provider] runs on BaoCode's own core alone:
+  /// Antigravity's are spoken to by it only, whether its model is
+  /// Antigravity's or one of its roles (a subagent's, the background
+  /// work's) picks one.
+  bool builtinCoreOnly(ModelProvider provider) =>
+      provider.protocol == ProviderProtocol.antigravity ||
+      provider.roles
+          .upstreamsBesides(provider.id)
+          .any(
+            (id) => this.provider(id)?.protocol == ProviderProtocol.antigravity,
+          );
+
   /// The provider and model [ref] (a [modelRef]) picks, if both are there;
   /// the provider's main model when the one picked is gone, or is an image
   /// model (not one to converse with).

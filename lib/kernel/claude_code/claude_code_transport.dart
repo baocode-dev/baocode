@@ -163,7 +163,8 @@ class ClaudeLaunch {
 
   /// Whether it runs on BaoCode's own core whatever the setting says: an
   /// upstream only it speaks to as it should (Antigravity's, whose prompt
-  /// and requests the CLI's would get the account turned away for).
+  /// and requests the CLI's would get the account turned away for), as
+  /// the session's model or one its roles pick (ModelProviders.builtinCoreOnly).
   final bool builtinCore;
 
   /// A file the flag settings ([settings]) are written to, given in their
