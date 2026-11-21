@@ -190,6 +190,8 @@ void main() {
   Future<({int status, String text})> ask(
     String model, {
     String first = 'hi',
+    List<Object?>? tools,
+    bool stream = true,
   }) async {
     final endpoint = await proxy.endpoint('ag');
     final client = HttpClient();
@@ -203,7 +205,7 @@ void main() {
       request.write(
         jsonEncode({
           'model': model,
-          'stream': true,
+          'stream': stream,
           'max_tokens': 1000,
           'metadata': {
             'user_id': jsonEncode({'session_id': 'session-1'}),
@@ -212,6 +214,7 @@ void main() {
           'messages': [
             {'role': 'user', 'content': first},
           ],
+          'tools': ?tools,
         }),
       );
       final response = await request.close();
@@ -365,6 +368,91 @@ void main() {
     expect(body['project'], 'proj-found');
     expect(provider().account('a@x')?.accountId, 'proj-found');
     expect(provider().account('a@x')?.plan, 'Google AI Pro');
+  });
+
+  test('web search forwards googleSearch for Gemini and returns tool error for Claude', () async {
+    google.reply = (path, body) => switch (path) {
+      '/v1internal:streamGenerateContent' => (
+        200,
+        [
+          'data: ${jsonEncode({
+            'response': {
+              'candidates': [
+                {
+                  'content': {
+                    'role': 'model',
+                    'parts': [
+                      {'text': 'Found Dart 4.'},
+                    ],
+                  },
+                  'finishReason': 'STOP',
+                  'groundingMetadata': {
+                    'webSearchQueries': ['Dart 4'],
+                    'groundingChunks': [
+                      {
+                        'web': {'uri': 'https://dart.dev', 'title': 'Dart'},
+                      },
+                    ],
+                  },
+                },
+              ],
+              'usageMetadata': {'promptTokenCount': 20, 'candidatesTokenCount': 10},
+            },
+          })}\n\n',
+        ],
+      ),
+      _ => common(path, body),
+    };
+    const webSearchTools = [
+      {'type': 'web_search_20250305', 'name': 'web_search', 'max_uses': 8},
+    ];
+    final gemini = await ask(
+      'gemini-4-neon(high)',
+      first: 'Search for: Dart 4',
+      tools: webSearchTools,
+    );
+    expect(gemini.status, 200);
+    expect(gemini.text, contains('"type":"web_search_tool_result"'));
+    expect(gemini.text, contains('https://dart.dev'));
+    final sent = jsonDecode(
+      google.to('/v1internal:streamGenerateContent').single.body,
+    ) as Map;
+    expect((sent['request'] as Map)['tools'], [
+      {'googleSearch': <String, Object?>{}},
+    ]);
+
+    // Unsupported Antigravity model: HTTP 200 with web_search_tool_result_error,
+    // no upstream call and no API error.
+    final claudeStream = await ask(
+      'claude-opus-5-5(high)',
+      first: 'Search for: Dart 4',
+      tools: webSearchTools,
+    );
+    expect(claudeStream.status, 200);
+    expect(claudeStream.text, isNot(contains('event: error')));
+    expect(
+      claudeStream.text,
+      contains('"type":"web_search_tool_result_error"'),
+    );
+    expect(
+      claudeStream.text,
+      contains(
+        'Web search is not supported for claude-opus-5-5 on Antigravity.',
+      ),
+    );
+    final claudeJson = await ask(
+      'claude-opus-5-5(high)',
+      first: 'Search for: Dart 4',
+      tools: webSearchTools,
+      stream: false,
+    );
+    expect(claudeJson.status, 200);
+    final decoded = jsonDecode(claudeJson.text) as Map;
+    final blocks = decoded['content'] as List;
+    expect((blocks[1] as Map)['type'], 'web_search_tool_result');
+    expect(((blocks[1] as Map)['content'] as Map)['error_code'], 'unavailable');
+    // Upstream was never called for Claude's web search.
+    expect(google.to('/v1internal:streamGenerateContent'), hasLength(1));
   });
 
   test(

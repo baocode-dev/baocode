@@ -33,6 +33,11 @@ class AntigravityResponseTranslator {
   String? _open;
   String _held = '';
   ({int input, int cached, int output, int thoughts})? _usage;
+  final List<String> _searchQueries = [];
+  final Set<String> _seenSearchQueries = {};
+  final List<Map<String, Object?>> _searchResults = [];
+  final Set<String> _seenSearchUrls = {};
+  int _webSearchRequests = 0;
 
   /// The events so far, for a reply not streamed ([message]).
   final List<Map<String, Object?>> events = [];
@@ -160,6 +165,9 @@ class AntigravityResponseTranslator {
           if (output.isNotEmpty) out.addAll(_text('\n```\n$output\n```\n'));
         }
       }
+      if (candidate['groundingMetadata'] case final Map grounding) {
+        _collectGrounding(grounding);
+      }
       if (candidate['finishReason'] case final String reason
           when reason.isNotEmpty && !_stopped) {
         out.addAll(_flush());
@@ -221,7 +229,7 @@ class AntigravityResponseTranslator {
 
   List<Map<String, Object?>> _end() {
     if (!_started) return const [];
-    final out = [..._flush(), ..._closeBlock()];
+    final out = [..._flush(), ..._closeBlock(), ..._emitGrounding()];
     final usage = _usage;
     out
       ..add({
@@ -236,6 +244,8 @@ class AntigravityResponseTranslator {
           'output_tokens': usage == null ? 0 : usage.output + usage.thoughts,
           if (usage != null && usage.thoughts > 0)
             'output_tokens_details': {'thinking_tokens': usage.thoughts},
+          if (_webSearchRequests > 0)
+            'server_tool_use': {'web_search_requests': _webSearchRequests},
         },
       })
       ..add({'type': 'message_stop'});
@@ -243,6 +253,75 @@ class AntigravityResponseTranslator {
     // Ended: nothing more is told.
     _failed = true;
     return out;
+  }
+
+  void _collectGrounding(Map grounding) {
+    if (grounding['webSearchQueries'] case final List queries) {
+      for (final item in queries) {
+        if (item is String) {
+          final query = item.trim();
+          if (query.isNotEmpty && _seenSearchQueries.add(query)) {
+            _searchQueries.add(query);
+          }
+        }
+      }
+    }
+    if (grounding['groundingChunks'] case final List chunks) {
+      for (final chunk in chunks) {
+        if (chunk is! Map) continue;
+        final web = chunk['web'];
+        if (web is! Map) continue;
+        final uri = '${web['uri'] ?? ''}'.trim();
+        if (uri.isEmpty || !_seenSearchUrls.add(uri)) continue;
+        final title = '${web['title'] ?? ''}'.trim();
+        _searchResults.add({
+          'type': 'web_search_result',
+          'title': title.isEmpty ? uri : title,
+          'url': uri,
+          'page_age': null,
+        });
+      }
+    }
+  }
+
+  List<Map<String, Object?>> _emitGrounding() {
+    if (_searchQueries.isEmpty && _searchResults.isEmpty) return const [];
+    final id = 'srvtoolu_${_randomId()}';
+    final query = _searchQueries.join('; ');
+    final results = List<Map<String, Object?>>.of(_searchResults);
+    _searchQueries.clear();
+    _seenSearchQueries.clear();
+    _searchResults.clear();
+    _seenSearchUrls.clear();
+    _webSearchRequests++;
+    return [
+      {
+        'type': 'content_block_start',
+        'index': _index,
+        'content_block': {
+          'type': 'server_tool_use',
+          'id': id,
+          'name': 'web_search',
+          'input': <String, Object?>{},
+        },
+      },
+      if (query.isNotEmpty)
+        _delta({
+          'type': 'input_json_delta',
+          'partial_json': jsonEncode({'query': query}),
+        }),
+      {'type': 'content_block_stop', 'index': _index++},
+      {
+        'type': 'content_block_start',
+        'index': _index,
+        'content_block': {
+          'type': 'web_search_tool_result',
+          'tool_use_id': id,
+          'content': results,
+        },
+      },
+      {'type': 'content_block_stop', 'index': _index++},
+    ];
   }
 
   String _frames(List<Map<String, Object?>> out) {
@@ -542,3 +621,75 @@ Map<String, Object?>? antigravityMessage(List<Map<String, Object?>> events) {
   message['content'] = [for (final i in indexes) blocks[i]];
   return message;
 }
+
+/// Anthropic events reporting that Antigravity's [model] does not support
+/// native web search, delivered inside a `web_search_tool_result` error block
+/// rather than as an HTTP/API error.
+List<Map<String, Object?>> antigravityWebSearchUnavailableEvents({
+  required String model,
+  required String reason,
+  String? query,
+}) {
+  final msgId = 'msg_${AntigravityResponseTranslator._randomId()}';
+  final toolUseId = 'srvtoolu_${AntigravityResponseTranslator._randomId()}';
+  final trimmedQuery = query?.trim() ?? '';
+  return [
+    {
+      'type': 'message_start',
+      'message': {
+        'id': msgId,
+        'type': 'message',
+        'role': 'assistant',
+        'model': model,
+        'content': <Object?>[],
+        'stop_reason': null,
+        'stop_sequence': null,
+        'usage': {'input_tokens': 0, 'output_tokens': 0},
+      },
+    },
+    {
+      'type': 'content_block_start',
+      'index': 0,
+      'content_block': {
+        'type': 'server_tool_use',
+        'id': toolUseId,
+        'name': 'web_search',
+        'input': <String, Object?>{},
+      },
+    },
+    if (trimmedQuery.isNotEmpty)
+      {
+        'type': 'content_block_delta',
+        'index': 0,
+        'delta': {
+          'type': 'input_json_delta',
+          'partial_json': jsonEncode({'query': trimmedQuery}),
+        },
+      },
+    {'type': 'content_block_stop', 'index': 0},
+    {
+      'type': 'content_block_start',
+      'index': 1,
+      'content_block': {
+        'type': 'web_search_tool_result',
+        'tool_use_id': toolUseId,
+        'content': {
+          'type': 'web_search_tool_result_error',
+          'error_code': 'unavailable',
+          'message': reason,
+        },
+      },
+    },
+    {'type': 'content_block_stop', 'index': 1},
+    {
+      'type': 'message_delta',
+      'delta': {'stop_reason': 'end_turn', 'stop_sequence': null},
+      'usage': {'input_tokens': 0, 'output_tokens': 0},
+    },
+    {'type': 'message_stop'},
+  ];
+}
+
+/// [events] formatted as Anthropic server-sent event frames.
+String antigravitySse(List<Map<String, Object?>> events) =>
+    events.map((event) => sseEvent('${event['type']}', event)).join();

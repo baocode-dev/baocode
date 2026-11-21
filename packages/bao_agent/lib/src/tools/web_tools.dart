@@ -441,8 +441,10 @@ class WebSearchTool extends Tool {
     final message = accumulator.message();
     session.addUsage(model, asMap(message['usage']));
     final parts = <String>[];
+    final errors = <String>[];
     final links = <Map<String, Object?>>[];
     final results = <Object?>[];
+    var sawSearchResult = false;
     for (final block in asList(message['content'])) {
       final b = asMap(block);
       switch (b['type']) {
@@ -451,6 +453,7 @@ class WebSearchTool extends Tool {
           if (text.isNotEmpty) parts.add(text);
           results.add(text);
         case 'web_search_tool_result':
+          sawSearchResult = true;
           final content = b['content'];
           if (content is List) {
             final found = [
@@ -464,11 +467,25 @@ class WebSearchTool extends Tool {
             links.addAll(found);
             results.add({'tool_use_id': b['tool_use_id'], 'content': found});
           } else if (content is Map) {
+            final errorMessage = '${content['message'] ?? ''}'.trim();
             final code = content['error_code'];
-            parts.add('Web search error: $code');
-            results.add('Web search error: $code');
+            final error = errorMessage.isNotEmpty
+                ? errorMessage
+                : 'Web search error: $code';
+            errors.add(error);
+            parts.add(error);
+            results.add(error);
           }
       }
+    }
+    if (links.isEmpty && errors.isNotEmpty && errors.length == parts.length) {
+      return ToolOutput.error(errors.join('\n'));
+    }
+    if (links.isEmpty && parts.isEmpty && !sawSearchResult) {
+      return ToolOutput.error(
+        'Web search is not available for $model: the provider returned no '
+        'search results.',
+      );
     }
     final text = StringBuffer('What a web search for "$query" found:\n\n');
     if (links.isNotEmpty) text.writeln('Results: ${jsonEncode(links)}\n');

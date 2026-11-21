@@ -925,6 +925,23 @@ class ModelProxy {
         'Antigravity accounts are not available here',
       );
     }
+    if (antigravityHasOnlyWebSearch(body) &&
+        !antigravitySupportsWebSearch(modelId)) {
+      final events = antigravityWebSearchUnavailableEvents(
+        model: '${body['model'] ?? modelId}',
+        reason: 'Web search is not supported for $modelId on ${provider.name}.',
+        query: antigravityWebSearchQuery(body),
+      );
+      if (!stream) {
+        return _json(response, 200, antigravityMessage(events)!);
+      }
+      final frames = antigravitySse(events);
+      _startEvents(response);
+      response.write(frames);
+      meter?.trace?.answerText(frames);
+      await response.flush();
+      return response.close();
+    }
     final session = sessionId(body, header: sessionHeader);
     final cacheKey = promptCacheKey(body, header: sessionHeader);
     final conversation = antigravitySessionId(
