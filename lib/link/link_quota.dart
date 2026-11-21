@@ -4,6 +4,7 @@ import '../chat/chat_session.dart';
 import '../kernel/agent_kernel.dart' show KernelChoiceKind;
 import '../kernel/kernel_types.dart';
 import '../models/codex/codex_service.dart';
+import '../models/codex/codex_usage.dart';
 import '../models/model_provider.dart';
 import '../models/model_providers.dart';
 
@@ -80,10 +81,14 @@ class LinkQuota {
   }
 
   Map<String, Object?> _accounts(ChatSession session, ModelProvider provider) {
-    final current = codex.accountFor(provider, session: session.sessionId)?.id;
+    final model = parseModelRef(session.selected(KernelChoiceKind.model))
+        ?.model;
+    final current = codex
+        .accountForModel(provider, session: session.sessionId, model: model)
+        ?.id;
     return {
       'provider': provider.name,
-      'back': ?codex.backAt(provider)?.millisecondsSinceEpoch,
+      'back': ?codex.backAtFor(provider, model: model)?.millisecondsSinceEpoch,
       'accounts': [
         for (final account in provider.accounts)
           if (codex.usage(provider.id, account.id) case final usage)
@@ -99,9 +104,13 @@ class LinkQuota {
               'error': ?codex.error(provider.id, account.id),
               'at': ?usage?.at.millisecondsSinceEpoch,
               'windows': [
-                for (final window in usage?.windows ?? const [])
+                // Those of the conversation's model, where an account's
+                // quota is of some (Antigravity's groups).
+                for (final window
+                    in usage?.windowsFor(model) ?? const <CodexWindow>[])
                   {
                     'minutes': ?window.minutes,
+                    'name': ?window.name,
                     'left': window.leftPercent.round(),
                     'resets': ?window.resetsAt?.millisecondsSinceEpoch,
                   },

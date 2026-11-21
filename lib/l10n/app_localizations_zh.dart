@@ -6387,6 +6387,10 @@ class AppLocalizationsZh extends AppLocalizations {
       '用 ChatGPT 账号登录，按套餐额度使用 Codex 模型。添加多个账号时，请求按下方的负载模式分配，额度用尽的账号会自动让给下一个。';
 
   @override
+  String get modelsAccountsDescriptionAntigravity =>
+      '用 Google 账号登录，按套餐额度使用 Antigravity 的模型（Gemini、Claude），始终在 BaoCode 内置内核上运行。每组模型各有额度：某组用尽的账号只在这组模型上让给下一个。Google 发现账号在 Antigravity 之外使用时可能封号，请用可以承受损失的账号。';
+
+  @override
   String get modelsAccountsNone => '还没有账号';
 
   @override
@@ -6603,6 +6607,10 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get modelsAccountPortBusy =>
       '登录回调用的 1455 端口被其他程序占用了（例如 Docker 里的代理，或正在登录的 Codex CLI）。照常在浏览器里登录即可：登录后的页面会打不开或显示别的内容，把地址栏里的完整地址复制粘贴到下面。';
+
+  @override
+  String get modelsAccountPortBusyAntigravity =>
+      '登录回调用的 51121 端口被其他程序占用了（例如 Antigravity 本身，或正在登录的代理）。照常在浏览器里登录即可：登录后的页面会打不开或显示别的内容，把地址栏里的完整地址复制粘贴到下面。';
 
   @override
   String get modelsAccountCallback => '登录后的地址';

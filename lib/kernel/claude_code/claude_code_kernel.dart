@@ -637,6 +637,8 @@ class ClaudeCodeKernel
           switches: _appliedSwitches,
           attribution: CommitAttribution.current(),
           env: env,
+          // Antigravity's models on BaoCode's own core alone.
+          builtinCore: custom?.$1.protocol == ProviderProtocol.antigravity,
           directories: [...?workspace?.folders, ...?workspace?.reaches],
           folderInstructions: workspace?.folders.isNotEmpty ?? false,
           // Long pastes are kept on this machine: only its agent reads them.

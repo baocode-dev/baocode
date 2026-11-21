@@ -6,6 +6,8 @@ import 'package:bao_agent/bao_agent.dart';
 
 import '../../chat/chat_models.dart' show ImageAttachment;
 import '../../models/launch_environment.dart';
+import '../../models/model_provider.dart';
+import '../../models/model_providers.dart';
 import '../../network/network_proxy_io.dart';
 import '../../network/tls.dart';
 import '../../usage/usage_ledger.dart';
@@ -125,7 +127,7 @@ Future<(String, int)> _run(
   ClaudeHaikuTools? tools,
   void Function()? onStart,
 }) async {
-  if (ClaudeCore.current() == ClaudeCore.builtin) {
+  if (ClaudeCore.current() == ClaudeCore.builtin || _builtinOnly(env)) {
     return _runBuiltin(
       system,
       prompt,
@@ -320,4 +322,17 @@ Future<(String, int)> _runBuiltin(
     unawaited(subscription.cancel());
     agent.close();
   }
+}
+
+/// Whether [env] points Claude Code at an upstream only BaoCode's own core
+/// runs on (Antigravity's: see ClaudeLaunch.builtinCore), through the
+/// proxy's `/p/<provider>`.
+bool _builtinOnly(Map<String, String>? env) {
+  final base = env?[ClaudeModelVariables.baseUrl];
+  if (base == null) return false;
+  final segments = Uri.tryParse(base)?.pathSegments ?? const [];
+  final at = segments.indexOf('p');
+  if (at < 0 || at + 1 >= segments.length) return false;
+  return ModelProviders.current.provider(segments[at + 1])?.protocol ==
+      ProviderProtocol.antigravity;
 }

@@ -7,7 +7,7 @@ import '../../ide/ide_dialog.dart';
 import '../../kernel/agent_kernel.dart';
 import '../../kernel/kernel_types.dart';
 import '../../l10n/l10n.dart';
-import '../../models/model_provider.dart' show parseModelRef;
+import '../../models/model_provider.dart' show ProviderProtocol, parseModelRef;
 import '../../models/model_providers.dart';
 import '../../models/model_runtime.dart' show codexService;
 import '../../models/model_welcome.dart';
@@ -115,7 +115,10 @@ class SessionModelPicker extends StatelessWidget {
   ModelSettingChoice? _autoResetCredits(BuildContext context, String model) {
     final providers = ModelProviders.current;
     final provider = providers.provider(parseModelRef(model)?.provider);
-    if (provider == null || !provider.protocol.usesAccounts) return null;
+    // Reset credits are ChatGPT's.
+    if (provider == null || provider.protocol != ProviderProtocol.codex) {
+      return null;
+    }
     final on = KernelOption(
       'on',
       context.l10n.autoResetCreditsToggle,

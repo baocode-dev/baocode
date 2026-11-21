@@ -112,6 +112,10 @@ class _ChatQuotaBarState extends State<ChatQuotaBar>
     };
   }
 
+  /// The model picked, by its id at its provider.
+  String? get _model =>
+      parseModelRef(widget.session.selected(KernelChoiceKind.model))?.model;
+
   /// The session tells of each streamed word: only another provider
   /// picked matters here; the account a reply took, the quota tells.
   void _sessionChanged() {
@@ -220,6 +224,7 @@ class _ChatQuotaBarState extends State<ChatQuotaBar>
                 provider: provider,
                 codex: _codex,
                 session: widget.session.sessionId,
+                model: _model,
                 onRefresh: () => _refresh(provider, force: true),
               ),
             ),
@@ -236,12 +241,17 @@ class _QuotaPill extends StatefulWidget {
     required this.provider,
     required this.codex,
     required this.session,
+    required this.model,
     required this.onRefresh,
   });
 
   final ModelProvider provider;
   final CodexService codex;
   final String? session;
+
+  /// The model picked: where an account's quota is of some models
+  /// (Antigravity's groups), only those it draws on show.
+  final String? model;
   final VoidCallback onRefresh;
 
   @override
@@ -297,8 +307,12 @@ class _QuotaPillState extends State<_QuotaPill> {
     final free = inUse
         .where((account) => codex.limitedUntil(provider.id, account.id) == null)
         .length;
-    final current = codex.accountFor(provider, session: widget.session);
-    final back = codex.backAt(provider);
+    final current = codex.accountForModel(
+      provider,
+      session: widget.session,
+      model: widget.model,
+    );
+    final back = codex.backAtFor(provider, model: widget.model);
     final usage = current == null ? null : codex.usage(provider.id, current.id);
     final String label;
     final bool warn;
@@ -315,18 +329,16 @@ class _QuotaPillState extends State<_QuotaPill> {
         if (usage == null || usage.windows.isEmpty)
           l10n.modelsAccountQuotaUnknown
         else
-          for (final (window, fallback) in [
-            (usage.primary, l10n.modelsQuotaShortWindow),
-            (usage.secondary, l10n.modelsQuotaLongWindow),
-          ])
-            if (window != null)
-              l10n.quotaBarWindowLeft(
-                _windowName(l10n, window, fallback),
-                window.leftPercent.round(),
-              ),
+          for (final (i, window) in usage.windowsFor(widget.model).indexed)
+            l10n.quotaBarWindowLeft(
+              _windowName(l10n, usage, window, i),
+              window.leftPercent.round(),
+            ),
         if (inUse.length > 1) l10n.quotaBarAvailable(free, inUse.length),
       ].join(' · ');
-      warn = (usage?.mostUsed ?? 0) >= 90;
+      warn = (usage?.windowsFor(widget.model) ?? const <CodexWindow>[]).any(
+        (window) => window.usedPercent >= 90,
+      );
     }
     final color = warn ? AppColors.caution : AppColors.textFaint;
     final colors = themeColors;
@@ -399,6 +411,7 @@ class _QuotaPillState extends State<_QuotaPill> {
         provider: provider,
         codex: codex,
         session: widget.session,
+        model: widget.model,
         onRefresh: widget.onRefresh,
       ),
       child: TapRegion(groupId: _tapRegion, child: pill),
@@ -406,10 +419,20 @@ class _QuotaPillState extends State<_QuotaPill> {
   }
 }
 
-String _windowName(AppLocalizations l10n, CodexWindow? window, String other) {
-  final name = quotaWindowName(l10n, window?.minutes);
-  return name.isEmpty ? other : name;
-}
+/// [window]'s name, the [index]th of [usage]'s shown: as long as it is,
+/// and of what; else the shorter or the longer.
+String _windowName(
+  AppLocalizations l10n,
+  CodexUsage usage,
+  CodexWindow window,
+  int index,
+) => quotaWindowLabel(
+  l10n,
+  window,
+  fallback: identical(window, usage.secondary) || index > 0
+      ? l10n.modelsQuotaLongWindow
+      : l10n.modelsQuotaShortWindow,
+);
 
 /// Each account, how much of each window it has left and when that
 /// starts over; the conversation's marked.
@@ -418,12 +441,14 @@ class _QuotaPanel extends StatelessWidget {
     required this.provider,
     required this.codex,
     required this.session,
+    required this.model,
     required this.onRefresh,
   });
 
   final ModelProvider provider;
   final CodexService codex;
   final String? session;
+  final String? model;
   final VoidCallback onRefresh;
 
   @override
@@ -434,7 +459,9 @@ class _QuotaPanel extends StatelessWidget {
     return ListenableBuilder(
       listenable: codex,
       builder: (context, _) {
-        final current = codex.accountFor(provider, session: session)?.id;
+        final current = codex
+            .accountForModel(provider, session: session, model: model)
+            ?.id;
         return Container(
           width: 320,
           constraints: const BoxConstraints(maxHeight: 420),
@@ -569,15 +596,11 @@ class _AccountQuota extends StatelessWidget {
             if (usage == null || usage.windows.isEmpty)
               Text(l10n.modelsAccountQuotaUnknown, style: faint)
             else
-              for (final (window, fallback) in [
-                (usage.primary, l10n.modelsQuotaShortWindow),
-                (usage.secondary, l10n.modelsQuotaLongWindow),
-              ])
-                if (window != null)
-                  _WindowLine(
-                    name: _windowName(l10n, window, fallback),
-                    window: window,
-                  ),
+              for (final (i, window) in usage.windows.indexed)
+                _WindowLine(
+                  name: _windowName(l10n, usage, window, i),
+                  window: window,
+                ),
             if (error case final error?)
               Text(
                 error,
@@ -624,7 +647,7 @@ class _WindowLine extends StatelessWidget {
       child: Row(
         children: [
           SizedBox(
-            width: 52,
+            width: window.name == null ? 52 : 112,
             child: Text(
               name,
               maxLines: 1,

@@ -58,6 +58,7 @@ class ClaudeLaunch {
     this.attribution = CommitAttribution.agent,
     this.persist = true,
     this.env,
+    this.builtinCore = false,
     this.settingsPath,
     this.promptPath,
     this.directories = const [],
@@ -160,6 +161,11 @@ class ClaudeLaunch {
   /// own; null for Claude Code as the user set it up.
   final Map<String, String>? env;
 
+  /// Whether it runs on BaoCode's own core whatever the setting says: an
+  /// upstream only it speaks to as it should (Antigravity's, whose prompt
+  /// and requests the CLI's would get the account turned away for).
+  final bool builtinCore;
+
   /// A file the flag settings ([settings]) are written to, given in their
   /// place: so that a key in them is in no command line.
   final String? settingsPath;
@@ -215,6 +221,7 @@ class ClaudeLaunch {
     attribution: attribution,
     persist: persist,
     env: env ?? this.env,
+    builtinCore: builtinCore,
     settingsPath: settingsPath ?? this.settingsPath,
     promptPath: promptPath ?? this.promptPath,
     directories: directories,

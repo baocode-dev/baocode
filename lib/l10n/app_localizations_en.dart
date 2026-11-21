@@ -6798,6 +6798,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Sign in with ChatGPT to use Codex models on your plan\'s quota. With several accounts, requests are spread across them by the load balancing below, and one out of quota gives way to the next.';
 
   @override
+  String get modelsAccountsDescriptionAntigravity =>
+      'Sign in with Google to use Antigravity\'s models (Gemini, Claude) on your plan\'s quota, always on BaoCode\'s own core. Each group of models has a quota of its own: an account out of one gives way to the next for those models alone. Google may suspend an account it sees used outside Antigravity: use one you can afford to lose.';
+
+  @override
   String get modelsAccountsNone => 'No account yet';
 
   @override
@@ -7029,6 +7033,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get modelsAccountPortBusy =>
       'Port 1455, which sign-in comes back to, is used by another program (a proxy in Docker, or the Codex CLI signing in). Sign in in the browser all the same: the page it ends on will fail to load or show something else. Copy that page\'s full address and paste it below.';
+
+  @override
+  String get modelsAccountPortBusyAntigravity =>
+      'Port 51121, which sign-in comes back to, is used by another program (Antigravity itself, or a proxy signing in). Sign in in the browser all the same: the page it ends on will fail to load or show something else. Copy that page\'s full address and paste it below.';
 
   @override
   String get modelsAccountCallback => 'Address after sign-in';
