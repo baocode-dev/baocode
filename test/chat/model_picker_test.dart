@@ -194,7 +194,7 @@ void main() {
     expect(find.text('Model 1'), findsOneWidget);
 
     // Submitting (e.g. from an IME action) picks.
-    tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
     expect(picked, ['@gw/m1']);
   });

@@ -593,6 +593,10 @@ class ComposerPickerState extends State<ComposerPicker> {
 
   KeyEventResult? _handleKey(KeyEvent event) {
     if (event is KeyUpEvent) return null;
+    // An input method composing in the search line: its keys (Enter picks
+    // a candidate, Esc drops them), also as they come back up through the
+    // input the picker belongs to.
+    if (_composing) return null;
     final key = event.logicalKey;
     if (_setting case final setting?) return _handleSettingKey(event, setting);
     final visible = _visible;
@@ -655,15 +659,16 @@ class ComposerPickerState extends State<ComposerPicker> {
     if (!_searchFocus.hasFocus) _searchFocus.requestFocus();
   }
 
+  /// Whether an input method is composing text in the search line.
+  bool get _composing {
+    final composing = _searchText.value.composing;
+    return _searchFocus.hasFocus && composing.isValid && !composing.isCollapsed;
+  }
+
   /// A key in the focused search line: the menu's (↑↓, Enter, Esc; all
   /// of them in the settings), the rest the line's own.
   KeyEventResult _handleSearchKey(KeyEvent event) {
-    // An input method is composing text: keys are its own (Enter picks a
-    // candidate, Esc drops them).
-    final composing = _searchText.value.composing;
-    if (composing.isValid && !composing.isCollapsed) {
-      return KeyEventResult.ignored;
-    }
+    if (_composing) return KeyEventResult.ignored;
     final key = event.logicalKey;
     // Back to the input: the focus does not go on out of the menu.
     if (key == LogicalKeyboardKey.tab) {
