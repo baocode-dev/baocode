@@ -176,6 +176,13 @@ class AntigravityAccounts extends CodexService {
       limitedFor(providerId, accountId, null);
 
   @override
+  DateTime? limitedUntilFor(
+    String providerId,
+    String accountId, {
+    String? model,
+  }) => limitedFor(providerId, accountId, model);
+
+  @override
   bool signedOut(String providerId, String accountId) =>
       _signedOut.contains(_key(providerId, accountId));
 

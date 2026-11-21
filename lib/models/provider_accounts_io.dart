@@ -98,6 +98,13 @@ class ProviderAccounts extends CodexService {
       _byId(providerId).limitedUntil(providerId, accountId);
 
   @override
+  DateTime? limitedUntilFor(
+    String providerId,
+    String accountId, {
+    String? model,
+  }) => _byId(providerId).limitedUntilFor(providerId, accountId, model: model);
+
+  @override
   bool signedOut(String providerId, String accountId) =>
       _byId(providerId).signedOut(providerId, accountId);
 

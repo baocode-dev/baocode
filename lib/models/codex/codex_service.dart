@@ -86,6 +86,14 @@ abstract class CodexService extends ChangeNotifier {
   /// Until when account [accountId] is out of quota; null when it is not.
   DateTime? limitedUntil(String providerId, String accountId);
 
+  /// [limitedUntil] for a request for [model], where an account's quota is
+  /// of some models (see [accountForModel]).
+  DateTime? limitedUntilFor(
+    String providerId,
+    String accountId, {
+    String? model,
+  }) => limitedUntil(providerId, accountId);
+
   /// Whether account [accountId] is signed out: to be signed in again.
   bool signedOut(String providerId, String accountId);
 
