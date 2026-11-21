@@ -1013,7 +1013,7 @@ class ModelProxy {
         effort: effort.isEmpty ? null : effort,
         store: _signatures,
       )..['sessionId'] = conversation;
-      final (payload, encoded) = await _encodeJson({
+      final (payload, encoded, gzipped) = await _encodeJsonGzipped({
         'model': sent,
         'project': project,
         'userAgent': 'antigravity',
@@ -1042,6 +1042,13 @@ class ModelProxy {
         upstreamRequest.headers
           ..contentType = ContentType.json
           ..set(HttpHeaders.acceptHeader, 'text/event-stream');
+        if (gzipped) {
+          upstreamRequest.headers.set(
+            HttpHeaders.contentEncodingHeader,
+            'gzip',
+          );
+        }
+        upstreamRequest.contentLength = encoded.length;
         meter?.trace?.sending(
           method: 'POST',
           url: accounts.endpoints.stream,
@@ -1203,6 +1210,23 @@ class ModelProxy {
     (String, List<int>) encode() {
       final text = jsonEncode(json);
       return (text, utf8.encode(text));
+    }
+
+    return _slot?.large ?? false ? Isolate.run(encode) : encode();
+  }
+
+  /// [json] as [_encodeJson] gives it, its bytes gzipped (and true) when
+  /// large enough to be worth it: for an upstream that takes a gzipped
+  /// request (Antigravity), whose long conversations, their screenshots
+  /// sent again each turn, run to megabytes.
+  static Future<(String, List<int>, bool)> _encodeJsonGzipped(
+    Object? json,
+  ) async {
+    (String, List<int>, bool) encode() {
+      final text = jsonEncode(json);
+      final bytes = utf8.encode(text);
+      if (bytes.length < 16 * 1024) return (text, bytes, false);
+      return (text, GZipCodec(level: 1).encode(bytes), true);
     }
 
     return _slot?.large ?? false ? Isolate.run(encode) : encode();
