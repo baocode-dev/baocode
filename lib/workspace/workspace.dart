@@ -1769,12 +1769,10 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   /// The SSH host whose projects and agents the sidebar lists; null for
   /// this machine's (and while there is no host to switch to, or it lists
   /// all of them, [sidebarAllHosts]).
-  String? get sidebarHost =>
-      !sidebarAllHosts &&
-          _sidebarHost != null &&
-          sshHosts.contains(_sidebarHost)
-      ? _sidebarHost
-      : null;
+  String? get sidebarHost => switch (_sidebarHost) {
+    final host? when !sidebarAllHosts && _isSshHost(host) => host,
+    _ => null,
+  };
   String? _sidebarHost;
   set sidebarHost(String? host) {
     if (host == _sidebarHost && !_sidebarAll) return;
@@ -1786,8 +1784,20 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
 
   /// Whether the sidebar lists the projects and agents of this machine and
   /// of every SSH host together (while there are hosts).
-  bool get sidebarAllHosts => _sidebarAll && sshHosts.isNotEmpty;
+  bool get sidebarAllHosts => _sidebarAll && _isSshHost(null);
   bool _sidebarAll = false;
+
+  /// Whether [host] is among [sshHosts] (any is, for null), without
+  /// ordering the sidebar's projects: the sidebar asks it of each agent it
+  /// lists ([listsHost]), on every key the window resolves.
+  bool _isSshHost(String? host) =>
+      (host == null ? _sshHosts.isNotEmpty : _sshHosts.contains(host)) ||
+      _projects.any(
+        (project) =>
+            project.host != null &&
+            (host == null || project.host == host) &&
+            !isHidden(project),
+      );
   set sidebarAllHosts(bool all) {
     if (all == _sidebarAll) return;
     _sidebarAll = all;
