@@ -2228,6 +2228,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get iconPickerUploaded => 'Uploaded';
 
   @override
+  String get iconPickerFoundInProject => 'Found in this project';
+
+  @override
   String get iconPickerDeleteFromLibrary => 'Delete from Library';
 
   @override

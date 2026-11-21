@@ -2145,6 +2145,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get iconPickerUploaded => '已上传';
 
   @override
+  String get iconPickerFoundInProject => '项目里找到的';
+
+  @override
   String get iconPickerDeleteFromLibrary => '从图库删除';
 
   @override
