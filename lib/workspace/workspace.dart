@@ -1662,6 +1662,17 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   /// by [projectSort] the others, their latest agent's first or as the user
   /// dragged them (those not dragged yet, e.g. new, before).
   List<Project> get sidebarProjects {
+    if (_sidebarProjects case final projects?) return projects;
+    // Asked of each of the sidebar's groups as it builds, and of each key:
+    // ordered once for the work at hand, again after it (a project's
+    // activity, a bot's folder change without a notice) or a change.
+    scheduleMicrotask(() => _sidebarProjects = null);
+    return _sidebarProjects = List.unmodifiable(_orderSidebarProjects());
+  }
+
+  List<Project>? _sidebarProjects;
+
+  List<Project> _orderSidebarProjects() {
     final shown = [
       for (final project in _projects)
         if (!isHidden(project)) project,
@@ -3410,6 +3421,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   /// closed or given its id.
   @override
   void notifyListeners() {
+    _sidebarProjects = null;
     if (_chatViewRestored && jsonEncode(_chatView) != _chatViewSaved) {
       _save();
     }
