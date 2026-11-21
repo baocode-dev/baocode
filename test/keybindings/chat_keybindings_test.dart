@@ -126,6 +126,7 @@ void main() {
     }
 
     const input = {
+      ChatContextKeys.inChat: true,
       ChatContextKeys.inChatInput: true,
       ChatContextKeys.cursorAtTop: true,
       ChatContextKeys.cursorAtBottom: true,
@@ -139,6 +140,15 @@ void main() {
     expect(commandFor('escape', menu), ChatCommandIds.hideSuggestWidget);
     expect(
       commandFor('escape', {...input, ChatContextKeys.requestInProgress: true}),
+      ChatCommandIds.cancel,
+    );
+    // Esc cancels from the history too, not only the input.
+    expect(
+      commandFor('escape', {
+        ChatContextKeys.inChat: true,
+        ChatContextKeys.requestInProgress: true,
+        'inputFocus': false,
+      }),
       ChatCommandIds.cancel,
     );
     expect(

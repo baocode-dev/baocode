@@ -148,6 +148,28 @@ void main() {
     expect(session.isStreaming, isFalse);
   });
 
+  testWidgets('Esc cancels the turn from the history too, not only the '
+      'input', (tester) async {
+    final session = await pumpChat(tester);
+    await typeText(tester, 'hello');
+    await press(tester, LogicalKeyboardKey.enter);
+    expect(session.isStreaming, isTrue);
+
+    // The focus leaves the input: the list's (Ctrl+Up, Focus Chat List).
+    await press(tester, LogicalKeyboardKey.arrowUp, control: true);
+    expect(
+      tester
+          .widget<MarkdownEditor>(find.byType(MarkdownEditor))
+          .focusNode!
+          .hasFocus,
+      isFalse,
+    );
+
+    await press(tester, LogicalKeyboardKey.escape);
+    await tester.pump(const Duration(seconds: 3));
+    expect(session.isStreaming, isFalse);
+  });
+
   testWidgets('bound to Ctrl+Enter in keybindings.json, Send leaves Enter '
       'to the text', (tester) async {
     KeybindingService.instance.userEntries = const [

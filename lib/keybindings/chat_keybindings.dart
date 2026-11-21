@@ -25,10 +25,10 @@
 //   with lines selected: their lines go in the chat's input as tags of
 //   them, after what is typed. Without, the IDE's editor's shows the chat
 //   with the keyboard in its input; the side panel's is Focus Chat Input.
-// - Cancel also takes a plain Escape in the input while a turn runs, as the
-//   agents' own terminals do; Accept and Skip need no focus in the chat (in
-//   the chat window they act on the agent focused, as Cancel and Focus Chat
-//   Input do), and Skip denies the tool.
+// - Cancel also takes a plain Escape anywhere in the chat while a turn
+//   runs, as the agents' own terminals do; Accept and Skip need no focus in
+//   the chat (in the chat window they act on the agent focused, as Cancel
+//   and Focus Chat Input do), and Skip denies the tool.
 // - The prompt history is the conversation's own messages, without their
 //   images, and it ends where what is shown is edited (upstream keeps the
 //   edits of each entry).
@@ -517,7 +517,7 @@ final List<KeybindingEntry> chatExtraKeybindings = [
     key: 'escape',
     command: ChatCommandIds.cancel,
     when:
-        '$_input && ${ChatContextKeys.requestInProgress} && '
+        '${ChatContextKeys.inChat} && ${ChatContextKeys.requestInProgress} && '
         '!${ChatContextKeys.currentlyEditing} && '
         '!${ChatContextKeys.suggestWidgetVisible}',
   ),
