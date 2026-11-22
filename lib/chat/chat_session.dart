@@ -382,6 +382,8 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
       queuedInPlace: _queuedInPlace,
     );
     _connect(descriptor);
+    // Shown: ready as [attach] has the first, its models and all.
+    if (_views > 0) _kernel.prepare();
     notifyListeners();
   }
 
