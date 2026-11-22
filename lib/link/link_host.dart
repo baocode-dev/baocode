@@ -152,7 +152,9 @@ enum LinkRelayMode {
   /// BaoCode's, the nearest that answers.
   auto,
 
-  /// Only the one picked: one of BaoCode's, or one at an address given.
+  /// Those listed, in order: one at a time, the next when it cannot be
+  /// reached, and back to one before it once it can. BaoCode's, or ones
+  /// at addresses given.
   pinned,
 
   /// None: phones reach this computer directly, at [LinkHost.linkPort].
@@ -222,6 +224,8 @@ class LinkHost extends ChangeNotifier {
     this.filesOf = hostFilesOf,
     this.reachHost = reachProjectHost,
     this.pathSettle = const Duration(seconds: 15),
+    this.relayFailover = const Duration(seconds: 15),
+    this.relayRecheck = const Duration(minutes: 2),
   }) : platform = platform ?? LinkPlatform.current();
 
   final Workspace workspace;
@@ -251,6 +255,14 @@ class LinkHost extends ChangeNotifier {
   /// its path is counted.
   final Duration pathSettle;
 
+  /// How long the relay kept to may be out of reach before the next one
+  /// listed is looked at.
+  final Duration relayFailover;
+
+  /// How often the ones listed before the relay kept to are looked at
+  /// again, and, while it is out of reach, the others.
+  final Duration relayRecheck;
+
   bool get supported => platform != null;
 
   late LinkIdentity _identity;
@@ -279,10 +291,21 @@ class LinkHost extends ChangeNotifier {
   LinkRelayMode _relayMode = LinkRelayMode.auto;
   LinkRelayMode get relayMode => _relayMode;
 
-  String? _pinnedRelay;
+  List<String> _pinnedRelays = const [];
 
-  /// The relay picked, kept to alone while [relayMode] is pinned.
-  String? get pinnedRelay => _pinnedRelay;
+  /// Which of [relays] is kept to now, while [relayMode] is pinned: the
+  /// first, unless it could not be reached.
+  int _active = 0;
+
+  /// Relays that turned this computer away: not gone back to until the
+  /// list changes.
+  final Set<String> _turnedAway = {};
+
+  Timer? _recheck;
+
+  /// [_recheck] is for the relay kept to being out of reach.
+  bool _recheckDown = false;
+  bool _rechecking = false;
 
   int _linkPort = defaultLinkPort;
 
@@ -293,11 +316,24 @@ class LinkHost extends ChangeNotifier {
   /// A port a phone may be told: not one of the well-known ones.
   static bool validLinkPort(int port) => port >= 1024 && port <= 65535;
 
-  /// The relays kept to.
+  /// The relays kept to; while [relayMode] is pinned, those listed, in
+  /// order.
   List<String> get relays => switch (_relayMode) {
     LinkRelayMode.auto => linkRelays(),
-    LinkRelayMode.pinned => [_pinnedRelay ?? defaultLinkRelays.first],
+    LinkRelayMode.pinned =>
+      _pinnedRelays.isEmpty ? [defaultLinkRelays.first] : _pinnedRelays,
     LinkRelayMode.direct => const [],
+  };
+
+  /// The one of [relays] in use while [relayMode] is pinned.
+  String? get activeRelay => _relayMode == LinkRelayMode.pinned
+      ? relays[_active.clamp(0, relays.length - 1)]
+      : null;
+
+  /// What this computer is bound to: one listed at a time while pinned.
+  List<String> get _bound => switch (activeRelay) {
+    final relay? => [relay],
+    null => relays,
   };
 
   LinkHostStatus _status = LinkHostStatus.off;
@@ -373,17 +409,20 @@ class LinkHost extends ChangeNotifier {
     _loaded = true;
     _enabled = json['enabled'] == true;
     _discoverable = json['discoverable'] != false;
-    _pinnedRelay = json['pinnedRelay'] as String?;
+    _pinnedRelays = _relayList(json['pinnedRelays']);
+    if (_pinnedRelays.isEmpty && json['pinnedRelay'] is String) {
+      _pinnedRelays = _relayList([json['pinnedRelay']]);
+    }
     if (json['linkPort'] case final int port when validLinkPort(port)) {
       _linkPort = port;
     }
     _relayMode =
         LinkRelayMode.values.asNameMap()[json['relayMode']] ??
         LinkRelayMode.auto;
-    // One's own relays, kept before there was a choice: the first picked.
-    final own = (json['relays'] as List?)?.whereType<String>().firstOrNull;
-    if (json['relayMode'] == null && own != null) {
-      _pinnedRelay = own;
+    // One's own relays, kept before there was a choice: listed.
+    final own = _relayList(json['relays']);
+    if (json['relayMode'] == null && own.isNotEmpty) {
+      _pinnedRelays = own;
       _relayMode = LinkRelayMode.pinned;
     }
     _legacy = [
@@ -431,7 +470,9 @@ class LinkHost extends ChangeNotifier {
     'enabled': _enabled,
     'discoverable': _discoverable,
     'relayMode': _relayMode.name,
-    'pinnedRelay': ?_pinnedRelay,
+    if (_pinnedRelays.isNotEmpty) 'pinnedRelays': _pinnedRelays,
+    // For a version before there were more than one.
+    'pinnedRelay': ?_pinnedRelays.firstOrNull,
     'linkPort': _linkPort,
     'phones': [for (final phone in _phones.values) phone.toJson()],
     if (_legacy.isNotEmpty)
@@ -563,26 +604,32 @@ class LinkHost extends ChangeNotifier {
   Future<void> setRelayMode(LinkRelayMode mode) async {
     if (!_loaded || mode == _relayMode) return;
     await _relaysChanging(() {
-      // Pinned with none picked yet: the one in use, if one is.
-      if (mode == LinkRelayMode.pinned && _pinnedRelay == null) {
-        _pinnedRelay = _info?.home
-            .where((status) => status.connected)
-            .firstOrNull
-            ?.url;
+      // Pinned with none listed yet: the one in use, if one is.
+      if (mode == LinkRelayMode.pinned && _pinnedRelays.isEmpty) {
+        _pinnedRelays = [
+          ?_info?.home.where((status) => status.connected).firstOrNull?.url,
+        ];
       }
       _relayMode = mode;
     });
   }
 
-  /// Keeps to [url] alone: one of BaoCode's relays, or one of the user's
-  /// own.
-  Future<void> pinRelay(String url) async {
-    if (!_loaded) return;
+  /// Keeps to [urls], in order, the first that can be reached: BaoCode's
+  /// relays, or the user's own. None, nothing changed.
+  Future<void> setPinnedRelays(List<String> urls) async {
+    final list = _relayList(urls);
+    if (!_loaded || list.isEmpty) return;
     await _relaysChanging(() {
-      _pinnedRelay = url;
+      _pinnedRelays = list;
       _relayMode = LinkRelayMode.pinned;
     });
   }
+
+  /// [json]'s relay URLs, each once.
+  static List<String> _relayList(Object? json) => {
+    for (final url in (json as List?)?.whereType<String>() ?? const <String>[])
+      ?parseRelayUrl(url),
+  }.toList();
 
   /// Takes [port] for the link from now on (one a phone can be told).
   /// Answers false, changing nothing, for a port that is not one.
@@ -594,18 +641,108 @@ class LinkHost extends ChangeNotifier {
   }
 
   /// Makes [change] to the link's settings, kept; on the network again
-  /// when the relays kept to changed, or with [always].
+  /// when the relay bound to changed, or with [always]. The relays listed
+  /// changed, the first is kept to again.
   Future<void> _relaysChanging(
     void Function() change, {
     bool always = false,
   }) async {
     final before = relays;
+    final bound = _bound;
     change();
+    if (!listEquals(before, relays)) {
+      _active = 0;
+      _turnedAway.clear();
+    }
     unawaited(_save());
     notifyListeners();
-    if (_enabled && (always || !listEquals(before, relays))) {
+    if (_enabled && (always || !listEquals(bound, _bound))) {
       await _stop();
       await _start();
+    }
+  }
+
+  // --- Falling back ----------------------------------------------------------
+
+  /// Looks again at the relays listed when it is time to: soon once the
+  /// one kept to is out of reach, now and then while one before it is
+  /// not kept to; never with one alone, or none listed.
+  void _scheduleRecheck() {
+    final relay = activeRelay;
+    if (relay == null ||
+        relays.length < 2 ||
+        _status != LinkHostStatus.listening ||
+        _disposed) {
+      _cancelRecheck();
+      return;
+    }
+    if (_info?.denied != null) _turnedAway.add(relay);
+    final down = _down(relay);
+    if (!down && _active == 0) {
+      _cancelRecheck();
+      return;
+    }
+    // Already looked at for this; out of reach, sooner than to go back.
+    if (_recheck != null && (!down || _recheckDown)) return;
+    _recheckIn(down ? relayFailover : relayRecheck, down: down);
+  }
+
+  /// [relay], the one kept to, cannot be kept to now.
+  bool _down(String relay) =>
+      _turnedAway.contains(relay) || !(_info?.online ?? false);
+
+  void _recheckIn(Duration wait, {required bool down}) {
+    _recheck?.cancel();
+    _recheckDown = down;
+    _recheck = Timer(wait, () {
+      _recheck = null;
+      unawaited(_fallBack());
+    });
+  }
+
+  void _cancelRecheck() {
+    _recheck?.cancel();
+    _recheck = null;
+  }
+
+  /// Keeps to the first listed that answers: of those before the one kept
+  /// to, while it is reached; of all, while it is not. None answers, it
+  /// stays (iroh keeps trying it), and looks again later.
+  Future<void> _fallBack() async {
+    final platform = this.platform;
+    final relay = activeRelay;
+    if (platform == null || relay == null || _rechecking) return;
+    final down = _down(relay);
+    final list = relays;
+    _rechecking = true;
+    try {
+      for (var i = 0; i < list.length; i++) {
+        if (i == _active || (!down && i > _active)) continue;
+        if (_turnedAway.contains(list[i])) continue;
+        if (!await platform.probeRelay(list[i])) continue;
+        // The settings, or the link, changed meanwhile.
+        if (!listEquals(list, relays) ||
+            activeRelay != relay ||
+            _status != LinkHostStatus.listening) {
+          return;
+        }
+        debugPrint(
+          'relay: $relay ${down ? 'out of reach' : 'kept to'}, '
+          'now ${list[i]}',
+        );
+        _active = i;
+        await _stop();
+        await _start();
+        return;
+      }
+    } finally {
+      _rechecking = false;
+    }
+    // Still where it was: looked at again later.
+    if (activeRelay == relay &&
+        _status == LinkHostStatus.listening &&
+        _recheck == null) {
+      _recheckIn(relayRecheck, down: _down(relay));
     }
   }
 
@@ -627,7 +764,7 @@ class LinkHost extends ChangeNotifier {
     try {
       final node = await platform.bind(
         _identity,
-        relays: relays,
+        relays: _bound,
         port: _linkPort,
         // Direct-only: phones were told this port, so there is no other.
         strictPort: _relayMode == LinkRelayMode.direct,
@@ -643,6 +780,7 @@ class LinkHost extends ChangeNotifier {
       _info = await node.info();
       _watching = node.changes.listen((info) {
         _info = info;
+        _scheduleRecheck();
         notifyListeners();
       });
       _status = LinkHostStatus.listening;
@@ -650,12 +788,14 @@ class LinkHost extends ChangeNotifier {
       _status = LinkHostStatus.failed;
       _error = '$error';
     }
+    _scheduleRecheck();
     notifyListeners();
   }
 
   Future<void> _stop() async {
     final node = _node;
     _node = null;
+    _cancelRecheck();
     await _accepting?.cancel();
     _accepting = null;
     await _watching?.cancel();
@@ -678,10 +818,12 @@ class LinkHost extends ChangeNotifier {
     final node = _node;
     if (node == null) return;
     _info = await node.info();
+    _scheduleRecheck();
     notifyListeners();
   }
 
-  /// The relays to tell a phone: the one kept to now first, then the rest.
+  /// The relays to tell a phone: the one kept to now first, then the rest
+  /// (all those listed: it may fall back to any of them).
   /// None, on purpose, in direct-only mode.
   List<String> get _tellRelays => _relayMode == LinkRelayMode.direct
       ? const []
