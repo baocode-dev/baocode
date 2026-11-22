@@ -3713,10 +3713,7 @@ class _ThreadRow extends StatelessWidget {
                                     : context.l10n.sidebarFoldAsides,
                                 onTap: asides.onToggle,
                               ),
-                              _ => KernelStatusMark(
-                                status: status,
-                                mark: thread.kernel.iconBuilder,
-                              ),
+                              _ => StatusIndicator(status),
                             },
                           ),
                         ),
@@ -3820,6 +3817,16 @@ class _ThreadRow extends StatelessWidget {
     return Text.rich(
       TextSpan(
         children: [
+          // Its kernel's mark where it has one (Antigravity's), before the
+          // title: what tells its conversations apart.
+          if (thread.kernel.iconBuilder case final mark?)
+            WidgetSpan(
+              alignment: PlaceholderAlignment.middle,
+              child: Padding(
+                padding: const EdgeInsets.only(right: 5),
+                child: mark(14),
+              ),
+            ),
           TextSpan(text: thread.localizedTitle(l10n)),
           if (showProject) ...[
             const TextSpan(text: '  '),
@@ -4236,66 +4243,17 @@ class StatusIndicator extends StatelessWidget {
   }
 }
 
-/// A conversation's status, over the mark of its kernel where it has one
-/// (Antigravity's): the mark while idle, the spinner in its place while it
-/// runs, a dot on its corner while it waits or is unread. Only the status
-/// without a mark.
-class KernelStatusMark extends StatelessWidget {
-  const KernelStatusMark({super.key, required this.status, this.mark});
-
-  final ThreadStatus status;
-  final Widget Function(double size)? mark;
-
-  @override
-  Widget build(BuildContext context) {
-    final mark = this.mark;
-    if (mark == null || status == ThreadStatus.running) {
-      return StatusIndicator(status);
-    }
-    final color = switch (status) {
-      ThreadStatus.needsInput => StatusIndicator.needsInputColor,
-      ThreadStatus.unread => AppColors.accent,
-      _ => null,
-    };
-    return SizedBox.square(
-      dimension: 14,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          mark(14),
-          if (color != null)
-            Positioned(
-              top: -2,
-              right: -2,
-              child: _Dot(color, size: 7, ring: true),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
 class _Dot extends StatelessWidget {
-  const _Dot(this.color, {this.size = 7, this.ring = false});
+  const _Dot(this.color);
 
   final Color color;
-  final double size;
-
-  /// Ringed in the list's background, to stand off what it is over.
-  final bool ring;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: color,
-        shape: BoxShape.circle,
-        border: ring
-            ? Border.all(color: themeColors['sideBar.background'], width: 1.2)
-            : null,
-      ),
+      width: 7,
+      height: 7,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
     );
   }
 }
