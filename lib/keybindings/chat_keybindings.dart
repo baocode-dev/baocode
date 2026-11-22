@@ -47,6 +47,16 @@ import 'default_keybindings.dart' show CommandInfo;
 
 import 'package:bao_editor/monaco/flutter/keybinding_entry.dart';
 
+enum ComposerSendShortcut {
+  enter,
+  ctrlEnter;
+
+  static const settingKey = 'chat.composer.sendShortcut';
+
+  static ComposerSendShortcut fromSetting(Object? value) =>
+      value == ctrlEnter.name ? ctrlEnter : enter;
+}
+
 /// The chat's command ids.
 abstract final class ChatCommandIds {
   // The window's: its agents and panes.
@@ -309,6 +319,13 @@ const _paneArrows =
 const _tool =
     '${ChatContextKeys.hasToolConfirmation} && !textInputFocus || '
     '${ChatContextKeys.hasToolConfirmation} && $_input';
+
+/// The default Send binding omitted in Ctrl+Enter-only mode.
+const chatSubmitEnter = KeybindingEntry(
+  key: 'enter',
+  command: ChatCommandIds.submit,
+  when: _input,
+);
 
 /// Their default keybindings, as keybindings.json writes them: of a
 /// command's, the last is the one shown.
@@ -573,10 +590,12 @@ final List<KeybindingEntry> chatExtraKeybindings = [
   ),
   // Its input's.
   const KeybindingEntry(
-    key: 'enter',
+    key: 'ctrl+enter',
     command: ChatCommandIds.submit,
-    when: _input,
+    // On Windows and Linux this key also approves a pending tool request.
+    when: '$_input && (!${ChatContextKeys.hasToolConfirmation} || isMac)',
   ),
+  chatSubmitEnter,
   const KeybindingEntry(
     key: 'escape',
     command: ChatCommandIds.cancelEdit,

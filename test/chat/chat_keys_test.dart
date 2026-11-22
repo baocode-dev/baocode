@@ -148,6 +148,32 @@ void main() {
     expect(session.isStreaming, isFalse);
   });
 
+  testWidgets('Ctrl+Enter also sends in the default mode', (tester) async {
+    final session = await pumpChat(tester);
+    await typeText(tester, 'first\nsecond');
+    await press(tester, LogicalKeyboardKey.enter, control: true);
+    expect(sentMessages(session).last, 'first\nsecond');
+    await stopTurn(tester, session);
+  });
+
+  testWidgets('always Ctrl+Enter leaves plain Enter to insert a newline', (
+    tester,
+  ) async {
+    KeybindingService.instance.composerSendShortcut =
+        ComposerSendShortcut.ctrlEnter;
+    final session = await pumpChat(tester);
+    final before = sentMessages(session).length;
+    await typeText(tester, 'hello');
+    await press(tester, LogicalKeyboardKey.enter);
+    expect(composerText(tester), 'hello\n');
+    expect(sentMessages(session), hasLength(before));
+
+    await typeText(tester, 'hello');
+    await press(tester, LogicalKeyboardKey.enter, control: true);
+    expect(sentMessages(session).last, 'hello');
+    await stopTurn(tester, session);
+  });
+
   testWidgets('bound to Ctrl+Enter in keybindings.json, Send leaves Enter '
       'to the text', (tester) async {
     KeybindingService.instance.userEntries = const [
@@ -156,7 +182,11 @@ void main() {
         command: ChatCommandIds.submit,
         when: ChatContextKeys.inChatInput,
       ),
-      KeybindingEntry(key: 'enter', command: '-${ChatCommandIds.submit}'),
+      KeybindingEntry(
+        key: 'enter',
+        command: '-${ChatCommandIds.submit}',
+        when: ChatContextKeys.inChatInput,
+      ),
     ];
     final session = await pumpChat(tester);
     final before = sentMessages(session).length;
@@ -373,7 +403,11 @@ void main() {
     expect(input.focusNode!.hasFocus, isTrue);
   });
 
-  testWidgets('Ctrl+Enter allows the tool the agent asks for', (tester) async {
+  testWidgets('Ctrl+Enter approves a tool instead of sending the draft', (
+    tester,
+  ) async {
+    KeybindingService.instance.composerSendShortcut =
+        ComposerSendShortcut.ctrlEnter;
     final session = await pumpChat(
       tester,
       kernel: MockKernels.codex,
@@ -396,9 +430,14 @@ void main() {
     expect(request, isA<ApprovalRequest>());
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.byType(InteractionPanel), findsOneWidget);
+    final editor = tester.widget<MarkdownEditor>(find.byType(MarkdownEditor));
+    editor.focusNode!.requestFocus();
+    await tester.pump();
+    await typeText(tester, 'next prompt');
 
     await press(tester, LogicalKeyboardKey.enter, control: true);
     expect(session.pendingInteraction, isNot(same(request)));
+    expect(composerText(tester), 'next prompt');
     await stopTurn(tester, session);
   });
 
