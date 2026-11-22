@@ -45,7 +45,8 @@ class AntigravityTranslator {
   void Function()? onTasksChanged;
 
   /// Whether a call is under way.
-  bool get calling => _tools.values.any((tool) => tool.running);
+  bool get calling =>
+      _tools.values.any((tool) => tool.running && !tool.background);
 
   // --- Updates ---------------------------------------------------------------------
 
@@ -76,6 +77,11 @@ class AntigravityTranslator {
 
   void _userChunk(String text) {
     _close();
+    // Read back, a message after a plan: the plan was gone on from.
+    if (_userId == null && replaying) {
+      endPlanRound();
+      resolvePlan(started: true);
+    }
     final id = _userId ??= _newId('user');
     _user.write(text);
     emit(ItemUpserted(nextSeq(), id, UserMessageItem(text: '$_user')));
@@ -151,7 +157,7 @@ class AntigravityTranslator {
     _endUser();
     if (!interrupted) return;
     for (final tool in _tools.values) {
-      if (!tool.running) continue;
+      if (!tool.running || tool.background) continue;
       tool.status = 'failed';
       _show(tool);
     }
@@ -169,6 +175,7 @@ class AntigravityTranslator {
   }
 
   void _show(_ToolCall tool) {
+    if (_planWrite(tool)) return;
     final item = _itemOf(tool.id, tool);
     if (item == null) return;
     emit(ItemUpserted(nextSeq(), tool.id, item));
@@ -177,7 +184,49 @@ class AntigravityTranslator {
     tool.done = true;
     if (item is CodeDiffItem && !replaying) _edited(tool);
     if (item is TerminalItem && item.background) _backgrounded(tool);
+    if (tasks[tool.id] case final task?
+        when task.status == CommandStatus.running && item is TerminalItem) {
+      tasks[tool.id] = task.copyWith(
+        status: item.status,
+        summary: _lastLine(item.output),
+      );
+      onTasksChanged?.call();
+    }
   }
+
+  /// The turn ended with [tool]s still running: commands agy left to run
+  /// on (it reports their ends later, as updates to them), as tasks.
+  void background() {
+    var any = false;
+    for (final tool in _tools.values) {
+      if (!tool.running || tool.kind != 'execute' || tool.background) continue;
+      tool.background = true;
+      final command = _string(tool.input['CommandLine']) ?? tool.title ?? '';
+      tasks[tool.id] = KernelTask(
+        id: tool.id,
+        description: _string(tool.input['toolSummary']) ?? command,
+        kind: KernelTaskKind.command,
+        status: CommandStatus.running,
+        startedAt: tool.started,
+        toolUseId: tool.id,
+      );
+      emit(ItemUpserted(nextSeq(), tool.id, _itemOf(tool.id, tool)!));
+      any = true;
+    }
+    if (any) onTasksChanged?.call();
+  }
+
+  /// Whether [update] only tells of a command left running in the
+  /// background (its end): nothing agy took up.
+  bool backgroundUpdate(Map<String, Object?> update) =>
+      update['sessionUpdate'] == 'tool_call_update' &&
+      (_tools[update['toolCallId']]?.background ?? false);
+
+  static String? _lastLine(String output) => output
+      .split('\n')
+      .map((line) => line.trim())
+      .where((line) => line.isNotEmpty)
+      .lastOrNull;
 
   /// What [tool] shows as.
   ChatItem? _itemOf(String id, _ToolCall tool) {
@@ -227,7 +276,7 @@ class AntigravityTranslator {
             _string(input['command']) ??
             tool.title ??
             '';
-        final background = _backgroundTask(output) != null;
+        final background = tool.background || _backgroundTask(output) != null;
         final exit = tool.rawOutput is Map
             ? (tool.rawOutput as Map)['exit_code']
             : null;
@@ -355,6 +404,8 @@ class AntigravityTranslator {
   void _edited(_ToolCall tool) {
     final diff = tool.diff;
     if (diff == null || tool.status == 'failed') return;
+    // agy's own notes (its task list, a walkthrough): not the project's.
+    if (agyOwnFile(diff.path)) return;
     final lines = lineDiff(diff.oldText ?? '', diff.newText);
     emit(
       FileEdited(
@@ -460,6 +511,84 @@ class AntigravityTranslator {
     _planId = null;
   }
 
+  // --- Plans -----------------------------------------------------------------------
+
+  /// Whether the turn plans (Plan mode): what agy writes of its own then
+  /// (a markdown file in its folder) is its plan.
+  bool planning = false;
+
+  /// The card of the round of planning under way, by the call that began
+  /// it; the one awaiting the user, once the turn is over.
+  String? _planCard;
+  String? _awaitingCard;
+  final Map<String, PlanItem> _plans = {};
+  int _planRounds = 0;
+
+  /// The plan put to the user, until they go on from it.
+  PlanItem? get awaitingPlan => _plans[_awaitingCard];
+
+  /// Whether [path] is in agy's own folder for its conversations
+  /// (`~/.gemini/antigravity-cli/brain`), not the project's.
+  static bool agyOwnFile(String path) =>
+      RegExp(r'[/\\]antigravity-cli[/\\]brain[/\\]').hasMatch(path);
+
+  /// Shows [tool] on the plan's card, if it writes the plan.
+  bool _planWrite(_ToolCall tool) {
+    if (!planning || tool.kind != 'edit') return false;
+    final path = tool.diff?.path ?? _path(tool);
+    if (path == null || !agyOwnFile(path) || !path.endsWith('.md')) {
+      return false;
+    }
+    final card = _planCard ??= tool.id;
+    final known = _plans[card];
+    final text = tool.diff?.newText ?? known?.text;
+    var writes = known?.writes ?? 0;
+    final written = !tool.running && !tool.done && tool.status != 'failed';
+    if (written) {
+      tool.done = true;
+      writes++;
+    }
+    final plan = _plans[card] = PlanItem(
+      path: path,
+      round: known?.round ?? ++_planRounds,
+      title: PlanItem.titleOf(text) ?? known?.title,
+      text: text,
+      writes: writes,
+    );
+    emit(ItemUpserted(nextSeq(), card, plan));
+    if (written && !replaying) emit(PlanWritten(nextSeq(), path));
+    return true;
+  }
+
+  /// The turn is over: the plan it wrote, if any, awaits the user.
+  void endPlanRound() {
+    final card = _planCard;
+    if (card == null) return;
+    _planCard = null;
+    _awaitingCard = card;
+    _putPlan(card, _plans[card]!.copyWith(status: PlanStatus.awaiting));
+  }
+
+  /// The user went on from the plan awaiting: [started] it, or said what
+  /// should change ([feedback]).
+  void resolvePlan({required bool started, String? feedback}) {
+    final card = _awaitingCard;
+    if (card == null) return;
+    _awaitingCard = null;
+    final plan = _plans[card]!;
+    _putPlan(
+      card,
+      started
+          ? plan.copyWith(status: PlanStatus.approved)
+          : plan.copyWith(status: PlanStatus.sentBack, feedback: feedback),
+    );
+  }
+
+  void _putPlan(String card, PlanItem plan) {
+    _plans[card] = plan;
+    emit(ItemUpserted(nextSeq(), card, plan));
+  }
+
   // --- Helpers ---------------------------------------------------------------------
 
   static String? _string(Object? value) =>
@@ -502,6 +631,9 @@ class _ToolCall {
 
   /// Whether what it ended as was taken in (its edit, its task).
   bool done = false;
+
+  /// Left running as its turn ended: a command in the background.
+  bool background = false;
 
   bool get running =>
       status == null || status == 'pending' || status == 'in_progress';

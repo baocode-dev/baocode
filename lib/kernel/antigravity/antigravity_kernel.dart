@@ -33,6 +33,7 @@ class AntigravityKernel
         SelectsEffort,
         SelectsMode,
         SelectsPermission,
+        StartsPlans,
         ProvidesCommands,
         LoadsHistory,
         AcceptsImages,
@@ -208,7 +209,9 @@ class AntigravityKernel
         if (!loads) throw const AgyUnavailable('This agy cannot resume');
         // Read back as it was the first time; dropped after.
         _muted = _shown;
-        _translator.replaying = true;
+        _translator
+          ..replaying = true
+          ..planning = _work == 'plan';
         try {
           started = await connection.request('session/load', {
             ...session,
@@ -216,6 +219,7 @@ class AntigravityKernel
           });
         } finally {
           _translator.settle();
+          if (!_muted) _translator.endPlanRound();
           _translator.replaying = false;
           _muted = false;
         }
@@ -514,6 +518,11 @@ class AntigravityKernel
         }
         // Dropped: what a turn stopped still said.
         if (_draining) return;
+        // A command's end, run on past its turn: its task, not a turn.
+        if (_turn == null && _translator.backgroundUpdate(update)) {
+          _translator.update(update);
+          return;
+        }
         if (_turn == null) _wake();
         _translator.update(update);
         _activity();
@@ -542,9 +551,39 @@ class AntigravityKernel
   final Set<String> _sentTurns = {};
   final List<KernelTurn> _queue = [];
 
+  /// Set by [startBuilding]: the next message starts the plan awaiting.
+  bool _startsPlan = false;
+
   @override
-  void send(KernelTurn turn) {
-    if (_disposed || !_sentTurns.add(turn.id)) return;
+  void startBuilding() {
+    _startsPlan = true;
+    _work = 'agent';
+    emitInfoChanged();
+    unawaited(_applyMode());
+  }
+
+  @override
+  void send(KernelTurn sent) {
+    if (_disposed || !_sentTurns.add(sent.id)) return;
+    var turn = sent;
+    if (_startsPlan) {
+      _startsPlan = false;
+      if (_translator.awaitingPlan case final plan?) {
+        // Told with it, so that it builds rather than plans on.
+        turn = KernelTurn(
+          id: sent.id,
+          text: sent.text,
+          mentions: sent.mentions,
+          images: sent.images,
+          now: sent.now,
+          notes: [
+            ...sent.notes,
+            'The user approved the plan in ${plan.path}. Carry it out now.',
+          ],
+        );
+        _translator.resolvePlan(started: true);
+      }
+    }
     if (_turn == null && _queue.isEmpty && _prompting == null) {
       _begin(turn);
       return;
@@ -578,6 +617,8 @@ class AntigravityKernel
     _turnStarted = DateTime.now();
     _translator
       ..turnId = turn.id
+      ..planning = _work == 'plan'
+      ..resolvePlan(started: false, feedback: turn.text)
       ..begin();
     emit(TurnStarted(nextSeq, turn.id));
     emit(
@@ -640,7 +681,20 @@ class AntigravityKernel
       } else if (reason == 'max_tokens') {
         _notice(NoticeKind.warning, 'The reply hit the model\'s output limit');
       }
-      await _finish(turn.id, interrupted: reason == 'cancelled');
+      await _finish(
+        turn.id,
+        interrupted: reason == 'cancelled',
+        usage: switch (result['usage']) {
+          final Map<Object?, Object?> usage => TurnUsage(
+            inputTokens:
+                _int(usage['inputTokens']) +
+                _int(usage['cachedReadTokens']) +
+                _int(usage['cachedWriteTokens']),
+            outputTokens: _int(usage['outputTokens']),
+          ),
+          _ => null,
+        },
+      );
     } on AcpError catch (error) {
       if (_turn != turn.id) return;
       if (!error.closed) {
@@ -701,13 +755,21 @@ class AntigravityKernel
     });
   }
 
-  /// Ends [turn] with what it spent, as agy kept it.
-  Future<void> _finish(String turn, {required bool interrupted}) async {
+  /// Ends [turn] with what it spent: as agy said ([usage]), else as it
+  /// kept it.
+  Future<void> _finish(
+    String turn, {
+    required bool interrupted,
+    TurnUsage? usage,
+  }) async {
     _translator.settle(interrupted: interrupted);
-    TurnUsage? usage;
     if (!interrupted) {
+      _translator
+        ..background()
+        ..endPlanRound();
       try {
-        usage = await _turnUsage().timeout(const Duration(seconds: 2));
+        final kept = await _turnUsage().timeout(const Duration(seconds: 2));
+        usage ??= kept;
       } on Object {
         // Without it.
       }
@@ -739,16 +801,22 @@ class AntigravityKernel
     unawaited(_next());
   }
 
+  /// How many of agy's steps the turns so far spent: the next counts from
+  /// there.
+  int _stepsCounted = 0;
+
   /// What the last turn spent: its model's requests since the user's
-  /// message, as agy logs them.
+  /// message (or the turn before, for one of agy's own), as agy logs them.
   Future<TurnUsage?> _turnUsage() async {
     final id = _sessionId;
     if (id == null) return null;
     final steps = await _runtime.records(id).steps();
+    final from = _stepsCounted.clamp(0, steps.length);
+    _stepsCounted = steps.length;
     var input = 0;
     var output = 0;
     var any = false;
-    for (final step in steps.reversed) {
+    for (final step in steps.sublist(from).reversed) {
       if (step['type'] == 'USER_INPUT') break;
       if (step['type'] != 'PLANNER_RESPONSE') continue;
       any = true;
@@ -1451,6 +1519,10 @@ class AntigravityKernel
     (task) => task.status == CommandStatus.running,
   );
 
+  /// Whether [taskId] is one of agy's own (`<session>/task-<n>`), ended in
+  /// its inbox; else a command's call, ended by its update.
+  static bool _agyTask(String taskId) => taskId.contains('/task-');
+
   /// Tasks the user stopped watching: not shown again.
   final Set<String> _dropped = {};
 
@@ -1536,7 +1608,7 @@ class AntigravityKernel
     }
     if (_disposed) return;
     final running =
-        _runningTasks.isNotEmpty ||
+        _runningTasks.any((task) => _agyTask(task.id)) ||
         _translator.agents.values.any(
           (agent) => agent.status == CommandStatus.running,
         );
@@ -1568,7 +1640,7 @@ class AntigravityKernel
     for (final MapEntry(key: id, value: task) in [
       ..._translator.tasks.entries,
     ]) {
-      if (task.outputFile != null) continue;
+      if (task.outputFile != null || !_agyTask(id)) continue;
       _translator.tasks[id] = task.copyWith(outputFile: records.taskLog(id));
       changed = true;
     }
