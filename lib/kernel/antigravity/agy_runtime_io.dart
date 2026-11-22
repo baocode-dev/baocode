@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi' show Abi;
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:bao_remote/local.dart' show AppPaths, ClaudeEnvironment;
 import 'package:crypto/crypto.dart';
@@ -14,11 +15,8 @@ import '../../platform/data_dir.dart';
 import '../acp/acp_connection.dart';
 import '../acp/mcp_endpoint.dart';
 import '../acp/mcp_http_server.dart';
-import '../../models/antigravity/antigravity_api.dart';
 import '../agent_kernel.dart' show SessionRecord;
-import '../kernel_types.dart' show RateLimitWindow;
 import 'agy_runtime.dart';
-import 'antigravity_translator.dart';
 
 AgyRuntime localAgyRuntime() => LocalAgyRuntime();
 
@@ -30,6 +28,7 @@ class LocalAgyRuntime implements AgyRuntime {
     String? dataDir,
     String? cacheDir,
     String? stateDir,
+    this._bootTimeout = const Duration(seconds: 60),
   }) : _environment = environment ?? ClaudeEnvironment.of,
        _installDirOverride = installDir,
        _dataDirOverride = dataDir,
@@ -38,6 +37,7 @@ class LocalAgyRuntime implements AgyRuntime {
 
   final String? _cacheDirOverride;
   final String? _stateDirOverride;
+  final Duration _bootTimeout;
 
   final Future<Map<String, String>> Function() _environment;
   final String? _installDirOverride;
@@ -63,17 +63,21 @@ class LocalAgyRuntime implements AgyRuntime {
   /// The running ones, to end as the app quits.
   static final Set<Process> _live = {};
 
-  /// Ends every agy this run started (as the app quits).
+  /// Ends the agy this run keeps (as the app quits).
   static Future<void> stopProcesses() async {
-    _spareEnds?.cancel();
-    _spare = null;
-    _reader = null;
+    _host?.close();
+    _host = null;
     for (final process in [..._live]) {
       process.kill();
     }
     _live.clear();
+    await _tools?.close();
+    _tools = null;
     await registry.flush();
   }
+
+  String get _stateDir =>
+      _stateDirOverride ?? DataDirectory.current.stateDir;
 
   @override
   Future<String?> locate() async {
@@ -108,181 +112,118 @@ class LocalAgyRuntime implements AgyRuntime {
     ...await NetworkProxy.instance.environment(),
   };
 
-  @override
-  Future<AcpTransport> start(String cwd) async {
-    if (!Directory(cwd).existsSync()) {
-      throw AgyUnavailable('The folder $cwd is gone');
-    }
-    if (_takeSpare() case final spare?) {
-      unawaited(_warm());
-      return spare;
-    }
-    return _launch(cwd);
-  }
+  // --- The host ------------------------------------------------------------------------
 
-  /// A new agy, in [cwd] (which its conversations do not depend on: each
-  /// is told its own).
-  Future<AgyProcessTransport> _launch(String cwd) async {
-    await registry.reaped;
-    final executable = await _located();
-    try {
-      final process = await Process.start(
-        executable,
-        const ['acp', '--disable-telemetry'],
-        workingDirectory: cwd,
-        environment: await _runEnvironment(),
-        includeParentEnvironment: Platform.isWindows,
-      );
-      return AgyProcessTransport(process);
-    } on ProcessException catch (error) {
-      throw AgyUnavailable(
-        'Antigravity could not start',
-        detail: '$executable\n${error.message}',
-      );
-    }
-  }
-
-  // --- A spare -------------------------------------------------------------------
-
-  /// An agy up and booted, kept a while for the next conversation to start
-  /// on at once. Its backend boots on the first session asked of it,
-  /// asking Google for the account and its models: seconds, which sending
-  /// a message would otherwise wait out. Made as a conversation comes
-  /// into view ([warm]), and again once taken.
-  static AgyProcessTransport? _spare;
-  static Timer? _spareEnds;
-  static bool _warming = false;
-  static const _spareFor = Duration(minutes: 10);
-
-  static AgyProcessTransport? _takeSpare() {
-    _spareEnds?.cancel();
-    final spare = _spare;
-    _spare = null;
-    return spare == null || spare.ended ? null : spare;
-  }
-
-  static void _keepSpare(AgyProcessTransport transport) {
-    if (_spare case final kept? when !kept.ended) {
-      transport.close();
-      return;
-    }
-    _spare = transport;
-    _spareEnds?.cancel();
-    _spareEnds = Timer(_spareFor, dropSpare);
-  }
-
-  /// Ends the spare: one booted before a sign-in has the account before.
-  static void dropSpare() {
-    _takeSpare()?.close();
-  }
+  /// The agy kept running for the app: `agy acp`, its stdin held open (it
+  /// ends with it), its language server up once a session was asked of it.
+  /// Started again if gone.
+  static _Host? _host;
+  static Future<_Host>? _booting;
 
   @override
-  void warm() => unawaited(_warm());
-
-  /// Boots a spare, unless there is one.
-  Future<void> _warm() async {
-    if (_warming || (_spare?.ended == false)) return;
-    _warming = true;
-    try {
-      if (await locate() == null) return;
-      final transport = await _launch(AppPaths.home(await _environment()));
-      final connection = _query(transport);
-      try {
-        await connection.request('initialize', _hello).timeout(_wait);
-        // Its backend boots on the first session asked of it.
-        await connection.request('session/list', {}).timeout(_wait);
-      } on Object {
-        connection.close();
-        return;
-      }
-      connection.detach();
-      _keepSpare(transport);
-    } on Object {
-      // None then: the next starts its own.
-    } finally {
-      _warming = false;
-    }
+  Future<AgyLanguageServer> server() async {
+    if (_host case final host? when !host.ended) return host.server;
+    final booting = _booting ??= _boot().whenComplete(() => _booting = null);
+    return (await booting).server;
   }
-
-  // --- A reader ------------------------------------------------------------------
-
-  /// An agy kept up to read with: the conversations listed ([sessions]),
-  /// one read back ([replay]) and closed again. Never prompted. Booted
-  /// once, it answers in milliseconds; started again if gone.
-  static _Reader? _reader;
-
-  /// Its readings, one after another: a reading back's updates are told
-  /// apart by session, but kept simple.
-  static Future<void> _reads = Future.value();
-
-  static const _wait = Duration(seconds: 20);
 
   /// What this app tells agy of itself: no files or terminals of its own
-  /// to offer a reading.
+  /// to offer, nothing is prompted this way.
   static const _hello = {
     'protocolVersion': 1,
     'clientCapabilities': {
       'fs': {'readTextFile': false, 'writeTextFile': false},
       'terminal': false,
     },
-    'clientInfo': {'name': 'baocode', 'version': '1'},
+    'clientInfo': {'name': 'baocode', 'title': 'BaoCode', 'version': '1'},
   };
 
-  /// A connection that answers nothing agy asks (a reading asks nothing).
-  static AcpConnection _query(
-    AcpTransport transport, {
-    void Function(String method, Map<String, Object?> params)? onNotification,
-  }) => AcpConnection(
-    transport,
-    onRequest: (method, _) async =>
-        throw AcpError(-32601, 'Method not found: $method'),
-    onNotification: onNotification ?? (_, _) {},
+  /// Where the host logs: the language server's port is read from it.
+  File get _hostLog => File(p.join(_stateDir, 'antigravity', 'host.log'));
+
+  static final _portLine = RegExp(
+    r'listening on random port at (\d+) for HTTP\s*$',
+    multiLine: true,
   );
 
-  Future<T> _read<T>(Future<T> Function(_Reader reader) use) {
-    final reading = _reads.then((_) async => use(await _readerUp()));
-    _reads = reading.then((_) {}, onError: (_) {});
-    return reading;
-  }
-
-  Future<_Reader> _readerUp() async {
-    if (_reader case final reader? when !reader.transport.ended) return reader;
-    final transport = await _launch(AppPaths.home(await _environment()));
-    final reader = _Reader(transport);
+  Future<_Host> _boot() async {
+    await registry.reaped;
+    final executable = await _located();
+    final log = _hostLog;
     try {
-      await reader.connection.request('initialize', _hello).timeout(_wait);
-    } on Object {
-      reader.connection.close();
-      rethrow;
+      log.parent.createSync(recursive: true);
+      if (log.existsSync()) log.deleteSync();
+    } on FileSystemException {
+      // Written over then.
     }
-    return _reader = reader;
-  }
-
-  @override
-  Future<Map<String, Object?>> replay(
-    String sessionId,
-    String cwd,
-    void Function(Map<String, Object?> update) onUpdate,
-  ) => _read((reader) async {
-    reader.onUpdate = (id, update) {
-      if (id == sessionId) onUpdate(update);
-    };
+    final AgyProcessTransport transport;
     try {
-      return await reader.connection.request('session/load', {
-        'sessionId': sessionId,
-        'cwd': cwd,
-        'mcpServers': const [],
-      });
-    } finally {
-      reader.onUpdate = null;
-      // Read, not kept there.
-      unawaited(
-        reader.connection
-            .request('session/close', {'sessionId': sessionId})
-            .catchError((_) => const <String, Object?>{}),
+      final process = await Process.start(
+        executable,
+        ['acp', '--disable-telemetry', '--log-file', log.path],
+        workingDirectory: AppPaths.home(await _environment()),
+        environment: await _runEnvironment(),
+        includeParentEnvironment: Platform.isWindows,
+      );
+      transport = AgyProcessTransport(process);
+    } on ProcessException catch (error) {
+      throw AgyUnavailable(
+        'Antigravity could not start',
+        detail: '$executable\n${error.message}',
       );
     }
-  });
+    final connection = AcpConnection(
+      transport,
+      onRequest: (method, _) async =>
+          throw AcpError(-32601, 'Method not found: $method'),
+      onNotification: (_, _) {},
+    );
+    try {
+      await connection.request('initialize', _hello).timeout(_bootTimeout);
+      // Its language server comes up with the first session asked of it.
+      await connection.request('session/list', {}).timeout(_bootTimeout);
+      final port = await _portOf(log, transport).timeout(_bootTimeout);
+      final host = _Host(transport, connection, _ConnectServer(port));
+      unawaited(
+        transport.exited.then((_) {
+          if (identical(_host, host)) _host = null;
+        }),
+      );
+      return _host = host;
+    } on Object catch (error) {
+      connection.close();
+      final exit = await transport.exited
+          .timeout(const Duration(seconds: 3))
+          .catchError((_) => const AcpExit(-1));
+      final stderr = exit.stderr.trim();
+      throw AgyUnavailable(
+        switch (error) {
+          AcpError(closed: true) =>
+            'Antigravity stopped as it started (exit code ${exit.code})',
+          AcpError(:final message) => 'Antigravity could not start: $message',
+          TimeoutException() => 'Antigravity took too long to start',
+          _ => 'Antigravity could not start',
+        },
+        detail: stderr.isEmpty ? null : stderr,
+      );
+    }
+  }
+
+  /// The language server's port, from the host's log once written there.
+  static Future<int> _portOf(File log, AgyProcessTransport transport) async {
+    while (!transport.ended) {
+      try {
+        if (log.existsSync()) {
+          final match = _portLine.firstMatch(log.readAsStringSync());
+          if (match != null) return int.parse(match.group(1)!);
+        }
+      } on FileSystemException {
+        // Being written.
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+    throw const AcpError(AcpError.closedCode, 'Agent stopped');
+  }
 
   // --- Installing ----------------------------------------------------------------
 
@@ -305,7 +246,6 @@ class LocalAgyRuntime implements AgyRuntime {
 
   @override
   Future<void> install({void Function(double progress)? onProgress}) async {
-    dropSpare();
     final client = HttpClient();
     try {
       final manifest = await _json(client, Uri.parse('$feed/$_target.json'));
@@ -399,7 +339,6 @@ class LocalAgyRuntime implements AgyRuntime {
     required void Function(Uri link) link,
     required Future<String?> Function() code,
   }) async {
-    dropSpare();
     final executable = await _located();
     final process = await Process.start(
       executable,
@@ -444,6 +383,9 @@ class LocalAgyRuntime implements AgyRuntime {
         detail: '$output',
       );
     }
+    // The host booted before the sign-in has the account before: anew.
+    _host?.close();
+    _host = null;
   }
 
   // --- MCP servers -----------------------------------------------------------------
@@ -473,282 +415,106 @@ class LocalAgyRuntime implements AgyRuntime {
     );
   }
 
-  // --- Its sign-in ---------------------------------------------------------------
-
   @override
   Future<void> stopAll() => stopProcesses();
 
-  // --- Its quota -----------------------------------------------------------------
+  // --- The app's own tools -----------------------------------------------------------
 
-  /// Its sign-in, read once (the keychain may ask the user each time), and
-  /// the access token refreshed from it.
-  static AgyCredentials? _signIn;
-  static ({String token, DateTime until})? _access;
+  /// The server the app's tools are served on, one for all conversations:
+  /// each conversation keeps its address (told agy as it started), so the
+  /// port and token are kept from run to run, as far as the port is free.
+  static McpHttpServer? _tools;
+  static Future<McpHttpServer>? _openingTools;
 
-  static final _endpoints = const AntigravityEndpoints();
+  /// Where the tools server's port and token are kept, with each
+  /// conversation's key on it.
+  File get _toolsFile => File(p.join(_stateDir, 'antigravity', 'tools.json'));
 
-  HttpClient _client() => HttpClient()
-    ..connectionTimeout = const Duration(seconds: 20)
-    ..findProxy = NetworkProxy.instance.findProxy;
-
-  Future<(int, String)> _send(
-    HttpClient http,
-    Uri url, {
-    Object? json,
-    Map<String, String>? form,
-    String? token,
-  }) async {
-    final request = await http.postUrl(url);
-    if (token != null) {
-      request.headers
-        ..set(HttpHeaders.authorizationHeader, 'Bearer $token')
-        ..set(
-          HttpHeaders.userAgentHeader,
-          antigravityUserAgent(
-            antigravityFallbackVersion,
-            os: _target.split('_').first,
-            arch: _target.split('_').last,
-          ),
-        );
+  Map<String, Object?> _toolsKept() {
+    try {
+      final file = _toolsFile;
+      if (!file.existsSync()) return {};
+      return switch (jsonDecode(file.readAsStringSync())) {
+        final Map<String, Object?> kept => kept,
+        _ => {},
+      };
+    } on Object {
+      return {};
     }
-    if (form != null) {
-      request.headers.contentType = ContentType(
-        'application',
-        'x-www-form-urlencoded',
-        charset: 'utf-8',
-      );
-      request.write(Uri(queryParameters: form).query);
-    } else {
-      request.headers.contentType = ContentType.json;
-      request.add(utf8.encode(jsonEncode(json ?? const {})));
-    }
-    final response = await request.close().timeout(const Duration(seconds: 30));
-    return (response.statusCode, await utf8.decodeStream(response));
   }
 
-  /// An access token of its sign-in: its own while good, else refreshed
-  /// (not written back: agy refreshes its own).
-  Future<String?> _token(HttpClient http, {bool fresh = false}) async {
-    final now = DateTime.now();
-    if (_access case (:final token, :final until)
-        when !fresh && until.isAfter(now)) {
-      return token;
+  void _keepTools(Map<String, Object?> kept) {
+    try {
+      final file = _toolsFile;
+      file.parent.createSync(recursive: true);
+      file.writeAsStringSync(jsonEncode(kept));
+    } on FileSystemException {
+      // Served anew next run then.
     }
-    final signIn = _signIn = fresh || _signIn == null
-        ? await credentials()
-        : _signIn;
-    if (signIn == null) return null;
-    final expiry = signIn.expiry;
-    if (!fresh &&
-        expiry != null &&
-        expiry.isAfter(now.add(const Duration(minutes: 2)))) {
-      _access = (token: signIn.accessToken, until: expiry);
-      return signIn.accessToken;
-    }
-    final refresh = signIn.refreshToken;
-    if (refresh == null) return signIn.accessToken;
-    final (status, text) = await _send(
-      http,
-      Uri.parse(_endpoints.token),
-      form: antigravityRefreshForm(refresh),
-    );
-    if (status >= 400) throw HttpException('Sign-in refused ($status)');
-    final json = jsonDecode(text);
-    final token = json is Map ? json['access_token'] : null;
-    if (token is! String) throw const HttpException('No access token');
-    final seconds = json['expires_in'];
-    _access = (
-      token: token,
-      until: now.add(Duration(seconds: seconds is int ? seconds - 120 : 3000)),
-    );
-    return token;
   }
 
   @override
-  Future<List<RateLimitWindow>?> quota() async {
-    final http = _client();
-    try {
-      var token = await _token(http);
-      if (token == null) return null;
-      Future<Object?> call(String method, Object body, {String? at}) async {
-        var (status, text) = await _send(
-          http,
-          _endpoints.method(method, at: at),
-          json: body,
-          token: token,
-        );
-        if (status == 401) {
-          // Signed in again since, or its token revoked: read anew.
-          _access = null;
-          token = await _token(http, fresh: true);
-          if (token == null) return null;
-          (status, text) = await _send(
-            http,
-            _endpoints.method(method, at: at),
-            json: body,
-            token: token,
-          );
-        }
-        if (status >= 400) throw HttpException('$method: $status');
-        return jsonDecode(text);
-      }
+  Future<McpEndpoint> serveTools(McpHandler handle, {String key = ''}) async {
+    final server = _tools ?? await (_openingTools ??= _openTools());
+    return server.serve(key, handle);
+  }
 
-      final load = AntigravityLoad.fromJson(
-        await call('loadCodeAssist', {
-          'metadata': {'ideType': 'ANTIGRAVITY'},
-        }, at: _endpoints.loadBase),
-      );
-      final project = {'project': ?load.project};
-      // Consumer accounts are metered at one host, Workspace ones at the
-      // other: both asked.
-      final hosts = [_endpoints.base, _endpoints.loadBase];
-      List<AntigravityModel> models = const [];
-      for (final host in hosts) {
+  Future<McpHttpServer> _openTools() async {
+    try {
+      final kept = _toolsKept();
+      final port = kept['port'];
+      final token = kept['token'];
+      McpHttpServer? server;
+      if (port is int && token is String && token.isNotEmpty) {
         try {
-          models = parseAntigravityModels(
-            await call('fetchAvailableModels', project, at: host),
-          );
-          if (models.isNotEmpty) break;
-        } on Object {
-          if (host == hosts.last) rethrow;
+          server = await McpHttpServer.open(port: port, token: token);
+        } on SocketException {
+          // Taken meanwhile: another, the conversations told of this one
+          // lose their tools.
         }
       }
-      final now = DateTime.now();
-      final summaries = await Future.wait([
-        for (final host in hosts)
-          call(
-            'retrieveUserQuotaSummary',
-            project,
-            at: host,
-          ).then<Object?>((summary) => summary, onError: (_) => null),
-      ]);
-      final usage = antigravityUsage(
-        models: models,
-        // Each model's own when neither tells.
-        summary: mergeAntigravitySummaries(summaries),
-        now: now,
-        plan: load.plan,
-      );
-      return [
-        for (final window in usage.windows)
-          RateLimitWindow(
-            switch ((window.minutes, window.name)) {
-              (300, final name?) => '$name 5-hour limit',
-              (300, null) => '5-hour limit',
-              (10080, final name?) => 'Weekly $name limit',
-              (10080, null) => 'Weekly limit',
-              (_, final name) => name ?? 'Limit',
-            },
-            window.usedPercent / 100,
-            resetsAt: window.resetsAt?.toLocal(),
-          ),
-      ];
+      server ??= await McpHttpServer.open();
+      if (server.port != port || server.token != token) {
+        _keepTools({...kept, 'port': server.port, 'token': server.token});
+      }
+      return _tools = server;
     } finally {
-      http.close(force: true);
+      _openingTools = null;
     }
   }
+
+  /// The most conversations whose tool keys are kept.
+  static const _keysKept = 500;
 
   @override
-  Future<AgyCredentials?> credentials() async {
-    // Without a keychain to keep it in, agy writes it to a file.
-    final file = File(p.join(dataDir, 'antigravity-oauth-token'));
-    if (file.existsSync()) {
-      try {
-        return parseAgyCredentials(await file.readAsString());
-      } on FileSystemException {
-        // The keychain's then.
-      }
+  String? toolKey(String sessionId) => switch (_toolsKept()['keys']) {
+    final Map keys => keys[sessionId] as String?,
+    _ => null,
+  };
+
+  @override
+  void keepToolKey(String sessionId, String key) {
+    final kept = _toolsKept();
+    final keys = switch (kept['keys']) {
+      final Map<String, Object?> keys => {...keys},
+      _ => <String, Object?>{},
+    };
+    keys.remove(sessionId);
+    keys[sessionId] = key;
+    while (keys.length > _keysKept) {
+      keys.remove(keys.keys.first);
     }
-    final secret = await _keychainSecret();
-    if (secret == null) return null;
-    return parseAgyCredentials(secret);
+    _keepTools({...kept, 'keys': keys});
   }
 
-  /// agy's entry in the system keychain (service `gemini`, account
-  /// `antigravity`, as go-keyring keeps it).
-  static Future<String?> _keychainSecret() async {
-    try {
-      final ProcessResult result;
-      if (Platform.isMacOS) {
-        result = await Process.run('security', [
-          'find-generic-password',
-          '-s',
-          'gemini',
-          '-a',
-          'antigravity',
-          '-w',
-        ]);
-      } else if (Platform.isLinux) {
-        result = await Process.run('secret-tool', [
-          'lookup',
-          'service',
-          'gemini',
-          'username',
-          'antigravity',
-        ]);
-      } else if (Platform.isWindows) {
-        result = await Process.run('powershell', [
-          '-NoProfile',
-          '-NonInteractive',
-          '-Command',
-          _windowsCredentialScript,
-        ]);
-      } else {
-        return null;
-      }
-      if (result.exitCode != 0) return null;
-      final text = '${result.stdout}'.trim();
-      return text.isEmpty ? null : text;
-    } on ProcessException {
-      return null;
-    }
-  }
-
-  /// Reads the generic credential `gemini:antigravity` (go-keyring's target
-  /// on Windows) through CredRead, printing its blob as UTF-8.
-  static const _windowsCredentialScript = r'''
-$ErrorActionPreference = 'Stop'
-Add-Type -TypeDefinition @"
-using System;
-using System.Runtime.InteropServices;
-public static class BaoCred {
-  [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-  public struct CREDENTIAL {
-    public int Flags; public int Type; public string TargetName; public string Comment;
-    public long LastWritten; public int CredentialBlobSize; public IntPtr CredentialBlob;
-    public int Persist; public int AttributeCount; public IntPtr Attributes;
-    public string TargetAlias; public string UserName;
-  }
-  [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-  public static extern bool CredRead(string target, int type, int flags, out IntPtr cred);
-  [DllImport("advapi32.dll")] public static extern void CredFree(IntPtr cred);
-  public static byte[] Read(string target) {
-    IntPtr ptr;
-    if (!CredRead(target, 1, 0, out ptr)) return null;
-    try {
-      var c = (CREDENTIAL)Marshal.PtrToStructure(ptr, typeof(CREDENTIAL));
-      var bytes = new byte[c.CredentialBlobSize];
-      Marshal.Copy(c.CredentialBlob, bytes, 0, c.CredentialBlobSize);
-      return bytes;
-    } finally { CredFree(ptr); }
-  }
-}
-"@
-$bytes = [BaoCred]::Read('gemini:antigravity')
-if ($bytes -eq $null) { exit 1 }
-[Console]::Out.Write([Text.Encoding]::UTF8.GetString($bytes))
-''';
-
-  // --- Its records -----------------------------------------------------------------
+  // --- What is kept ----------------------------------------------------------------
 
   /// Where it keeps its conversations: `~/.gemini/antigravity-cli`.
+  @override
   String get dataDir =>
       _dataDirOverride ??
       p.join(AppPaths.home(Platform.environment), '.gemini', 'antigravity-cli');
   final String? _dataDirOverride;
-
-  @override
-  AgyRecords records(String sessionId) => _FileRecords(dataDir, sessionId);
 
   /// Where [kept] is kept: the app's cache, not agy's folder.
   String get _keptFile => p.join(
@@ -785,53 +551,6 @@ if ($bytes -eq $null) { exit 1 }
     }
   }
 
-  /// The most of a conversation's turns [timeTurn] keeps.
-  static const _turnsKept = 1000;
-
-  /// Where [sessionId]'s turns are timed: the app's own state.
-  File _turnsFile(String sessionId) => File(
-    p.join(
-      _stateDirOverride ?? DataDirectory.current.stateDir,
-      'antigravity',
-      '${p.basename(sessionId)}.json',
-    ),
-  );
-
-  @override
-  List<Map<String, Object?>> turnsTimed(String sessionId) {
-    try {
-      final file = _turnsFile(sessionId);
-      if (!file.existsSync()) return const [];
-      return switch (jsonDecode(file.readAsStringSync())) {
-        final List<Object?> turns => [
-          for (final turn in turns)
-            if (turn is Map<String, Object?>) turn,
-        ],
-        _ => const [],
-      };
-    } on Object {
-      return const [];
-    }
-  }
-
-  @override
-  void timeTurn(String sessionId, Map<String, Object?> turn) {
-    final turns = [...turnsTimed(sessionId), turn];
-    try {
-      final file = _turnsFile(sessionId);
-      file.parent.createSync(recursive: true);
-      file.writeAsStringSync(
-        jsonEncode(
-          turns.length > _turnsKept
-              ? turns.sublist(turns.length - _turnsKept)
-              : turns,
-        ),
-      );
-    } on FileSystemException {
-      // Untimed when read back then.
-    }
-  }
-
   @override
   String? fileText(String path) {
     try {
@@ -845,54 +564,9 @@ if ($bytes -eq $null) { exit 1 }
     }
   }
 
-  @override
-  Future<McpEndpoint> serveTools(McpHandler handle) =>
-      McpHttpServer.start(handle);
-
-  @override
-  Future<List<SessionRecord>> sessions() async {
-    if (await locate() == null) return const [];
-    final children = await _subagentConversations();
-    final records = await _read((reader) async {
-      final records = <SessionRecord>[];
-      String? cursor;
-      do {
-        final page = await reader.connection
-            .request('session/list', {'cursor': ?cursor})
-            .timeout(_wait);
-        for (final session in page['sessions'] as List? ?? const []) {
-          if (session
-              case {'sessionId': final String id, 'cwd': final String cwd}
-              when !children.contains(id)) {
-            records.add(
-              SessionRecord(
-                id: id,
-                title: AntigravityTranslator.withoutReminders(
-                  session['title'] as String? ?? '',
-                ),
-                updatedAt: _updatedAt(id, session['updatedAt']),
-                cwd: agyPath(cwd),
-                path: p.join(dataDir, 'conversations', '$id.db'),
-              ),
-            );
-          }
-        }
-        cursor = page['nextCursor'] as String?;
-      } while (cursor != null && records.length < 10000);
-      return records;
-    });
-    _keepSessions(records);
-    return records;
-  }
-
   /// Where the conversations last listed are kept: the app's own state.
-  File get _sessionsFile => File(
-    p.join(
-      _stateDirOverride ?? DataDirectory.current.stateDir,
-      'antigravity',
-      'sessions.json',
-    ),
-  );
+  File get _sessionsFile =>
+      File(p.join(_stateDir, 'antigravity', 'sessions.json'));
 
   @override
   List<SessionRecord>? get lastSessions {
@@ -923,9 +597,14 @@ if ($bytes -eq $null) { exit 1 }
     }
   }
 
-  void _keepSessions(List<SessionRecord> records) {
+  @override
+  set lastSessions(List<SessionRecord>? records) {
     try {
       final file = _sessionsFile;
+      if (records == null) {
+        if (file.existsSync()) file.deleteSync();
+        return;
+      }
       file.parent.createSync(recursive: true);
       file.writeAsStringSync(
         jsonEncode([
@@ -944,65 +623,33 @@ if ($bytes -eq $null) { exit 1 }
     }
   }
 
-  /// The conversations of subagents, each listed by agy as one of its
-  /// own: shown in their parents' cards, not apart.
-  Future<Set<String>> _subagentConversations() async {
-    final children = <String>{};
-    final brain = Directory(p.join(dataDir, 'brain'));
-    if (!brain.existsSync()) return children;
-    await for (final conversation in brain.list()) {
-      final dir = Directory(
-        p.join(conversation.path, '.system_generated', 'subagents'),
-      );
-      if (!dir.existsSync()) continue;
-      await for (final file in dir.list()) {
-        if (file is! File || !file.path.endsWith('.json')) continue;
-        try {
-          if (jsonDecode(await file.readAsString()) case {
-            'conversationId': final String id,
-          }) {
-            children.add(id);
-          }
-        } on Object {
-          // Not one.
-        }
-      }
-    }
-    return children;
-  }
-
-  /// When [id] was last changed: as agy says, else (it says year 1 for
-  /// some) as its file was.
-  DateTime _updatedAt(String id, Object? said) {
-    final at = said is String ? DateTime.tryParse(said) : null;
-    if (at != null && at.year > 2000) return at.toLocal();
-    try {
-      return File(p.join(dataDir, 'conversations', '$id.db'))
-          .lastModifiedSync();
-    } on FileSystemException {
-      return DateTime.fromMillisecondsSinceEpoch(0);
-    }
-  }
-
   /// Where the conversations agy lists are kept: its own folder, and the
-  /// Antigravity app's beside it (`~/.gemini/antigravity`), whose it lists
-  /// too.
+  /// Antigravity app's beside it (`~/.gemini/antigravity`).
   List<String> get _conversationRoots => [
     dataDir,
     p.join(p.dirname(dataDir), 'antigravity'),
   ];
 
-  /// agy lists a conversation while its files are there (its index keeps
-  /// a row of each, unlisted once they are gone): those files go, in
-  /// whichever folder keeps it.
+  /// Deleted in agy (`DeleteCascadeTrajectory`, which takes its files and
+  /// its folder with it), then whatever is left of it, in whichever
+  /// folder keeps it: agy lists a conversation while its files are there.
   @override
   Future<void> delete(String sessionId) async {
     final id = p.basename(sessionId);
     if (lastSessions case final kept?) {
-      _keepSessions([
+      lastSessions = [
         for (final record in kept)
           if (record.id != id) record,
-      ]);
+      ];
+    }
+    if (await locate() != null) {
+      try {
+        await (await server()).call('DeleteCascadeTrajectory', {
+          'cascadeId': id,
+        });
+      } on Object {
+        // Its files then.
+      }
     }
     for (final root in _conversationRoots) {
       for (final path in [
@@ -1019,8 +666,6 @@ if ($bytes -eq $null) { exit 1 }
       final brain = Directory(p.join(root, 'brain', id));
       if (brain.existsSync()) await brain.delete(recursive: true);
     }
-    final turns = _turnsFile(sessionId);
-    if (turns.existsSync()) await turns.delete();
   }
 }
 
@@ -1061,41 +706,6 @@ List<AgyMcpServer> parseAgyMcpConfig(String text) {
   ];
 }
 
-/// agy's sign-in from its keychain entry: JSON, which go-keyring may have
-/// stored base64- or hex-encoded behind a prefix.
-@visibleForTesting
-AgyCredentials? parseAgyCredentials(String secret) {
-  var text = secret.trim();
-  try {
-    if (text.startsWith('go-keyring-base64:')) {
-      text = utf8.decode(base64.decode(text.substring(18)));
-    } else if (text.startsWith('go-keyring-encoded:')) {
-      final hex = text.substring(19);
-      text = utf8.decode([
-        for (var i = 0; i + 1 < hex.length; i += 2)
-          int.parse(hex.substring(i, i + 2), radix: 16),
-      ]);
-    }
-    final json = jsonDecode(text);
-    if (json case {'token': final Map<String, Object?> token}) {
-      final access = token['access_token'];
-      if (access is! String || access.isEmpty) return null;
-      return AgyCredentials(
-        accessToken: access,
-        refreshToken: token['refresh_token'] as String?,
-        expiry: switch (token['expiry']) {
-          final String at => DateTime.tryParse(at),
-          _ => null,
-        },
-        email: json['id_token_email'] as String?,
-      );
-    }
-  } on Object {
-    return null;
-  }
-  return null;
-}
-
 class _DigestSink implements Sink<Digest> {
   Digest? value;
 
@@ -1106,60 +716,218 @@ class _DigestSink implements Sink<Digest> {
   void close() {}
 }
 
-/// A conversation's records, read from agy's folder.
-class _FileRecords implements AgyRecords {
-  _FileRecords(this._root, this._session);
+/// The agy kept running (see [LocalAgyRuntime._host]).
+class _Host {
+  _Host(this.transport, this.connection, this.server);
 
-  final String _root;
-  final String _session;
+  final AgyProcessTransport transport;
+  final AcpConnection connection;
+  final _ConnectServer server;
 
-  String _dir(String part) =>
-      p.join(_root, 'brain', _session, '.system_generated', part);
+  bool get ended => transport.ended;
 
-  /// Past this, a file is not read: a record is never that big.
-  static const _maxBytes = 8 << 20;
+  void close() {
+    server.close();
+    connection.close();
+  }
+}
+
+/// agy's language server over Connect: JSON calls, and enveloped streams.
+class _ConnectServer implements AgyLanguageServer {
+  _ConnectServer(this.port);
+
+  final int port;
+
+  /// Its own client: never through a proxy, this machine's loopback.
+  final HttpClient _client = HttpClient()
+    ..findProxy = ((_) => 'DIRECT')
+    ..idleTimeout = const Duration(minutes: 5);
+
+  static const _service = 'exa.language_server_pb.LanguageServerService';
+
+  Uri _url(String method) => Uri(
+    scheme: 'http',
+    host: '127.0.0.1',
+    port: port,
+    path: '/$_service/$method',
+  );
+
+  void close() => _client.close(force: true);
 
   @override
-  Future<List<Map<String, Object?>>> messages() =>
-      _jsonFiles(_dir('messages'), skip: 'read.json');
-
-  static Future<List<Map<String, Object?>>> _jsonFiles(
-    String dir, {
-    String? skip,
-  }) async {
-    final folder = Directory(dir);
-    if (!folder.existsSync()) return const [];
-    final found = <Map<String, Object?>>[];
-    await for (final entry in folder.list()) {
-      if (entry is! File || !entry.path.endsWith('.json')) continue;
-      if (p.basename(entry.path) == skip) continue;
-      try {
-        if (await entry.length() > _maxBytes) continue;
-        if (_decode(await entry.readAsString()) case final json?) {
-          found.add(json);
-        }
-      } on FileSystemException {
-        // Gone meanwhile.
-      }
+  Future<Map<String, Object?>> call(
+    String method, [
+    Map<String, Object?> body = const {},
+  ]) async {
+    final HttpClientResponse response;
+    final String text;
+    try {
+      final request = await _client.postUrl(_url(method));
+      final bytes = utf8.encode(jsonEncode(body));
+      request.headers
+        ..contentType = ContentType.json
+        ..contentLength = bytes.length
+        ..set('Connect-Protocol-Version', '1');
+      request.add(bytes);
+      response = await request.close();
+      text = await utf8.decodeStream(response);
+    } on IOException catch (error) {
+      throw AgyError('Antigravity is not answering: $error', gone: true);
     }
-    return found;
+    if (response.statusCode != 200) {
+      throw _refused(text, response.statusCode);
+    }
+    return switch (_decode(text)) {
+      final Map<String, Object?> json => json,
+      _ => const {},
+    };
   }
 
-  static Map<String, Object?>? _decode(String text) {
+  static Object? _decode(String text) {
+    if (text.trim().isEmpty) return null;
     try {
-      return switch (jsonDecode(text)) {
-        final Map<String, Object?> json => json,
-        _ => null,
-      };
+      return jsonDecode(text);
     } on FormatException {
       return null;
     }
   }
 
-  /// `<session>/task-6` → its `tasks/task-6.log`.
+  static AgyError _refused(String text, int status) {
+    final json = _decode(text);
+    return AgyError(
+      switch (json) {
+        {'message': final String message} when message.isNotEmpty => message,
+        _ => 'Antigravity answered $status',
+      },
+      code: json is Map ? json['code'] as String? : null,
+      status: status,
+    );
+  }
+
+  /// A server stream: the request and each answer an envelope of a flag
+  /// byte, a big-endian length and JSON; the last, flagged 2, the end (and
+  /// the error, if any).
   @override
-  String taskLog(String taskId) =>
-      p.join(_dir('tasks'), '${taskId.split('/').last}.log');
+  Stream<Map<String, Object?>> stream(
+    String method, [
+    Map<String, Object?> body = const {},
+  ]) {
+    late StreamController<Map<String, Object?>> controller;
+    StreamSubscription<List<int>>? subscription;
+    HttpClientRequest? request;
+    var ended = false;
+
+    Future<void> open() async {
+      try {
+        request = await _client.postUrl(_url(method));
+        final bytes = _envelope(0, utf8.encode(jsonEncode(body)));
+        request!.headers
+          ..contentType = ContentType('application', 'connect+json')
+          ..contentLength = bytes.length
+          ..set('Connect-Protocol-Version', '1');
+        request!.add(bytes);
+        final response = await request!.close();
+        if (controller.isClosed) {
+          await response.drain<void>();
+          return;
+        }
+        if (response.statusCode != 200) {
+          final text = await utf8.decodeStream(response);
+          controller.addError(_refused(text, response.statusCode));
+          await controller.close();
+          return;
+        }
+        final buffer = BytesBuilder(copy: false);
+        subscription = response.listen(
+          (chunk) {
+            buffer.add(chunk);
+            for (final (flag, frame) in _frames(buffer)) {
+              if (ended || controller.isClosed) return;
+              if (flag & 2 != 0) {
+                ended = true;
+                if (_decode(frame) case {'error': final Map error}) {
+                  controller.addError(
+                    AgyError(
+                      '${error['message'] ?? 'Antigravity ended the stream'}',
+                      code: error['code'] as String?,
+                    ),
+                  );
+                }
+                unawaited(controller.close());
+                return;
+              }
+              if (_decode(frame) case final Map<String, Object?> json) {
+                controller.add(json);
+              }
+            }
+          },
+          onError: (Object error) {
+            if (controller.isClosed) return;
+            controller.addError(
+              AgyError('Antigravity is not answering: $error', gone: true),
+            );
+            unawaited(controller.close());
+          },
+          onDone: () {
+            if (controller.isClosed) return;
+            if (!ended) {
+              controller.addError(
+                const AgyError('Antigravity ended the stream', gone: true),
+              );
+            }
+            unawaited(controller.close());
+          },
+          cancelOnError: true,
+        );
+      } on IOException catch (error) {
+        if (controller.isClosed) return;
+        controller.addError(
+          AgyError('Antigravity is not answering: $error', gone: true),
+        );
+        unawaited(controller.close());
+      }
+    }
+
+    controller = StreamController(
+      onListen: () => unawaited(open()),
+      onCancel: () {
+        unawaited(subscription?.cancel());
+        request?.abort();
+      },
+    );
+    return controller.stream;
+  }
+
+  static Uint8List _envelope(int flag, List<int> payload) {
+    final out = BytesBuilder(copy: false)
+      ..addByte(flag)
+      ..add(
+        Uint8List(4)..buffer.asByteData().setUint32(0, payload.length),
+      )
+      ..add(payload);
+    return out.takeBytes();
+  }
+
+  /// The whole envelopes at the start of [buffer], taken out of it.
+  static List<(int, String)> _frames(BytesBuilder buffer) {
+    final bytes = buffer.takeBytes();
+    final frames = <(int, String)>[];
+    var at = 0;
+    while (bytes.length - at >= 5) {
+      final length = ByteData.sublistView(bytes, at + 1, at + 5).getUint32(0);
+      if (bytes.length - at - 5 < length) break;
+      frames.add((
+        bytes[at],
+        utf8.decode(
+          Uint8List.sublistView(bytes, at + 5, at + 5 + length),
+          allowMalformed: true,
+        ),
+      ));
+      at += 5 + length;
+    }
+    if (at < bytes.length) buffer.add(Uint8List.sublistView(bytes, at));
+    return frames;
+  }
 }
 
 /// `agy acp` as a child process, over its stdin and stdout.
@@ -1261,28 +1029,4 @@ class AgyProcessTransport implements AcpTransport {
       _process.kill();
     }
   }
-}
-
-/// The agy kept up to read with (see [LocalAgyRuntime._reader]).
-class _Reader {
-  _Reader(this.transport) {
-    connection = LocalAgyRuntime._query(
-      transport,
-      onNotification: (method, params) {
-        if (method != 'session/update') return;
-        if ((params['sessionId'], params['update']) case (
-          final String id,
-          final Map<Object?, Object?> update,
-        )) {
-          onUpdate?.call(id, update.cast<String, Object?>());
-        }
-      },
-    );
-  }
-
-  final AgyProcessTransport transport;
-  late final AcpConnection connection;
-
-  /// Told the updates of the conversation being read back.
-  void Function(String sessionId, Map<String, Object?> update)? onUpdate;
 }

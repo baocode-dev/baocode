@@ -1,7 +1,5 @@
-import '../acp/acp_connection.dart';
 import '../acp/mcp_endpoint.dart';
 import '../agent_kernel.dart' show SessionRecord;
-import '../kernel_types.dart' show RateLimitWindow;
 import 'agy_runtime_stub.dart'
     if (dart.library.io) 'agy_runtime_io.dart'
     as platform;
@@ -10,6 +8,11 @@ import 'agy_runtime_stub.dart'
 /// installed, or the one BaoCode installed for them. It keeps its sign-in,
 /// conversations and MCP servers in `~/.gemini`, shared with the user's own
 /// terminal.
+///
+/// One agy is kept running for the whole app (`agy acp`, never prompted
+/// over ACP): the service. Its language server, embedded, is what the app
+/// talks to ([server]): conversations are started, prompted, watched,
+/// listed and deleted there, many at once.
 abstract interface class AgyRuntime {
   /// This machine's.
   static AgyRuntime get local => _local ??= platform.localAgyRuntime();
@@ -21,23 +24,9 @@ abstract interface class AgyRuntime {
   /// Where `agy` is; null when it is not installed.
   Future<String?> locate();
 
-  /// Starts `agy acp` in [cwd]. Throws [AgyUnavailable].
-  Future<AcpTransport> start(String cwd);
-
-  /// Boots an agy ahead, for the next [start] to be at once (its backend
-  /// takes seconds to boot); kept a while.
-  void warm();
-
-  /// Reads conversation [sessionId] back, as agy keeps it: each update of
-  /// it to [onUpdate], then its answer (the options and modes it is on).
-  /// On a reader agy kept up for it, never prompted: agy is the service,
-  /// a reading the same whichever agy gives it. Throws [AgyUnavailable]
-  /// or [AcpError].
-  Future<Map<String, Object?>> replay(
-    String sessionId,
-    String cwd,
-    void Function(Map<String, Object?> update) onUpdate,
-  );
+  /// The language server of the agy kept running, started if there is
+  /// none (seconds). Throws [AgyUnavailable].
+  Future<AgyLanguageServer> server();
 
   /// Downloads Google's build for this machine from its update feed and
   /// installs it for BaoCode, telling [onProgress] how far it got (0 to 1).
@@ -55,20 +44,8 @@ abstract interface class AgyRuntime {
 
   Future<void> setMcpServerEnabled(String name, bool enabled);
 
-  /// Its sign-in, as it keeps it (the system keychain); null without one.
-  Future<AgyCredentials?> credentials();
-
-  /// The account's quota, as Google tells it agy's sign-in: its windows,
-  /// each of the models drawing on it; null when not signed in. Throws
-  /// when it could not be asked.
-  Future<List<RateLimitWindow>?> quota();
-
-  /// Ends every agy this app started (as it quits).
+  /// Ends the agy this app keeps (as it quits).
   Future<void> stopAll();
-
-  /// What it keeps of conversation [sessionId] beside the conversation
-  /// itself: its tasks and inbox.
-  AgyRecords records(String sessionId);
 
   /// The text of the file at [path] as it stands; null where there is
   /// none, or it is too big to read here.
@@ -79,28 +56,47 @@ abstract interface class AgyRuntime {
   Map<String, Object?>? get kept;
   set kept(Map<String, Object?>? value);
 
-  /// The turns of conversation [sessionId] run from this app, as it timed
-  /// them, oldest first: agy's conversation itself says nothing of when.
-  List<Map<String, Object?>> turnsTimed(String sessionId);
+  /// Serves the app's own tools to an agy conversation over MCP (on this
+  /// machine's loopback) at [key], [handle] answering what it asks. The
+  /// conversation keeps the address it was told as it started: the same
+  /// [key] serves it in a later run (see [toolKey]).
+  Future<McpEndpoint> serveTools(McpHandler handle, {String key = ''});
 
-  /// Keeps [turn] (its message, when it was sent, how long it took and
-  /// what it spent) as the latest of [sessionId]'s.
-  void timeTurn(String sessionId, Map<String, Object?> turn);
+  /// The key conversation [sessionId]'s tools were served at, as kept;
+  /// null for one started without them (or elsewhere).
+  String? toolKey(String sessionId);
 
-  /// Serves the app's own tools to an agy session over MCP (on this
-  /// machine's loopback), [handle] answering what it asks.
-  Future<McpEndpoint> serveTools(McpHandler handle);
+  void keepToolKey(String sessionId, String key);
 
-  /// The conversations it keeps, any project's (`session/list`); none
-  /// when it is not installed.
-  Future<List<SessionRecord>> sessions();
+  /// Where agy keeps its conversations (`~/.gemini/antigravity-cli`).
+  String get dataDir;
 
   /// The conversations as last listed, kept from one run to the next:
   /// shown before agy is up to list them again. Null with none kept.
   List<SessionRecord>? get lastSessions;
+  set lastSessions(List<SessionRecord>? sessions);
 
   /// Deletes conversation [sessionId] and what is kept of it, for good.
   Future<void> delete(String sessionId);
+}
+
+/// agy's language server, as the app calls it: Connect over HTTP on this
+/// machine's loopback, JSON in and out. Its methods are Google's own, not
+/// a published interface: each one used is noted where it is.
+abstract interface class AgyLanguageServer {
+  /// Calls [method] with [body]; its answer. Throws [AgyError].
+  Future<Map<String, Object?>> call(
+    String method, [
+    Map<String, Object?> body = const {},
+  ]);
+
+  /// Calls [method] with [body] for a stream of answers, until the server
+  /// ends it or the listener stops; ends with an [AgyError] when the
+  /// server says so, or is gone.
+  Stream<Map<String, Object?>> stream(
+    String method, [
+    Map<String, Object?> body = const {},
+  ]);
 }
 
 /// `agy` could not be run: not installed, too old, or failing to start.
@@ -110,6 +106,27 @@ class AgyUnavailable implements Exception {
   final String message;
   final bool notInstalled;
   final String? detail;
+
+  @override
+  String toString() => message;
+}
+
+/// What agy's language server answered a call with, or that it could not
+/// be reached.
+class AgyError implements Exception {
+  const AgyError(this.message, {this.code, this.status, this.gone = false});
+
+  final String message;
+
+  /// Connect's code (`invalid_argument`, `not_found`…), when it answered.
+  final String? code;
+
+  /// The HTTP status, when it answered.
+  final int? status;
+
+  /// Whether it is gone rather than refusing: its agy ended, or never
+  /// answered.
+  final bool gone;
 
   @override
   String toString() => message;
@@ -128,29 +145,4 @@ class AgyMcpServer {
 
   /// Its command line, or its URL.
   final String target;
-}
-
-/// agy's sign-in: its Google tokens.
-class AgyCredentials {
-  const AgyCredentials({
-    required this.accessToken,
-    this.refreshToken,
-    this.expiry,
-    this.email,
-  });
-
-  final String accessToken;
-  final String? refreshToken;
-  final DateTime? expiry;
-  final String? email;
-}
-
-/// What agy keeps of a conversation beside it (in its `brain` folder, under
-/// the conversation's id), read only.
-abstract interface class AgyRecords {
-  /// Its inbox (`messages/*.json`): background tasks' results.
-  Future<List<Map<String, Object?>>> messages();
-
-  /// Where background task [taskId]'s output is written (`tasks/<n>.log`).
-  String taskLog(String taskId);
 }

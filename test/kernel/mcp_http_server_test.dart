@@ -1,11 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:baocode/kernel/acp/mcp_endpoint.dart';
 import 'package:baocode/kernel/acp/mcp_http_server.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  late McpHttpServer server;
+  late McpEndpoint server;
   final asked = <Map<String, Object?>>[];
 
   // Real requests, not the test binding's stand-in client.
@@ -45,9 +46,38 @@ void main() {
 
   test('is on the loopback, at a path of its own', () {
     expect(server.url.host, '127.0.0.1');
-    expect(server.url.path, '/mcp/${server.token}');
-    expect(server.token, hasLength(48));
-    expect(server.headers, {'Authorization': 'Bearer ${server.token}'});
+    final token = server.url.path.substring('/mcp/'.length);
+    expect(server.url.path, '/mcp/$token');
+    expect(token, hasLength(48));
+    expect(server.headers, {'Authorization': 'Bearer $token'});
+  });
+
+  test('serves several, each at its key, on a port and token kept', () async {
+    final shared = await McpHttpServer.open(port: 0, token: 'tok');
+    final a = shared.serve('a', (message) async => {'id': message['id'], 'a': 1});
+    final b = shared.serve('b', (message) async => {'id': message['id'], 'b': 2});
+    expect(a.url.path, '/mcp/tok/a');
+    expect(b.url.port, a.url.port);
+    final (status, body) = await post({
+      'jsonrpc': '2.0',
+      'id': 1,
+      'method': 'x',
+    }, url: b.url, headers: b.headers);
+    expect(status, 200);
+    expect(jsonDecode(body), {'id': 1, 'b': 2});
+    await a.close();
+    final (gone, _) = await post({
+      'jsonrpc': '2.0',
+      'id': 1,
+      'method': 'x',
+    }, url: a.url, headers: a.headers);
+    expect(gone, 404);
+    // Opened again at the same address, once closed.
+    final port = shared.port;
+    await shared.close();
+    final again = await McpHttpServer.open(port: port, token: 'tok');
+    expect(again.port, port);
+    await again.close();
   });
 
   test('answers a request with its reply, as JSON', () async {
