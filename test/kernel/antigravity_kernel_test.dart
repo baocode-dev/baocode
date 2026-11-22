@@ -143,6 +143,9 @@ class _Runtime implements AgyRuntime {
   String? fileText(String path) => files[path];
 
   @override
+  Map<String, Object?>? kept;
+
+  @override
   Future<AcpTransport> start(String cwd) async {
     if (!installed) {
       throw const AgyUnavailable('Not installed', notInstalled: true);
@@ -183,9 +186,13 @@ class _Runtime implements AgyRuntime {
   Future<AgyCredentials?> credentials() async => null;
 
   @override
-  Future<List<RateLimitWindow>?> quota() async => const [
-    RateLimitWindow('Gemini 5-hour limit', .25),
-  ];
+  int quotaAsked = 0;
+
+  @override
+  Future<List<RateLimitWindow>?> quota() async {
+    quotaAsked++;
+    return const [RateLimitWindow('Gemini 5-hour limit', .25)];
+  }
 
   @override
   Future<void> stopAll() async {}
@@ -299,6 +306,7 @@ void main() {
   }
 
   setUp(() {
+    AntigravityKernel.forgetKept();
     runtime = _Runtime(_answers());
     events = [];
   });
@@ -1107,6 +1115,93 @@ void main() {
     await kernel.refreshUsage();
     expect(kernel.accountLimits.single.label, 'Gemini 5-hour limit');
     expect(of<StatsReported>().last.stats.limits.single.utilization, .25);
+  });
+
+  test('models and limits as last told, kept for the next run', () async {
+    runtime.kept = {
+      'models': [
+        {'id': 'old-model', 'name': 'Old Model', 'description': ''},
+      ],
+      'limits': [
+        {'label': 'Weekly Gemini limit', 'utilization': .5},
+      ],
+      'limitsAt': DateTime.now().toIso8601String(),
+    };
+    kernel = make();
+    // Before agy says anything: what the last run kept.
+    expect(kernel.model.options.single.id, 'old-model');
+    expect(kernel.accountLimits.single.label, 'Weekly Gemini limit');
+    // Asked a moment ago: not asked again, as the panel opens.
+    await kernel.refreshUsage();
+    expect(runtime.quotaAsked, 0);
+    expect(of<StatsReported>().last.stats.limits.single.utilization, .5);
+
+    await started();
+    const told = ['gemini-3.8-flash', 'claude-opus-5-5', 'gpt-oss-120b-medium'];
+    expect(kernel.model.options.map((option) => option.id), told);
+    final models = runtime.kept!['models']! as List;
+    expect(models.map((model) => (model as Map)['id']), told);
+    // Fresh enough as agy started: still not asked.
+    expect(runtime.quotaAsked, 0);
+  });
+
+  test(
+    'limits old or none are asked in the background as agy starts',
+    () async {
+      kernel = make();
+      await started();
+      await pumpEventQueue();
+      expect(runtime.quotaAsked, 1);
+      expect((runtime.kept!['limits']! as List).single, {
+        'label': 'Gemini 5-hour limit',
+        'utilization': .25,
+      });
+    },
+  );
+
+  test('turns read back are timed as agy logged them', () async {
+    runtime.steps['s1'] = [
+      {
+        'type': 'USER_INPUT',
+        'source': 'USER_EXPLICIT',
+        'created_at': '2026-11-22T10:00:00Z',
+      },
+      {
+        'type': 'PLANNER_RESPONSE',
+        'created_at': '2026-11-22T10:00:02Z',
+        'input_tokens': 100,
+        'cache_read_tokens': 900,
+        'output_tokens': 20,
+      },
+      {'type': 'GENERIC', 'created_at': '2026-11-22T10:00:15Z'},
+    ];
+    kernel = make(
+      resume: SessionRecord(
+        id: 's1',
+        title: 'Old',
+        updatedAt: DateTime(2026),
+        cwd: '/p',
+      ),
+    );
+    runtime.answers['session/load'] = (_) {
+      runtime.agent
+        ..update({
+          'sessionUpdate': 'user_message_chunk',
+          'content': {'type': 'text', 'text': 'Fix it'},
+        })
+        ..update({
+          'sessionUpdate': 'agent_message_chunk',
+          'content': {'type': 'text', 'text': 'Done.'},
+        });
+      return {'configOptions': _session['configOptions']};
+    };
+    await pumpEventQueue();
+    final message = items().values.whereType<UserMessageItem>().single;
+    expect(message.text, 'Fix it');
+    expect(message.worked, const Duration(seconds: 15));
+    expect(message.sentAt, DateTime.utc(2026, 11, 22, 10).toLocal());
+    expect(message.usage?.inputTokens, 1000);
+    expect(message.usage?.outputTokens, 20);
   });
 
   test('a subagent’s steps as items', () {

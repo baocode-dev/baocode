@@ -60,6 +60,12 @@ class _NoAgy implements AgyRuntime {
 
   @override
   String? fileText(String path) => null;
+
+  @override
+  Map<String, Object?>? get kept => null;
+
+  @override
+  set kept(Map<String, Object?>? value) {}
 }
 
 class _NoRecords implements AgyRecords {

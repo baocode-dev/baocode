@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show listEquals, visibleForTesting;
 import 'package:flutter/material.dart';
@@ -49,6 +50,8 @@ class AntigravityKernel
     this._quiet = const Duration(seconds: 4),
     this._pollEvery = const Duration(seconds: 3),
   }) : _runtime = runtime ?? AgyRuntime.local {
+    _restore();
+    _models = _lastModels;
     final settings = _context.settings;
     _work = _pick(settings[KernelChoiceKind.mode.name], _works, 'agent');
     _approval = _pick(
@@ -233,12 +236,15 @@ class AntigravityKernel
         started = await connection.request('session/new', session);
         _sessionId = started['sessionId'] as String?;
       }
+      final readBack = _translator.replayed.isNotEmpty;
       _shown = true;
       _historyRead();
       _options(started);
       await _applyPicks();
       _setHealth(KernelHealth.ready);
       unawaited(_watchRecords());
+      if (readBack) unawaited(_timeHistory());
+      if (!_limitsFresh(const Duration(minutes: 5))) _limitsAfterTurn();
       return true;
     } on AgyUnavailable catch (error) {
       _historyRead();
@@ -842,6 +848,72 @@ class AntigravityKernel
 
   static int _int(Object? value) => value is num ? value.toInt() : 0;
 
+  /// The turns read back, timed as agy logged them: when each was sent,
+  /// how long it took and what its model's requests spent, for each to
+  /// show as a turn done here does. The messages are matched from the
+  /// last (the log may keep only the latest of a long conversation).
+  Future<void> _timeHistory() async {
+    final id = _sessionId;
+    final messages = _translator.replayed.entries.toList();
+    _translator.replayed.clear();
+    if (id == null || messages.isEmpty) return;
+    final List<Map<String, Object?>> steps;
+    try {
+      steps = await _runtime.records(id).steps();
+    } on Object {
+      return;
+    }
+    final turns = <({DateTime sent, DateTime last, int input, int output})>[];
+    for (final step in steps) {
+      final at = switch (step['created_at']) {
+        final String at => DateTime.tryParse(at)?.toLocal(),
+        _ => null,
+      };
+      if (at == null) continue;
+      if (step['type'] == 'USER_INPUT' && step['source'] == 'USER_EXPLICIT') {
+        turns.add((sent: at, last: at, input: 0, output: 0));
+        continue;
+      }
+      if (turns.isEmpty) continue;
+      final turn = turns.removeLast();
+      final planned = step['type'] == 'PLANNER_RESPONSE';
+      turns.add((
+        sent: turn.sent,
+        last: at,
+        input:
+            turn.input +
+            (planned
+                ? _int(step['input_tokens']) + _int(step['cache_read_tokens'])
+                : 0),
+        output: turn.output + (planned ? _int(step['output_tokens']) : 0),
+      ));
+    }
+    if (_disposed) return;
+    for (var k = 1; k <= math.min(messages.length, turns.length); k++) {
+      final MapEntry(key: itemId, value: message) =
+          messages[messages.length - k];
+      final turn = turns[turns.length - k];
+      final took = turn.last.difference(turn.sent);
+      emit(
+        ItemUpserted(
+          nextSeq,
+          itemId,
+          UserMessageItem(
+            text: message.text,
+            images: message.images,
+            sentAt: turn.sent,
+            worked: took < const Duration(seconds: 1)
+                ? const Duration(seconds: 1)
+                : took,
+            usage: turn.input + turn.output == 0
+                ? null
+                : TurnUsage(inputTokens: turn.input, outputTokens: turn.output),
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   void cancel() {
     final turn = _turn;
@@ -1256,8 +1328,81 @@ class AntigravityKernel
   /// Its models (families, their thinking apart), as it lists them.
   /// Its models, as agy last told them (in any conversation): offered
   /// until it tells this one's, which a cold agy takes seconds to.
-  List<KernelOption> _models = _lastModels;
+  late List<KernelOption> _models;
   static List<KernelOption> _lastModels = const [];
+
+  /// Whether what was kept from the last run ([AgyRuntime.kept]) was read
+  /// back: once a run.
+  static bool _restored = false;
+
+  /// Forgets what was read back, for a test to start afresh.
+  @visibleForTesting
+  static void forgetKept() {
+    _restored = false;
+    _lastModels = const [];
+    _limits = const [];
+    _limitsAt = null;
+  }
+
+  void _restore() {
+    if (_restored) return;
+    _restored = true;
+    final kept = _runtime.kept;
+    if (kept == null) return;
+    _lastModels = [
+      for (final model in kept['models'] as List? ?? const [])
+        if (model case {'id': final String id, 'name': final String name})
+          KernelOption(
+            id,
+            name,
+            Icons.auto_awesome_outlined,
+            model['description'] as String? ?? '',
+          ),
+    ];
+    _limits = [
+      for (final limit in kept['limits'] as List? ?? const [])
+        if (limit case {
+          'label': final String label,
+          'utilization': final num used,
+        })
+          RateLimitWindow(
+            label,
+            used.toDouble(),
+            resetsAt: switch (limit['resetsAt']) {
+              final String at => DateTime.tryParse(at),
+              _ => null,
+            },
+          ),
+    ];
+    _limitsAt = switch (kept['limitsAt']) {
+      final String at => DateTime.tryParse(at),
+      _ => null,
+    };
+  }
+
+  /// Keeps the models and limits as last told, for the next run to start
+  /// with rather than ask again.
+  void _keep() {
+    _runtime.kept = {
+      'models': [
+        for (final model in _lastModels)
+          {
+            'id': model.id,
+            'name': model.label,
+            'description': model.description,
+          },
+      ],
+      'limits': [
+        for (final limit in _limits)
+          {
+            'label': limit.label,
+            'utilization': limit.utilization,
+            if (limit.resetsAt case final at?) 'resetsAt': at.toIso8601String(),
+          },
+      ],
+      if (_limitsAt case final at?) 'limitsAt': at.toIso8601String(),
+    };
+  }
 
   /// Its model ids, each a family's at a thinking level
   /// (`gemini-3.8-flash-low`): what levels each family has.
@@ -1299,7 +1444,7 @@ class AntigravityKernel
       final current = option['currentValue'] as String?;
       switch (option['id']) {
         case 'model':
-          _models = _lastModels = [
+          final told = [
             for (final value in values)
               KernelOption(
                 value.id,
@@ -1308,6 +1453,15 @@ class AntigravityKernel
                 value.description,
               ),
           ];
+          final changed =
+              told.length != _lastModels.length ||
+              told.indexed.any(
+                (entry) =>
+                    entry.$2.id != _lastModels[entry.$1].id ||
+                    entry.$2.label != _lastModels[entry.$1].label,
+              );
+          _models = _lastModels = told;
+          if (changed) _keep();
           _currentModel = current;
         case 'thought_level':
           _levels = [
@@ -1486,9 +1640,19 @@ class AntigravityKernel
   @override
   List<RateLimitWindow> get accountLimits => _limits;
 
+  /// Asked lately: shown as they are, not asked again.
+  static bool _limitsFresh(Duration within) => switch (_limitsAt) {
+    final at? => DateTime.now().difference(at) < within,
+    null => false,
+  };
+
   @override
   Future<void> refreshUsage() {
     if (_disposed) return Future.value();
+    if (_asking == null && _limitsFresh(const Duration(minutes: 1))) {
+      emit(StatsReported(nextSeq, UsageStats(limits: _limits)));
+      return Future.value();
+    }
     return _asking ??= _askLimits().whenComplete(() => _asking = null);
   }
 
@@ -1507,6 +1671,7 @@ class AntigravityKernel
       } else {
         _limits = limits;
         _limitsAt = DateTime.now();
+        _keep();
       }
     } on Object {
       state = LimitsState.unavailable;
@@ -1517,13 +1682,10 @@ class AntigravityKernel
     );
   }
 
-  /// Asks for the limits once a turn ends, unless asked lately.
+  /// Asks for the limits in the background (a turn over, agy up),
+  /// unless asked lately.
   void _limitsAfterTurn() {
-    final at = _limitsAt;
-    if (at != null &&
-        DateTime.now().difference(at) < const Duration(minutes: 2)) {
-      return;
-    }
+    if (_limitsFresh(const Duration(minutes: 2))) return;
     unawaited(refreshUsage());
   }
 
