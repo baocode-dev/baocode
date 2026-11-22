@@ -109,6 +109,13 @@ class AcpConnection {
     _transport.close();
   }
 
+  /// Lets go of the agent, left running for another connection to take
+  /// up: nothing pending of this one's.
+  void detach() {
+    _done = true;
+    unawaited(_subscription.cancel());
+  }
+
   void _receive(Map<String, Object?> message) {
     final method = message['method'];
     final id = message['id'];
