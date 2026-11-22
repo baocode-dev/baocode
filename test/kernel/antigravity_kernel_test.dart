@@ -250,6 +250,18 @@ const _session = {
   ],
 };
 
+/// [_session]'s answer with [model] in effect.
+Map<String, Object?> _sessionOn(String model) => {
+  ..._session,
+  'configOptions': [
+    for (final option in _session['configOptions']! as List)
+      if ((option as Map)['id'] == 'model')
+        {...option, 'currentValue': model}
+      else
+        option,
+  ],
+};
+
 Map<String, Object? Function(Map<String, Object?>)> _answers({
   Object? Function(Map<String, Object?>)? newSession,
 }) => {
@@ -1102,19 +1114,52 @@ void main() {
     expect(kernel.loadingHistory, isFalse);
     expect(kernel.health.status, KernelHealthStatus.ready);
     expect(items().values.whereType<AssistantTextItem>().single.raw, 'Done.');
-    // A pick meanwhile is kept, put in effect once it has answered: its
-    // answer says what is in effect.
+    // A pick meanwhile goes to agy at once: it takes one mid-load, and
+    // its answer then says so. Not set twice.
     kernel.model.select('claude-opus-5-5');
-    await pumpEventQueue();
-    expect(runtime.agent.sentOf('session/set_config_option'), isEmpty);
-    runtime.agent.answer('session/load', {
-      'configOptions': _session['configOptions'],
-    });
     await pumpEventQueue();
     final set = runtime.agent.sentOf('session/set_config_option').single;
     expect(set['configId'], 'model');
     expect(set['value'], 'claude-opus-5-5');
+    runtime.agent.answer('session/load', _sessionOn('claude-opus-5-5'));
+    await pumpEventQueue();
+    expect(runtime.agent.sentOf('session/set_config_option'), hasLength(1));
     expect(kernel.model.selected, 'claude-opus-5-5');
+  });
+
+  test("a conversation's old mode is not adopted: the user's is set", () async {
+    kernel = make(
+      settings: {KernelChoiceKind.mode.name: 'agent'},
+      resume: SessionRecord(
+        id: 's1',
+        title: 'Old',
+        updatedAt: DateTime(2026),
+        cwd: '/p',
+      ),
+    );
+    runtime.answers['session/load'] = (_) {
+      runtime.agent.update({
+        'sessionUpdate': 'current_mode_update',
+        'currentModeId': 'plan',
+      });
+      return {
+        ..._session,
+        'modes': {'currentModeId': 'plan'},
+        'configOptions': [
+          for (final option in _session['configOptions']! as List)
+            if ((option as Map)['id'] == 'mode')
+              {...option, 'currentValue': 'plan'}
+            else
+              option,
+        ],
+      };
+    };
+    await pumpEventQueue();
+    expect(kernel.mode.selected, 'agent');
+    expect(
+      runtime.agent.sentOf('session/set_mode').single['modeId'],
+      'default',
+    );
   });
 
   test('not signed in: sign-in offered', () async {
