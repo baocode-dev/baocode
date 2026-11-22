@@ -33,6 +33,7 @@ workspace:
   - packages/bao_pty
   - packages/bao_remote
   - packages/bao_sampler
+  - packages/bao_websearch
   - packages/bao_xterm
 
 # Dependencies specify other packages that your package needs in order to work.
@@ -54,6 +55,8 @@ dependencies:
     path: packages/bao_remote
   bao_sampler:
     path: packages/bao_sampler
+  bao_websearch:
+    path: packages/bao_websearch
   bao_xterm:
     path: packages/bao_xterm
   # The names project icons are kept under (lib/icons/icon_library.dart).

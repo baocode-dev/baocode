@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:bao_agent/bao_agent.dart';
+import 'package:bao_agent/src/tools/web_tools.dart';
+import 'package:bao_websearch/bao_websearch.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 
@@ -294,34 +296,94 @@ void main() {
       expect((result['tool_use_result'] as Map)['query'], 'dart release');
     });
 
-    test('WebSearch: not offered by the provider', () async {
-      h = await Harness.start();
-      h.model.script.addAll([
-        Reply.tools([
-          ('WebSearch', {'query': 'xy'}),
-          (
-            'WebSearch',
-            {
-              'query': 'xy',
-              'allowed_domains': ['a'],
-              'blocked_domains': ['b'],
-            },
-          ),
-        ]),
-        Reply.failing(
-          const ApiError('web_search is not supported', status: 400),
-        ),
-        Reply.text('ok'),
-      ]);
-      await h.turn('search');
-      final [refused, invalid] = h.toolResults;
-      expect('${refused['content']}', contains('Web search is not available'));
-      expect('${invalid['content']}', contains('not both'));
-    });
+    group('WebSearch searched here', () {
+      late HttpServer engine;
+      var engineUp = true;
+      final original = WebSearchTool.localSearch;
 
-    test(
-      'WebSearch: tool error block and empty reply fail as tool errors',
-      () async {
+      setUp(() async {
+        engineUp = true;
+        engine = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        engine.listen((request) async {
+          if (!engineUp) {
+            request.response.statusCode = 503;
+          } else {
+            request.response
+              ..headers.contentType = ContentType.html
+              ..write(
+                '<div class="r"><a href="https://dart.dev/">Dart</a>'
+                '<p>The language</p></div>',
+              );
+          }
+          await request.response.close();
+        });
+        WebSearchTool.localSearch = (_) => WebSearch(
+          engines: [
+            HtmlEngine(
+              'local',
+              'http://127.0.0.1:${engine.port}/?q={query}',
+              result: 'div.r',
+              title: 'a',
+              link: 'a',
+              snippet: 'p',
+            ),
+          ],
+        );
+      });
+
+      tearDown(() async {
+        WebSearchTool.localSearch = original;
+        await engine.close(force: true);
+      });
+
+      int asked() => h.model.requests
+          .where(
+            (r) => jsonEncode(r.body['tools']).contains('web_search_20250305'),
+          )
+          .length;
+
+      void searchedHere(Map<String, Object?> result) {
+        expect(result['is_error'], isNot(isTrue));
+        expect(
+          '${result['content']}',
+          allOf(
+            contains('Results: [{"title":"Dart","url":"https://dart.dev"}]'),
+            contains('1. Dart\nURL: https://dart.dev\nThe language'),
+          ),
+        );
+      }
+
+      test('a model refusing the tool; not asked again', () async {
+        h = await Harness.start();
+        h.model.script.addAll([
+          Reply.tools([
+            ('WebSearch', {'query': 'xy'}),
+            (
+              'WebSearch',
+              {
+                'query': 'xy',
+                'allowed_domains': ['a'],
+                'blocked_domains': ['b'],
+              },
+            ),
+          ]),
+          Reply.failing(
+            const ApiError('web_search is not supported', status: 400),
+          ),
+          Reply.text('ok'),
+          Reply.tool('WebSearch', {'query': 'again'}),
+          Reply.text('ok'),
+        ]);
+        await h.turn('search');
+        await h.turn('search again');
+        final [refused, invalid, again] = h.toolResults;
+        searchedHere(refused);
+        expect('${invalid['content']}', contains('not both'));
+        searchedHere(again);
+        expect(asked(), 1);
+      });
+
+      test('search said to be unavailable, or not searching', () async {
         h = await Harness.start();
         h.model.script.addAll([
           Reply.tool('WebSearch', {'query': 'unsupported model'}),
@@ -338,25 +400,61 @@ void main() {
               'content': {
                 'type': 'web_search_tool_result_error',
                 'error_code': 'unavailable',
-                'message': 'Web search is not supported for claude-opus-5-5 on Antigravity.',
+                'message': 'Web search is not supported here.',
               },
             },
           ]),
+          Reply.text('done'),
+        ]);
+        await h.turn('search');
+        searchedHere(h.toolResults.single);
+        await h.dispose();
+
+        h = await Harness.start();
+        h.model.script.addAll([
           Reply.tool('WebSearch', {'query': 'silent empty'}),
           Reply(const []),
           Reply.text('done'),
         ]);
         await h.turn('search');
-        final [unsupported, empty] = h.toolResults;
-        expect(unsupported['is_error'], isTrue);
-        expect(
-          '${unsupported['content']}',
-          'Web search is not supported for claude-opus-5-5 on Antigravity.',
-        );
-        expect(empty['is_error'], isTrue);
-        expect('${empty['content']}', contains('Web search is not available'));
-      },
-    );
+        searchedHere(h.toolResults.single);
+      });
+
+      test(
+        'a limit this time: searched here, the model asked next time',
+        () async {
+          h = await Harness.start();
+          h.model.script.addAll([
+            Reply.tool('WebSearch', {'query': 'limited'}),
+            Reply.failing(const ApiError('rate limited', status: 429)),
+            Reply.tool('WebSearch', {'query': 'limited'}),
+            Reply.failing(const ApiError('rate limited', status: 429)),
+            Reply.text('done'),
+          ]);
+          await h.turn('search');
+          final [first, second] = h.toolResults;
+          searchedHere(first);
+          searchedHere(second);
+          expect(asked(), 2);
+        },
+      );
+
+      test('nothing found: a tool error', () async {
+        engineUp = false;
+        h = await Harness.start();
+        h.model.script.addAll([
+          Reply.tool('WebSearch', {'query': 'nothing'}),
+          Reply.failing(
+            const ApiError('unknown tool web_search_20250305', status: 400),
+          ),
+          Reply.text('done'),
+        ]);
+        await h.turn('search');
+        final result = h.toolResults.single;
+        expect(result['is_error'], isTrue);
+        expect('${result['content']}', contains('Web search found nothing'));
+      });
+    });
   });
 
   group('shell', () {

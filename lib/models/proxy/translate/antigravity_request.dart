@@ -64,43 +64,6 @@ bool antigravitySupportsWebSearch(String model) {
       !lower.contains('imagen');
 }
 
-/// Whether [body] asks only for Anthropic's built-in `web_search` tool (no
-/// function tools beside it) and does not forbid tools.
-bool antigravityHasOnlyWebSearch(Map<String, Object?> body) {
-  final choice = body['tool_choice'] is Map ? body['tool_choice'] as Map : null;
-  if (choice?['type'] == 'none') return false;
-  final tools = body['tools'];
-  if (tools is! List || tools.isEmpty) return false;
-  var hasWebSearch = false;
-  for (final tool in tools) {
-    if (tool is! Map) continue;
-    if (isAntigravityWebSearchToolType('${tool['type'] ?? ''}')) {
-      hasWebSearch = true;
-    } else if (tool['name'] is String && tool.containsKey('input_schema')) {
-      return false;
-    }
-  }
-  return hasWebSearch;
-}
-
-/// The latest user text in [body], used as the query shown in a synthesized
-/// web search tool call.
-String antigravityWebSearchQuery(Map<String, Object?> body) {
-  final messages = _messages(body);
-  for (var i = messages.length - 1; i >= 0; i--) {
-    if (messages[i]['role'] != 'user') continue;
-    final parts = [
-      for (final block in _blocks(messages[i]['content']))
-        if (block['type'] == 'text')
-          if ('${block['text'] ?? ''}'.trim() case final text
-              when text.isNotEmpty)
-            text,
-    ];
-    if (parts.isNotEmpty) return parts.join('\n');
-  }
-  return '';
-}
-
 /// An Anthropic Messages request ([body]) as Code Assist's `request`, for
 /// model [model] (the id it goes out as) at [effort]: its system prompt
 /// and turns as Gemini's, its tools' schemas cut to what Antigravity

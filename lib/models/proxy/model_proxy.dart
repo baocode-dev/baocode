@@ -5,6 +5,7 @@ import 'dart:isolate';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:bao_websearch/bao_websearch.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../network/tls.dart';
@@ -58,6 +59,11 @@ import 'watched_socket.dart';
 /// A request Claude Code gives up on (it closes the connection: it timed
 /// out, or was interrupted) is given up on upstream too, at once, and kept
 /// as cancelled ([UsageCall.cancelled]).
+///
+/// A web search tool's own request (Claude Code's `WebSearch`: Anthropic's
+/// `web_search` tool alone) to a model that does not run that tool itself
+/// is answered here, by a search of the web's engines ([WebSearch]): see
+/// [_runsWebSearch].
 class ModelProxy {
   ModelProxy({
     required this._provider,
@@ -68,8 +74,19 @@ class ModelProxy {
     this._antigravity,
     this._signatures,
     this._usage,
+    WebSearch? webSearch,
+    NativeSearchSupport? searchSupport,
     @visibleForTesting String? token,
-  }) : token = token ?? _newToken();
+  }) : token = token ?? _newToken(),
+       _searchSupport = searchSupport ?? NativeSearchSupport() {
+    _webSearch =
+        webSearch ??
+        WebSearch(
+          client: () async =>
+              HttpClient(context: await upstreamSecurityContext())
+                ..findProxy = _findProxy ?? (_) => 'DIRECT',
+        );
+  }
 
   final ModelProvider? Function(String id) _provider;
 
@@ -95,6 +112,13 @@ class ModelProxy {
 
   /// What a request must carry, as a bearer token or `x-api-key`.
   final String token;
+
+  /// The search a web search tool's request is answered by, for a model
+  /// that does not run that tool itself.
+  late final WebSearch _webSearch;
+
+  /// Which models run the web search tool themselves, as last seen.
+  final NativeSearchSupport _searchSupport;
 
   static String _newToken() {
     final random = Random.secure();
@@ -285,6 +309,20 @@ class ModelProxy {
           _ => ref.model,
         };
       }
+      final modelName = requested.modelName.trim();
+      // A web search tool's own request: answered here when the model
+      // does not run the tool itself, not as a call to it.
+      final search = countTokens ? null : onlyWebSearchTool(body);
+      final native = search == null
+          ? null
+          : _runsWebSearch(provider, modelName);
+      if (search != null && native == false) {
+        return await _searchHere(body, search, response);
+      }
+      // Not known: found out from its answer.
+      final probe = search != null && native == null
+          ? (search: search, model: modelName)
+          : null;
       if (!countTokens) {
         ledger = _usage?.call();
         if (ledger != null && ledger.enabled) {
@@ -317,6 +355,8 @@ class ModelProxy {
           response,
           countTokens: countTokens,
           meter: meter,
+          search: search,
+          probe: probe,
         );
       }
       if (countTokens) {
@@ -330,6 +370,8 @@ class ModelProxy {
         response,
         sessionHeader: request.headers.value(sessionHeaderName),
         meter: meter,
+        search: search,
+        probe: probe,
       );
     } on FormatException catch (error) {
       meter?.fail('The request is not JSON: ${error.message}');
@@ -396,6 +438,8 @@ class ModelProxy {
     HttpResponse response, {
     String? sessionHeader,
     UsageMeter? meter,
+    Map<String, Object?>? search,
+    _Probe? probe,
   }) async {
     // Claude Code's session id, for the custom headers' variables
     // ({{CLAUDE_SESSION_ID}}): the same its `metadata.user_id` carries.
@@ -520,6 +564,11 @@ class ModelProxy {
       if (answer.statusCode >= 400) {
         final text = await utf8.decodeStream(answer);
         meter?.trace?.upstreamText(text);
+        if (search != null) {
+          return _searchRefused(provider, probe, answer.statusCode, text, () {
+            return _searchHere(body, search, response, meter: meter);
+          });
+        }
         final message = upstreamErrorMessage(answer.statusCode, text);
         meter?.fail(message);
         _onError?.call(provider.id, message);
@@ -584,14 +633,35 @@ class ModelProxy {
         );
         if (message != null) {
           meter?.message(message);
+          if (probe != null &&
+              !_searched(provider, probe, jsonEncode(message))) {
+            return _searchHere(body, probe.search, response);
+          }
           return _json(response, 200, message);
         }
       }
       meter?.fail('${provider.name} ended without a reply');
       return _fail(response, 502, '${provider.name} ended without a reply');
     }
-    _startEvents(response);
     final translator = ResponsesResponseTranslator(body);
+    if (probe != null) {
+      // Whether it searched is seen once it has answered: held till then.
+      final held = StringBuffer();
+      await for (final line in upstreamLines) {
+        meter?.upstreamLine(line);
+        final events = translator.convert(line);
+        if (events.isEmpty) continue;
+        held.write(events);
+        meter?.events(events);
+      }
+      if (!_searched(provider, probe, '$held')) {
+        return _searchHere(body, probe.search, response);
+      }
+      _startEvents(response);
+      response.write(held);
+      return response.close();
+    }
+    _startEvents(response);
     await for (final line in upstreamLines) {
       meter?.upstreamLine(line);
       final events = translator.convert(line);
@@ -600,6 +670,88 @@ class ModelProxy {
       meter?.events(events);
       await response.flush();
     }
+    return response.close();
+  }
+
+  // --- Web search ----------------------------------------------------------
+
+  /// Whether [provider]'s [model] runs Anthropic's `web_search` tool
+  /// itself: null when not known. Known by its protocol (OpenAI's chat has
+  /// no such tool; on Antigravity, Gemini searches Google), else as its
+  /// answers showed in the last 5 hours ([NativeSearchSupport]).
+  bool? _runsWebSearch(ModelProvider provider, String model) =>
+      switch (provider.protocol) {
+        ProviderProtocol.openaiChat => false,
+        ProviderProtocol.antigravity => antigravitySupportsWebSearch(model),
+        _ => _searchSupport.lookup(provider.id, provider.protocol.name, model),
+      };
+
+  /// Whether [answer], to a web search tool's request whose model was
+  /// [probe]d, searched: what it says of the model kept.
+  bool _searched(ModelProvider provider, _Probe probe, String answer) {
+    final outcome = nativeSearchOutcome(answer);
+    if (outcome != NativeSearch.failed) {
+      _searchSupport.record(
+        provider.id,
+        provider.protocol.name,
+        probe.model,
+        outcome == NativeSearch.searched,
+      );
+    }
+    return outcome == NativeSearch.searched;
+  }
+
+  /// A web search tool's request refused ([status], [text]): searched here
+  /// ([searchHere]), and, when it is the tool that was refused, the model
+  /// known not to run it.
+  Future<void> _searchRefused(
+    ModelProvider provider,
+    _Probe? probe,
+    int status,
+    String text,
+    Future<void> Function() searchHere,
+  ) {
+    if (probe != null && refusesWebSearchTool(status, text)) {
+      _searchSupport.record(
+        provider.id,
+        provider.protocol.name,
+        probe.model,
+        false,
+      );
+    }
+    return searchHere();
+  }
+
+  /// [body], a web search tool's request ([tool] its tool), answered by a
+  /// search made here, as the API's own search would answer it.
+  Future<void> _searchHere(
+    Map<String, Object?> body,
+    Map<String, Object?> tool,
+    HttpResponse response, {
+    UsageMeter? meter,
+  }) async {
+    final query = webSearchQueryOf(body);
+    final model = '${body['model'] ?? ''}';
+    Map<String, Object?> message;
+    try {
+      final hits = await _webSearch.search(
+        query,
+        allowedDomains: toolDomains(tool, 'allowed_domains'),
+        blockedDomains: toolDomains(tool, 'blocked_domains'),
+      );
+      message = localSearchMessage(model: model, query: query, hits: hits);
+    } on SearchException catch (error) {
+      message = localSearchMessage(
+        model: model,
+        query: query,
+        error: 'Web search found nothing: ${error.message}',
+      );
+    }
+    if (body['stream'] != true) return _json(response, 200, message);
+    final frames = sseFrames(messageEvents(message));
+    _startEvents(response);
+    response.write(frames);
+    meter?.trace?.answerText(frames);
     return response.close();
   }
 
@@ -635,6 +787,8 @@ class ModelProxy {
     HttpResponse response, {
     required bool countTokens,
     UsageMeter? meter,
+    Map<String, Object?>? search,
+    _Probe? probe,
   }) async {
     final messages = UpstreamUrls.messages(provider);
     if (messages == null) {
@@ -700,6 +854,11 @@ class ModelProxy {
       if (countTokens) {
         return _json(response, 200, {'input_tokens': await _estimate(body)});
       }
+      if (search != null) {
+        return _searchRefused(provider, probe, answer.statusCode, text, () {
+          return _searchHere(body, search, response, meter: meter);
+        });
+      }
       final message = upstreamErrorMessage(answer.statusCode, text);
       meter?.fail(message);
       _onError?.call(provider.id, message);
@@ -708,6 +867,25 @@ class ModelProxy {
       return response.close();
     }
     if (!countTokens) _onError?.call(provider.id, null);
+    if (probe != null) {
+      // Whether it searched is seen once it has answered: held till then.
+      final held = BytesBuilder(copy: false);
+      await for (final chunk in _whileClient(answer)) {
+        held.add(chunk);
+        meter?.bytes(chunk);
+      }
+      final bytes = held.takeBytes();
+      if (!_searched(
+        provider,
+        probe,
+        utf8.decode(bytes, allowMalformed: true),
+      )) {
+        return _searchHere(body, probe.search, response);
+      }
+      _answerAs(response, answer);
+      response.add(bytes);
+      return response.close();
+    }
     _answerAs(response, answer);
     response.bufferOutput = false;
     await for (final chunk in _whileClient(answer)) {
@@ -932,23 +1110,6 @@ class ModelProxy {
         501,
         'Antigravity accounts are not available here',
       );
-    }
-    if (antigravityHasOnlyWebSearch(body) &&
-        !antigravitySupportsWebSearch(modelId)) {
-      final events = antigravityWebSearchUnavailableEvents(
-        model: '${body['model'] ?? modelId}',
-        reason: 'Web search is not supported for $modelId on ${provider.name}.',
-        query: antigravityWebSearchQuery(body),
-      );
-      if (!stream) {
-        return _json(response, 200, antigravityMessage(events)!);
-      }
-      final frames = antigravitySse(events);
-      _startEvents(response);
-      response.write(frames);
-      meter?.trace?.answerText(frames);
-      await response.flush();
-      return response.close();
     }
     final session = sessionId(body, header: sessionHeader);
     final cacheKey = promptCacheKey(body, header: sessionHeader);
@@ -1273,6 +1434,10 @@ class ModelProxy {
     }
   }
 }
+
+/// A web search tool's request whose model is not known to run the tool
+/// itself or not: its tool, and the model.
+typedef _Probe = ({Map<String, Object?> search, String model});
 
 /// A request being answered, for what answers it: its trace, and whether
 /// Claude Code is still there.

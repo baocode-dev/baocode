@@ -1,0 +1,20 @@
+name: bao_websearch
+description: >-
+  Web search without a search API: many engines' result pages asked at
+  once, their results merged by reciprocal rank fusion. Ported from
+  cursor-byok (MIT; see NOTICE.md), with what a proxy speaking Anthropic's
+  Messages API needs to answer its `web_search` tool by it. No Flutter in
+  the library.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.13.4
+
+dependencies:
+  html: ^0.15.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
