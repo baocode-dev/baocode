@@ -8,7 +8,11 @@
 
 ![BaoCode ユーザーの声](docs/readme/reviews.png)
 
-![BaoCode のメイン画面：プロジェクト別のエージェント、並列表示された二つの会話、モデル選択](site/shots/main.png)
+![BaoCode の Agent モード：複数マシン上のエージェント、進行中の会話とその使用量](https://baocode.dev/readme/agent.webp)
+
+![BaoCode の IDE モード：ファイルツリーとエディタ、その横に会話](https://baocode.dev/readme/ide.webp)
+
+![BaoCode でできること：360 FPS 描画、SSH 越しの Claude Code、ブラウザ操作、あらゆるモデル、Windows、使用量とコスト](https://baocode.dev/readme/features-en.webp)
 
 > 英語 README の日本語版です。内容に相違がある場合は [English](README.md) を参照してください。リンク先のサイトや文書が日本語に対応しているとは限りません。
 

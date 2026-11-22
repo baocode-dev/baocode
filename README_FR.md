@@ -8,7 +8,11 @@ Une interface de bureau conviviale pour [Claude Code](https://github.com/anthrop
 
 ![Ce que les utilisateurs disent de BaoCode](docs/readme/reviews.png)
 
-![Fenêtre principale de BaoCode : agents regroupés par projet, deux conversations côte à côte et sélecteur de modèle](site/shots/main.png)
+![BaoCode en mode Agent : des agents sur plusieurs machines, une conversation en cours et sa consommation](https://baocode.dev/readme/agent.webp)
+
+![BaoCode en mode IDE : l'arborescence et l'éditeur, avec la conversation à côté](https://baocode.dev/readme/ide.webp)
+
+![Ce que fait BaoCode : rendu à 360 FPS, Claude Code via SSH, le navigateur, tous les modèles, Windows, usage et coût](https://baocode.dev/readme/features-en.webp)
 
 > Présentation française du README anglais. En cas de différence, consultez la version [English](README.md). Les sites et documents liés ne sont pas nécessairement traduits en français.
 
