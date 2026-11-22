@@ -320,6 +320,56 @@ void main() {
     });
   });
 
+  test('a new agent keeps its id here, its session\'s as its alias', () async {
+    late final KernelDescriptor descriptor;
+    late FakeCli fake;
+    descriptor = KernelDescriptor(
+      id: 'claude-code',
+      label: 'Claude Code',
+      icon: Icons.auto_awesome_rounded,
+      description: '',
+      create: (context) => ClaudeCodeKernel(
+        descriptor,
+        context,
+        start: (_) async => fake = FakeCli(),
+      ),
+    );
+    final fresh = Workspace(
+      projects: const [Project('p', '/p')],
+      kernels: [descriptor],
+    );
+    addTearDown(fresh.dispose);
+    final thread = fresh.startAgent(fresh.projects.first);
+    thread.session.attach();
+    // Given work, as session_new does: listed from then on.
+    thread.session.send(ComposerMessage(text: 'go'));
+    await pumpEventQueue();
+    final (_, desktop) = await peers();
+    final newBridge = WorkspaceBridge(
+      workspace: fresh,
+      peer: desktop,
+      device: () => const DeviceInfo(name: 'Mac', kind: 'mac', system: 'macOS'),
+    );
+    addTearDown(newBridge.dispose);
+    // Nothing said in it yet: the phone is told of it by an id given here.
+    final phoneId = WorkspaceBridge.idOf(thread);
+    expect(thread.id, isNull);
+    expect(phoneId, startsWith('new-'));
+    expect(newBridge.state().sessions.single.alias, isNull);
+
+    // Its session's own id, once its process gives one: what the agents'
+    // tools call it, and so what a bot's card names it by. The phone's id
+    // does not change under it.
+    fake.push({'type': 'system', 'subtype': 'init', 'session_id': 'k1'});
+    await pumpEventQueue();
+    expect(thread.id, 'k1');
+    expect(WorkspaceBridge.idOf(thread), phoneId);
+    final summary = newBridge.state().sessions.single;
+    expect(summary.id, phoneId);
+    expect(summary.alias, 'k1');
+    expect(SessionSummary.fromJson(summary.toJson()).alias, 'k1');
+  });
+
   test('a conversation read anew is followed anew, all of it sent', () async {
     await workspace.refresh();
     final kept = workspace.threads.firstWhere(
