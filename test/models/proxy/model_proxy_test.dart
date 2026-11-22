@@ -916,6 +916,31 @@ void main() {
       expect((sent.body! as Map)['reasoning_effort'], 'max');
       expect(sent.headers['authorization'], 'Bearer sk-gw');
 
+      // An effort the model does not offer is not asked for.
+      provider = provider.copyWith(
+        models: const [
+          ProviderModel(id: 'plain', efforts: ['low', 'medium', 'high']),
+        ],
+      );
+      upstream.requests.clear();
+      final unoffered = await post(
+        await on('an'),
+        {
+          'model': '@gw/plain',
+          'max_tokens': 100,
+          'output_config': {'effort': 'max'},
+          'stream': true,
+          'messages': [
+            {'role': 'user', 'content': 'hi'},
+          ],
+        },
+        headers: {'x-api-key': 'tok'},
+      );
+      expect(unoffered.status, 200);
+      final plain = upstream.requests.single.body! as Map;
+      expect(plain['model'], 'plain');
+      expect(plain.containsKey('reasoning_effort'), isFalse);
+
       // And the other way: an OpenAI session's subagents on Anthropic.
       anthropic.reply = (_) => (200, const ['{"id":"m2"}']);
       final back = await post(

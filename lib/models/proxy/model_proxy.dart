@@ -271,12 +271,16 @@ class ModelProxy {
       final provider = found.speakingFor(requested.modelName.trim());
       if (ref != null) {
         // Agent definitions send effort separately; the picker uses a suffix.
+        // Only one the model offers, as the picker would.
+        final efforts =
+            found.model(requested.modelName.trim())?.effortLevels ??
+            ProviderModel.defaultEfforts;
         body['model'] = switch ((body['thinking'], body['output_config'])) {
           ({'type': 'disabled'}, _) => ref.model,
           (_, {'effort': final String effort})
               when provider.protocol.proxied &&
                   !requested.hasSuffix &&
-                  ProviderModel.defaultEfforts.contains(effort) =>
+                  efforts.contains(effort) =>
             '${ref.model}($effort)',
           _ => ref.model,
         };
