@@ -1039,6 +1039,36 @@ void main() {
     expect(items().values.whereType<AssistantTextItem>(), hasLength(1));
   });
 
+  test(
+    'released as it reads back, then used again: the new agy kept',
+    () async {
+      runtime.answers.remove('session/load');
+      kernel = make(
+        resume: SessionRecord(
+          id: 's1',
+          title: 'Old',
+          updatedAt: DateTime(2026),
+          cwd: '/p',
+        ),
+      );
+      await pumpEventQueue();
+      final first = runtime.agent;
+      expect(first.waiting, contains('session/load'));
+      // Out of view mid-load, then back.
+      kernel.release();
+      kernel.prepare();
+      await pumpEventQueue();
+      final second = runtime.agent;
+      expect(second, isNot(same(first)));
+      var ended = false;
+      unawaited(second.exited.then((_) => ended = true));
+      second.answer('session/load', {});
+      await pumpEventQueue();
+      expect(kernel.health.status, KernelHealthStatus.ready);
+      expect(ended, isFalse);
+    },
+  );
+
   test('not signed in: sign-in offered', () async {
     runtime = _Runtime(
       _answers(
