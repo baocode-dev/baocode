@@ -6,7 +6,7 @@
 # each page on the way out: its script, and where it reports. Any site may
 # show the pages in a frame, but for /import and /activate (below).
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self'; media-src 'self'; connect-src 'self' https://dl.baocode.dev https://stats.baocode.dev https://cloudflareinsights.com; frame-ancestors *; base-uri 'self'; form-action 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self' 'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=' 'sha256-c/AQ0arvIMW/1WNJwq1IwQTrZ+7UhFDMRRYur9W7CO0=' 'sha256-G2K9ENiXaTIc4pmzLEOJB962ySgP2gMolWCZ6HJpU4I='; style-src-attr 'unsafe-inline'; img-src 'self'; media-src 'self'; connect-src 'self' https://api.github.com https://dl.baocode.dev https://stats.baocode.dev https://cloudflareinsights.com; frame-ancestors *; base-uri 'self'; form-action 'none'
   Strict-Transport-Security: max-age=31536000; includeSubDomains
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin

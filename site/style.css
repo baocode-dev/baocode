@@ -1,348 +1,210 @@
-/* A document: one column of text, figures a little wider, notes at the end.
-   Copy marked <mark class="todo"> is still to be written or measured. */
+/* The site's pages but the home page (which carries its own): download,
+   changelog, upstreams, push, import, activate and the privacy notes, in
+   the home page's look: dark, one column of text under the same header. */
 :root {
-  --paper: #FFFFFF; --ink: #1B1A17; --body: #2F2D29; --muted: #6F6B63;
-  --faint: #A9A49A; --rule: #E7E3DA; --tint: #F6F4EF;
-  --serif: Charter, "Iowan Old Style", "Source Serif 4", Cambria, Georgia, "Songti SC", "Noto Serif SC", serif;
-  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, "PingFang SC", "Microsoft YaHei", sans-serif;
-  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
-  --text: 640px;
-  --wide: 880px;
-  color-scheme: light;
+  --bg: #111110; --card: #161615; --card-hi: #1b1b19;
+  --ink: #f5f5f3; --body: #c2c0b9; --muted: #989792; --faint: #63625d;
+  --rule: rgba(255, 255, 255, .08); --rule-hi: rgba(255, 255, 255, .14);
+  --gold: #e5ba7d; --tint: rgba(255, 255, 255, .05);
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI Variable Text", "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --mono: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  --text: 720px;
+  --wide: 1136px;
+  color-scheme: dark;
 }
 * { box-sizing: border-box; }
-html { background: var(--paper); color: var(--body); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; scroll-padding-top: 24px; }
-body { margin: 0; font: 18px/1.7 var(--serif); }
-/* Text selected in Bao's sand, not the browser's blue. */
-::selection { background: rgba(226, 179, 115, .42); color: var(--ink); }
-a { color: inherit; text-decoration: underline; text-decoration-color: var(--faint); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+html { background: var(--bg); color: var(--body); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; scroll-padding-top: 88px; }
+body { margin: 0; font: 16px/1.75 var(--sans); }
+::selection { background: rgba(229, 186, 125, .32); color: #ffffff; }
+a { color: var(--ink); text-decoration: underline; text-decoration-color: rgba(152, 151, 146, .45); text-decoration-thickness: 1px; text-underline-offset: 3px; transition: text-decoration-color .14s ease, color .14s ease; }
 a:hover { text-decoration-color: var(--ink); }
 
-/* An endless tilted grid behind everything, slowly zooming in (drawn by the
-   script at the end). It fades toward the text column so it never sits
-   under the reading. */
-.grid { position: fixed; inset: 0; z-index: -1; width: 100%; height: 100%; pointer-events: none;
-  --fade: linear-gradient(to right, #000, rgba(0, 0, 0, .3) calc(50% - 380px), rgba(0, 0, 0, .12) 50%, rgba(0, 0, 0, .3) calc(50% + 380px), #000);
-  -webkit-mask-image: var(--fade); mask-image: var(--fade); }
+/* The old pages' background grid: not in this look. */
+.grid { display: none; }
+.sprite { position: absolute; width: 0; height: 0; }
 
-.top { display: flex; align-items: center; gap: 24px; max-width: var(--wide); margin: 0 auto; padding: 22px 24px; font: 14px var(--sans); }
-.top a { text-decoration: none; color: var(--muted); }
+/* The header: the home page's bar, the mark and wordmark at the left, the
+   pages and the language at the right, Download as its white pill. */
+.top { position: sticky; top: 0; z-index: 40; display: flex; align-items: center; gap: 22px; height: 64px;
+  padding: 0 max(24px, calc((100% - var(--wide)) / 2)); background: rgba(17, 17, 16, .97); border-bottom: 1px solid var(--rule);
+  font: 13.5px var(--sans); }
+.top a { display: inline-flex; align-items: center; text-decoration: none; color: var(--muted); white-space: nowrap; }
 .top a:hover { color: var(--ink); }
-.top .brand { display: flex; align-items: center; gap: 9px; margin-right: auto; color: var(--ink); font-weight: 600; }
-.top .brand img { width: 20px; height: 20px; border-radius: 5px; }
 .top a[aria-current="page"] { color: var(--ink); }
-/* English and Chinese: each page links to itself in the other language. */
-.top .lang { padding-left: 16px; border-left: 1px solid var(--rule); }
-/* Too narrow for one line (a phone): the brand and the language on the
-   first, the links under the brand, none broken. */
-@media (max-width: 520px) {
-  .top { display: grid; grid-template-columns: auto auto auto 1fr; gap: 10px 22px; padding: 18px 20px 6px; }
-  .top a { white-space: nowrap; }
-  .top .brand { grid-row: 1; grid-column: 1 / 4; justify-self: start; }
-  .top .lang { grid-row: 1; grid-column: 4; justify-self: end; padding-left: 0; border-left: 0; }
-}
-
-/* What users say (reviews/: their avatars), under the bar: three reels of
-   cards wider than the page, two on a phone (site.js deals them), running
-   left for ever but the second right (each doubled, so the loop has no seam),
-   held while the mouse is on them. Their ends fade out. */
-.reviews { display: grid; gap: 12px; max-width: 1180px; margin: 10px auto 0; overflow: hidden; padding: 10px 0 16px;
-  --fade: linear-gradient(to right, transparent, #000 12%, #000 88%, transparent);
-  -webkit-mask-image: var(--fade); mask-image: var(--fade); }
-.reel { display: flex; gap: 14px; width: max-content; margin: 0; padding: 0; list-style: none; animation: reel var(--reel-time, 80s) linear infinite; }
-.reel.back { animation-direction: reverse; }
-.reviews:hover .reel { animation-play-state: paused; }
-@keyframes reel { to { transform: translateX(calc(-50% - 7px)); } }
-.reel li { flex: none; display: flex; flex-direction: column; gap: 8px; width: max-content; min-width: 190px; max-width: 340px; margin: 0; padding: 13px 16px 14px; border: 1px solid var(--rule); border-radius: 10px; background: var(--paper); box-shadow: 0 1px 2px rgba(0, 0, 0, .03), 0 10px 24px -18px rgba(0, 0, 0, .25); }
-.reel .who { display: flex; align-items: center; gap: 8px; font: 600 13px/1.4 var(--sans); color: var(--ink); white-space: nowrap; }
-.reel .who a { text-decoration: none; }
-.reel .who a:hover { text-decoration: underline; text-decoration-color: var(--faint); }
-.reel .who small { display: inline-flex; align-items: center; gap: 4px; font-weight: 400; font-size: 12px; color: var(--faint); }
-.reel .who small svg.ic { width: 12px; height: 12px; }
-.reel img, .reel .avatar { flex: none; width: 24px; height: 24px; border-radius: 50%; }
-.reel img { border: 1px solid var(--rule); }
-.reel .avatar { display: grid; place-items: center; background: #F8EAD2; color: #7A4E14; font-size: 12px; }
-.reel .avatar svg.ic { width: 14px; height: 14px; }
-.reel blockquote { margin: 0; font: 15px/1.55 var(--serif); color: var(--body); }
-/* None over three lines, so a long one does not stretch its reel; one
-   that would be on a phone's narrower cards is wider there (.long). */
-.reel blockquote { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
-/* On a phone: smaller cards. */
-@media (max-width: 640px) {
-  .reviews { display: grid; gap: 10px; margin-top: 18px; padding: 6px 0 14px;
-    --fade: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent); }
-  .reel { gap: 10px; }
-  @keyframes reel { to { transform: translateX(calc(-50% - 5px)); } }
-  .reel li { gap: 5px; min-width: 130px; max-width: 205px; padding: 8px 11px 9px; border-radius: 8px; }
-  .reel li.long { max-width: 320px; }
-  /* English takes more room for the same words. */
-  html:lang(en) .reel li { max-width: 250px; }
-  html:lang(en) .reel li.long { max-width: 340px; }
-  .reel .who { gap: 6px; font-size: 12px; }
-  .reel img, .reel .avatar { width: 20px; height: 20px; }
-  .reel .avatar { font-size: 11px; }
-  .reel .who small { font-size: 11px; }
-  .reel blockquote { font-size: 13px; line-height: 1.5; }
-}
-/* Under the reel: the way to add to it. */
-.say-line { margin: 0 auto 28px; padding: 0 24px; text-align: center; font: 13.5px/1.5 var(--sans); color: var(--muted); }
-.say-line button { padding: 0; border: 0; background: none; font: inherit; color: var(--ink); text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px; cursor: pointer; }
-.say-line button:hover { text-decoration-color: var(--ink); }
-@media (max-width: 640px) { .say-line { margin-bottom: 0; } }
-/* Still: the cards side by side, scrolled by hand. */
-@media (prefers-reduced-motion: reduce) {
-  .reviews { overflow-x: auto; }
-  .reel { animation: none; }
-}
-
-/* Text in the middle column; the contents in the left margin, clear of the
-   wider figures, when there is room. */
-.page { display: grid; grid-template-columns: 1fr min(var(--text), 100% - 48px) 1fr; padding: 48px 0 96px; }
-.page > * { grid-column: 2; }
-.toc { grid-column: 1; grid-row: 1 / span 99; justify-self: end; position: sticky; top: 32px; align-self: start; width: 180px; margin-right: calc((var(--wide) - var(--text)) / 2 + 32px); padding-top: 6px; font: 13.5px/1.5 var(--sans); }
-.toc .label { margin-bottom: 10px; font-size: 12px; color: var(--faint); }
-.toc ol { margin: 0; padding: 0; list-style: none; counter-reset: s; }
-.toc li { display: flex; margin: 0 0 7px; counter-increment: s; }
-.toc li::before { content: counter(s); flex: none; width: 26px; color: var(--faint); font-variant-numeric: tabular-nums; }
-.toc a { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); text-decoration: none; white-space: nowrap; }
-.toc svg.ic { width: 15px; height: 15px; color: var(--faint); }
-.toc a:hover svg.ic { color: var(--ink); }
-.toc a:hover { color: var(--ink); }
-@media (max-width: 1340px) { .toc { display: none; } }
-
-h1 { margin: 0; font: 600 44px/1.15 var(--serif); letter-spacing: -.015em; color: var(--ink); }
-.subtitle { margin: 10px 0 0; font-size: 23px; line-height: 1.4; color: var(--muted); }
-/* A channel (channels.json): its logo and name for the brand, the logo as
-   high as ours and as wide as it is; "<logo> <name> × <logo> BaoCode" for
-   the title, each side kept on one line. */
-.top .brand img.channel-logo { width: auto; border-radius: 0; }
-/* Until site.js knows (head.js): hidden, their room kept. */
+.top .brand { gap: 7px; margin-right: auto; color: var(--ink); font-size: 16px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; }
+.top .brand img { display: none; }
+.top .brand::before { content: ""; width: 20px; height: 15px; margin-top: -1px; background: currentColor;
+  -webkit-mask: url(/assets/logo.svg) center / contain no-repeat; mask: url(/assets/logo.svg) center / contain no-repeat; }
+/* As on the home page: the language, then Download last. */
+.top .lang { order: 1; }
+.top a[href$="/download"]:not(.lang) { order: 2; height: 34px; padding: 0 16px; border-radius: 999px; background: #ffffff; color: #111110; font-weight: 600; }
+.top a[href$="/download"]:not(.lang):hover { opacity: .9; color: #111110; }
+.top a[href$="/download"]:not(.lang)[aria-current="page"] { background: #2a2a28; color: #ffffff; }
+.top .lang { height: 34px; padding: 0 13px; border: 1px solid var(--rule-hi); border-radius: 999px; }
+.top .lang:hover { border-color: rgba(255, 255, 255, .28); }
+.top svg.ic { width: 15px; height: 15px; margin-right: 6px; }
+/* A channel (channels.json, site.js): its logo and name for the brand. */
+.top .brand:has(.channel-logo)::before { content: none; }
+.top .brand img.channel-logo { display: block; width: auto; height: 20px; }
 .channel-pending .top .brand, .channel-pending [data-channel-title], .channel-pending [data-channel-subtitle] { visibility: hidden; }
-h1 .channel { display: inline-flex; align-items: center; gap: .28em; white-space: nowrap; }
-h1 .channel-x { margin: 0 .12em; font-weight: 400; color: var(--faint); }
-h1 .channel-logo { height: .78em; width: auto; }
-h1 .channel-logo[src="/icon.png"] { border-radius: .18em; }
-.meta { margin: 22px 0 0; font: 13.5px/1.6 var(--sans); color: var(--muted); }
-/* Each item whole, its dot after it: a line breaks between items, never in one or before a dot. */
+@media (max-width: 560px) {
+  .top { gap: 14px; padding: 0 16px; overflow-x: auto; }
+  .top a[href*="changelog"] { display: none; }
+  .top .brand { font-size: 15px; }
+}
+
+/* Text in a middle column. */
+.page { display: grid; grid-template-columns: 1fr min(var(--text), 100% - 48px) 1fr; padding: 64px 0 112px; counter-reset: h2; }
+.page > * { grid-column: 2; }
+h1 { margin: 0; font: 700 clamp(32px, 4vw, 44px)/1.12 var(--sans); letter-spacing: -.032em; color: #ffffff; }
+.subtitle { margin: 14px 0 0; font-size: 17px; line-height: 1.6; color: var(--muted); }
+.meta { margin: 16px 0 0; font: 13px/1.6 var(--sans); color: var(--faint); }
 .meta span { display: inline-block; }
-.meta span:not(:last-child)::after { content: "·"; margin: 0 8px; color: var(--faint); }
-
-.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 30px 0 0; font: 15px var(--sans); }
-/* What waits for the release to have it (site.js shows it then). */
-[data-shown][hidden] { display: none; }
-.button { display: inline-flex; align-items: center; height: 40px; padding: 0 16px; font: 500 15px var(--sans); white-space: nowrap; border: 1px solid var(--rule); border-radius: 6px; color: var(--ink); font-weight: 500; text-decoration: none; }
-.button:hover { border-color: var(--faint); }
-.button.primary { background: var(--ink); border-color: var(--ink); color: var(--paper); }
-.button.primary:hover { background: #000; }
-button.button { background: var(--paper); cursor: pointer; }
-.actions .note { margin-left: 6px; font-size: 13.5px; color: var(--muted); }
-/* What is new: a sand pill. */
-.pill-new { display: inline-block; margin-left: 12px; padding: 2px 9px; font: 600 12.5px/1.5 var(--sans); letter-spacing: .02em; vertical-align: .3em; color: #7A4E14; background: #F8EAD2; border: 1px solid #EDCF9E; border-radius: 999px; }
-.pill-new.small { margin-left: 7px; padding: 0 6px; font-size: 11px; vertical-align: .05em; }
-/* A table of what can be done: words, left to right. */
-.table.caps th, .table.caps td { text-align: left; vertical-align: top; }
-.table.caps tbody td:first-child { padding-right: 24px; color: var(--ink); font-weight: 600; white-space: nowrap; }
-.table.caps tbody td:nth-child(2) { color: var(--muted); font-weight: 400; }
-
-/* The other downloads under the two buttons: lighter, a line of links. */
-.also { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 28px; margin: 20px 0 0; font: 14px/1.5 var(--sans); color: var(--muted); }
-.also .group { display: inline-flex; align-items: center; gap: 14px; }
-.also .label { color: var(--faint); }
-.also a { display: inline-flex; align-items: center; gap: 6px; color: var(--ink); text-decoration: none; }
-.also a:hover { text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px; }
-.also svg.ic { width: 15px; height: 15px; }
-.also .beta { margin: 0; }
-/* Hung over a link's top right corner. */
-.also .tag { margin: 0 0 0 2px; padding: 0 7px; font-size: 11px; line-height: 1.6; vertical-align: 0; white-space: nowrap; }
-
-h2 { margin: 72px 0 18px; font: 600 27px/1.3 var(--serif); letter-spacing: -.01em; color: var(--ink); counter-increment: h2; }
-svg.ic { width: 1em; height: 1em; flex: none; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
-svg.ic.logo { stroke: none; }
-h2 svg.ic { margin-right: .4em; color: var(--muted); vertical-align: -.12em; stroke-width: 1.6; }
-.button svg.ic { width: 18px; height: 18px; margin-right: 8px; }
-.top svg.ic { width: 17px; height: 17px; margin-right: 6px; vertical-align: -3px; }
-ul.features { padding-left: 0; list-style: none; }
-ul.features li { display: grid; grid-template-columns: 30px 1fr; }
-ul.features li > svg.ic { width: 19px; height: 19px; margin-top: .3em; color: var(--muted); }
-h2::before { content: counter(h2); display: inline-block; min-width: 1.4em; color: var(--faint); font-weight: 400; }
-.page { counter-reset: h2 fig tab; }
+.meta span:not(:last-child)::after { content: "·"; margin: 0 8px; }
+h2 { margin: 64px 0 16px; font: 650 24px/1.3 var(--sans); letter-spacing: -.02em; color: #ffffff; counter-increment: h2; }
+h2::before { content: counter(h2); display: inline-block; min-width: 1.5em; color: var(--faint); font-weight: 500; }
+h2.plain { counter-increment: none; }
+h2.plain::before { content: none; }
+h2 svg.ic { margin-right: .4em; color: var(--muted); vertical-align: -.12em; }
+h3 { margin: 32px 0 10px; font: 620 17px/1.4 var(--sans); color: #ffffff; }
 p { margin: 0 0 1.1em; }
 ul, ol { margin: 0 0 1.1em; padding-left: 1.3em; }
 li { margin: 0 0 .45em; }
 li::marker { color: var(--faint); }
 strong { color: var(--ink); font-weight: 600; }
-code { padding: .1em .35em; border-radius: 4px; background: var(--tint); font: .82em var(--mono); }
-kbd { padding: .05em .4em; border: 1px solid var(--rule); border-bottom-width: 2px; border-radius: 4px; font: .78em var(--sans); }
-mark.todo { padding: 0 .2em; border-radius: 3px; background: #FFF1B8; color: #6B5300; }
+code { padding: .12em .4em; border-radius: 5px; background: var(--tint); color: var(--ink); font: .84em var(--mono); }
+kbd { padding: .05em .4em; border: 1px solid var(--rule-hi); border-bottom-width: 2px; border-radius: 5px; color: var(--ink); font: .8em var(--sans); }
+pre { margin: 0 0 1.1em; padding: 14px 16px; overflow-x: auto; border: 1px solid var(--rule); border-radius: 12px; background: var(--card); font: 13px/1.65 var(--mono); }
+pre code { padding: 0; background: none; font: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
+mark.todo { padding: 0 .2em; border-radius: 3px; background: rgba(229, 186, 125, .25); color: var(--gold); }
+svg.ic { width: 1em; height: 1em; flex: none; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+svg.ic.logo { stroke: none; }
+footer { margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--rule); font: 12.5px/1.6 var(--sans); color: var(--faint); }
 
-/* Figures run wider than the text; their captions keep to the text's measure. */
-figure { margin: 40px calc(50% - min(var(--wide), 100vw - 48px) / 2); counter-increment: fig; }
-figure .img { position: relative; overflow: hidden; border: 1px solid var(--rule); border-radius: 10px; background: var(--tint); box-shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 16px 40px -20px rgba(0, 0, 0, .22); }
-/* Each window is drawn in HTML (mocks/), to its own width and scaled to the
-   figure's; a picture, not to be clicked into. */
-figure iframe { display: block; width: 100%; border: 0; pointer-events: none; }
-figure .img + .img { margin-top: 24px; }
-figcaption { max-width: var(--text); margin: 14px auto 0; font: 14px/1.55 var(--sans); color: var(--muted); }
-figcaption::before { content: "Figure " counter(fig) ". "; color: var(--ink); font-weight: 600; }
-:lang(zh) figcaption::before { content: "图 " counter(fig) "　"; }
+/* Buttons: the home page's pills, the primary one white. */
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 30px 0 0; font: 14px var(--sans); }
+.actions .note { margin-left: 6px; font-size: 13px; color: var(--muted); }
+.button { display: inline-flex; align-items: center; height: 40px; padding: 0 18px; border: 1px solid var(--rule-hi); border-radius: 999px;
+  background: transparent; color: var(--ink); font: 600 14px var(--sans); white-space: nowrap; text-decoration: none; cursor: pointer;
+  transition: border-color .15s ease, background-color .15s ease, opacity .15s ease; }
+.button:hover { border-color: rgba(255, 255, 255, .3); }
+.button.primary { background: #ffffff; border-color: #ffffff; color: #111110; }
+.button.primary:hover { background: #f2f1ed; }
+.button svg.ic { width: 17px; height: 17px; margin-right: 8px; }
+.button:disabled { opacity: .6; cursor: default; }
+[data-shown][hidden] { display: none; }
+.pill-new { display: inline-block; margin-left: 10px; padding: 1px 9px; font: 600 12px/1.5 var(--sans); vertical-align: .3em;
+  color: var(--gold); background: rgba(229, 186, 125, .12); border: 1px solid rgba(229, 186, 125, .35); border-radius: 999px; }
+.beta { display: inline-block; margin-left: 8px; padding: 1px 8px; font: 500 11.5px/1.5 var(--sans); vertical-align: .35em;
+  color: var(--muted); border: 1px solid var(--rule-hi); border-radius: 999px; }
 
-.table { margin: 28px 0 32px; counter-increment: tab; }
-table { width: 100%; border-collapse: collapse; font: 15px/1.5 var(--sans); font-variant-numeric: tabular-nums; }
-th, td { padding: 9px 12px 9px 0; border-bottom: 1px solid var(--rule); text-align: right; }
-th:first-child, td:first-child { text-align: left; }
-thead th { border-bottom-color: var(--ink); font-weight: 600; color: var(--ink); }
-tbody td:nth-child(2) { color: var(--ink); font-weight: 600; }
-td { color: var(--muted); }
-.table .caption { margin-top: 12px; font: 14px/1.55 var(--sans); color: var(--muted); }
-.table .caption::before { content: "Table " counter(tab) ". "; color: var(--ink); font-weight: 600; }
-:lang(zh) .table .caption::before { content: "表 " counter(tab) "　"; }
+/* Tables. */
+.table { margin: 28px 0 32px; }
+table { width: 100%; border-collapse: collapse; font: 14px/1.55 var(--sans); font-variant-numeric: tabular-nums; }
+th, td { padding: 10px 14px 10px 0; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; }
+thead th { border-bottom-color: var(--rule-hi); font-weight: 600; color: #ffffff; }
+td { color: var(--body); }
+tbody td:first-child { color: var(--ink); }
+.table .caption { margin-top: 12px; font-size: 13px; color: var(--muted); }
 
-sup { line-height: 0; font: 12px var(--sans); }
-sup a { text-decoration: none; color: var(--muted); }
-.notes { margin-top: 72px; padding-top: 20px; border-top: 1px solid var(--rule); font: 14px/1.6 var(--sans); color: var(--muted); }
-.notes ol { padding-left: 1.2em; }
-.notes :target { background: var(--tint); }
-
-.play { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px 0 9px; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper); color: var(--ink); font: 500 14px var(--sans); vertical-align: 1px; cursor: pointer; }
-.play:hover { border-color: var(--faint); }
-.play svg.ic { width: 15px; height: 15px; }
-.play .stop { display: none; }
-.play.playing .start { display: none; }
-.play.playing .stop { display: block; }
-
-footer { margin-top: 40px; font: 13px/1.6 var(--sans); color: var(--faint); }
-
-@media (max-width: 640px) {
-  body { font-size: 17px; }
-  h1 { font-size: 36px; }
-  .subtitle { font-size: 20px; }
-  h2 { margin-top: 56px; font-size: 24px; }
-  th, td { padding-right: 8px; font-size: 14px; }
-}
-@media print {
-  .grid, .top, .toc, .actions { display: none; }
-  .page { padding-top: 0; }
-}
-
-/* The icon sprite each page carries. */
-.sprite { position: absolute; width: 0; height: 0; }
-
-/* The download page. */
-h2.plain { counter-increment: none; }
-h2.plain::before { content: none; }
-.platforms { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 40px 0 8px; }
-/* A column, its text taking the slack: the buttons of both line up at the bottom. */
-.platform { display: flex; flex-direction: column; padding: 22px 24px 24px; border: 1px solid var(--rule); border-radius: 10px; background: var(--paper); }
-.platform h2 { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; font-size: 24px; }
-.platform h2 svg.ic { margin: 0; width: 22px; height: 22px; color: var(--ink); }
-.platform p { flex: 1; margin: 0 0 20px; font: 15px/1.55 var(--sans); color: var(--muted); }
+/* The download page: a card per system, its buttons along the bottom. */
+.platforms { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 36px 0 8px; }
+.platform { display: flex; flex-direction: column; padding: 22px 24px 24px; border: 1px solid var(--rule); border-radius: 18px; background: var(--card); transition: border-color .2s ease; }
+.platform:hover { border-color: var(--rule-hi); }
+.platform h2 { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; font-size: 20px; }
+.platform h2 svg.ic { margin: 0; width: 20px; height: 20px; color: #ffffff; }
+.platform p { flex: 1; margin: 0 0 20px; font-size: 14px; line-height: 1.6; color: var(--muted); }
 .platform .get { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-/* The third desktop, a row of its own under the two. */
 .platform[data-os="linux"] { grid-column: 1 / -1; }
-.platform .size { margin-left: 4px; font: 13.5px var(--sans); color: var(--muted); white-space: nowrap; }
+.platform .size { margin-left: 4px; font-size: 13px; color: var(--muted); white-space: nowrap; }
 @media (max-width: 640px) { .platforms { grid-template-columns: 1fr; } }
-/* The phone app, a beta still: its heading's word for it. */
-.beta { display: inline-block; margin-left: 8px; padding: 2px 8px; font: 500 12px/1.5 var(--sans); letter-spacing: .02em; vertical-align: .35em; color: var(--muted); border: 1px solid var(--rule); border-radius: 999px; background: var(--tint); }
-#phone + .meta { margin-top: -6px; }
+#phone + .meta, #browser + .meta { margin-top: -6px; }
 [data-phones] + p { margin-top: 24px; }
-/* The phone app's cards, each with a QR code of its download (site/qr/,
-   tool/make_download_qr.dart): hovered, or tapped where there is no hover,
-   the code comes up over the card to be scanned (download.js). Its link is
-   the card's own, which the button still shows — and the button stays over
-   the code, so a mouse on its way to download on this computer reaches it
-   rather than the card being in the way. The 64px left under it are the
-   button's own row: its 40px and the card's 24px of bottom padding. */
+/* The phone cards' QR codes (download.js): over the card on hover or tap,
+   its button kept above them. */
 [data-phones] .platform { position: relative; }
 [data-phones] .platform .get { position: relative; z-index: 2; }
-.qr { position: absolute; inset: 0 0 64px; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 12px 20px; border-radius: 9px 9px 0 0; background: var(--paper); opacity: 0; visibility: hidden; transition: opacity .16s ease, visibility 0s .16s; }
+.qr { position: absolute; inset: 0 0 64px; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 12px 20px; border-radius: 17px 17px 0 0; background: var(--card); opacity: 0; visibility: hidden; transition: opacity .16s ease, visibility 0s .16s; }
 [data-phones] .platform:hover .qr, [data-phones] .platform.qr-open .qr { opacity: 1; visibility: visible; transition: opacity .16s ease; }
-.qr img { width: 148px; height: 148px; }
+.qr img { width: 148px; height: 148px; padding: 8px; border-radius: 12px; background: #ffffff; }
 @media (prefers-reduced-motion: reduce) { .qr { transition: none; } }
+.hashes code { overflow-wrap: anywhere; }
 
-/* The changelog (made by tool/build_changelog.dart): a version a section,
-   its heading a link to itself; the version the app links to is marked. */
+/* The changelog (tool/build_changelog.dart): a version a section. */
 .release { margin-top: 56px; padding-top: 4px; }
-.release h2 { margin: 0 0 14px; font-size: 26px; }
-.release h2 a { text-decoration: none; }
-.release h2 a:hover { text-decoration: underline; text-decoration-color: var(--faint); }
-.release :is(p, li) { font-size: 17px; }
-.release p:has(+ ul) { margin: 20px 0 6px; font: 600 13.5px/1.5 var(--sans); color: var(--muted); }
+.release h2 { margin: 0 0 14px; font-size: 24px; }
+.release h2 a { color: #ffffff; text-decoration: none; }
+.release h2 a:hover { color: var(--gold); }
+.release :is(p, li) { font-size: 15.5px; }
+.release p:has(+ ul) { margin: 22px 0 6px; font: 600 12.5px/1.5 var(--sans); letter-spacing: .02em; color: var(--muted); }
 .release h2 + p:has(+ ul) { margin-top: 0; }
-.release:target h2 a { box-shadow: inset 0 -.35em 0 var(--tint); }
+.release:target h2 a { color: var(--gold); }
 
-/* The download page's thanks, with its ask for a star (download.js). */
-dialog.star { max-width: min(460px, calc(100vw - 48px)); padding: 26px 28px 24px; border: 1px solid var(--rule); border-radius: 12px; background: var(--paper); color: var(--body); box-shadow: 0 24px 64px -24px rgba(0, 0, 0, .35); }
-dialog.star::backdrop { background: rgba(27, 26, 23, .28); }
-dialog.star h2 { margin: 0 0 10px; font-size: 22px; }
-dialog.star p { margin: 0 0 22px; font: 15px/1.6 var(--sans); color: var(--muted); }
+/* Dialogs: the download's thanks (download.js), saying a word (site.js). */
+dialog.star { width: min(460px, calc(100vw - 40px)); padding: 26px 28px 24px; border: 1px solid var(--rule-hi); border-radius: 16px;
+  background: var(--card); color: var(--body); box-shadow: 0 32px 80px -24px rgba(0, 0, 0, .85); }
+dialog.star::backdrop { background: rgba(0, 0, 0, .55); }
+dialog.star h2 { margin: 0 0 8px; font-size: 20px; }
+dialog.star p { margin: 0 0 20px; font-size: 14px; line-height: 1.6; color: var(--muted); }
 dialog.star .get { display: flex; flex-wrap: wrap; gap: 8px; }
-dialog.star button.button { background: var(--paper); cursor: pointer; }
-dialog.star button.button.primary { background: var(--ink); }
-dialog.star button.button:disabled { opacity: .6; cursor: default; }
-/* Saying a word (site.js): a few words, and where to find them if they like. */
-dialog.say { width: 460px; }
-dialog.say .field { display: block; margin: 0 0 14px; font: 13.5px/1.5 var(--sans); color: var(--ink); }
+dialog.say .field { display: block; margin: 0 0 14px; font-size: 13px; color: var(--ink); }
 dialog.say .field span { display: block; margin-bottom: 6px; }
 dialog.say .field em { margin-left: 8px; font-style: normal; color: var(--faint); }
-dialog.say :is(textarea, input) { display: block; width: 100%; padding: 8px 10px; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper); color: var(--ink); font: 15px/1.5 var(--sans); resize: vertical; }
-dialog.say :is(textarea, input):focus { outline: none; border-color: var(--faint); box-shadow: 0 0 0 3px rgba(226, 179, 115, .25); }
-dialog.say :is(textarea, input)::placeholder { color: var(--faint); }
-dialog.say p.hint { margin: -2px 0 20px; font-size: 13px; color: var(--faint); }
-dialog.say .say-status { margin: 12px 0 0; font-size: 13.5px; color: #A1462C; }
+dialog.say :is(textarea, input) { display: block; width: 100%; padding: 9px 11px; border: 1px solid var(--rule-hi); border-radius: 9px; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--sans); resize: vertical; }
+dialog.say :is(textarea, input):focus { outline: none; border-color: rgba(229, 186, 125, .55); box-shadow: 0 0 0 3px rgba(229, 186, 125, .14); }
+dialog.say p.hint { margin: -2px 0 20px; font-size: 12.5px; color: var(--faint); }
+dialog.say .say-status { margin: 12px 0 0; font-size: 13px; color: #e0866a; }
 dialog.say .say-status:empty { display: none; }
 dialog.say .done, dialog.say.sent form { display: none; }
 dialog.say.sent .done { display: block; }
 
-/* The one-click import of an upstream (import.js): what it is, then the
-   button that hands it to the app. */
-dl.import { display: grid; grid-template-columns: max-content 1fr; gap: 8px 20px; margin: 28px 0 0; padding: 18px 22px; border: 1px solid var(--rule); border-radius: 10px; background: var(--paper); font: 15px/1.5 var(--sans); }
+/* /import (import.js) and /activate: what is handed to the app. */
+dl.import { display: grid; grid-template-columns: max-content 1fr; gap: 8px 20px; margin: 28px 0 0; padding: 18px 22px;
+  border: 1px solid var(--rule); border-radius: 14px; background: var(--card); font: 14.5px/1.5 var(--sans); }
 dl.import dt { color: var(--muted); }
 dl.import dd { margin: 0; color: var(--ink); overflow-wrap: anywhere; }
-dl.import dd[data-field="url"], dl.import dd[data-field="key"] { font-family: var(--mono); font-size: 14px; }
-.page .note { margin-top: 18px; font: 14px/1.6 var(--sans); color: var(--muted); }
-.page .missing { margin-top: 18px; padding: 12px 16px; border-radius: 8px; background: var(--tint); font: 14.5px/1.6 var(--sans); color: var(--body); }
-pre { margin: 0 0 1.1em; padding: 14px 16px; overflow-x: auto; border: 1px solid var(--rule); border-radius: 8px; background: var(--tint); }
-.hashes code { overflow-wrap: anywhere; }
-pre code { padding: 0; background: none; font-size: 13.5px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
-/* A block to copy whole (the prompt for a site's AI), its button at the top right. */
+dl.import dd[data-field="url"], dl.import dd[data-field="key"] { font-family: var(--mono); font-size: 13.5px; }
+.page .note { margin-top: 18px; font-size: 13.5px; line-height: 1.6; color: var(--muted); }
+.page .missing { margin-top: 18px; padding: 12px 16px; border-radius: 12px; background: var(--card); border: 1px solid var(--rule); font-size: 14px; line-height: 1.6; }
+
+/* A block to copy whole, its button at the top right (site.js). */
 .copyable { position: relative; }
 .copyable pre { max-height: 360px; overflow-y: auto; padding-right: 76px; }
-.copyable .copy { position: absolute; top: 8px; right: 8px; height: 28px; padding: 0 10px; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper); color: var(--muted); font: 500 13px var(--sans); cursor: pointer; }
-.copyable .copy:hover { color: var(--ink); border-color: var(--faint); }
-/* BaoCode's icons for sites' buttons (/upstreams), each on the ground it is for. */
+.copyable .copy { position: absolute; top: 8px; right: 8px; height: 28px; padding: 0 11px; border: 1px solid var(--rule-hi); border-radius: 999px;
+  background: var(--card-hi); color: var(--muted); font: 500 12.5px var(--sans); cursor: pointer; }
+.copyable .copy:hover { color: var(--ink); border-color: rgba(255, 255, 255, .28); }
+
+/* /upstreams: BaoCode's marks for sites' buttons, each on the ground it is for. */
 .assets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 0 0 1.1em; }
-.asset .swatch { display: flex; align-items: center; justify-content: center; height: 96px; border: 1px solid var(--rule); border-radius: 8px; background: var(--paper); }
-.asset .swatch.dark { background: var(--ink); border-color: var(--ink); }
-.asset p { margin: 8px 0 0; font: 13.5px/1.5 var(--sans); color: var(--muted); }
+.asset .swatch { display: flex; align-items: center; justify-content: center; height: 96px; border: 1px solid var(--rule); border-radius: 12px; background: #ffffff; }
+.asset .swatch.dark { background: #1b1a17; }
+.asset p { margin: 8px 0 0; font-size: 13px; line-height: 1.5; color: var(--muted); }
 @media (max-width: 560px) { .assets { grid-template-columns: 1fr; } }
-/* Buttons' styles to pick for the prompt (/upstreams): shown in the text as
-   they are (their own inline style, copied with them). Each is the button
-   that picks it, its name and what a click does above it on hover. */
+/* Buttons' styles to pick for the prompt (site.js), shown as they are. */
 .styles { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 14px; margin: 4px 0 1.6em; }
-.pick { position: relative; padding: 0; border: 0; border-radius: 8px; background: none; cursor: pointer; scroll-margin-top: 80px; }
+.pick { position: relative; padding: 0; border: 0; border-radius: 8px; background: none; cursor: pointer; scroll-margin-top: 96px; }
 .pick .sample { transition: filter .12s ease, opacity .12s ease; }
-/* On hover a shade darker, or lighter where the button is dark; a link
-   without a ground fades a little. */
 .pick:hover .sample { filter: brightness(.94); }
 .pick:active .sample { filter: brightness(.88); }
 #style-dark:hover .sample, #style-pill:hover .sample { filter: brightness(1.45); }
 #style-dark:active .sample, #style-pill:active .sample { filter: brightness(1.2); }
 #style-link:hover .sample { filter: none; opacity: .7; }
 #style-link:active .sample { filter: none; opacity: .55; }
-.pick:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
-.pick:target .sample { box-shadow: 0 0 0 2px var(--paper), 0 0 0 4px #E5BA7D; }
-.pick::after { content: attr(data-hint); position: absolute; bottom: calc(100% + 9px); left: 50%; z-index: 1; padding: 4px 9px; border-radius: 6px; background: var(--ink); color: var(--paper); font: 500 12px/1.4 var(--sans); white-space: nowrap; opacity: 0; pointer-events: none; transform: translate(-50%, 4px); transition: opacity .14s ease, transform .14s ease; }
+.pick:focus-visible { outline: 2px solid var(--gold); outline-offset: 4px; }
+.pick:target .sample { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--gold); }
+.pick::after { content: attr(data-hint); position: absolute; bottom: calc(100% + 9px); left: 50%; z-index: 1; padding: 4px 9px; border-radius: 6px;
+  background: #ffffff; color: #111110; font: 500 12px/1.4 var(--sans); white-space: nowrap; opacity: 0; pointer-events: none;
+  transform: translate(-50%, 4px); transition: opacity .14s ease, transform .14s ease; }
 .pick:hover::after, .pick:focus-visible::after, .pick.copied::after { opacity: 1; transform: translate(-50%, 0); }
-.pick.copied::after { background: #3F6B3A; }
+.pick.copied::after { background: #9dc08b; }
 
-/* /upstreams: BaoCode's Settings → Models, drawn in Bao Light (the theme's
-   colors: its paper, side bar, text, lines and sand gold), a site's card
-   among those at the top and the site just imported below. */
+/* /upstreams: BaoCode's Settings → Models drawn in Bao Light, as the app
+   shows it to someone on the light theme: a site's card at the top, the
+   site just imported below. Its own colors. */
 .mock { --bg: #FDFCF8; --side: #F5F4EE; --card: #F4F2EC; --sel: #E8E5DC; --line: #E9E7DF; --text: #2B2925; --dim: #69655A; --faint: #8E8A7E; --sand: #E2B373; --sand-text: #8F6528; --green: #5C8B4C;
   margin: 34px -32px 8px; font: 13px/1.4 var(--sans); color: var(--text); user-select: none; }
-.mock .win { display: flex; position: relative; overflow: hidden; border: 1px solid #E0DDD4; border-radius: 12px; background: var(--bg); box-shadow: 0 30px 60px -32px rgba(70, 58, 36, .28), 0 2px 6px rgba(70, 58, 36, .06); }
-/* The eye starts at the site's card (--focus: its center in the window):
-   the rest pales into the paper toward the window's edges. */
+.mock .win { display: flex; position: relative; overflow: hidden; border: 1px solid rgba(255, 255, 255, .12); border-radius: 14px; background: var(--bg); box-shadow: 0 30px 70px -30px rgba(0, 0, 0, .8); }
 .mock .win { --focus: 39% 30%; }
 .mock .win::after { content: ''; position: absolute; inset: 0; pointer-events: none;
   background: radial-gradient(ellipse 70% 135% at var(--focus), transparent 20%, rgba(253, 252, 248, .4) 50%, rgba(253, 252, 248, .78) 82%, rgba(253, 252, 248, .92) 100%); }
@@ -366,7 +228,6 @@ pre code { padding: 0; background: none; font-size: 13.5px; line-height: 1.6; wh
 .mock .card.you { background: #FBF3E6; box-shadow: inset 0 0 0 1px var(--sand), 0 6px 16px -10px rgba(143, 101, 40, .45); }
 .mock .card.you .logo { border: 1px dashed #D2A465; background: #FFFDF8; color: var(--sand-text); }
 .mock .card.you .logo svg { width: 15px; height: 15px; }
-/* The rest quieter, so the site's own card and row lead. */
 .mock .card:not(.you), .mock .label, .mock .nav, .mock .title, .mock .row:not(.new) { opacity: .6; }
 .mock .nav.on { opacity: .85; }
 .mock .label { margin: 24px 0 8px 2px; color: var(--dim); font-size: 12px; }
@@ -374,7 +235,6 @@ pre code { padding: 0; background: none; font-size: 13.5px; line-height: 1.6; wh
 .mock .row { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 8px 14px; }
 .mock .row + .row { border-top: 1px solid var(--line); }
 .mock .row .txt { display: flex; flex: 1; flex-direction: column; min-width: 0; }
-/* What the drawing does not mean to say: bars where text would be. */
 .mock .ph { display: block; height: 9px; border-radius: 5px; background: rgba(43, 41, 37, .12); }
 .mock .ph.sm { height: 7px; margin-top: 8px; background: rgba(43, 41, 37, .07); }
 .mock .card .ph { width: 64%; }
@@ -388,3 +248,14 @@ pre code { padding: 0; background: none; font-size: 13.5px; line-height: 1.6; wh
 .mock .toggle::after { content: ''; position: absolute; top: 2px; right: 2px; width: 12px; height: 12px; border-radius: 50%; background: #FFFFFF; box-shadow: 0 1px 2px rgba(43, 41, 37, .2); }
 @media (max-width: 760px) { .mock { margin-left: 0; margin-right: 0; } }
 @media (max-width: 600px) { .mock .win { --focus: 32% 29%; } .mock .side { display: none; } .mock .main { padding: 18px 16px 20px; } }
+
+@media (max-width: 640px) {
+  body { font-size: 15.5px; }
+  .page { padding-top: 40px; }
+  h2 { margin-top: 48px; font-size: 21px; }
+  th, td { padding-right: 8px; font-size: 13.5px; }
+}
+@media print {
+  .top { display: none; }
+  html, body { background: #ffffff; color: #111110; }
+}
