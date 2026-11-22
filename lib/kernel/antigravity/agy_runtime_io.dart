@@ -57,6 +57,8 @@ class LocalAgyRuntime implements AgyRuntime {
 
   /// Ends every agy this run started (as the app quits).
   static Future<void> stopProcesses() async {
+    _spareEnds?.cancel();
+    _spare = null;
     for (final process in [..._live]) {
       process.kill();
     }
@@ -99,11 +101,21 @@ class LocalAgyRuntime implements AgyRuntime {
 
   @override
   Future<AcpTransport> start(String cwd) async {
-    await registry.reaped;
-    final executable = await _located();
     if (!Directory(cwd).existsSync()) {
       throw AgyUnavailable('The folder $cwd is gone');
     }
+    if (_takeSpare() case final spare?) {
+      unawaited(_warm());
+      return spare;
+    }
+    return _launch(cwd);
+  }
+
+  /// A new agy, in [cwd] (which its conversations do not depend on: each
+  /// is told its own).
+  Future<AgyProcessTransport> _launch(String cwd) async {
+    await registry.reaped;
+    final executable = await _located();
     try {
       final process = await Process.start(
         executable,
@@ -118,6 +130,53 @@ class LocalAgyRuntime implements AgyRuntime {
         'Antigravity could not start',
         detail: '$executable\n${error.message}',
       );
+    }
+  }
+
+  // --- A spare -------------------------------------------------------------------
+
+  /// An agy up and booted, kept a while for the next conversation to start
+  /// on at once. Its backend boots on the first session asked of it,
+  /// asking Google for the account and its models: seconds, which opening
+  /// a conversation would otherwise wait out. What a listing leaves (which
+  /// boots it), and made again once taken.
+  static AgyProcessTransport? _spare;
+  static Timer? _spareEnds;
+  static bool _warming = false;
+  static const _spareFor = Duration(minutes: 10);
+
+  static AgyProcessTransport? _takeSpare() {
+    _spareEnds?.cancel();
+    final spare = _spare;
+    _spare = null;
+    return spare == null || spare.ended ? null : spare;
+  }
+
+  static void _keepSpare(AgyProcessTransport transport) {
+    if (_spare case final kept? when !kept.ended) {
+      transport.close();
+      return;
+    }
+    _spare = transport;
+    _spareEnds?.cancel();
+    _spareEnds = Timer(_spareFor, dropSpare);
+  }
+
+  /// Ends the spare: one booted before a sign-in has the account before.
+  static void dropSpare() {
+    _takeSpare()?.close();
+  }
+
+  /// Boots a spare, by a listing.
+  Future<void> _warm() async {
+    if (_warming) return;
+    _warming = true;
+    try {
+      await sessions();
+    } on Object {
+      // None then: the next starts its own.
+    } finally {
+      _warming = false;
     }
   }
 
@@ -142,6 +201,7 @@ class LocalAgyRuntime implements AgyRuntime {
 
   @override
   Future<void> install({void Function(double progress)? onProgress}) async {
+    dropSpare();
     final client = HttpClient();
     try {
       final manifest = await _json(client, Uri.parse('$feed/$_target.json'));
@@ -235,6 +295,7 @@ class LocalAgyRuntime implements AgyRuntime {
     required void Function(Uri link) link,
     required Future<String?> Function() code,
   }) async {
+    dropSpare();
     final executable = await _located();
     final process = await Process.start(
       executable,
@@ -592,14 +653,16 @@ if ($bytes -eq $null) { exit 1 }
   @override
   Future<List<SessionRecord>> sessions() async {
     if (await locate() == null) return const [];
-    final home = AppPaths.home(await _environment());
+    final transport =
+        _takeSpare() ?? await _launch(AppPaths.home(await _environment()));
     final connection = AcpConnection(
-      await start(home),
+      transport,
       onRequest: (method, _) async =>
           throw AcpError(-32601, 'Method not found: $method'),
       onNotification: (_, _) {},
     );
     const wait = Duration(seconds: 20);
+    var listed = false;
     try {
       await connection
           .request('initialize', {
@@ -635,9 +698,16 @@ if ($bytes -eq $null) { exit 1 }
         }
         cursor = page['nextCursor'] as String?;
       } while (cursor != null && records.length < 10000);
+      listed = true;
       return records;
     } finally {
-      connection.close();
+      if (listed) {
+        // Booted by now: kept for a conversation to start on.
+        connection.detach();
+        _keepSpare(transport);
+      } else {
+        connection.close();
+      }
     }
   }
 
@@ -921,6 +991,10 @@ class AgyProcessTransport implements AcpTransport {
     _finish();
   }
 
+  /// Whether it is gone, or going.
+  bool get ended => _code != null || _closing;
+  bool _closing = false;
+
   void _finish() {
     final code = _code;
     if (code == null || !_stdoutClosed || _exit.isCompleted) return;
@@ -941,6 +1015,7 @@ class AgyProcessTransport implements AcpTransport {
   @override
   void close() {
     if (_code != null) return;
+    _closing = true;
     unawaited(_process.stdin.close().catchError((_) {}));
     if (Platform.isWindows) {
       unawaited(

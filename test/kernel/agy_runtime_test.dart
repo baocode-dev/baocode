@@ -88,4 +88,57 @@ void main() {
       expect(credentials?.accessToken, 'ya29.a');
     });
   });
+
+  group('a spare', () {
+    late Directory dir;
+    late LocalAgyRuntime runtime;
+    int launches() => File('${dir.path}/launches').existsSync()
+        ? File('${dir.path}/launches').readAsLinesSync().length
+        : 0;
+
+    setUp(() {
+      dir = Directory.systemTemp.createTempSync('agy');
+      // A stand-in agy: answers initialize and session/list, logs launches.
+      final agy = File('${dir.path}/antigravity')
+        ..writeAsStringSync("""#!/usr/bin/env python3
+import json, os, sys
+open(os.path.join(os.path.dirname(sys.argv[0]), 'launches'), 'a').write('x\\n')
+for line in sys.stdin:
+    m = json.loads(line)
+    if 'id' not in m: continue
+    r = {'sessions': [{'sessionId': 'a', 'cwd': '/x', 'title': 't'}]} if m['method'] == 'session/list' else {}
+    print(json.dumps({'jsonrpc': '2.0', 'id': m['id'], 'result': r}), flush=True)
+""");
+      Process.runSync('chmod', ['+x', agy.path]);
+      runtime = LocalAgyRuntime(
+        installDir: dir.path,
+        dataDir: dir.path,
+        environment: () async => {
+          'HOME': dir.path,
+          'PATH': Platform.environment['PATH'] ?? '',
+        },
+      );
+    });
+
+    tearDown(() async {
+      await LocalAgyRuntime.stopProcesses();
+      dir.deleteSync(recursive: true);
+    });
+
+    test(
+      'a listing leaves agy booted: listed again and started on, no new one',
+      () async {
+        expect((await runtime.sessions()).single.id, 'a');
+        expect((await runtime.sessions()).single.id, 'a');
+        expect(launches(), 1);
+        await runtime.start(dir.path);
+        // Taken, another is booted for the next.
+        for (var i = 0; i < 100 && launches() < 2; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+        }
+        expect(launches(), 2);
+      },
+      skip: Platform.isWindows,
+    );
+  });
 }
