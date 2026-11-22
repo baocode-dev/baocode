@@ -9178,5 +9178,22 @@
   "remoteBrowserSaveName": "Save As:",
   "remoteBrowserSave": "Save",
   "remoteBrowserReplace": "“{name}” already exists. Replace it?",
-  "@remoteBrowserReplace": {"placeholders": {"name": {"type": "String"}}}
+  "@remoteBrowserReplace": {"placeholders": {"name": {"type": "String"}}},
+  "composerApprovalAgyAutoDetail": "Approve edits and safe commands, ask before irreversible ones",
+  "kernelSetupInstall": "{kernel} isn't installed on this computer",
+  "@kernelSetupInstall": {"placeholders": {"kernel": {"type": "String"}}},
+  "kernelSetupInstallAction": "Install",
+  "kernelSetupInstalling": "Installing {kernel}… {percent}%",
+  "@kernelSetupInstalling": {"placeholders": {"kernel": {"type": "String"}, "percent": {"type": "int"}}},
+  "kernelSetupLogin": "Sign in to {kernel} to use it",
+  "@kernelSetupLogin": {"placeholders": {"kernel": {"type": "String"}}},
+  "kernelSetupLoginAction": "Sign in",
+  "kernelSetupLoginOpening": "Opening the sign-in page…",
+  "kernelSetupLoginCode": "Sign in on the page that opened, then paste the code it shows here.",
+  "kernelSetupCodeHint": "Authorization code",
+  "kernelSetupSubmit": "Submit",
+  "kernelSetupOpenPage": "Open page",
+  "kernelSetupCancel": "Cancel",
+  "kernelSetupLocalOnly": "{kernel} works only in projects on this computer",
+  "@kernelSetupLocalOnly": {"placeholders": {"kernel": {"type": "String"}}}
 }

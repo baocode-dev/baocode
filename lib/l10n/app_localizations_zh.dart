@@ -13725,4 +13725,51 @@ class AppLocalizationsZh extends AppLocalizations {
   String remoteBrowserReplace(String name) {
     return '“$name”已存在，要替换它吗？';
   }
+
+  @override
+  String get composerApprovalAgyAutoDetail => '编辑和安全的命令自动通过，不可撤销的先问';
+
+  @override
+  String kernelSetupInstall(String kernel) {
+    return '这台电脑上还没装 $kernel';
+  }
+
+  @override
+  String get kernelSetupInstallAction => '安装';
+
+  @override
+  String kernelSetupInstalling(String kernel, int percent) {
+    return '正在安装 $kernel…$percent%';
+  }
+
+  @override
+  String kernelSetupLogin(String kernel) {
+    return '登录 $kernel 后才能使用';
+  }
+
+  @override
+  String get kernelSetupLoginAction => '登录';
+
+  @override
+  String get kernelSetupLoginOpening => '正在打开登录页…';
+
+  @override
+  String get kernelSetupLoginCode => '在打开的页面里登录，然后把页面上显示的授权码粘贴到这里。';
+
+  @override
+  String get kernelSetupCodeHint => '授权码';
+
+  @override
+  String get kernelSetupSubmit => '提交';
+
+  @override
+  String get kernelSetupOpenPage => '打开页面';
+
+  @override
+  String get kernelSetupCancel => '取消';
+
+  @override
+  String kernelSetupLocalOnly(String kernel) {
+    return '$kernel 仅支持本机项目';
+  }
 }
