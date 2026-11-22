@@ -145,6 +145,17 @@ class _Runtime implements AgyRuntime {
   @override
   Map<String, Object?>? kept;
 
+  /// The turns timed, by conversation.
+  final timed = <String, List<Map<String, Object?>>>{};
+
+  @override
+  List<Map<String, Object?>> turnsTimed(String sessionId) =>
+      timed[sessionId] ?? const [];
+
+  @override
+  void timeTurn(String sessionId, Map<String, Object?> turn) =>
+      (timed[sessionId] ??= []).add(turn);
+
   @override
   Future<AcpTransport> start(String cwd) async {
     if (!installed) {
@@ -185,7 +196,6 @@ class _Runtime implements AgyRuntime {
   @override
   Future<AgyCredentials?> credentials() async => null;
 
-  @override
   int quotaAsked = 0;
 
   @override
@@ -443,16 +453,6 @@ void main() {
     () async {
       kernel = make();
       await started();
-      runtime.steps['s1'] = [
-        {'type': 'USER_INPUT'},
-        {
-          'type': 'PLANNER_RESPONSE',
-          'input_tokens': 100,
-          'cache_read_tokens': 900,
-          'output_tokens': 50,
-        },
-        {'type': 'PLANNER_RESPONSE', 'input_tokens': 10, 'output_tokens': 5},
-      ];
       kernel.send(const KernelTurn(id: 't1', text: 'Fix it'));
       await pumpEventQueue();
       final prompt = runtime.agent.sentOf('session/prompt').single;
@@ -509,7 +509,14 @@ void main() {
           ],
         });
       await pumpEventQueue();
-      agent.answer('session/prompt', {'stopReason': 'end_turn'});
+      agent.answer('session/prompt', {
+        'stopReason': 'end_turn',
+        'usage': {
+          'inputTokens': 110,
+          'cachedReadTokens': 900,
+          'outputTokens': 55,
+        },
+      });
       await pumpEventQueue();
 
       final shown = items().values.toList();
@@ -529,6 +536,11 @@ void main() {
       expect(ended.interrupted, isFalse);
       expect(ended.usage?.inputTokens, 1010);
       expect(ended.usage?.outputTokens, 55);
+      // Timed as it ran, to show again as it is read back.
+      final timed = runtime.timed['s1']!.single;
+      expect(timed['text'], 'Fix it');
+      expect(timed['workedMs'], ended.worked!.inMilliseconds);
+      expect((timed['input'], timed['output']), (1010, 55));
     },
   );
 
@@ -1159,21 +1171,16 @@ void main() {
     },
   );
 
-  test('turns read back are timed as agy logged them', () async {
-    runtime.steps['s1'] = [
+  test('turns read back are timed as this app timed them', () async {
+    final sent = DateTime(2026, 11, 22, 10);
+    runtime.timed['s1'] = [
       {
-        'type': 'USER_INPUT',
-        'source': 'USER_EXPLICIT',
-        'created_at': '2026-11-22T10:00:00Z',
+        'text': 'Fix it',
+        'sentAt': sent.millisecondsSinceEpoch,
+        'workedMs': 15000,
+        'input': 1000,
+        'output': 20,
       },
-      {
-        'type': 'PLANNER_RESPONSE',
-        'created_at': '2026-11-22T10:00:02Z',
-        'input_tokens': 100,
-        'cache_read_tokens': 900,
-        'output_tokens': 20,
-      },
-      {'type': 'GENERIC', 'created_at': '2026-11-22T10:00:15Z'},
     ];
     kernel = make(
       resume: SessionRecord(
@@ -1192,16 +1199,27 @@ void main() {
         ..update({
           'sessionUpdate': 'agent_message_chunk',
           'content': {'type': 'text', 'text': 'Done.'},
+        })
+        // Sent from agy in a terminal: not timed here.
+        ..update({
+          'sessionUpdate': 'user_message_chunk',
+          'content': {'type': 'text', 'text': 'And the docs'},
+        })
+        ..update({
+          'sessionUpdate': 'agent_message_chunk',
+          'content': {'type': 'text', 'text': 'Done too.'},
         });
       return {'configOptions': _session['configOptions']};
     };
     await pumpEventQueue();
-    final message = items().values.whereType<UserMessageItem>().single;
-    expect(message.text, 'Fix it');
-    expect(message.worked, const Duration(seconds: 15));
-    expect(message.sentAt, DateTime.utc(2026, 11, 22, 10).toLocal());
-    expect(message.usage?.inputTokens, 1000);
-    expect(message.usage?.outputTokens, 20);
+    final messages = items().values.whereType<UserMessageItem>().toList();
+    expect([for (final m in messages) m.text], ['Fix it', 'And the docs']);
+    final (timed, untimed) = (messages.first, messages.last);
+    expect(timed.worked, const Duration(seconds: 15));
+    expect(timed.sentAt, sent);
+    expect(timed.usage?.inputTokens, 1000);
+    expect(timed.usage?.outputTokens, 20);
+    expect(untimed.worked, isNull);
   });
 
   test('a subagent’s steps as items', () {

@@ -89,6 +89,29 @@ void main() {
     });
   });
 
+  test(
+    'turns timed in the app\'s own state, gone with the conversation',
+    () async {
+      final dir = Directory.systemTemp.createTempSync('agy');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final runtime = LocalAgyRuntime(
+        dataDir: '${dir.path}/agy',
+        stateDir: '${dir.path}/state',
+      );
+      expect(runtime.turnsTimed('s1'), isEmpty);
+      runtime
+        ..timeTurn('s1', {'text': 'a', 'workedMs': 1})
+        ..timeTurn('s1', {'text': 'b', 'workedMs': 2});
+      expect([for (final t in runtime.turnsTimed('s1')) t['text']], ['a', 'b']);
+      expect(
+        File('${dir.path}/state/antigravity/s1.json').existsSync(),
+        isTrue,
+      );
+      await runtime.delete('s1');
+      expect(runtime.turnsTimed('s1'), isEmpty);
+    },
+  );
+
   group('a spare', () {
     late Directory dir;
     late LocalAgyRuntime runtime;

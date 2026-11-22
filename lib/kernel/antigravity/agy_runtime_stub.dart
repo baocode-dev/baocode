@@ -66,6 +66,12 @@ class _NoAgy implements AgyRuntime {
 
   @override
   set kept(Map<String, Object?>? value) {}
+
+  @override
+  List<Map<String, Object?>> turnsTimed(String sessionId) => const [];
+
+  @override
+  void timeTurn(String sessionId, Map<String, Object?> turn) {}
 }
 
 class _NoRecords implements AgyRecords {
