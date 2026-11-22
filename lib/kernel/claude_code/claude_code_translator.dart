@@ -6,6 +6,7 @@ import '../../chat/compaction_text.dart';
 import '../../l10n/l10n.dart';
 import '../kernel_event.dart';
 import '../kernel_types.dart';
+import '../line_diff.dart';
 import '../output_meter.dart';
 import 'claude_goal.dart';
 import 'claude_numbers.dart';
@@ -1660,10 +1661,7 @@ class ClaudeTranslator {
       // A notebook edit tells the cell's source before and after, not a
       // patch (the file is JSON): its lines, compared.
       String source(String key) => _string(result[key]) ?? '';
-      for (final line in _lineDiff(
-        source('old_source'),
-        source('new_source'),
-      )) {
+      for (final line in lineDiff(source('old_source'), source('new_source'))) {
         switch (line.type) {
           case DiffLineType.added:
             added++;
@@ -1755,48 +1753,6 @@ class ClaudeTranslator {
   }
 
   static const _maxDiffLines = 400;
-
-  /// [before] to [after], line by line: kept lines as context, numbered as
-  /// in the text they are from. Past a size, all of one replaced by the
-  /// other.
-  static List<DiffLine> _lineDiff(String before, String after) {
-    List<String> split(String text) => text.isEmpty ? [] : text.split('\n');
-    final a = split(before);
-    final b = split(after);
-    // The longest common subsequence, from the end.
-    final common = a.length * b.length <= 250000
-        ? List.generate(a.length + 1, (_) => List.filled(b.length + 1, 0))
-        : null;
-    if (common != null) {
-      for (var i = a.length - 1; i >= 0; i--) {
-        for (var j = b.length - 1; j >= 0; j--) {
-          common[i][j] = a[i] == b[j]
-              ? common[i + 1][j + 1] + 1
-              : math.max(common[i + 1][j], common[i][j + 1]);
-        }
-      }
-    }
-    final lines = <DiffLine>[];
-    var i = 0;
-    var j = 0;
-    while (i < a.length || j < b.length) {
-      if (common != null && i < a.length && j < b.length && a[i] == b[j]) {
-        lines.add(DiffLine(DiffLineType.context, j + 1, b[j]));
-        i++;
-        j++;
-      } else if (i < a.length &&
-          (j == b.length ||
-              common == null ||
-              common[i + 1][j] >= common[i][j + 1])) {
-        lines.add(DiffLine(DiffLineType.removed, i + 1, a[i]));
-        i++;
-      } else {
-        lines.add(DiffLine(DiffLineType.added, j + 1, b[j]));
-        j++;
-      }
-    }
-    return lines;
-  }
 
   // --- Runtime messages ------------------------------------------------------------
 

@@ -3911,5 +3911,18 @@
   "remoteBrowserSaveAction": "另存为",
   "remoteBrowserSaveName": "保存为：",
   "remoteBrowserSave": "保存",
-  "remoteBrowserReplace": "“{name}”已存在，要替换它吗？"
+  "remoteBrowserReplace": "“{name}”已存在，要替换它吗？",
+  "composerApprovalAgyAutoDetail": "编辑和安全的命令自动通过，不可撤销的先问",
+  "kernelSetupInstall": "这台电脑上还没装 {kernel}",
+  "kernelSetupInstallAction": "安装",
+  "kernelSetupInstalling": "正在安装 {kernel}…{percent}%",
+  "kernelSetupLogin": "登录 {kernel} 后才能使用",
+  "kernelSetupLoginAction": "登录",
+  "kernelSetupLoginOpening": "正在打开登录页…",
+  "kernelSetupLoginCode": "在打开的页面里登录，然后把页面上显示的授权码粘贴到这里。",
+  "kernelSetupCodeHint": "授权码",
+  "kernelSetupSubmit": "提交",
+  "kernelSetupOpenPage": "打开页面",
+  "kernelSetupCancel": "取消",
+  "kernelSetupLocalOnly": "{kernel} 仅支持本机项目"
 }

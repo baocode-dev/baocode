@@ -14543,4 +14543,53 @@ class AppLocalizationsEn extends AppLocalizations {
   String remoteBrowserReplace(String name) {
     return '“$name” already exists. Replace it?';
   }
+
+  @override
+  String get composerApprovalAgyAutoDetail =>
+      'Approve edits and safe commands, ask before irreversible ones';
+
+  @override
+  String kernelSetupInstall(String kernel) {
+    return '$kernel isn\'t installed on this computer';
+  }
+
+  @override
+  String get kernelSetupInstallAction => 'Install';
+
+  @override
+  String kernelSetupInstalling(String kernel, int percent) {
+    return 'Installing $kernel… $percent%';
+  }
+
+  @override
+  String kernelSetupLogin(String kernel) {
+    return 'Sign in to $kernel to use it';
+  }
+
+  @override
+  String get kernelSetupLoginAction => 'Sign in';
+
+  @override
+  String get kernelSetupLoginOpening => 'Opening the sign-in page…';
+
+  @override
+  String get kernelSetupLoginCode =>
+      'Sign in on the page that opened, then paste the code it shows here.';
+
+  @override
+  String get kernelSetupCodeHint => 'Authorization code';
+
+  @override
+  String get kernelSetupSubmit => 'Submit';
+
+  @override
+  String get kernelSetupOpenPage => 'Open page';
+
+  @override
+  String get kernelSetupCancel => 'Cancel';
+
+  @override
+  String kernelSetupLocalOnly(String kernel) {
+    return '$kernel works only in projects on this computer';
+  }
 }
