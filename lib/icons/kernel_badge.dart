@@ -1,8 +1,9 @@
 import 'package:flutter/widgets.dart';
 
-/// Antigravity's mark in its colors (devicon's, MIT), on a round light
-/// ground in any theme, so its colors show: what tells its conversations
-/// apart.
+import '../theme/app_theme.dart';
+
+/// Antigravity's mark in its colors (devicon's, MIT), on a round ground a
+/// shade off the theme's: what tells its conversations apart.
 class AntigravityBadge extends StatelessWidget {
   const AntigravityBadge({super.key, required this.size});
 
@@ -19,8 +20,14 @@ class AntigravityBadge extends StatelessWidget {
       alignment: Alignment.center,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: const Color(0xFFF3F3F4),
-        border: Border.all(color: const Color(0x1F000000), width: .5),
+        color: Color.alphaBlend(
+          AppColors.text.withValues(alpha: .1),
+          AppColors.background,
+        ),
+        border: Border.all(
+          color: AppColors.text.withValues(alpha: .14),
+          width: .5,
+        ),
       ),
       child: Image.asset(
         asset,

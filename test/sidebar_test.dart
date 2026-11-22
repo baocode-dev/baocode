@@ -90,6 +90,7 @@ Future<Workspace> pumpKept(
   WidgetTester tester,
   KeptCatalog catalog, {
   PreferenceStore? preferences,
+  Widget Function(double size)? mark,
 }) async {
   tester.view.physicalSize = const Size(1400, 900);
   tester.view.devicePixelRatio = 1;
@@ -101,6 +102,7 @@ Future<Workspace> pumpKept(
     icon: Icons.auto_awesome_rounded,
     description: '',
     catalog: catalog,
+    iconBuilder: mark,
     create: (context) =>
         ClaudeCodeKernel(claude, context, start: MockClaudeCodeTransport.start),
   );
@@ -683,6 +685,28 @@ void main() {
           ),
       isTrue,
     );
+  });
+
+  testWidgets("a kernel's mark sits before the title, the status before it", (
+    tester,
+  ) async {
+    await pumpKept(
+      tester,
+      KeptCatalog([kept('a', '/p/one', 5)]),
+      mark: (size) =>
+          SizedBox.square(key: const ValueKey('mark'), dimension: size),
+    );
+    final title = tester.getRect(inSidebar(find.textContaining('Chat a')));
+    // The row's own (a new conversation's row has one too).
+    final mark = inSidebar(find.byKey(const ValueKey('mark')))
+        .evaluate()
+        .map((element) => tester.getRect(find.byWidget(element.widget)))
+        .singleWhere((rect) => (rect.center.dy - title.center.dy).abs() < 4);
+    expect(mark.size, const Size(14, 14));
+    // In the title's line, ahead of its text; the status's slot before it.
+    expect(mark.left, greaterThanOrEqualTo(title.left - .5));
+    expect(mark.left, lessThan(title.left + 2));
+    expect(mark.left, greaterThan(14 + 8));
   });
 
   testWidgets('hovered, a row offers pin and archive in place of its time', (
