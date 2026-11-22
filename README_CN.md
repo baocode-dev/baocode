@@ -8,8 +8,6 @@
 
 [官网](https://baocode.dev) · [下载](https://baocode.dev/download) · [更新日志](https://baocode.dev/changelog)
 
-![用户对 BaoCode 的评价](docs/readme/reviews-zh.png)
-
 ![BaoCode 的 Agent 模式：多台机器上的智能体、进行中的对话及其用量](https://baocode.dev/readme/agent.webp)
 
 ![BaoCode 的 IDE 模式：文件树和编辑器，旁边是对话](https://baocode.dev/readme/ide.webp)

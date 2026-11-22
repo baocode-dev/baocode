@@ -40,9 +40,7 @@ The BaoCode website, hosted on Cloudflare: `site/` is served as it is,
 - `reviews/`: the avatars on the home page's reel of what users say (the
   words are in `site-redesign/zcode-style.html`). "Say a word"
   under it sends a visitor's to stats.baocode.dev (`/v1/review`, in the
-  private baocode.dev repository), seen on its dashboard. The README's
-  picture of them, `docs/readme/reviews*.png`, is drawn as HTML and
-  screenshot.
+  private baocode.dev repository), seen on its dashboard.
 - `push.html`, `zh/push.html`: pushing the iPhone app from the user's own
   scripts (`push.baocode.dev/v1/notify/<key>`, in the private baocode.dev
   repository), linked from the app's notification settings.

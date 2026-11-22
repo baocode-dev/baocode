@@ -7,8 +7,6 @@ An awesome, easy-to-use desktop UI for [Claude Code](https://github.com/anthropi
 
 [Website](https://baocode.dev) · [Download](https://baocode.dev/download) · [Changelog](https://baocode.dev/changelog)
 
-![What users say about BaoCode](docs/readme/reviews.png)
-
 ![BaoCode in Agent mode: agents on several machines, a conversation at work and its usage](https://baocode.dev/readme/agent.webp)
 
 ![BaoCode in IDE mode: the file tree and the editor, with the conversation beside them](https://baocode.dev/readme/ide.webp)
