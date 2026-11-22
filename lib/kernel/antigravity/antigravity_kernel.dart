@@ -1254,7 +1254,10 @@ class AntigravityKernel
   );
 
   /// Its models (families, their thinking apart), as it lists them.
-  List<KernelOption> _models = const [];
+  /// Its models, as agy last told them (in any conversation): offered
+  /// until it tells this one's, which a cold agy takes seconds to.
+  List<KernelOption> _models = _lastModels;
+  static List<KernelOption> _lastModels = const [];
 
   /// Its model ids, each a family's at a thinking level
   /// (`gemini-3.8-flash-low`): what levels each family has.
@@ -1296,7 +1299,7 @@ class AntigravityKernel
       final current = option['currentValue'] as String?;
       switch (option['id']) {
         case 'model':
-          _models = [
+          _models = _lastModels = [
             for (final value in values)
               KernelOption(
                 value.id,
