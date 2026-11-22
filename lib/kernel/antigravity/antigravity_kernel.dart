@@ -140,8 +140,16 @@ class AntigravityKernel
   /// Starts agy and its session, unless done; whether it is up.
   Future<bool> _ready() => _starting ??= _start();
 
+  /// How many starts there were: one with a later after it (released while
+  /// it started, then used again) is stale, and leaves all to that one.
+  int _starts = 0;
+
   Future<bool> _start() async {
-    if (_disposed) return false;
+    final start = ++_starts;
+    bool stale() => _disposed || start != _starts;
+    // Not within its caller's frame: a screen opening on it is building.
+    await Future<void>.value();
+    if (stale()) return false;
     final cwd = _cwd;
     if (cwd == null) {
       _fail('Antigravity needs a project folder');
@@ -161,7 +169,7 @@ class AntigravityKernel
     AcpConnection? launched;
     try {
       final transport = await _runtime.start(cwd);
-      if (_disposed) {
+      if (stale()) {
         transport.close();
         return false;
       }
@@ -233,16 +241,19 @@ class AntigravityKernel
         started = await connection.request('session/new', session);
         _sessionId = started['sessionId'] as String?;
       }
+      if (stale()) return false;
       _shown = true;
       _timeHistory();
       _historyRead();
       _options(started);
       await _applyPicks();
+      if (stale()) return false;
       _setHealth(KernelHealth.ready);
       unawaited(_watchRecords());
       if (!_limitsFresh(const Duration(minutes: 5))) _limitsAfterTurn();
       return true;
     } on AgyUnavailable catch (error) {
+      if (stale()) return false;
       _historyRead();
       if (error.notInstalled) {
         _setHealth(
@@ -256,6 +267,9 @@ class AntigravityKernel
         _fail(error.message, detail: error.detail);
       }
     } on AcpError catch (error) {
+      // Its agy ended under it by the release that made it stale: no
+      // failure, and the next start's agy is not to be ended.
+      if (stale()) return false;
       _historyRead();
       if (_signInNeeded(error)) {
         _setHealth(
@@ -278,9 +292,11 @@ class AntigravityKernel
         );
       }
     } on Object catch (error) {
+      if (stale()) return false;
       _historyRead();
       _fail('Antigravity could not start', detail: '$error');
     }
+    if (stale()) return false;
     _starting = null;
     _end();
     return false;
