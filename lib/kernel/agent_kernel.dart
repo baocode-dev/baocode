@@ -446,6 +446,13 @@ abstract interface class SessionCatalog {
   Future<void> delete(String id);
 }
 
+/// A [SessionCatalog] whose listing may change after it was asked: one
+/// that answers with what it last listed while it lists anew, say.
+abstract interface class ChangingCatalog {
+  /// Notifies as the listing changed: worth asking again.
+  Listenable get changes;
+}
+
 /// A [SessionCatalog] that can have a directory's sessions belong to
 /// another (a project's folder moved): listed, and continued, there.
 abstract interface class MovesSessions {

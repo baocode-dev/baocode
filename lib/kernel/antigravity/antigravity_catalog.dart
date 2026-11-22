@@ -1,20 +1,30 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+
 import '../../remote/remote_location.dart';
 import '../agent_kernel.dart';
 import 'agy_runtime.dart';
 
 /// The conversations agy keeps (the user's terminal's among them), by
 /// project: this machine's alone, it runs nowhere else.
-class AntigravityCatalog implements SessionCatalog {
+class AntigravityCatalog implements SessionCatalog, ChangingCatalog {
   const AntigravityCatalog();
 
   static AgyRuntime get _runtime => AgyRuntime.local;
 
-  /// Listed lately: each listing starts agy.
+  /// Listed lately; or, before agy is up to list (seconds), as last
+  /// listed the run before.
   static List<SessionRecord>? _listed;
   static DateTime? _listedAt;
   static Future<List<SessionRecord>>? _listing;
 
   static const _fresh = Duration(seconds: 15);
+
+  static final _Changes _changes = _Changes();
+
+  @override
+  Listenable get changes => _changes;
 
   static Future<List<SessionRecord>> _sessions() {
     final at = _listedAt;
@@ -22,7 +32,7 @@ class AntigravityCatalog implements SessionCatalog {
         when at != null && DateTime.now().difference(at) < _fresh) {
       return Future.value(listed);
     }
-    return _listing ??= _runtime
+    final listing = _listing ??= _runtime
         .sessions()
         .then((sessions) {
           _listed = sessions;
@@ -30,11 +40,19 @@ class AntigravityCatalog implements SessionCatalog {
           return sessions;
         })
         .whenComplete(() => _listing = null);
+    if (_listed == null) {
+      if (_runtime.lastSessions case final kept?) {
+        // Shown at once; told of the listing when it comes.
+        _listed = kept;
+        unawaited(listing.then((_) => _changes.tell(), onError: (_) {}));
+        return Future.value(kept);
+      }
+    }
+    return listing;
   }
 
   /// Lists anew next time (a conversation started or deleted).
   static void forget() {
-    _listed = null;
     _listedAt = null;
   }
 
@@ -68,6 +86,11 @@ class AntigravityCatalog implements SessionCatalog {
   @override
   Future<void> delete(String id) async {
     await _runtime.delete(id);
+    _listed = null;
     forget();
   }
+}
+
+class _Changes extends ChangeNotifier {
+  void tell() => notifyListeners();
 }

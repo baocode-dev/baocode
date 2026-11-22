@@ -24,6 +24,21 @@ abstract interface class AgyRuntime {
   /// Starts `agy acp` in [cwd]. Throws [AgyUnavailable].
   Future<AcpTransport> start(String cwd);
 
+  /// Boots an agy ahead, for the next [start] to be at once (its backend
+  /// takes seconds to boot); kept a while.
+  void warm();
+
+  /// Reads conversation [sessionId] back, as agy keeps it: each update of
+  /// it to [onUpdate], then its answer (the options and modes it is on).
+  /// On a reader agy kept up for it, never prompted: agy is the service,
+  /// a reading the same whichever agy gives it. Throws [AgyUnavailable]
+  /// or [AcpError].
+  Future<Map<String, Object?>> replay(
+    String sessionId,
+    String cwd,
+    void Function(Map<String, Object?> update) onUpdate,
+  );
+
   /// Downloads Google's build for this machine from its update feed and
   /// installs it for BaoCode, telling [onProgress] how far it got (0 to 1).
   Future<void> install({void Function(double progress)? onProgress});
@@ -79,6 +94,10 @@ abstract interface class AgyRuntime {
   /// The conversations it keeps, any project's (`session/list`); none
   /// when it is not installed.
   Future<List<SessionRecord>> sessions();
+
+  /// The conversations as last listed, kept from one run to the next:
+  /// shown before agy is up to list them again. Null with none kept.
+  List<SessionRecord>? get lastSessions;
 
   /// Deletes conversation [sessionId] and what is kept of it, for good.
   Future<void> delete(String sessionId);
