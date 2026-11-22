@@ -21,6 +21,16 @@ class _NoAgy implements AgyRuntime {
   Future<AcpTransport> start(String cwd) => Future.error(_unavailable);
 
   @override
+  void warm() {}
+
+  @override
+  Future<Map<String, Object?>> replay(
+    String sessionId,
+    String cwd,
+    void Function(Map<String, Object?> update) onUpdate,
+  ) => Future.error(_unavailable);
+
+  @override
   Future<void> install({void Function(double progress)? onProgress}) =>
       Future.error(_unavailable);
 
@@ -54,6 +64,9 @@ class _NoAgy implements AgyRuntime {
 
   @override
   Future<List<SessionRecord>> sessions() async => const [];
+
+  @override
+  List<SessionRecord>? get lastSessions => null;
 
   @override
   Future<void> delete(String sessionId) async {}

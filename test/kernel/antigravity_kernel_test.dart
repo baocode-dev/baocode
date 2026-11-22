@@ -153,6 +153,38 @@ class _Runtime implements AgyRuntime {
     return agent;
   }
 
+  int warmed = 0;
+
+  @override
+  void warm() => warmed++;
+
+  /// What reading a conversation back gives: its updates, then the
+  /// answer. By default nothing, and the session's options.
+  Future<Map<String, Object?>> Function(
+    String sessionId,
+    String cwd,
+    void Function(Map<String, Object?> update) onUpdate,
+  )?
+  replays;
+  int replayed = 0;
+
+  @override
+  Future<Map<String, Object?>> replay(
+    String sessionId,
+    String cwd,
+    void Function(Map<String, Object?> update) onUpdate,
+  ) async {
+    replayed++;
+    if (!installed) {
+      throw const AgyUnavailable('Not installed', notInstalled: true);
+    }
+    if (replays case final script?) return script(sessionId, cwd, onUpdate);
+    return {'configOptions': _session['configOptions']};
+  }
+
+  @override
+  List<SessionRecord>? lastSessions;
+
   @override
   AgyRecords records(String sessionId) => _Records(this, sessionId);
 
@@ -250,18 +282,6 @@ const _session = {
   ],
 };
 
-/// [_session]'s answer with [model] in effect.
-Map<String, Object?> _sessionOn(String model) => {
-  ..._session,
-  'configOptions': [
-    for (final option in _session['configOptions']! as List)
-      if ((option as Map)['id'] == 'model')
-        {...option, 'currentValue': model}
-      else
-        option,
-  ],
-};
-
 Map<String, Object? Function(Map<String, Object?>)> _answers({
   Object? Function(Map<String, Object?>)? newSession,
 }) => {
@@ -309,7 +329,7 @@ void main() {
       runtime: runtime,
       quiet: const Duration(milliseconds: 30),
       pollEvery: const Duration(milliseconds: 10),
-      replayGap: const Duration(milliseconds: 20),
+      idleFor: const Duration(milliseconds: 150),
     );
     made.events.listen(events.add);
     return made;
@@ -351,6 +371,36 @@ void main() {
     await pumpEventQueue();
   }
 
+  /// Shown, and a first message answered: agy up on the conversation.
+  /// What that put out is forgotten.
+  Future<void> startedOn() async {
+    await started();
+    kernel.send(const KernelTurn(id: 't0', text: 'hi'));
+    await pumpEventQueue();
+    runtime.agent.answer('session/prompt', {'stopReason': 'end_turn'});
+    await pumpEventQueue();
+    events.clear();
+  }
+
+  /// A conversation kept, to continue.
+  SessionRecord old() => SessionRecord(
+    id: 's1',
+    title: 'Old',
+    updatedAt: DateTime(2026),
+    cwd: '/p',
+  );
+
+  /// What agy reads back of it: [updates], then [answer].
+  void readsBack(
+    List<Map<String, Object?>> updates, [
+    Map<String, Object?>? answer,
+  ]) {
+    runtime.replays = (_, _, onUpdate) async {
+      updates.forEach(onUpdate);
+      return answer ?? {'configOptions': _session['configOptions']};
+    };
+  }
+
   test('starts agy in the project, with what it is told', () async {
     kernel = make(
       workspace: const KernelWorkspace(
@@ -360,6 +410,11 @@ void main() {
     );
     await started();
     expect(kernel.health.status, KernelHealthStatus.ready);
+    // Nothing asked of agy till the first message; one booted ahead.
+    expect(runtime.agents, isEmpty);
+    expect(runtime.warmed, 1);
+    kernel.send(const KernelTurn(id: 't0', text: 'hi'));
+    await pumpEventQueue();
     final init = runtime.agent.sentOf('initialize').single;
     expect((init['clientInfo'] as Map)['name'], 'baocode');
     final session = runtime.agent.sentOf('session/new').single;
@@ -370,13 +425,12 @@ void main() {
         'systemPrompt': {'append': 'Be brief.'},
       },
     });
-    // Not kept by agy until it is asked something.
-    expect(kernel.sessionId, isNull);
+    expect(kernel.sessionId, 's1');
   });
 
   test('offers its models, and their thinking levels', () async {
     kernel = make();
-    await started();
+    await startedOn();
     expect(
       [for (final option in kernel.model.options) option.id],
       ['gemini-3.8-flash', 'claude-opus-5-5', 'gpt-oss-120b-medium'],
@@ -410,7 +464,7 @@ void main() {
         '${KernelChoiceKind.effort.name}@claude-opus-5-5': 'low',
       },
     );
-    await started();
+    await startedOn();
     expect(
       [
         for (final params in runtime.agent.sentOf('session/set_config_option'))
@@ -426,7 +480,7 @@ void main() {
 
   test('its modes: Plan, else the approvals; full access is auto', () async {
     kernel = make();
-    await started();
+    await startedOn();
     kernel.mode.select('plan');
     await pumpEventQueue();
     kernel.mode.select('agent');
@@ -600,8 +654,8 @@ void main() {
 
   test('a message sent now is a word in: the turn hands on to it', () async {
     kernel = make();
-    await started();
-    final agent = runtime.agent;
+    await startedOn();
+    final agent = runtime.agent..sent.clear();
     kernel.send(const KernelTurn(id: 't1', text: 'run it'));
     await pumpEventQueue();
     agent.update({
@@ -644,7 +698,7 @@ void main() {
 
   test('a command in the background stops, once no turn is open', () async {
     kernel = make();
-    await started();
+    await startedOn();
     final agent = runtime.agent;
     kernel.send(const KernelTurn(id: 't1', text: 'serve'));
     await pumpEventQueue();
@@ -713,7 +767,7 @@ void main() {
 
   test('in full access, approves without asking', () async {
     kernel = make(settings: {'permission': 'bypassPermissions'});
-    await started();
+    await startedOn();
     runtime.agent.ask('p1', 'session/request_permission', {
       'sessionId': 's1',
       'toolCall': {'toolCallId': 'c1'},
@@ -749,7 +803,7 @@ void main() {
 
   test('what agy takes up on its own is a turn of its own', () async {
     kernel = make();
-    await started();
+    await startedOn();
     runtime.agent.update({
       'sessionUpdate': 'agent_message_chunk',
       'content': {'type': 'text', 'text': 'The build is done.'},
@@ -957,51 +1011,43 @@ void main() {
   });
 
   test('a conversation continued is read back, its edits not again', () async {
-    kernel = make(
-      resume: SessionRecord(
-        id: 's1',
-        title: 'Old',
-        updatedAt: DateTime(2026),
-        cwd: '/p',
-      ),
-    );
+    kernel = make(resume: old());
     expect(kernel.loadingHistory, isTrue);
     expect(kernel.sessionId, 's1');
-    // agy reads it back as it is loaded, before answering.
-    runtime.answers['session/load'] = (_) {
-      runtime.agent
-        ..update({
-          'sessionUpdate': 'user_message_chunk',
-          'content': {'type': 'text', 'text': 'Fix it'},
-        })
-        // The app's notes beside it, which agy keeps with the message.
-        ..update({
-          'sessionUpdate': 'user_message_chunk',
-          'content': {
-            'type': 'text',
-            'text':
-                '<system-reminder>Reply suggestions are on.</system-reminder>',
-          },
-        })
-        ..update({
-          'sessionUpdate': 'tool_call',
-          'toolCallId': 'c2',
-          'name': 'edit_file',
-          'kind': 'edit',
-          'status': 'completed',
-          'content': [
-            {'type': 'diff', 'path': '/p/a.txt', 'newText': 'two\n'},
-          ],
-        })
-        ..update({
-          'sessionUpdate': 'agent_message_chunk',
-          'content': {'type': 'text', 'text': 'Done.'},
-        });
-      return {'configOptions': _session['configOptions']};
-    };
+    // Read back as agy keeps it, by the reader: no agy of its own.
+    readsBack([
+      {
+        'sessionUpdate': 'user_message_chunk',
+        'content': {'type': 'text', 'text': 'Fix it'},
+      },
+      // The app's notes beside it, which agy keeps with the message.
+      {
+        'sessionUpdate': 'user_message_chunk',
+        'content': {
+          'type': 'text',
+          'text':
+              '<system-reminder>Reply suggestions are on.</system-reminder>',
+        },
+      },
+      {
+        'sessionUpdate': 'tool_call',
+        'toolCallId': 'c2',
+        'name': 'edit_file',
+        'kind': 'edit',
+        'status': 'completed',
+        'content': [
+          {'type': 'diff', 'path': '/p/a.txt', 'newText': 'two\n'},
+        ],
+      },
+      {
+        'sessionUpdate': 'agent_message_chunk',
+        'content': {'type': 'text', 'text': 'Done.'},
+      },
+    ]);
     await pumpEventQueue();
     expect(kernel.loadingHistory, isFalse);
-    expect(runtime.agent.sentOf('session/load').single['sessionId'], 's1');
+    expect(kernel.health.status, KernelHealthStatus.ready);
+    expect(runtime.agents, isEmpty);
     final shown = items().values.toList();
     expect(shown.whereType<UserMessageItem>().single.text, 'Fix it');
     expect(shown.whereType<CodeDiffItem>(), hasLength(1));
@@ -1027,139 +1073,149 @@ void main() {
     expect(AntigravityTranslator.withoutReminders('Plain'), 'Plain');
   });
 
-  test('released and used again, it is not read back twice', () async {
-    kernel = make(
-      resume: SessionRecord(
-        id: 's1',
-        title: 'Old',
-        updatedAt: DateTime(2026),
-        cwd: '/p',
-      ),
-    );
-    var loads = 0;
+  test('taken up by an agy to send to: not read back twice', () async {
+    kernel = make(resume: old());
+    readsBack([
+      {
+        'sessionUpdate': 'agent_message_chunk',
+        'content': {'type': 'text', 'text': 'Done.'},
+      },
+    ]);
+    await pumpEventQueue();
+    // Out of view and back: nothing to end, nothing to read again.
+    kernel.release();
+    kernel.prepare();
+    await pumpEventQueue();
+    expect(runtime.replayed, 1);
+    expect(kernel.health.status, KernelHealthStatus.ready);
+    // A message: an agy started on the conversation, which agy reads
+    // back to it too; shown already.
     runtime.answers['session/load'] = (_) {
-      loads++;
       runtime.agent.update({
         'sessionUpdate': 'agent_message_chunk',
         'content': {'type': 'text', 'text': 'Done.'},
       });
-      return {};
+      return {'configOptions': _session['configOptions']};
     };
+    kernel.send(const KernelTurn(id: 't1', text: 'go on'));
     await pumpEventQueue();
-    kernel.release();
-    await pumpEventQueue();
-    expect(kernel.health.status, KernelHealthStatus.idle);
-    kernel.prepare();
-    await pumpEventQueue();
-    expect(loads, 2);
-    expect(kernel.health.status, KernelHealthStatus.ready);
+    expect(runtime.agent.sentOf('session/load').single['sessionId'], 's1');
+    expect(runtime.agent.sentOf('session/prompt'), hasLength(1));
     expect(items().values.whereType<AssistantTextItem>(), hasLength(1));
   });
 
-  test(
-    'released as it reads back, then used again: the new agy kept',
-    () async {
-      runtime.answers.remove('session/load');
-      kernel = make(
-        resume: SessionRecord(
-          id: 's1',
-          title: 'Old',
-          updatedAt: DateTime(2026),
-          cwd: '/p',
-        ),
-      );
-      await pumpEventQueue();
-      final first = runtime.agent;
-      expect(first.waiting, contains('session/load'));
-      // Out of view mid-load, then back.
-      kernel.release();
-      kernel.prepare();
-      await pumpEventQueue();
-      final second = runtime.agent;
-      expect(second, isNot(same(first)));
-      var ended = false;
-      unawaited(second.exited.then((_) => ended = true));
-      second.answer('session/load', {});
-      await pumpEventQueue();
-      expect(kernel.health.status, KernelHealthStatus.ready);
-      expect(ended, isFalse);
-    },
-  );
-
-  test('shown as its reading back goes quiet, before agy answers', () async {
-    runtime.answers.remove('session/load');
-    kernel = make(
-      resume: SessionRecord(
-        id: 's1',
-        title: 'Old',
-        updatedAt: DateTime(2026),
-        cwd: '/p',
-      ),
-    );
-    await pumpEventQueue();
-    runtime.agent
-      ..update({
-        'sessionUpdate': 'user_message_chunk',
-        'content': {'type': 'text', 'text': 'Fix it'},
-      })
-      ..update({
-        'sessionUpdate': 'agent_message_chunk',
-        'content': {'type': 'text', 'text': 'Done.'},
-      });
+  test('a pick before the first message goes with it', () async {
+    final reading = Completer<Map<String, Object?>>();
+    runtime.replays = (_, _, _) => reading.future;
+    kernel = make(resume: old());
     await pumpEventQueue();
     expect(kernel.loadingHistory, isTrue);
-    // agy answers a fixed ~2 s after reading back: not waited for.
-    await Future<void>.delayed(const Duration(milliseconds: 60));
-    expect(runtime.agent.waiting, contains('session/load'));
+    reading.complete({'configOptions': _session['configOptions']});
+    await pumpEventQueue();
     expect(kernel.loadingHistory, isFalse);
-    expect(kernel.health.status, KernelHealthStatus.ready);
-    expect(items().values.whereType<AssistantTextItem>().single.raw, 'Done.');
-    // A pick meanwhile goes to agy at once: it takes one mid-load, and
-    // its answer then says so. Not set twice.
+    // Kept: no agy to tell.
     kernel.model.select('claude-opus-5-5');
+    expect(kernel.model.selected, 'claude-opus-5-5');
+    expect(runtime.agents, isEmpty);
+    kernel.send(const KernelTurn(id: 't1', text: 'go'));
     await pumpEventQueue();
     final set = runtime.agent.sentOf('session/set_config_option').single;
     expect(set['configId'], 'model');
     expect(set['value'], 'claude-opus-5-5');
-    runtime.agent.answer('session/load', _sessionOn('claude-opus-5-5'));
-    await pumpEventQueue();
-    expect(runtime.agent.sentOf('session/set_config_option'), hasLength(1));
-    expect(kernel.model.selected, 'claude-opus-5-5');
+    expect(runtime.agent.sentOf('session/prompt'), hasLength(1));
   });
 
   test("a conversation's old mode is not adopted: the user's is set", () async {
     kernel = make(
       settings: {KernelChoiceKind.mode.name: 'agent'},
-      resume: SessionRecord(
-        id: 's1',
-        title: 'Old',
-        updatedAt: DateTime(2026),
-        cwd: '/p',
-      ),
+      resume: old(),
     );
-    runtime.answers['session/load'] = (_) {
-      runtime.agent.update({
-        'sessionUpdate': 'current_mode_update',
-        'currentModeId': 'plan',
-      });
-      return {
+    readsBack(
+      [
+        {'sessionUpdate': 'current_mode_update', 'currentModeId': 'plan'},
+      ],
+      {
         ..._session,
         'modes': {'currentModeId': 'plan'},
-        'configOptions': [
-          for (final option in _session['configOptions']! as List)
-            if ((option as Map)['id'] == 'mode')
-              {...option, 'currentValue': 'plan'}
-            else
-              option,
-        ],
-      };
-    };
+      },
+    );
     await pumpEventQueue();
     expect(kernel.mode.selected, 'agent');
+    runtime.answers['session/load'] = (_) => {
+      ..._session,
+      'modes': {'currentModeId': 'plan'},
+      'configOptions': [
+        for (final option in _session['configOptions']! as List)
+          if ((option as Map)['id'] == 'mode')
+            {...option, 'currentValue': 'plan'}
+          else
+            option,
+      ],
+    };
+    kernel.send(const KernelTurn(id: 't1', text: 'go'));
+    await pumpEventQueue();
     expect(
       runtime.agent.sentOf('session/set_mode').single['modeId'],
       'default',
     );
+  });
+
+  test(
+    'ended once it has nothing to do a while; the next starts one',
+    () async {
+      kernel = make();
+      await started();
+      kernel.send(const KernelTurn(id: 't1', text: 'go'));
+      await pumpEventQueue();
+      final first = runtime.agent;
+      var ended = false;
+      unawaited(first.exited.then((_) => ended = true));
+      first.answer('session/prompt', {'stopReason': 'end_turn'});
+      await pumpEventQueue();
+      expect(ended, isFalse);
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      expect(ended, isTrue);
+      expect(kernel.health.status, KernelHealthStatus.ready);
+      kernel.send(const KernelTurn(id: 't2', text: 'again'));
+      await pumpEventQueue();
+      expect(runtime.agents, hasLength(2));
+      expect(runtime.agent.sentOf('session/load').single['sessionId'], 's1');
+      runtime.agent.answer('session/prompt', {'stopReason': 'end_turn'});
+      await pumpEventQueue();
+      expect(of<TurnEnded>(), hasLength(2));
+    },
+  );
+
+  test('out of view with nothing to do: ended at once', () async {
+    kernel = make();
+    await started();
+    kernel.send(const KernelTurn(id: 't1', text: 'go'));
+    await pumpEventQueue();
+    var ended = false;
+    unawaited(runtime.agent.exited.then((_) => ended = true));
+    // Not while it works.
+    kernel.release();
+    await pumpEventQueue();
+    expect(ended, isFalse);
+    runtime.agent.answer('session/prompt', {'stopReason': 'end_turn'});
+    await pumpEventQueue();
+    kernel.release();
+    await pumpEventQueue();
+    expect(ended, isTrue);
+    expect(kernel.health.status, KernelHealthStatus.ready);
+  });
+
+  test('gone by itself with nothing to do: nothing said', () async {
+    kernel = make();
+    await started();
+    kernel.send(const KernelTurn(id: 't1', text: 'go'));
+    await pumpEventQueue();
+    runtime.agent.answer('session/prompt', {'stopReason': 'end_turn'});
+    await pumpEventQueue();
+    runtime.agent.end(1, 'bye');
+    await pumpEventQueue();
+    expect(kernel.health.status, KernelHealthStatus.ready);
+    expect(items().values.whereType<NoticeItem>(), isEmpty);
   });
 
   test('not signed in: sign-in offered', () async {
@@ -1171,6 +1227,8 @@ void main() {
     );
     kernel = make();
     await started();
+    kernel.send(const KernelTurn(id: 't1', text: 'hi'));
+    await pumpEventQueue();
     expect(kernel.health.status, KernelHealthStatus.failed);
     expect(kernel.health.setup?.kind, KernelSetupKind.login);
     expect(kernel.health.setup?.start, isNotNull);
@@ -1245,7 +1303,7 @@ void main() {
     expect(runtime.quotaAsked, 0);
     expect(of<StatsReported>().last.stats.limits.single.utilization, .5);
 
-    await started();
+    await startedOn();
     const told = ['gemini-3.8-flash', 'claude-opus-5-5', 'gpt-oss-120b-medium'];
     expect(kernel.model.options.map((option) => option.id), told);
     final models = runtime.kept!['models']! as List;
@@ -1279,35 +1337,26 @@ void main() {
         'output': 20,
       },
     ];
-    kernel = make(
-      resume: SessionRecord(
-        id: 's1',
-        title: 'Old',
-        updatedAt: DateTime(2026),
-        cwd: '/p',
-      ),
-    );
-    runtime.answers['session/load'] = (_) {
-      runtime.agent
-        ..update({
-          'sessionUpdate': 'user_message_chunk',
-          'content': {'type': 'text', 'text': 'Fix it'},
-        })
-        ..update({
-          'sessionUpdate': 'agent_message_chunk',
-          'content': {'type': 'text', 'text': 'Done.'},
-        })
-        // Sent from agy in a terminal: not timed here.
-        ..update({
-          'sessionUpdate': 'user_message_chunk',
-          'content': {'type': 'text', 'text': 'And the docs'},
-        })
-        ..update({
-          'sessionUpdate': 'agent_message_chunk',
-          'content': {'type': 'text', 'text': 'Done too.'},
-        });
-      return {'configOptions': _session['configOptions']};
-    };
+    kernel = make(resume: old());
+    readsBack([
+      {
+        'sessionUpdate': 'user_message_chunk',
+        'content': {'type': 'text', 'text': 'Fix it'},
+      },
+      {
+        'sessionUpdate': 'agent_message_chunk',
+        'content': {'type': 'text', 'text': 'Done.'},
+      },
+      // Sent from agy in a terminal: not timed here.
+      {
+        'sessionUpdate': 'user_message_chunk',
+        'content': {'type': 'text', 'text': 'And the docs'},
+      },
+      {
+        'sessionUpdate': 'agent_message_chunk',
+        'content': {'type': 'text', 'text': 'Done too.'},
+      },
+    ]);
     await pumpEventQueue();
     final messages = items().values.whereType<UserMessageItem>().toList();
     expect([for (final m in messages) m.text], ['Fix it', 'And the docs']);

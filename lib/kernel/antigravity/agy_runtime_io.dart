@@ -67,6 +67,7 @@ class LocalAgyRuntime implements AgyRuntime {
   static Future<void> stopProcesses() async {
     _spareEnds?.cancel();
     _spare = null;
+    _reader = null;
     for (final process in [..._live]) {
       process.kill();
     }
@@ -145,9 +146,9 @@ class LocalAgyRuntime implements AgyRuntime {
 
   /// An agy up and booted, kept a while for the next conversation to start
   /// on at once. Its backend boots on the first session asked of it,
-  /// asking Google for the account and its models: seconds, which opening
-  /// a conversation would otherwise wait out. What a listing leaves (which
-  /// boots it), and made again once taken.
+  /// asking Google for the account and its models: seconds, which sending
+  /// a message would otherwise wait out. Made as a conversation comes
+  /// into view ([warm]), and again once taken.
   static AgyProcessTransport? _spare;
   static Timer? _spareEnds;
   static bool _warming = false;
@@ -175,18 +176,113 @@ class LocalAgyRuntime implements AgyRuntime {
     _takeSpare()?.close();
   }
 
-  /// Boots a spare, by a listing.
+  @override
+  void warm() => unawaited(_warm());
+
+  /// Boots a spare, unless there is one.
   Future<void> _warm() async {
-    if (_warming) return;
+    if (_warming || (_spare?.ended == false)) return;
     _warming = true;
     try {
-      await sessions();
+      if (await locate() == null) return;
+      final transport = await _launch(AppPaths.home(await _environment()));
+      final connection = _query(transport);
+      try {
+        await connection.request('initialize', _hello).timeout(_wait);
+        // Its backend boots on the first session asked of it.
+        await connection.request('session/list', {}).timeout(_wait);
+      } on Object {
+        connection.close();
+        return;
+      }
+      connection.detach();
+      _keepSpare(transport);
     } on Object {
       // None then: the next starts its own.
     } finally {
       _warming = false;
     }
   }
+
+  // --- A reader ------------------------------------------------------------------
+
+  /// An agy kept up to read with: the conversations listed ([sessions]),
+  /// one read back ([replay]) and closed again. Never prompted. Booted
+  /// once, it answers in milliseconds; started again if gone.
+  static _Reader? _reader;
+
+  /// Its readings, one after another: a reading back's updates are told
+  /// apart by session, but kept simple.
+  static Future<void> _reads = Future.value();
+
+  static const _wait = Duration(seconds: 20);
+
+  /// What this app tells agy of itself: no files or terminals of its own
+  /// to offer a reading.
+  static const _hello = {
+    'protocolVersion': 1,
+    'clientCapabilities': {
+      'fs': {'readTextFile': false, 'writeTextFile': false},
+      'terminal': false,
+    },
+    'clientInfo': {'name': 'baocode', 'version': '1'},
+  };
+
+  /// A connection that answers nothing agy asks (a reading asks nothing).
+  static AcpConnection _query(
+    AcpTransport transport, {
+    void Function(String method, Map<String, Object?> params)? onNotification,
+  }) => AcpConnection(
+    transport,
+    onRequest: (method, _) async =>
+        throw AcpError(-32601, 'Method not found: $method'),
+    onNotification: onNotification ?? (_, _) {},
+  );
+
+  Future<T> _read<T>(Future<T> Function(_Reader reader) use) {
+    final reading = _reads.then((_) async => use(await _readerUp()));
+    _reads = reading.then((_) {}, onError: (_) {});
+    return reading;
+  }
+
+  Future<_Reader> _readerUp() async {
+    if (_reader case final reader? when !reader.transport.ended) return reader;
+    final transport = await _launch(AppPaths.home(await _environment()));
+    final reader = _Reader(transport);
+    try {
+      await reader.connection.request('initialize', _hello).timeout(_wait);
+    } on Object {
+      reader.connection.close();
+      rethrow;
+    }
+    return _reader = reader;
+  }
+
+  @override
+  Future<Map<String, Object?>> replay(
+    String sessionId,
+    String cwd,
+    void Function(Map<String, Object?> update) onUpdate,
+  ) => _read((reader) async {
+    reader.onUpdate = (id, update) {
+      if (id == sessionId) onUpdate(update);
+    };
+    try {
+      return await reader.connection.request('session/load', {
+        'sessionId': sessionId,
+        'cwd': cwd,
+        'mcpServers': const [],
+      });
+    } finally {
+      reader.onUpdate = null;
+      // Read, not kept there.
+      unawaited(
+        reader.connection
+            .request('session/close', {'sessionId': sessionId})
+            .catchError((_) => const <String, Object?>{}),
+      );
+    }
+  });
 
   // --- Installing ----------------------------------------------------------------
 
@@ -756,34 +852,14 @@ if ($bytes -eq $null) { exit 1 }
   @override
   Future<List<SessionRecord>> sessions() async {
     if (await locate() == null) return const [];
-    final transport =
-        _takeSpare() ?? await _launch(AppPaths.home(await _environment()));
-    final connection = AcpConnection(
-      transport,
-      onRequest: (method, _) async =>
-          throw AcpError(-32601, 'Method not found: $method'),
-      onNotification: (_, _) {},
-    );
-    const wait = Duration(seconds: 20);
-    var listed = false;
-    try {
-      await connection
-          .request('initialize', {
-            'protocolVersion': 1,
-            'clientCapabilities': {
-              'fs': {'readTextFile': false, 'writeTextFile': false},
-              'terminal': false,
-            },
-            'clientInfo': {'name': 'baocode', 'version': '1'},
-          })
-          .timeout(wait);
-      final children = await _subagentConversations();
+    final children = await _subagentConversations();
+    final records = await _read((reader) async {
       final records = <SessionRecord>[];
       String? cursor;
       do {
-        final page = await connection
+        final page = await reader.connection
             .request('session/list', {'cursor': ?cursor})
-            .timeout(wait);
+            .timeout(_wait);
         for (final session in page['sessions'] as List? ?? const []) {
           if (session
               case {'sessionId': final String id, 'cwd': final String cwd}
@@ -803,16 +879,68 @@ if ($bytes -eq $null) { exit 1 }
         }
         cursor = page['nextCursor'] as String?;
       } while (cursor != null && records.length < 10000);
-      listed = true;
       return records;
-    } finally {
-      if (listed) {
-        // Booted by now: kept for a conversation to start on.
-        connection.detach();
-        _keepSpare(transport);
-      } else {
-        connection.close();
-      }
+    });
+    _keepSessions(records);
+    return records;
+  }
+
+  /// Where the conversations last listed are kept: the app's own state.
+  File get _sessionsFile => File(
+    p.join(
+      _stateDirOverride ?? DataDirectory.current.stateDir,
+      'antigravity',
+      'sessions.json',
+    ),
+  );
+
+  @override
+  List<SessionRecord>? get lastSessions {
+    try {
+      final file = _sessionsFile;
+      if (!file.existsSync()) return null;
+      return switch (jsonDecode(file.readAsStringSync())) {
+        final List<Object?> kept => [
+          for (final session in kept)
+            if (session case {
+              'id': final String id,
+              'title': final String title,
+              'updatedAt': final String at,
+              'cwd': final String cwd,
+            })
+              SessionRecord(
+                id: id,
+                title: title,
+                updatedAt: DateTime.tryParse(at) ?? DateTime(2000),
+                cwd: cwd,
+                path: session['path'] as String?,
+              ),
+        ],
+        _ => null,
+      };
+    } on Object {
+      return null;
+    }
+  }
+
+  void _keepSessions(List<SessionRecord> records) {
+    try {
+      final file = _sessionsFile;
+      file.parent.createSync(recursive: true);
+      file.writeAsStringSync(
+        jsonEncode([
+          for (final record in records)
+            {
+              'id': record.id,
+              'title': record.title,
+              'updatedAt': record.updatedAt.toIso8601String(),
+              'cwd': record.cwd,
+              'path': ?record.path,
+            },
+        ]),
+      );
+    } on FileSystemException {
+      // Listed anew next run then.
     }
   }
 
@@ -870,6 +998,12 @@ if ($bytes -eq $null) { exit 1 }
   @override
   Future<void> delete(String sessionId) async {
     final id = p.basename(sessionId);
+    if (lastSessions case final kept?) {
+      _keepSessions([
+        for (final record in kept)
+          if (record.id != id) record,
+      ]);
+    }
     for (final root in _conversationRoots) {
       for (final path in [
         p.join(root, 'conversations', '$id.db'),
@@ -1127,4 +1261,28 @@ class AgyProcessTransport implements AcpTransport {
       _process.kill();
     }
   }
+}
+
+/// The agy kept up to read with (see [LocalAgyRuntime._reader]).
+class _Reader {
+  _Reader(this.transport) {
+    connection = LocalAgyRuntime._query(
+      transport,
+      onNotification: (method, params) {
+        if (method != 'session/update') return;
+        if ((params['sessionId'], params['update']) case (
+          final String id,
+          final Map<Object?, Object?> update,
+        )) {
+          onUpdate?.call(id, update.cast<String, Object?>());
+        }
+      },
+    );
+  }
+
+  final AgyProcessTransport transport;
+  late final AcpConnection connection;
+
+  /// Told the updates of the conversation being read back.
+  void Function(String sessionId, Map<String, Object?> update)? onUpdate;
 }

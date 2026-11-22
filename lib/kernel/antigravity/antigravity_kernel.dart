@@ -48,7 +48,7 @@ class AntigravityKernel
     AgyRuntime? runtime,
     this._quiet = const Duration(seconds: 4),
     this._pollEvery = const Duration(seconds: 3),
-    this._replayGap = const Duration(milliseconds: 300),
+    this._idleFor = const Duration(minutes: 2),
   }) : _runtime = runtime ?? AgyRuntime.local {
     _restore();
     _models = _lastModels;
@@ -76,7 +76,7 @@ class AntigravityKernel
       _sessionId = resume.id;
       _prompted = true;
       _loadingHistory = true;
-      unawaited(_ready());
+      unawaited(_read());
     }
   }
 
@@ -108,10 +108,13 @@ class AntigravityKernel
 
   // --- The connection ----------------------------------------------------------------
 
-  /// The agy started for the conversation, starting or up; null before
-  /// one, and once ended (released, restarted, failed or gone). A start
-  /// left behind (its run ended while it waited) finds another here, or
-  /// none, and leaves all to it.
+  /// The agy at work on the conversation (a message sent it), starting or
+  /// up; null before one, and once ended: idle a while, out of view,
+  /// restarted, failed or gone. agy is the service and this its UI: the
+  /// conversation is read back without one ([_read]), one is started to
+  /// send to, and ended once it has nothing more to do. A start left
+  /// behind (its run ended while it waited) finds another here, or none,
+  /// and leaves all to it.
   _Run? _run;
 
   /// The app's own tools, served to it.
@@ -122,18 +125,141 @@ class AntigravityKernel
   /// Whether the conversation has had a message: agy keeps it from then on.
   bool _prompted = false;
 
-  /// Whether the conversation was shown: loaded again (a restart), it is
-  /// not read back twice.
-  bool _shown = false;
-
-  /// Whether updates are dropped: the conversation being read back again.
-  bool _muted = false;
-
   @override
   String? get sessionId => _prompted ? _sessionId : null;
 
+  /// A view shows the conversation: an agy is booted ahead for its next
+  /// message, the account's limits asked if old; the conversation is read
+  /// if that failed before.
   @override
-  void prepare() => unawaited(_ready());
+  void prepare() {
+    if (_cwd case final cwd? when RemoteLocation.hostOf(cwd) != null) {
+      _setHealth(
+        const KernelHealth(
+          KernelHealthStatus.failed,
+          setup: KernelSetup(KernelSetupKind.localOnly),
+        ),
+      );
+      _historyRead();
+      return;
+    }
+    _runtime.warm();
+    _limitsAfterTurn();
+    if (_readFailed) {
+      unawaited(_read());
+    } else if (_health.status == KernelHealthStatus.idle &&
+        _readingBack == null) {
+      _setHealth(KernelHealth.ready);
+      unawaited(_checkInstalled());
+    }
+  }
+
+  /// A new conversation asks agy nothing till its first message: told now
+  /// where there is none to ask.
+  Future<void> _checkInstalled() async {
+    if (await _runtime.locate() != null || _disposed) return;
+    if (_health.status != KernelHealthStatus.ready) return;
+    _setHealth(
+      KernelHealth(
+        KernelHealthStatus.failed,
+        message: 'Antigravity is not installed',
+        setup: KernelSetup(KernelSetupKind.install, start: _install),
+      ),
+    );
+  }
+
+  // --- Reading the conversation --------------------------------------------------------
+
+  Future<void>? _readingBack;
+  bool _readFailed = false;
+
+  /// Reads the conversation back as agy keeps it ([AgyRuntime.replay]):
+  /// shown, and ready, without an agy of its own.
+  Future<void> _read() {
+    final reading = _readingBack ??= _readBack().whenComplete(() {
+      _readingBack = null;
+    });
+    return reading;
+  }
+
+  Future<void> _readBack() async {
+    // Not within its caller's frame: a screen opening on it is building.
+    await Future<void>.value();
+    if (_disposed) return;
+    _readFailed = false;
+    final (id, cwd) = (_sessionId, _cwd);
+    if (id == null || cwd == null) {
+      _historyRead();
+      return;
+    }
+    if (RemoteLocation.hostOf(cwd) != null) {
+      _setHealth(
+        const KernelHealth(
+          KernelHealthStatus.failed,
+          setup: KernelSetup(KernelSetupKind.localOnly),
+        ),
+      );
+      _historyRead();
+      return;
+    }
+    _translator
+      ..replaying = true
+      ..planning = _work == 'plan';
+    try {
+      final result = await _runtime.replay(id, cwd, (update) {
+        if (_disposed) return;
+        _notification('session/update', {'sessionId': id, 'update': update});
+      });
+      if (_disposed) return;
+      _translator
+        ..settle()
+        ..endPlanRound();
+      _timeHistory();
+      _historyRead();
+      _options(result);
+      if (_health.status != KernelHealthStatus.failed) {
+        _setHealth(KernelHealth.ready);
+      }
+    } on Object catch (error) {
+      if (_disposed) return;
+      _readFailed = true;
+      _historyRead();
+      switch (error) {
+        case AgyUnavailable(notInstalled: true):
+          _setHealth(
+            KernelHealth(
+              KernelHealthStatus.failed,
+              message: error.message,
+              setup: KernelSetup(KernelSetupKind.install, start: _install),
+            ),
+          );
+        case AgyUnavailable():
+          _fail(error.message, detail: error.detail);
+        case AcpError() when _signInNeeded(error):
+          _setHealth(
+            KernelHealth(
+              KernelHealthStatus.failed,
+              message: error.message,
+              setup: KernelSetup(KernelSetupKind.login, start: _login),
+            ),
+          );
+        case AcpError():
+          _fail(
+            'Antigravity could not read the conversation',
+            detail: error.message,
+          );
+        default:
+          _fail(
+            'Antigravity could not read the conversation',
+            detail: '$error',
+          );
+      }
+    } finally {
+      _translator.replaying = false;
+    }
+  }
+
+  // --- The agy at work ----------------------------------------------------------------
 
   /// Starts agy and its session, unless done; whether it is up.
   Future<bool> _ready() => (_run ?? _launch()).ready;
@@ -162,7 +288,6 @@ class AntigravityKernel
           setup: KernelSetup(KernelSetupKind.localOnly),
         ),
       );
-      _historyRead();
       return false;
     }
     _setHealth(const KernelHealth(KernelHealthStatus.starting));
@@ -218,26 +343,16 @@ class AntigravityKernel
       final Map<String, Object?> started;
       if (_sessionId case final id? when _prompted) {
         if (!loads) throw const AgyUnavailable('This agy cannot resume');
-        // Read back as it was the first time; dropped after.
-        _muted = _shown;
-        _translator
-          ..replaying = true
-          ..planning = _work == 'plan';
-        // agy reads it back at once, then answers a fixed ~2 s later: the
-        // conversation is shown as the reading goes quiet, not then.
-        run.loading = true;
-        run.replayed(_replayGap, () => _readBack(run));
+        // Taken up where it was: read back to this agy too, which is
+        // dropped here, the conversation shown already (see [_read]).
+        run.resuming = true;
         try {
           started = await connection.request('session/load', {
             ...session,
             'sessionId': id,
           });
         } finally {
-          run.loading = false;
-          _translator.settle();
-          if (!_muted) _translator.endPlanRound();
-          _translator.replaying = false;
-          _muted = false;
+          run.resuming = false;
         }
         // What ran before ran in another agy, gone with it.
         _translator.tasks.clear();
@@ -246,19 +361,16 @@ class AntigravityKernel
         _sessionId = started['sessionId'] as String?;
       }
       if (!identical(_run, run)) return false;
-      _readBack(run);
       _options(started);
       await _applyPicks();
       if (!identical(_run, run)) return false;
       _setHealth(KernelHealth.ready);
       unawaited(_watchRecords());
-      if (!_limitsFresh(const Duration(minutes: 5))) _limitsAfterTurn();
       return true;
     } on Object catch (error) {
       // Ended while it started (released, restarted, disposed): the end
       // was meant, and whatever took its place has the conversation.
       if (!identical(_run, run)) return false;
-      _historyRead();
       switch (error) {
         case AgyUnavailable(notInstalled: true):
           _setHealth(
@@ -323,24 +435,6 @@ class AntigravityKernel
     if (!_disposed) emitInfoChanged();
   }
 
-  /// How long agy's reading back of a conversation is quiet before the
-  /// conversation is shown, its answer to `session/load` still to come.
-  final Duration _replayGap;
-
-  /// Shows [run]'s conversation, once: as its reading back goes quiet, or
-  /// as agy answers, whichever comes first. Shown early, it is ready to
-  /// the user: a pick goes to agy at once (taken mid-load, and in its
-  /// answer), a message waits for the answer ([_prompt]).
-  void _readBack(_Run run) {
-    if (!identical(_run, run) || run.shown) return;
-    run.shown = true;
-    _translator.settle();
-    _shown = true;
-    _timeHistory();
-    _historyRead();
-    if (run.loading) _setHealth(KernelHealth.ready);
-  }
-
   /// Ends the run on purpose: no run, till the next start.
   void _end() {
     final run = _run;
@@ -354,6 +448,8 @@ class AntigravityKernel
   void _exited(_Run run, AcpExit exit) {
     if (!identical(run, _run)) return;
     _run = null;
+    // Gone with nothing to do: nothing lost, the next message starts one.
+    if (_turn == null && _runningTasks.isEmpty && _asks.isEmpty) return;
     _failAsks();
     final turn = _turn;
     if (turn != null) {
@@ -372,20 +468,45 @@ class AntigravityKernel
   @override
   void restart() {
     _end();
-    _setHealth(KernelHealth.idle);
-    unawaited(_ready());
+    if (_readFailed || _loadingHistory) {
+      _setHealth(KernelHealth.idle);
+      unawaited(_read());
+    } else {
+      _setHealth(KernelHealth.ready);
+    }
   }
 
-  /// Ends agy while idle, out of view: started again (its conversation
-  /// loaded) when next used. Not while it works, nor while a task of its
-  /// runs: they would end with it.
+  /// Whether agy has nothing to do for the conversation: no turn, nothing
+  /// queued or asked, no task of its running.
+  bool get _nothingToDo =>
+      _turn == null &&
+      _prompting == null &&
+      _queue.isEmpty &&
+      _asks.isEmpty &&
+      _runningTasks.isEmpty;
+
+  Timer? _idleEnd;
+
+  /// How long agy is kept once it has nothing to do, for the next message
+  /// (a subagent's report comes as a turn of its own, too).
+  final Duration _idleFor;
+
+  /// Ends agy once it has had nothing to do for [_idleFor].
+  void _endWhenIdle() {
+    _idleEnd?.cancel();
+    if (_run == null || !_nothingToDo) return;
+    _idleEnd = Timer(_idleFor, () {
+      if (_nothingToDo) _end();
+    });
+  }
+
+  /// Out of view: agy ended at once if it has nothing to do (started
+  /// again by the next message). Not while it works, nor while a task of
+  /// its runs: they would end with it.
   @override
   void release() {
-    if (_turn != null || _queue.isNotEmpty || _asks.isNotEmpty) return;
-    if (_runningTasks.isNotEmpty) return;
-    if (_run == null) return;
+    if (!_nothingToDo) return;
     _end();
-    _setHealth(KernelHealth.idle);
   }
 
   @override
@@ -393,6 +514,7 @@ class AntigravityKernel
     if (_disposed) return;
     _disposed = true;
     _idle?.cancel();
+    _idleEnd?.cancel();
     _poll?.cancel();
     _failAsks();
     final run = _run;
@@ -532,18 +654,16 @@ class AntigravityKernel
       case 'usage_update':
         _usage(update);
       case 'session_info_update':
-        if (_muted) return;
+        if (_run?.resuming ?? false) return;
         if (update['title'] case final String said) {
           final title = AntigravityTranslator.withoutReminders(said);
           if (title.isNotEmpty) emit(SessionRenamed(nextSeq, title));
         }
       default:
-        if (_muted) return;
+        // Read back again to the agy taking the conversation up: shown.
+        if (_run?.resuming ?? false) return;
         if (_translator.replaying) {
           _translator.update(update);
-          if (_run case final run? when run.loading) {
-            run.replayed(_replayGap, () => _readBack(run));
-          }
           return;
         }
         // Dropped: what a turn stopped still said.
@@ -689,6 +809,7 @@ class AntigravityKernel
 
   void _begin(KernelTurn turn) {
     _idle?.cancel();
+    _idleEnd?.cancel();
     _turn = turn.id;
     _unprompted = false;
     _turnStarted = DateTime.now();
@@ -718,11 +839,16 @@ class AntigravityKernel
         if (identical(_prompting, prompting)) _prompting = null;
         _draining = false;
         unawaited(_next());
+        _endWhenIdle();
       }),
     );
   }
 
   Future<void> _prompt(KernelTurn turn) async {
+    // Once read: what agy says of the turn is not of the conversation
+    // read back.
+    if (_readingBack case final reading?) await reading;
+    if (_turn != turn.id) return;
     final connection = await _ready() ? _run?.connection : null;
     if (connection == null) {
       if (_turn == turn.id) {
@@ -807,6 +933,7 @@ class AntigravityKernel
   /// agy took up something on its own (a task's end, a subagent's report):
   /// a turn of its own, until it is quiet.
   void _wake() {
+    _idleEnd?.cancel();
     final id = 'agy-wake-${++_wakes}';
     _turn = id;
     _unprompted = true;
@@ -900,6 +1027,7 @@ class AntigravityKernel
     if (handedOn) return;
     _stopBackground();
     unawaited(_next());
+    _endWhenIdle();
   }
 
   static int _int(Object? value) => value is num ? value.toInt() : 0;
@@ -1754,6 +1882,7 @@ class AntigravityKernel
   void _tasksChanged() {
     _reportTasks();
     unawaited(_watchRecords());
+    _endWhenIdle();
   }
 
   void _reportTasks() {
@@ -1925,13 +2054,11 @@ class AntigravityKernel
   @override
   void reconnectMcpServer(String name) => _reconnect();
 
-  /// Starts agy again on the conversation, to take its servers anew; once
-  /// idle, if it works now.
+  /// Ends the agy at work, to take its servers anew as the next message
+  /// starts one; once idle, if it works now.
   void _reconnect() {
-    if (_disposed || _run == null) return;
-    if (_turn != null || _runningTasks.isNotEmpty) return;
+    if (_disposed || _run == null || !_nothingToDo) return;
     _end();
-    unawaited(_ready());
   }
 
   @override
@@ -1947,24 +2074,11 @@ class _Run {
   AcpConnection? connection;
   late final Future<bool> ready;
 
-  /// Whether its session is being loaded: agy reading the conversation
-  /// back, its answer (the options in effect) still to come.
-  bool loading = false;
+  /// Whether it is taking the conversation up (`session/load`): what agy
+  /// reads back to it is dropped, the conversation shown already.
+  bool resuming = false;
 
-  /// Whether the conversation was shown ([AntigravityKernel._readBack]).
-  bool shown = false;
-  Timer? _gap;
-
-  /// Something was read back: [quiet] once nothing more is for [gap].
-  void replayed(Duration gap, void Function() quiet) {
-    _gap?.cancel();
-    _gap = Timer(gap, quiet);
-  }
-
-  void end() {
-    _gap?.cancel();
-    connection?.close();
-  }
+  void end() => connection?.close();
 }
 
 /// Something agy waits on the user for: its own request, answered with

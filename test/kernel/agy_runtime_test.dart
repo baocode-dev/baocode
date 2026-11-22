@@ -140,24 +140,36 @@ void main() {
     expect(Directory('${home.path}/antigravity/brain/a').existsSync(), isFalse);
   });
 
-  group('a spare', () {
+  group('agy as a service: a reader, and spares', () {
     late Directory dir;
     late LocalAgyRuntime runtime;
     int launches() => File('${dir.path}/launches').existsSync()
         ? File('${dir.path}/launches').readAsLinesSync().length
         : 0;
+    List<String> asked() => File('${dir.path}/asked').existsSync()
+        ? File('${dir.path}/asked').readAsLinesSync()
+        : const [];
 
     setUp(() {
       dir = Directory.systemTemp.createTempSync('agy');
-      // A stand-in agy: answers initialize and session/list, logs launches.
+      // A stand-in agy: answers initialize, session/list, session/load
+      // (one update first) and session/close; logs launches and requests.
       final agy = File('${dir.path}/antigravity')
         ..writeAsStringSync("""#!/usr/bin/env python3
 import json, os, sys
-open(os.path.join(os.path.dirname(sys.argv[0]), 'launches'), 'a').write('x\\n')
+here = os.path.dirname(sys.argv[0])
+open(os.path.join(here, 'launches'), 'a').write('x\\n')
 for line in sys.stdin:
     m = json.loads(line)
     if 'id' not in m: continue
-    r = {'sessions': [{'sessionId': 'a', 'cwd': '/x', 'title': 't'}]} if m['method'] == 'session/list' else {}
+    open(os.path.join(here, 'asked'), 'a').write(m['method'] + '\\n')
+    r = {}
+    if m['method'] == 'session/list':
+        r = {'sessions': [{'sessionId': 'a', 'cwd': '/x', 'title': 't'}]}
+    elif m['method'] == 'session/load':
+        sid = m['params']['sessionId']
+        print(json.dumps({'jsonrpc': '2.0', 'method': 'session/update', 'params': {'sessionId': sid, 'update': {'sessionUpdate': 'agent_message_chunk', 'content': {'type': 'text', 'text': 'hi ' + sid}}}}), flush=True)
+        r = {'modes': {'currentModeId': 'default'}}
     print(json.dumps({'jsonrpc': '2.0', 'id': m['id'], 'result': r}), flush=True)
 """);
       Process.runSync('chmod', ['+x', agy.path]);
@@ -178,19 +190,40 @@ for line in sys.stdin:
     });
 
     test(
-      'a listing leaves agy booted: listed again and started on, no new one',
+      'listings and readings share one agy, kept up; kept listed too',
       () async {
         expect((await runtime.sessions()).single.id, 'a');
         expect((await runtime.sessions()).single.id, 'a');
+        final updates = <Map<String, Object?>>[];
+        final answer = await runtime.replay('a', '/x', updates.add);
+        expect(answer['modes'], {'currentModeId': 'default'});
+        expect(updates.single['content'], {'type': 'text', 'text': 'hi a'});
         expect(launches(), 1);
-        await runtime.start(dir.path);
-        // Taken, another is booted for the next.
-        for (var i = 0; i < 100 && launches() < 2; i++) {
+        // Read, closed there.
+        for (var i = 0; i < 100 && !asked().contains('session/close'); i++) {
           await Future<void>.delayed(const Duration(milliseconds: 20));
         }
-        expect(launches(), 2);
+        expect(asked().last, 'session/close');
+        // The listing, for the next run to show at once.
+        final kept = runtime.lastSessions!.single;
+        expect((kept.id, kept.cwd, kept.title), ('a', '/x', 't'));
+        await runtime.delete('a');
+        expect(runtime.lastSessions, isEmpty);
       },
       skip: Platform.isWindows,
     );
+
+    test('a start takes the spare warmed, and warms another', () async {
+      runtime.warm();
+      for (var i = 0; i < 100 && !asked().contains('session/list'); i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+      expect(launches(), 1);
+      await runtime.start(dir.path);
+      for (var i = 0; i < 100 && launches() < 2; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+      expect(launches(), 2);
+    }, skip: Platform.isWindows);
   });
 }
