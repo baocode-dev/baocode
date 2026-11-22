@@ -603,7 +603,7 @@ class AntigravityKernel
     if (turn.now) {
       _queue.insert(0, turn);
       emit(QueueReordered(nextSeq, [for (final queued in _queue) queued.id]));
-      cancel();
+      _sendNow(turn.id);
     } else {
       _queue.add(turn);
     }
@@ -780,12 +780,19 @@ class AntigravityKernel
     _limitsAfterTurn();
   }
 
-  void _endTurn(String turn, {required bool interrupted, TurnUsage? usage}) {
+  /// Ends [turn]; one [handedOn] to a message sent in it keeps what it
+  /// asks the user, and the next queued waits.
+  void _endTurn(
+    String turn, {
+    required bool interrupted,
+    TurnUsage? usage,
+    bool handedOn = false,
+  }) {
     if (_turn != turn) return;
     _idle?.cancel();
     _turn = null;
     _unprompted = false;
-    _failAsks();
+    if (!handedOn) _failAsks();
     emit(
       TurnEnded(
         nextSeq,
@@ -798,6 +805,8 @@ class AntigravityKernel
         usage: usage,
       ),
     );
+    if (handedOn) return;
+    _stopBackground();
     unawaited(_next());
   }
 
@@ -864,11 +873,25 @@ class AntigravityKernel
     if (index < 0) return;
     _queue.insert(0, _queue.removeAt(index));
     emit(QueueReordered(nextSeq, [for (final turn in _queue) turn.id]));
-    if (_turn != null) {
-      cancel();
-    } else {
+    _sendNow(turnId);
+  }
+
+  /// Sends the queued [turnId] while agy is at work. agy takes a prompt
+  /// sent mid-turn as a word in, not a turn after: it answers the one
+  /// under way at once (`end_turn`) and goes on, its commands and
+  /// subagents still at work, answering both. So the turn under way ends
+  /// here, and this one goes on from it.
+  void _sendNow(String turnId) {
+    final current = _turn;
+    final turn = _queue.where((turn) => turn.id == turnId).firstOrNull;
+    if (current == null || turn == null) {
       unawaited(_next());
+      return;
     }
+    _queue.remove(turn);
+    _translator.settle();
+    _endTurn(current, interrupted: false, handedOn: true);
+    _begin(turn);
   }
 
   @override
@@ -1557,11 +1580,31 @@ class AntigravityKernel
     );
   }
 
-  /// agy offers no way to stop one of its tasks over ACP: it is no longer
-  /// shown, and runs on until agy ends.
+  /// A command in the background is stopped by a cancel once no turn is
+  /// open (one would end that turn too): agy then ends every command still
+  /// at work, each reported failed. Its other tasks it offers no way to
+  /// stop: they are no longer shown, and run on until agy ends.
   @override
   void stopTask(String taskId) {
+    if (_translator.tasks[taskId] case final task?
+        when task.status == CommandStatus.running && !_agyTask(taskId)) {
+      _stopCommands = true;
+      if (_turn == null) _stopBackground();
+      return;
+    }
     if (_dropped.add(taskId)) _reportTasks();
+  }
+
+  /// Whether the commands in the background are to stop once the turn
+  /// under way is over.
+  bool _stopCommands = false;
+
+  void _stopBackground() {
+    if (!_stopCommands) return;
+    _stopCommands = false;
+    if (_runningTasks.any((task) => !_agyTask(task.id))) {
+      _connection?.notify('session/cancel', {'sessionId': _sessionId});
+    }
   }
 
   /// Its commands go on in the background on their own, never moved.

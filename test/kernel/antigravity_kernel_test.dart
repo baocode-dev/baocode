@@ -537,6 +537,86 @@ void main() {
     expect([for (final s in of<TurnStarted>()) s.turnId], ['t1', 't2']);
   });
 
+  test('a message sent now is a word in: the turn hands on to it', () async {
+    kernel = make();
+    await started();
+    final agent = runtime.agent;
+    kernel.send(const KernelTurn(id: 't1', text: 'run it'));
+    await pumpEventQueue();
+    agent.update({
+      'sessionUpdate': 'tool_call',
+      'toolCallId': 'c1',
+      'name': 'run_command',
+      'kind': 'execute',
+      'status': 'in_progress',
+      'rawInput': {'CommandLine': 'sleep 20'},
+    });
+    kernel.send(const KernelTurn(id: 't2', text: 'and say BANANA'));
+    await pumpEventQueue();
+    final first = agent.waiting['session/prompt']!;
+
+    kernel.sendQueuedNow('t2');
+    await pumpEventQueue();
+    expect(agent.sentOf('session/cancel'), isEmpty);
+    expect(agent.sentOf('session/prompt'), hasLength(2));
+    expect([for (final s in of<TurnStarted>()) s.turnId], ['t1', 't2']);
+    expect(of<TurnEnded>().single.turnId, 't1');
+    expect(of<TurnEnded>().single.interrupted, isFalse);
+    expect((items()['t2']! as UserMessageItem).queued, isFalse);
+    expect((items()['c1']! as TerminalItem).status, CommandStatus.running);
+
+    // agy answers the first at once; the second goes on with its command.
+    agent.reply(first, {'stopReason': 'end_turn'});
+    await pumpEventQueue();
+    expect(of<TurnEnded>(), hasLength(1));
+    agent.update({
+      'sessionUpdate': 'tool_call_update',
+      'toolCallId': 'c1',
+      'status': 'completed',
+      'rawOutput': {'output': 'Command output:\nfirst-done\n'},
+    });
+    agent.answer('session/prompt', {'stopReason': 'end_turn'});
+    await pumpEventQueue();
+    expect(of<TurnEnded>().last.turnId, 't2');
+    expect((items()['c1']! as TerminalItem).status, CommandStatus.succeeded);
+  });
+
+  test('a command in the background stops, once no turn is open', () async {
+    kernel = make();
+    await started();
+    final agent = runtime.agent;
+    kernel.send(const KernelTurn(id: 't1', text: 'serve'));
+    await pumpEventQueue();
+    agent.update({
+      'sessionUpdate': 'tool_call',
+      'toolCallId': 'c1',
+      'name': 'run_command',
+      'kind': 'execute',
+      'status': 'in_progress',
+      'rawInput': {'CommandLine': 'npm run dev'},
+    });
+    agent.answer('session/prompt', {'stopReason': 'end_turn'});
+    await pumpEventQueue();
+    kernel.send(const KernelTurn(id: 't2', text: 'more'));
+    await pumpEventQueue();
+
+    // A cancel now would end the turn too: sent after it.
+    kernel.stopTask('c1');
+    expect(agent.sentOf('session/cancel'), isEmpty);
+    agent.answer('session/prompt', {'stopReason': 'end_turn'});
+    await pumpEventQueue();
+    expect(agent.sentOf('session/cancel').single, {'sessionId': 's1'});
+
+    agent.update({
+      'sessionUpdate': 'tool_call_update',
+      'toolCallId': 'c1',
+      'status': 'failed',
+    });
+    await pumpEventQueue();
+    expect(of<TasksReported>().last.tasks.single.status, CommandStatus.failed);
+    expect(of<TurnStarted>(), hasLength(2));
+  });
+
   test('asks the user what agy asks leave for, and answers it', () async {
     kernel = make();
     await started();
