@@ -55,6 +55,10 @@ abstract interface class AgyRuntime {
   /// itself: its steps, tasks, subagents and inbox.
   AgyRecords records(String sessionId);
 
+  /// The text of the file at [path] as it stands; null where there is
+  /// none, or it is too big to read here.
+  String? fileText(String path);
+
   /// Serves the app's own tools to an agy session over MCP (on this
   /// machine's loopback), [handle] answering what it asks.
   Future<McpEndpoint> serveTools(McpHandler handle);

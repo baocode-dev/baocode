@@ -6,6 +6,7 @@ import 'package:baocode/kernel/acp/mcp_endpoint.dart';
 import 'package:baocode/kernel/agent_kernel.dart';
 import 'package:baocode/kernel/antigravity/agy_runtime.dart';
 import 'package:baocode/kernel/antigravity/antigravity_kernel.dart';
+import 'package:baocode/kernel/antigravity/antigravity_translator.dart';
 import 'package:baocode/kernel/kernel_event.dart';
 import 'package:baocode/kernel/kernel_registry.dart';
 import 'package:baocode/kernel/kernel_types.dart';
@@ -134,6 +135,12 @@ class _Runtime implements AgyRuntime {
   final steps = <String, List<Map<String, Object?>>>{};
   final inbox = <Map<String, Object?>>[];
   final subagents = <Map<String, Object?>>[];
+
+  /// The files as they stand, by path.
+  final files = <String, String>{};
+
+  @override
+  String? fileText(String path) => files[path];
 
   @override
   Future<AcpTransport> start(String cwd) async {
@@ -537,6 +544,36 @@ void main() {
     expect([for (final s in of<TurnStarted>()) s.turnId], ['t1', 't2']);
   });
 
+  test('an edit told as the whole file is reviewed against it', () async {
+    kernel = make();
+    await started();
+    final before = [for (var i = 0; i < 1000; i++) 'line $i'].join('\n');
+    final after = before.replaceFirst('line 500', 'line five hundred');
+    runtime.files['/p/big.txt'] = after;
+    kernel.send(const KernelTurn(id: 't1', text: 'edit'));
+    await pumpEventQueue();
+    runtime.agent.update({
+      'sessionUpdate': 'tool_call',
+      'toolCallId': 'c1',
+      'name': 'replace_file_content',
+      'kind': 'edit',
+      'status': 'completed',
+      'rawInput': {'TargetFile': '/p/big.txt'},
+      'content': [
+        {
+          'type': 'diff',
+          'path': '/p/big.txt',
+          'oldText': before,
+          'newText': after,
+        },
+      ],
+    });
+    await pumpEventQueue();
+    final edit = of<FileEdited>().single;
+    expect((edit.change.added, edit.change.removed), (1, 1));
+    expect((edit.original as OriginalText).text, before);
+  });
+
   test('a message sent now is a word in: the turn hands on to it', () async {
     kernel = make();
     await started();
@@ -926,6 +963,15 @@ void main() {
           'sessionUpdate': 'user_message_chunk',
           'content': {'type': 'text', 'text': 'Fix it'},
         })
+        // The app's notes beside it, which agy keeps with the message.
+        ..update({
+          'sessionUpdate': 'user_message_chunk',
+          'content': {
+            'type': 'text',
+            'text':
+                '<system-reminder>Reply suggestions are on.</system-reminder>',
+          },
+        })
         ..update({
           'sessionUpdate': 'tool_call',
           'toolCallId': 'c2',
@@ -951,6 +997,23 @@ void main() {
     expect(shown.whereType<AssistantTextItem>().single.raw, 'Done.');
     expect(of<FileEdited>(), isEmpty);
     expect(of<TurnStarted>(), isEmpty);
+  });
+
+  test("titles without the app's notes, even cut in one", () {
+    expect(
+      AntigravityTranslator.withoutReminders(
+        'hi<system-reminder>Reply suggestions are on: the user turned them '
+        'on in BaoC...',
+      ),
+      'hi',
+    );
+    expect(
+      AntigravityTranslator.withoutReminders(
+        'Fix <system-reminder>a</system-reminder>it',
+      ),
+      'Fix it',
+    );
+    expect(AntigravityTranslator.withoutReminders('Plain'), 'Plain');
   });
 
   test('released and used again, it is not read back twice', () async {

@@ -64,8 +64,11 @@ class AntigravityKernel
         _pickedEfforts[key.substring(efforts.length)] = value;
       }
     }
-    _translator = AntigravityTranslator(emit: emit, nextSeq: () => nextSeq)
-      ..onTasksChanged = _tasksChanged;
+    _translator = AntigravityTranslator(
+      emit: emit,
+      nextSeq: () => nextSeq,
+      fileText: _runtime.fileText,
+    )..onTasksChanged = _tasksChanged;
     if (_context.resume case final resume?) {
       _sessionId = resume.id;
       _prompted = true;
@@ -507,8 +510,9 @@ class AntigravityKernel
         _usage(update);
       case 'session_info_update':
         if (_muted) return;
-        if (update['title'] case final String title when title.isNotEmpty) {
-          emit(SessionRenamed(nextSeq, title));
+        if (update['title'] case final String said) {
+          final title = AntigravityTranslator.withoutReminders(said);
+          if (title.isNotEmpty) emit(SessionRenamed(nextSeq, title));
         }
       default:
         if (_muted) return;
@@ -578,7 +582,8 @@ class AntigravityKernel
           now: sent.now,
           notes: [
             ...sent.notes,
-            'The user approved the plan in ${plan.path}. Carry it out now.',
+            '<system-reminder>The user approved the plan in ${plan.path}. '
+                'Carry it out now.</system-reminder>',
           ],
         );
         _translator.resolvePlan(started: true);

@@ -10,10 +10,17 @@ import '../line_diff.dart';
 /// kernel's events: its messages, thoughts and tool calls as items, its
 /// edits as changes to review.
 class AntigravityTranslator {
-  AntigravityTranslator({required this.emit, required this.nextSeq});
+  AntigravityTranslator({
+    required this.emit,
+    required this.nextSeq,
+    this.fileText,
+  });
 
   final void Function(KernelEvent event) emit;
   final int Function() nextSeq;
+
+  /// A file's text as it stands (null where it cannot be read).
+  final String? Function(String path)? fileText;
 
   /// The turn its edits are made in.
   String? turnId;
@@ -84,7 +91,29 @@ class AntigravityTranslator {
     }
     final id = _userId ??= _newId('user');
     _user.write(text);
-    emit(ItemUpserted(nextSeq(), id, UserMessageItem(text: '$_user')));
+    emit(
+      ItemUpserted(
+        nextSeq(),
+        id,
+        UserMessageItem(text: withoutReminders('$_user')),
+      ),
+    );
+  }
+
+  static final _reminders = RegExp(
+    r'<system-reminder>[\s\S]*?(</system-reminder>|$)',
+  );
+
+  /// [text] without what the app told agy beside the user's words (its
+  /// notes, each a `<system-reminder>`), which agy keeps as part of the
+  /// message: read back with it, and its title made of it.
+  static String withoutReminders(String text) {
+    if (!text.contains('<system-r')) return text;
+    var plain = text.replaceAll(_reminders, '');
+    // A title cut in one.
+    final cut = plain.indexOf('<system-r');
+    if (cut >= 0) plain = plain.substring(0, cut);
+    return plain.trim();
   }
 
   void _endUser() {
@@ -418,6 +447,11 @@ class AntigravityTranslator {
         turnId: turnId,
         original: switch (diff.oldText) {
           null => const OriginalText(null),
+          // The whole file before, as agy tells an edit done (the file as
+          // it left it after): no need to work it back from the file, which
+          // a next edit may have changed already by the time it is.
+          final before when fileText?.call(diff.path) == diff.newText =>
+            OriginalText(before),
           final before => OriginalByEdits([
             (before: before, after: diff.newText),
           ]),

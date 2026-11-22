@@ -57,6 +57,9 @@ class _NoAgy implements AgyRuntime {
 
   @override
   Future<void> delete(String sessionId) async {}
+
+  @override
+  String? fileText(String path) => null;
 }
 
 class _NoRecords implements AgyRecords {
