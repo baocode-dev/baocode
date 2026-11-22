@@ -5,6 +5,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import 'chat_keybindings.dart';
 import 'default_keybindings.dart';
 import 'key_chord.dart';
 
@@ -76,7 +77,22 @@ class KeybindingService extends ChangeNotifier {
   KeybindingPlatform get platform =>
       debugPlatform ?? KeybindingPlatform.current;
 
-  List<KeybindingEntry> get defaults => _defaults;
+  late final List<KeybindingEntry> _defaultsWithoutEnter = List.unmodifiable(
+    _defaults.where((entry) => entry != chatSubmitEnter),
+  );
+
+  List<KeybindingEntry> get defaults =>
+      _composerSendShortcut == ComposerSendShortcut.enter
+      ? _defaults
+      : _defaultsWithoutEnter;
+
+  ComposerSendShortcut _composerSendShortcut = ComposerSendShortcut.enter;
+
+  set composerSendShortcut(ComposerSendShortcut value) {
+    if (_composerSendShortcut == value) return;
+    _composerSendShortcut = value;
+    _changed();
+  }
 
   /// The selected keymap (Atom, JetBrains, …): its id and name, and its
   /// keybindings; none when [keymapId] is null.
@@ -171,7 +187,7 @@ class KeybindingService extends ChangeNotifier {
     final target = platform ?? this.platform;
     return _resolvers[target] ??= KeybindingResolver(
       [
-        for (final (index, entry) in [..._defaults, ..._extraDefaults].indexed)
+        for (final (index, entry) in [...defaults, ..._extraDefaults].indexed)
           KeybindingItem(
             entry: entry,
             source: KeybindingSource.defaults,

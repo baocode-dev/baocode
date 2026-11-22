@@ -9637,6 +9637,19 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get generalSettingsComposerSendShortcut => 'Send Shortcut';
+
+  @override
+  String get generalSettingsComposerSendShortcutDescription =>
+      'Choose whether Enter sends or inserts a new line.';
+
+  @override
+  String get generalSettingsComposerSendEnter => 'Enter or Ctrl+Enter';
+
+  @override
+  String get generalSettingsComposerSendCtrlEnter => 'Ctrl+Enter only';
+
+  @override
   String get generalSettingsComposerPolish => 'Enhance Prompt button';
 
   @override

@@ -9109,6 +9109,19 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get generalSettingsComposerSendShortcut => '发送快捷键';
+
+  @override
+  String get generalSettingsComposerSendShortcutDescription =>
+      '选择按 Enter 时是发送还是换行。';
+
+  @override
+  String get generalSettingsComposerSendEnter => 'Enter 或 Ctrl+Enter';
+
+  @override
+  String get generalSettingsComposerSendCtrlEnter => '仅 Ctrl+Enter';
+
+  @override
   String get generalSettingsComposerPolish => '提示词增强按钮';
 
   @override

@@ -11,6 +11,7 @@ import '../settings/user_settings.dart';
 
 import 'package:bao_editor/monaco/flutter/keybinding_entry.dart';
 
+import 'chat_keybindings.dart';
 import 'keybinding_service.dart';
 import 'keymap.dart';
 
@@ -76,6 +77,9 @@ class KeybindingsSync {
       service.userEntries = KeybindingEntry.listFromJson(keybindings.value);
 
   void _settingsChanged() {
+    service.composerSendShortcut = ComposerSendShortcut.fromSetting(
+      settings[ComposerSendShortcut.settingKey],
+    );
     final id = selectedKeymap;
     if (id == _keymapId && _keymapLoads > 0) return;
     _keymapId = id;

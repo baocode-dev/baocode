@@ -17,6 +17,7 @@ import '../../chat/composer/composer_polish.dart' show ComposerPolishSetting;
 import '../../chat/rewind_files_setting.dart';
 import '../../chat/widgets/turn_footer.dart' show LiveTurnStatsSetting;
 import '../../kernel/queued_messages.dart';
+import '../../keybindings/chat_keybindings.dart' show ComposerSendShortcut;
 import '../../l10n/l10n.dart';
 import '../../platform/app_platform.dart';
 import '../../platform/context_menu.dart';
@@ -38,7 +39,8 @@ import 'settings_widgets.dart';
 /// agents write credit (`chat.commitAttribution` in settings.json), when a
 /// message sent while the agent works is taken up (`chat.queuedMessages`),
 /// whether the next prompt is suggested after each turn
-/// (`chat.promptSuggestions`), whether the composer has its Polish button
+/// (`chat.promptSuggestions`), how the composer sends messages
+/// (`chat.composer.sendShortcut`), whether it has its Polish button
 /// (`chat.composer.polish`), whether the turn under way shows its time,
 /// speed and tokens (`chat.liveTurnStats`), the Claude Code to run
 /// (`claudeCode.path`), BaoCode Bash on Windows, the `code` shell command, and Open with BaoCode in Finder's or
@@ -370,6 +372,19 @@ class GeneralSettingsPage extends StatelessWidget {
                         l10n.generalSettingsRewindRevert,
                     RewindFilesSetting.keep.name:
                         l10n.generalSettingsRewindKeep,
+                  },
+                ),
+                _choiceRow(
+                  context,
+                  key: ComposerSendShortcut.settingKey,
+                  label: l10n.generalSettingsComposerSendShortcut,
+                  description:
+                      l10n.generalSettingsComposerSendShortcutDescription,
+                  values: {
+                    ComposerSendShortcut.enter.name:
+                        l10n.generalSettingsComposerSendEnter,
+                    ComposerSendShortcut.ctrlEnter.name:
+                        l10n.generalSettingsComposerSendCtrlEnter,
                   },
                 ),
                 SettingsSwitchRow(
