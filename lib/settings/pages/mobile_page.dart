@@ -35,8 +35,8 @@ class _MobileSettingsPageState extends State<MobileSettingsPage> {
   /// The relays' settings shown: folded at first, as few change them.
   bool _relaysOpen = false;
 
-  /// Custom picked, its address not yet given; and what is wrong with the
-  /// address typed.
+  /// Custom picked to add, its address not yet given; and what is wrong
+  /// with the address typed.
   bool _customPicked = false;
   String? _customError;
 
@@ -82,8 +82,12 @@ class _MobileSettingsPageState extends State<MobileSettingsPage> {
     });
   }
 
-  /// A relay's URL as shown: its host.
-  static String _relayName(String url) => Uri.tryParse(url)?.host ?? url;
+  /// A relay's URL as shown: its host (and port, when one is given).
+  static String _relayName(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return url;
+    return uri.hasPort ? '${uri.host}:${uri.port}' : uri.host;
+  }
 
   String _status(AppLocalizations l10n) {
     final host = _host;
@@ -160,8 +164,10 @@ class _MobileSettingsPageState extends State<MobileSettingsPage> {
           children: [
             _relayMode(l10n),
             if (host.relayMode == LinkRelayMode.pinned) ...[
-              _pinnedRelay(l10n),
-              if (_custom) _customRelay(l10n),
+              for (final (index, url) in host.relays.indexed)
+                _listedRelay(l10n, index, url),
+              _addRelay(l10n),
+              if (_customPicked) _customRelay(l10n),
             ],
             if (host.relayMode == LinkRelayMode.direct) ...[
               _directPort(l10n),
@@ -240,22 +246,15 @@ class _MobileSettingsPageState extends State<MobileSettingsPage> {
         LinkRelayMode.direct => l10n.mobileRelayModeDirect,
       };
 
-  /// Folded, beside the heading: how they are chosen, and the one picked
-  /// when one is.
+  /// Folded, beside the heading: how they are chosen, and those listed
+  /// when they are.
   String _relaysSummary(AppLocalizations l10n) {
     final host = _host;
     return [
       _modeName(l10n, host.relayMode),
       if (host.relayMode == LinkRelayMode.pinned)
-        _relayName(host.relays.single),
+        host.relays.map(_relayName).join(' → '),
     ].join(' · ');
-  }
-
-  /// The relay picked is one at an address given, or Custom was picked.
-  bool get _custom {
-    final picked = _host.relays.firstOrNull;
-    return _customPicked ||
-        (picked != null && !defaultLinkRelays.contains(picked));
   }
 
   Widget _relayMode(AppLocalizations l10n) {
@@ -286,33 +285,83 @@ class _MobileSettingsPageState extends State<MobileSettingsPage> {
     );
   }
 
-  /// The relay picked: one of BaoCode's, or Custom last.
-  Widget _pinnedRelay(AppLocalizations l10n) {
+  /// One of the relays listed, at [index]: moved up or down, or removed
+  /// while it is not the last left.
+  Widget _listedRelay(AppLocalizations l10n, int index, String url) {
     final host = _host;
-    final picked = host.relays.single;
-    final current = _custom ? l10n.mobileRelayCustom : _relayName(picked);
+    final list = host.relays;
+    void move(int to) {
+      final moved = [...list]..removeAt(index);
+      moved.insert(to, url);
+      unawaited(host.setPinnedRelays(moved));
+    }
+
+    final notes = [
+      if (!defaultLinkRelays.contains(url)) l10n.mobileRelayCustom,
+      if (url == host.activeRelay && host.info?.online == true)
+        l10n.mobileRelayInUse,
+    ];
     return SettingsRow(
-      label: l10n.mobileRelayPinned,
+      label: '${index + 1}. ${_relayName(url)}',
+      description: notes.isEmpty ? null : notes.join(' · '),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IdeActionButton(
+            icon: Codicons.arrowUp,
+            tooltip: l10n.mobileRelayMoveUp,
+            onPressed: index == 0 ? null : () => move(index - 1),
+          ),
+          IdeActionButton(
+            icon: Codicons.arrowDown,
+            tooltip: l10n.mobileRelayMoveDown,
+            onPressed: index == list.length - 1 ? null : () => move(index + 1),
+          ),
+          IdeActionButton(
+            icon: Codicons.close,
+            tooltip: l10n.mobileRelayRemove,
+            onPressed: list.length < 2
+                ? null
+                : () => unawaited(
+                    host.setPinnedRelays([...list]..removeAt(index)),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Adds one of BaoCode's relays not listed yet, or Custom: an address
+  /// typed below.
+  Widget _addRelay(AppLocalizations l10n) {
+    final host = _host;
+    final listed = host.relays;
+    final current = _customPicked
+        ? l10n.mobileRelayCustom
+        : l10n.mobileRelayAddPick;
+    return SettingsRow(
+      label: l10n.mobileRelayAdd,
       trailing: SettingsDropdown(
         current: current,
-        semanticLabel: '${l10n.mobileRelayPinned}: $current',
+        semanticLabel: '${l10n.mobileRelayAdd}: $current',
         entries: () => [
           for (final url in defaultLinkRelays)
-            IdeMenuAction(
-              _relayName(url),
-              checked: !_custom && url == picked,
-              onSelected: () {
-                setState(() {
-                  _customPicked = false;
-                  _customError = null;
-                });
-                unawaited(host.pinRelay(url));
-              },
-            ),
-          const IdeMenuSeparator(),
+            if (!listed.contains(url))
+              IdeMenuAction(
+                _relayName(url),
+                onSelected: () {
+                  setState(() {
+                    _customPicked = false;
+                    _customError = null;
+                  });
+                  unawaited(host.setPinnedRelays([...listed, url]));
+                },
+              ),
+          if (defaultLinkRelays.any((url) => !listed.contains(url)))
+            const IdeMenuSeparator(),
           IdeMenuAction(
             l10n.mobileRelayCustom,
-            checked: _custom,
+            checked: _customPicked,
             onSelected: () => setState(() => _customPicked = true),
           ),
         ],
@@ -320,30 +369,31 @@ class _MobileSettingsPageState extends State<MobileSettingsPage> {
     );
   }
 
-  /// Custom: the address of one's own relay, picked once it is entered.
-  Widget _customRelay(AppLocalizations l10n) {
-    final picked = _host.relays.single;
-    return SettingsRow(
-      label: l10n.mobileRelayCustomAddress,
-      description: _customError ?? l10n.mobileRelayCustomDescription,
-      trailing: SettingsTextField(
-        value: defaultLinkRelays.contains(picked) ? '' : picked,
-        hint: 'https://relay.example.com',
-        semanticLabel: l10n.mobileRelayCustomAddress,
-        width: 260,
-        autofocus: _customPicked,
-        onSubmitted: (text) {
-          final url = parseRelayUrl(text);
-          setState(
-            () => _customError = url == null && text.isNotEmpty
-                ? l10n.mobileRelayInvalid
-                : null,
-          );
-          if (url != null) unawaited(_host.pinRelay(url));
-        },
-      ),
-    );
-  }
+  /// Custom: the address of one's own relay, listed last once it is
+  /// entered.
+  Widget _customRelay(AppLocalizations l10n) => SettingsRow(
+    label: l10n.mobileRelayCustomAddress,
+    description: _customError ?? l10n.mobileRelayCustomDescription,
+    trailing: SettingsTextField(
+      value: '',
+      hint: 'https://relay.example.com',
+      semanticLabel: l10n.mobileRelayCustomAddress,
+      width: 260,
+      autofocus: true,
+      onSubmitted: (text) {
+        final url = parseRelayUrl(text);
+        setState(() {
+          _customError = url == null && text.isNotEmpty
+              ? l10n.mobileRelayInvalid
+              : null;
+          if (url != null) _customPicked = false;
+        });
+        if (url != null) {
+          unawaited(_host.setPinnedRelays([..._host.relays, url]));
+        }
+      },
+    ),
+  );
 
   /// Direct-only: the UDP port phones are told, and where this computer
   /// can be reached at it.

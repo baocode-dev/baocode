@@ -192,6 +192,23 @@ class IoLinkPlatform implements LinkPlatform {
   }
 
   @override
+  Future<bool> probeRelay(String url) async {
+    final client = HttpClient()..connectionTimeout = const Duration(seconds: 5);
+    try {
+      final request = await client.getUrl(Uri.parse('$url/ping'));
+      final response = await request.close().timeout(
+        const Duration(seconds: 10),
+      );
+      await response.drain<void>();
+      return response.statusCode == 200;
+    } on Object {
+      return false;
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  @override
   String? branchOf(String folder) {
     final now = DateTime.now();
     if (_branches[folder] case (final at, final branch)

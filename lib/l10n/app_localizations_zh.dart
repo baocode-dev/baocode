@@ -8753,9 +8753,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get mobileRelayInvalid => '不是中继地址，应形如 https://relay.example.com';
 
   @override
-  String get mobileRelayPinned => '指定的中继';
-
-  @override
   String get mobileRelayCustom => '自定义';
 
   @override
@@ -8763,6 +8760,24 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get mobileRelayCustomDescription => '你自己部署的中继（baocode-relay）的地址。';
+
+  @override
+  String get mobileRelayInUse => '正在使用';
+
+  @override
+  String get mobileRelayMoveUp => '上移';
+
+  @override
+  String get mobileRelayMoveDown => '下移';
+
+  @override
+  String get mobileRelayRemove => '移除';
+
+  @override
+  String get mobileRelayAdd => '添加中继';
+
+  @override
+  String get mobileRelayAddPick => '选择…';
 
   @override
   String get mobileRelayMode => '方式';
@@ -8774,11 +8789,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get mobileRelayModeAutoDescription => '使用 BaoCode 的中继，自动选最近的一台。';
 
   @override
-  String get mobileRelayModePinned => '手动指定';
+  String get mobileRelayModePinned => '按顺序';
 
   @override
   String get mobileRelayModePinnedDescription =>
-      '只用你指定的一台：BaoCode 的某一台，或自定义地址。';
+      '用你列出的中继，从上往下：一台连不上时换下一台，前面的恢复后再换回去。可以是 BaoCode 的，也可以是自定义地址。';
 
   @override
   String get mobileRelayModeDirect => '仅直连';

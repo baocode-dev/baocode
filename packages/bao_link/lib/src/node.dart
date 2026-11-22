@@ -100,6 +100,12 @@ class MemoryLinkNetwork {
   /// The path new connections take.
   LinkPath path = const LinkPath(LinkPathKind.lan);
 
+  /// Relays out of reach: a node keeping to one is not connected to it.
+  final Set<String> relaysDown = {};
+
+  /// Relays turning nodes away, and why.
+  final Map<String, String> relaysDenying = {};
+
   MemoryLinkNode node(String id, {List<String> relays = const []}) =>
       _nodes[id] = MemoryLinkNode._(this, id, relays);
 }
@@ -148,15 +154,25 @@ class MemoryLinkNode implements LinkNode {
   }
 
   @override
-  Future<LinkNodeInfo> info() async => LinkNodeInfo(
-    id: id,
-    addrs: addrs,
-    relays: relays.take(1).toList(),
-    home: [
-      for (final url in relays.take(1)) LinkRelayStatus(url, connected: true),
-    ],
-    port: 47100,
-  );
+  Future<LinkNodeInfo> info() async {
+    bool reached(String url) =>
+        !_network.relaysDown.contains(url) &&
+        !_network.relaysDenying.containsKey(url);
+    return LinkNodeInfo(
+      id: id,
+      addrs: addrs,
+      relays: [...relays.take(1).where(reached)],
+      home: [
+        for (final url in relays.take(1))
+          LinkRelayStatus(
+            url,
+            connected: reached(url),
+            denied: _network.relaysDenying[url],
+          ),
+      ],
+      port: 47100,
+    );
+  }
 
   @override
   Stream<LinkNodeInfo> get changes => _changes.stream;

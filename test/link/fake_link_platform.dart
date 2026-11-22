@@ -67,6 +67,16 @@ class FakeLinkPlatform implements LinkPlatform {
     posted.add((url, body));
     return answer?.call(url, body) ?? (204, null);
   }
+
+  /// The relays probed ([probeRelay]), the latest last; those in
+  /// [network]'s [MemoryLinkNetwork.relaysDown] do not answer.
+  final List<String> probed = [];
+
+  @override
+  Future<bool> probeRelay(String url) async {
+    probed.add(url);
+    return !network.relaysDown.contains(url);
+  }
 }
 
 class _Advertising implements LinkAdvertising {

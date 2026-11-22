@@ -9268,9 +9268,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Not a relay address; one looks like https://relay.example.com';
 
   @override
-  String get mobileRelayPinned => 'Relay Used';
-
-  @override
   String get mobileRelayCustom => 'Custom';
 
   @override
@@ -9279,6 +9276,24 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get mobileRelayCustomDescription =>
       'The address of a relay you run yourself (baocode-relay).';
+
+  @override
+  String get mobileRelayInUse => 'In use';
+
+  @override
+  String get mobileRelayMoveUp => 'Move Up';
+
+  @override
+  String get mobileRelayMoveDown => 'Move Down';
+
+  @override
+  String get mobileRelayRemove => 'Remove';
+
+  @override
+  String get mobileRelayAdd => 'Add Relay';
+
+  @override
+  String get mobileRelayAddPick => 'Choose…';
 
   @override
   String get mobileRelayMode => 'How';
@@ -9291,11 +9306,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'BaoCode\'s relays, the nearest that answers.';
 
   @override
-  String get mobileRelayModePinned => 'Pick One';
+  String get mobileRelayModePinned => 'Your List';
 
   @override
   String get mobileRelayModePinnedDescription =>
-      'Only the one picked: one of BaoCode\'s, or a custom address.';
+      'The relays you list, in order: the next when one cannot be reached, and back to an earlier one once it can. BaoCode\'s, or custom addresses.';
 
   @override
   String get mobileRelayModeDirect => 'Direct Only';
