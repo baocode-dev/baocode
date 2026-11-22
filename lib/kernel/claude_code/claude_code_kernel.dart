@@ -656,6 +656,15 @@ class ClaudeCodeKernel
             (final provider, _) => _requestedModels(provider),
             null => const [],
           },
+          additionalModels: switch (custom) {
+            (final provider, _)
+                when isModelProxyUrl(
+                  env?[ClaudeModelVariables.baseUrl],
+                  provider.id,
+                ) =>
+              _providers.proxyModelRefs,
+            _ => const [],
+          },
         ),
       );
       if (_disposed) {

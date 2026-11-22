@@ -103,6 +103,16 @@ class ModelProviders extends ChangeNotifier {
   ModelProvider? provider(String? id) =>
       providers.where((provider) => provider.id == id).firstOrNull;
 
+  /// Qualified names the CLI can use through the local model proxy.
+  /// Antigravity is only supported by BaoCode's own core.
+  List<String> get proxyModelRefs => [
+    for (final provider in enabled)
+      if (provider.protocol != ProviderProtocol.antigravity)
+        for (final model in provider.enabledModels)
+          if (provider.connected || provider.endpointOf(model) != null)
+            modelRef(provider.id, model.id),
+  ];
+
   /// Whether a session on [provider] runs on BaoCode's own core alone:
   /// Antigravity's are spoken to by it only, whether its model is
   /// Antigravity's or one of its roles (a subagent's, the background

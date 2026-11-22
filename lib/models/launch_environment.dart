@@ -6,6 +6,21 @@ import 'upstream.dart';
 /// asks for.
 typedef ProxyEndpoint = ({String baseUrl, String token});
 
+/// The base URL on which BaoCode routes provider-qualified model names.
+Uri modelProxyUrl(int port, String providerId) => Uri(
+  scheme: 'http',
+  host: '127.0.0.1',
+  port: port,
+  pathSegments: ['p', providerId],
+);
+
+bool isModelProxyUrl(String? baseUrl, String providerId) {
+  final uri = Uri.tryParse(baseUrl ?? '');
+  return uri != null &&
+      uri.hasPort &&
+      uri == modelProxyUrl(uri.port, providerId);
+}
+
 /// What Claude Code is given (its `--settings` `env`) to run a session on
 /// [provider]'s [model]: the upstream, or the proxy in front of it, its
 /// key, and the models it uses for each part of its work.
