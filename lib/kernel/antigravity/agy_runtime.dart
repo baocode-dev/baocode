@@ -80,7 +80,8 @@ abstract interface class AgyRuntime {
   /// when it is not installed.
   Future<List<SessionRecord>> sessions();
 
-  /// Deletes conversation [sessionId] and what it keeps of it, for good.
+  /// Deletes conversation [sessionId] from the app: it lists it no more,
+  /// and forgets what it kept of it.
   Future<void> delete(String sessionId);
 }
 
