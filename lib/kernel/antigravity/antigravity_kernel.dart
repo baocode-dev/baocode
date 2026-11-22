@@ -48,6 +48,7 @@ class AntigravityKernel
     AgyRuntime? runtime,
     this._quiet = const Duration(seconds: 4),
     this._pollEvery = const Duration(seconds: 3),
+    this._replayGap = const Duration(milliseconds: 300),
   }) : _runtime = runtime ?? AgyRuntime.local {
     _restore();
     _models = _lastModels;
@@ -222,12 +223,17 @@ class AntigravityKernel
         _translator
           ..replaying = true
           ..planning = _work == 'plan';
+        // agy reads it back at once, then answers a fixed ~2 s later: the
+        // conversation is shown as the reading goes quiet, not then.
+        run.loading = true;
+        run.replayed(_replayGap, () => _readBack(run));
         try {
           started = await connection.request('session/load', {
             ...session,
             'sessionId': id,
           });
         } finally {
+          run.loading = false;
           _translator.settle();
           if (!_muted) _translator.endPlanRound();
           _translator.replaying = false;
@@ -240,9 +246,7 @@ class AntigravityKernel
         _sessionId = started['sessionId'] as String?;
       }
       if (!identical(_run, run)) return false;
-      _shown = true;
-      _timeHistory();
-      _historyRead();
+      _readBack(run);
       _options(started);
       await _applyPicks();
       if (!identical(_run, run)) return false;
@@ -317,6 +321,24 @@ class AntigravityKernel
     if (!_loadingHistory) return;
     _loadingHistory = false;
     if (!_disposed) emitInfoChanged();
+  }
+
+  /// How long agy's reading back of a conversation is quiet before the
+  /// conversation is shown, its answer to `session/load` still to come.
+  final Duration _replayGap;
+
+  /// Shows [run]'s conversation, once: as its reading back goes quiet, or
+  /// as agy answers, whichever comes first. Shown early, it is ready to
+  /// the user; a message waits for the answer ([_prompt]), a pick for
+  /// [_applyPicks] after it.
+  void _readBack(_Run run) {
+    if (!identical(_run, run) || run.shown) return;
+    run.shown = true;
+    _translator.settle();
+    _shown = true;
+    _timeHistory();
+    _historyRead();
+    if (run.loading) _setHealth(KernelHealth.ready);
   }
 
   /// Ends the run on purpose: no run, till the next start.
@@ -516,6 +538,9 @@ class AntigravityKernel
         if (_muted) return;
         if (_translator.replaying) {
           _translator.update(update);
+          if (_run case final run? when run.loading) {
+            run.replayed(_replayGap, () => _readBack(run));
+          }
           return;
         }
         // Dropped: what a turn stopped still said.
@@ -1295,6 +1320,8 @@ class AntigravityKernel
     final mode = _wantedMode;
     final connection = _run?.connection;
     if (connection == null || _sessionId == null || mode == _agyMode) return;
+    // Picked as the session loads: kept, put in effect once it has.
+    if (_run?.loading ?? false) return;
     _agyMode = mode;
     try {
       await connection.request('session/set_mode', {
@@ -1498,6 +1525,8 @@ class AntigravityKernel
   Future<void> _setOption(String id, String value) async {
     final connection = _run?.connection;
     if (connection == null || _sessionId == null) return;
+    // Picked as the session loads: kept, put in effect once it has.
+    if (_run?.loading ?? false) return;
     try {
       final result = await connection.request('session/set_config_option', {
         'sessionId': _sessionId,
@@ -1918,7 +1947,24 @@ class _Run {
   AcpConnection? connection;
   late final Future<bool> ready;
 
-  void end() => connection?.close();
+  /// Whether its session is being loaded: agy reading the conversation
+  /// back, its answer (the options in effect) still to come.
+  bool loading = false;
+
+  /// Whether the conversation was shown ([AntigravityKernel._readBack]).
+  bool shown = false;
+  Timer? _gap;
+
+  /// Something was read back: [quiet] once nothing more is for [gap].
+  void replayed(Duration gap, void Function() quiet) {
+    _gap?.cancel();
+    _gap = Timer(gap, quiet);
+  }
+
+  void end() {
+    _gap?.cancel();
+    connection?.close();
+  }
 }
 
 /// Something agy waits on the user for: its own request, answered with

@@ -297,6 +297,7 @@ void main() {
       runtime: runtime,
       quiet: const Duration(milliseconds: 30),
       pollEvery: const Duration(milliseconds: 10),
+      replayGap: const Duration(milliseconds: 20),
     );
     made.events.listen(events.add);
     return made;
@@ -1072,6 +1073,49 @@ void main() {
       expect(ended, isFalse);
     },
   );
+
+  test('shown as its reading back goes quiet, before agy answers', () async {
+    runtime.answers.remove('session/load');
+    kernel = make(
+      resume: SessionRecord(
+        id: 's1',
+        title: 'Old',
+        updatedAt: DateTime(2026),
+        cwd: '/p',
+      ),
+    );
+    await pumpEventQueue();
+    runtime.agent
+      ..update({
+        'sessionUpdate': 'user_message_chunk',
+        'content': {'type': 'text', 'text': 'Fix it'},
+      })
+      ..update({
+        'sessionUpdate': 'agent_message_chunk',
+        'content': {'type': 'text', 'text': 'Done.'},
+      });
+    await pumpEventQueue();
+    expect(kernel.loadingHistory, isTrue);
+    // agy answers a fixed ~2 s after reading back: not waited for.
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+    expect(runtime.agent.waiting, contains('session/load'));
+    expect(kernel.loadingHistory, isFalse);
+    expect(kernel.health.status, KernelHealthStatus.ready);
+    expect(items().values.whereType<AssistantTextItem>().single.raw, 'Done.');
+    // A pick meanwhile is kept, put in effect once it has answered: its
+    // answer says what is in effect.
+    kernel.model.select('claude-opus-5-5');
+    await pumpEventQueue();
+    expect(runtime.agent.sentOf('session/set_config_option'), isEmpty);
+    runtime.agent.answer('session/load', {
+      'configOptions': _session['configOptions'],
+    });
+    await pumpEventQueue();
+    final set = runtime.agent.sentOf('session/set_config_option').single;
+    expect(set['configId'], 'model');
+    expect(set['value'], 'claude-opus-5-5');
+    expect(kernel.model.selected, 'claude-opus-5-5');
+  });
 
   test('not signed in: sign-in offered', () async {
     runtime = _Runtime(

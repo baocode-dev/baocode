@@ -3817,16 +3817,6 @@ class _ThreadRow extends StatelessWidget {
     return Text.rich(
       TextSpan(
         children: [
-          // Its kernel's mark where it has one (Antigravity's), before the
-          // title: what tells its conversations apart.
-          if (thread.kernel.iconBuilder case final mark?)
-            WidgetSpan(
-              alignment: PlaceholderAlignment.middle,
-              child: Padding(
-                padding: const EdgeInsets.only(right: 5),
-                child: mark(14),
-              ),
-            ),
           TextSpan(text: thread.localizedTitle(l10n)),
           if (showProject) ...[
             const TextSpan(text: '  '),
