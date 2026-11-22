@@ -9,7 +9,11 @@ An awesome, easy-to-use desktop UI for [Claude Code](https://github.com/anthropi
 
 ![What users say about BaoCode](docs/readme/reviews.png)
 
-![BaoCode's main window: agents grouped by project, two conversations side by side, and the model picker](site/shots/main.png)
+![BaoCode in Agent mode: agents on several machines, a conversation at work and its usage](https://baocode.dev/readme/agent.webp)
+
+![BaoCode in IDE mode: the file tree and the editor, with the conversation beside them](https://baocode.dev/readme/ide.webp)
+
+![What BaoCode does: 360 FPS rendering, Claude Code over SSH, the browser, any model, Windows, usage and cost](https://baocode.dev/readme/features-en.webp)
 
 ## Why
 

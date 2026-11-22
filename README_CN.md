@@ -10,7 +10,11 @@
 
 ![用户对 BaoCode 的评价](docs/readme/reviews-zh.png)
 
-![BaoCode 主窗口：按项目分组的智能体、并排显示的两个对话，以及模型选择器](site/shots/main.png)
+![BaoCode 的 Agent 模式：多台机器上的智能体、进行中的对话及其用量](https://baocode.dev/readme/agent.webp)
+
+![BaoCode 的 IDE 模式：文件树和编辑器，旁边是对话](https://baocode.dev/readme/ide.webp)
+
+![BaoCode 能做什么：360 FPS 渲染、SSH 远程 Claude Code、浏览器操控、全模型接入、Windows 优化、用量与费用](https://baocode.dev/readme/features-zh.webp)
 
 > 本文是英文 README 的中文介绍；如内容有差异，以 [English](README.md) 为准。链接指向的文档和网站不一定提供中文版本。
 
