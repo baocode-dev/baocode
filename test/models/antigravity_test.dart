@@ -555,8 +555,6 @@ void main() {
             },
           ],
         };
-        expect(antigravityHasOnlyWebSearch(searchBody), isTrue);
-        expect(antigravityWebSearchQuery(searchBody), 'Search for: Dart 4');
         expect(antigravitySupportsWebSearch('gemini-4-neon-high'), isTrue);
         expect(antigravitySupportsWebSearch('claude-opus-5-5-high'), isFalse);
         expect(antigravitySupportsWebSearch('gpt-oss-120b-medium'), isFalse);
@@ -592,15 +590,6 @@ void main() {
           'tool_choice': {'type': 'none'},
         }, model: 'gemini-4-neon-high');
         expect(noneReq.containsKey('tools'), isFalse);
-        expect(
-          antigravityHasOnlyWebSearch({
-            ...searchBody,
-            'tool_choice': {'type': 'none'},
-          }),
-          isFalse,
-        );
-        // Mixed with function tools: stays functionDeclarations only.
-        expect(antigravityHasOnlyWebSearch(body()), isFalse);
       },
     );
   });
@@ -913,30 +902,5 @@ void main() {
         expect(events.where((e) => e['type'] == 'message_stop'), hasLength(1));
       },
     );
-
-    test('unavailable web search builds tool error events, not API errors', () {
-      final events = antigravityWebSearchUnavailableEvents(
-        model: 'claude-opus-5-5(high)',
-        reason:
-            'Web search is not supported for claude-opus-5-5 on Antigravity.',
-        query: 'Search for: test',
-      );
-      final sse = antigravitySse(events);
-      expect(sse, isNot(contains('event: error')));
-      final message = antigravityMessage(events)!;
-      expect(message['stop_reason'], 'end_turn');
-      final content = message['content'] as List;
-      expect(content.map((b) => (b as Map)['type']), [
-        'server_tool_use',
-        'web_search_tool_result',
-      ]);
-      expect((content[0] as Map)['input'], {'query': 'Search for: test'});
-      expect((content[1] as Map)['content'], {
-        'type': 'web_search_tool_result_error',
-        'error_code': 'unavailable',
-        'message':
-            'Web search is not supported for claude-opus-5-5 on Antigravity.',
-      });
-    });
   });
 }

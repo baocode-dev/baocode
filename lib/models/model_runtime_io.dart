@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:bao_websearch/bao_websearch.dart';
 import 'package:path/path.dart' as p;
 
 import '../network/network_proxy_io.dart';
@@ -56,6 +57,11 @@ final ModelProxy _proxy = ModelProxy(
   antigravity: _antigravity,
   signatures: FileSignatureStore(
     () => p.join(DataDirectory.current.path, 'cache', 'gemini-signatures'),
+  ),
+  // Which models run the web search tool themselves, kept across runs.
+  searchSupport: NativeSearchSupport(
+    path: () =>
+        p.join(DataDirectory.current.path, 'cache', 'web-search-support.json'),
   ),
   usage: () => UsageLedger.current,
 );

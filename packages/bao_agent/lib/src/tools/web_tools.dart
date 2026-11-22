@@ -2,8 +2,13 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:bao_websearch/bao_websearch.dart';
+import 'package:path/path.dart' as p;
+
+import '../api/anthropic_client.dart';
 import '../api/message_accumulator.dart';
 import '../api/model_client.dart';
+import '../engine/session.dart';
 import '../permissions/decision.dart';
 import '../permissions/rules.dart';
 import '../util/html_markdown.dart';
@@ -322,19 +327,47 @@ class WebFetchTool extends Tool {
       : host.toLowerCase();
 }
 
-/// Searches the web, by the API's own search tool.
+/// Searches the web: by the API's own search tool, or, for a model that
+/// does not run it, by a search made here of the web's engines
+/// ([WebSearch]). Which models run it is found out from their answers and
+/// kept 5 hours ([NativeSearchSupport]), so that one that does not is not
+/// asked each time.
 class WebSearchTool extends Tool {
   const WebSearchTool();
+
+  /// The search made here, for [environment] (its proxy): another in
+  /// tests.
+  static WebSearch Function(Map<String, String> environment) localSearch =
+      _localSearch;
+
+  static WebSearch _localSearch(Map<String, String> environment) => WebSearch(
+    client: () async => HttpClient()
+      ..findProxy = (url) =>
+          HttpClient.findProxyFromEnvironment(url, environment: environment),
+  );
+
+  /// What is known of which models run the API's search, by the file it
+  /// is kept in.
+  static final Map<String, NativeSearchSupport> _supports = {};
+
+  static NativeSearchSupport _supportFor(AgentSession session) {
+    final path = p.join(
+      session.paths.configDir,
+      'cache',
+      'web-search-support.json',
+    );
+    return _supports[path] ??= NativeSearchSupport(path: () => path);
+  }
 
   @override
   String get name => 'WebSearch';
 
   @override
-  String get description => '''Searches the web and gives back what it found, with each result's title and link: for news, recent releases, or anything newer than what you know.
+  String get description => """Searches the web and gives back what it found, with each result's title and link: for news, recent releases, or anything newer than what you know.
 
 - allowed_domains keeps to some sites, blocked_domains leaves some out (one or the other).
 - For something recent, put the year in the query, the current one from the date you were given.
-- When you answer from a search, end the answer with a "Sources:" list of the links you drew on, as Markdown links: [Title](URL).''';
+- When you answer from a search, end the answer with a "Sources:" list of the links you drew on, as Markdown links: [Title](URL).""";
 
   @override
   Map<String, Object?> get inputSchema => const {
@@ -391,6 +424,65 @@ class WebSearchTool extends Tool {
   ) async {
     final started = DateTime.now();
     final query = '${input['query']}'.trim();
+    final allowed = [for (final d in asList(input['allowed_domains'])) '$d'];
+    final blocked = [for (final d in asList(input['blocked_domains'])) '$d'];
+    final session = context.session;
+    final model = session.resolvedModel;
+    final support = _supportFor(session);
+    final where =
+        asText(session.environment['ANTHROPIC_BASE_URL']) ??
+        ApiConfig.defaultBaseUrl;
+    final native = support.lookup(where, 'anthropic', model);
+    if (native != false) {
+      final searched = await _native(
+        query,
+        allowed,
+        blocked,
+        context,
+        // What it shows is kept only when not known yet.
+        found: native == null
+            ? (runs) => support.record(where, 'anthropic', model, runs)
+            : null,
+      );
+      if (searched != null) {
+        return _output(query, searched.$1, searched.$2, started);
+      }
+    }
+    // Searched here.
+    try {
+      final hits = await context.cancel.guard(
+        localSearch(session.environment)
+            .search(query, allowedDomains: allowed, blockedDomains: blocked),
+      );
+      final links = [
+        for (final hit in hits) {'title': hit.title, 'url': hit.url},
+      ];
+      final text = searchResultsText(hits);
+      return _output(
+        query,
+        links,
+        [
+          {'tool_use_id': 'local', 'content': links},
+          text,
+        ],
+        started,
+        text: text,
+      );
+    } on SearchException catch (error) {
+      return ToolOutput.error('Web search found nothing: ${error.message}');
+    }
+  }
+
+  /// [query] searched by the API's own tool: its links and the results
+  /// as the tool keeps them; null when it did not search, the API not
+  /// running the tool (told to [found]) or failing to this time.
+  Future<(List<Map<String, Object?>>, List<Object?>)?> _native(
+    String query,
+    List<String> allowed,
+    List<String> blocked,
+    ToolContext context, {
+    void Function(bool runs)? found,
+  }) async {
     final session = context.session;
     final model = session.resolvedModel;
     final request = ModelRequest({
@@ -412,10 +504,8 @@ class WebSearchTool extends Tool {
           'type': 'web_search_20250305',
           'name': 'web_search',
           'max_uses': 8,
-          if (asList(input['allowed_domains']).isNotEmpty)
-            'allowed_domains': asList(input['allowed_domains']),
-          if (asList(input['blocked_domains']).isNotEmpty)
-            'blocked_domains': asList(input['blocked_domains']),
+          if (allowed.isNotEmpty) 'allowed_domains': allowed,
+          if (blocked.isNotEmpty) 'blocked_domains': blocked,
         },
       ],
       'stream': true,
@@ -433,30 +523,30 @@ class WebSearchTool extends Tool {
         accumulator.add(event);
       }
     } on ApiError catch (error) {
-      return ToolOutput.error(
-        'Web search is not available here: $error. The API or provider in '
-        'use may not offer the web search tool.',
-      );
+      if (refusesWebSearchTool(error.status ?? 0, error.message)) {
+        found?.call(false);
+      }
+      return null;
     }
     final message = accumulator.message();
     session.addUsage(model, asMap(message['usage']));
-    final parts = <String>[];
-    final errors = <String>[];
+    final outcome = nativeSearchOutcome(jsonEncode(message));
+    if (outcome != NativeSearch.failed) {
+      found?.call(outcome == NativeSearch.searched);
+    }
+    if (outcome != NativeSearch.searched) return null;
     final links = <Map<String, Object?>>[];
     final results = <Object?>[];
-    var sawSearchResult = false;
     for (final block in asList(message['content'])) {
       final b = asMap(block);
       switch (b['type']) {
         case 'text':
           final text = '${b['text'] ?? ''}'.trim();
-          if (text.isNotEmpty) parts.add(text);
-          results.add(text);
+          if (text.isNotEmpty) results.add(text);
         case 'web_search_tool_result':
-          sawSearchResult = true;
           final content = b['content'];
           if (content is List) {
-            final found = [
+            final listed = [
               for (final item in content)
                 if (item is Map)
                   {
@@ -464,38 +554,36 @@ class WebSearchTool extends Tool {
                     'url': '${item['url'] ?? ''}',
                   },
             ];
-            links.addAll(found);
-            results.add({'tool_use_id': b['tool_use_id'], 'content': found});
-          } else if (content is Map) {
-            final errorMessage = '${content['message'] ?? ''}'.trim();
-            final code = content['error_code'];
-            final error = errorMessage.isNotEmpty
-                ? errorMessage
-                : 'Web search error: $code';
-            errors.add(error);
-            parts.add(error);
-            results.add(error);
+            links.addAll(listed);
+            results.add({'tool_use_id': b['tool_use_id'], 'content': listed});
           }
       }
     }
-    if (links.isEmpty && errors.isNotEmpty && errors.length == parts.length) {
-      return ToolOutput.error(errors.join('\n'));
-    }
-    if (links.isEmpty && parts.isEmpty && !sawSearchResult) {
-      return ToolOutput.error(
-        'Web search is not available for $model: the provider returned no '
-        'search results.',
-      );
-    }
-    final text = StringBuffer('What a web search for "$query" found:\n\n');
-    if (links.isNotEmpty) text.writeln('Results: ${jsonEncode(links)}\n');
-    text.write(parts.join('\n\n'));
-    text.write(
+    return (links, results);
+  }
+
+  ToolOutput _output(
+    String query,
+    List<Map<String, Object?>> links,
+    List<Object?> results,
+    DateTime started, {
+    String? text,
+  }) {
+    final out = StringBuffer('What a web search for "$query" found:\n\n');
+    if (links.isNotEmpty) out.writeln('Results: ${jsonEncode(links)}\n');
+    out.write(
+      text ??
+          [
+            for (final result in results)
+              if (result is String) result,
+          ].join('\n\n'),
+    );
+    out.write(
       '\n\nEnd your answer with a "Sources:" list of the links you drew '
       'on, as Markdown links.',
     );
     return ToolOutput(
-      text.toString(),
+      out.toString(),
       result: {
         'query': query,
         'results': results,
