@@ -14943,12 +14943,6 @@ abstract class AppLocalizations {
   /// **'Not a relay address; one looks like https://relay.example.com'**
   String get mobileRelayInvalid;
 
-  /// No description provided for @mobileRelayPinned.
-  ///
-  /// In en, this message translates to:
-  /// **'Relay Used'**
-  String get mobileRelayPinned;
-
   /// No description provided for @mobileRelayCustom.
   ///
   /// In en, this message translates to:
@@ -14966,6 +14960,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The address of a relay you run yourself (baocode-relay).'**
   String get mobileRelayCustomDescription;
+
+  /// No description provided for @mobileRelayInUse.
+  ///
+  /// In en, this message translates to:
+  /// **'In use'**
+  String get mobileRelayInUse;
+
+  /// No description provided for @mobileRelayMoveUp.
+  ///
+  /// In en, this message translates to:
+  /// **'Move Up'**
+  String get mobileRelayMoveUp;
+
+  /// No description provided for @mobileRelayMoveDown.
+  ///
+  /// In en, this message translates to:
+  /// **'Move Down'**
+  String get mobileRelayMoveDown;
+
+  /// No description provided for @mobileRelayRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get mobileRelayRemove;
+
+  /// No description provided for @mobileRelayAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Relay'**
+  String get mobileRelayAdd;
+
+  /// No description provided for @mobileRelayAddPick.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose…'**
+  String get mobileRelayAddPick;
 
   /// No description provided for @mobileRelayMode.
   ///
@@ -14988,13 +15018,13 @@ abstract class AppLocalizations {
   /// No description provided for @mobileRelayModePinned.
   ///
   /// In en, this message translates to:
-  /// **'Pick One'**
+  /// **'Your List'**
   String get mobileRelayModePinned;
 
   /// No description provided for @mobileRelayModePinnedDescription.
   ///
   /// In en, this message translates to:
-  /// **'Only the one picked: one of BaoCode\'s, or a custom address.'**
+  /// **'The relays you list, in order: the next when one cannot be reached, and back to an earlier one once it can. BaoCode\'s, or custom addresses.'**
   String get mobileRelayModePinnedDescription;
 
   /// No description provided for @mobileRelayModeDirect.

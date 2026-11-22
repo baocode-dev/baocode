@@ -1,4 +1,5 @@
 import 'package:bao_link/bao_link.dart';
+import 'package:baocode/ide/ide_hover.dart';
 import 'package:baocode/link/link_host.dart';
 import 'package:baocode/link/phone_downloads.dart';
 import 'package:baocode/link/qr_view.dart';
@@ -220,8 +221,9 @@ void main() {
     expect(find.text('No phone is paired yet.'), findsOneWidget);
   });
 
-  testWidgets('the relays folded; open, how they are chosen, and the one '
-      'picked; a custom address only once Custom is picked', (tester) async {
+  testWidgets('the relays folded; open, how they are chosen, and those '
+      'listed: added, moved and removed; a custom address only once Custom '
+      'is picked', (tester) async {
     tester.view.physicalSize = const Size(900, 1600);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -243,7 +245,7 @@ void main() {
     await tester.tap(find.text('Relays'));
     await tester.pump();
     // Automatic: nothing more to choose.
-    expect(find.text('Relay Used'), findsNothing);
+    expect(find.text('Add Relay'), findsNothing);
 
     Future<void> pick(String now, String label) async {
       await tester.tap(find.text(now));
@@ -259,41 +261,66 @@ void main() {
       await tester.pump();
     }
 
-    // Picking one: the one in use picked; another picked in its dropdown;
-    // no address to type.
-    await pick('Automatic', 'Pick One');
-    expect(host.relays, [defaultLinkRelays.first]);
-    expect(find.text('Relay Used'), findsOneWidget);
-    expect(find.byType(TextField), findsNothing);
-    await pick(us1, hk1);
-    expect(host.relays, [defaultLinkRelays[1]]);
+    Future<void> press(String tooltip, int index) async {
+      await tester.tap(
+        find
+            .byWidgetPredicate(
+              (widget) =>
+                  widget is IdeActionButton && widget.tooltip == tooltip,
+            )
+            .at(index),
+      );
+      await tester.pump();
+      await tester.pump();
+    }
 
-    // Custom, last: its address typed, picked once it is one.
-    await pick(hk1, 'Custom');
+    // Listed: the one in use at first, shown in use; another added after
+    // it; no address to type.
+    await pick('Automatic', 'Your List');
+    expect(host.relays, [defaultLinkRelays.first]);
+    expect(find.text('1. $us1'), findsOneWidget);
+    expect(find.text('In use'), findsOneWidget);
+    expect(find.byType(TextField), findsNothing);
+    await pick('Choose…', hk1);
+    expect(host.relays, [defaultLinkRelays.first, defaultLinkRelays[1]]);
+    expect(find.text('2. $hk1'), findsOneWidget);
+
+    // Custom, last: its address typed, added once it is one.
+    await pick('Choose…', 'Custom');
     expect(find.byType(TextField), findsOneWidget);
-    expect(host.relays, [defaultLinkRelays[1]]);
     await typeIn('not an address');
     expect(find.textContaining('Not a relay address'), findsOneWidget);
-    expect(host.relays, [defaultLinkRelays[1]]);
-    await typeIn('relay.example.com');
-    expect(host.relays, ['https://relay.example.com']);
+    expect(host.relays, hasLength(2));
+    await typeIn('relay.example.com:8443');
+    expect(host.relays.last, 'https://relay.example.com:8443');
+    expect(find.text('3. relay.example.com:8443'), findsOneWidget);
     expect(find.textContaining('Not a relay address'), findsNothing);
-    await tester.tap(find.text('Relays'));
-    await tester.pump();
-    expect(find.text('Pick One · relay.example.com'), findsOneWidget);
-    await tester.tap(find.text('Relays'));
-    await tester.pump();
-    // Still Custom, with its address.
-    expect(find.text('Custom'), findsOneWidget);
-    expect(
-      tester.widget<TextField>(find.byType(TextField)).controller!.text,
-      'https://relay.example.com',
-    );
-
-    // One of BaoCode's again: the address gone.
-    await pick('Custom', us1);
-    expect(host.relays, [defaultLinkRelays.first]);
     expect(find.byType(TextField), findsNothing);
+
+    // Moved up to the first: bound to it alone.
+    await press('Move Up', 2);
+    await press('Move Up', 1);
+    expect(host.relays, [
+      'https://relay.example.com:8443',
+      defaultLinkRelays.first,
+      defaultLinkRelays[1],
+    ]);
+    expect(host.activeRelay, 'https://relay.example.com:8443');
+    await tester.tap(find.text('Relays'));
+    await tester.pump();
+    expect(
+      find.text('Your List · relay.example.com:8443 → $us1 → $hk1'),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Relays'));
+    await tester.pump();
+
+    // Removed down to one: that one cannot be.
+    await press('Remove', 0);
+    await press('Remove', 0);
+    expect(host.relays, [defaultLinkRelays[1]]);
+    await press('Remove', 0);
+    expect(host.relays, [defaultLinkRelays[1]]);
   });
 
   testWidgets('direct only: no relay kept, its port typed and kept alone', (
