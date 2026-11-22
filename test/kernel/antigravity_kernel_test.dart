@@ -107,22 +107,11 @@ class _Records implements AgyRecords {
   final String id;
 
   @override
-  Future<List<Map<String, Object?>>> steps() async =>
-      runtime.steps[id] ?? const [];
-
-  @override
   Future<List<Map<String, Object?>>> messages() async =>
       id == 's1' ? runtime.inbox : const [];
 
   @override
-  Future<List<Map<String, Object?>>> subagents() async =>
-      id == 's1' ? runtime.subagents : const [];
-
-  @override
   String taskLog(String taskId) => '/logs/${taskId.split('/').last}.log';
-
-  @override
-  AgyRecords child(String id) => _Records(runtime, id);
 }
 
 class _Runtime implements AgyRuntime {
@@ -132,9 +121,7 @@ class _Runtime implements AgyRuntime {
   final agents = <_Agent>[];
   _Agent get agent => agents.last;
   bool installed = true;
-  final steps = <String, List<Map<String, Object?>>>{};
   final inbox = <Map<String, Object?>>[];
-  final subagents = <Map<String, Object?>>[];
 
   /// The files as they stand, by path.
   final files = <String, String>{};
@@ -915,54 +902,41 @@ void main() {
     expect(of<FileEdited>(), isEmpty);
   });
 
-  test("a subagent's card is filled in from its conversation", () async {
+  test("a subagent's card: what it was asked, not to be opened", () async {
     kernel = make();
     await started();
     kernel.send(const KernelTurn(id: 't1', text: 'research'));
     await pumpEventQueue();
-    runtime.subagents.add({
-      'conversationId': 'child',
-      'subagentDescriptor': {'typeName': 'researcher', 'role': 'Look around'},
-      'spawnStepIndex': 3,
-    });
-    runtime.steps['child'] = [
-      {
-        'type': 'PLANNER_RESPONSE',
-        'output_tokens': 20,
-        'model': 'gemini-3.8-flash-low',
-        'content': 'Reading.',
-        'tool_calls': [
-          {
-            'name': 'read_file',
-            'args': {'Path': '"/p/a.txt"'},
-          },
-        ],
-      },
-    ];
-    runtime.agent.update({
+    final call = {
       'sessionUpdate': 'tool_call',
       'toolCallId': 'c1',
       'name': 'invoke_subagent',
       'kind': 'other',
-      'status': 'completed',
-      'rawInput': {'Role': 'Look around', 'Prompt': 'Find the bug'},
-    });
-    await Future<void>.delayed(const Duration(milliseconds: 30));
+      'status': 'in_progress',
+      'rawInput': {
+        'Role': 'Look around',
+        'Prompt': 'Find the bug',
+        'TypeName': 'self',
+      },
+    };
+    runtime.agent.update(call);
+    await pumpEventQueue();
     var card = items()['c1']! as AgentItem;
     expect(card.description, 'Look around');
     expect(card.prompt, 'Find the bug');
-    expect(card.status, CommandStatus.running);
-    expect(card.agentType, 'researcher');
-    expect(card.toolUses, 1);
-    final read = card.children.whereType<ToolCallItem>().single;
-    expect(read.kind, ToolKind.read);
-    expect(read.path, '/p/a.txt');
-
-    runtime.inbox.add({'sender': 'child', 'content': 'Found it.'});
-    await Future<void>.delayed(const Duration(milliseconds: 40));
+    expect(card.agentType, isNull);
+    expect(card.id, isNull);
+    runtime.agent.update({
+      ...call,
+      'sessionUpdate': 'tool_call_update',
+      'status': 'completed',
+    });
+    await pumpEventQueue();
     card = items()['c1']! as AgentItem;
     expect(card.status, CommandStatus.succeeded);
-    expect(card.result, 'Found it.');
+    expect(card.children, isEmpty);
+    // Not one of the tasks: nothing says when it is done.
+    expect(of<TasksReported>().expand((reported) => reported.tasks), isEmpty);
   });
 
   test('a conversation continued is read back, its edits not again', () async {
@@ -1220,30 +1194,5 @@ void main() {
     expect(timed.usage?.inputTokens, 1000);
     expect(timed.usage?.outputTokens, 20);
     expect(untimed.worked, isNull);
-  });
-
-  test('a subagent’s steps as items', () {
-    final items = agyChildItems([
-      {'type': 'USER_INPUT', 'content': 'x'},
-      {
-        'type': 'PLANNER_RESPONSE',
-        'content': 'Running it.',
-        'tool_calls': [
-          {
-            'name': 'run_command',
-            'args': {'CommandLine': '"make test"'},
-          },
-          {
-            'name': 'mcp_baocode_browser_open',
-            'args': {'url': '"https://example.com"'},
-          },
-        ],
-      },
-    ]);
-    expect(items[0], isA<AssistantTextItem>());
-    final command = items[1] as ToolCallItem;
-    expect(command.kind, ToolKind.command);
-    expect(command.target, 'make test');
-    expect((items[2] as ToolCallItem).kind, ToolKind.mcp);
   });
 }
