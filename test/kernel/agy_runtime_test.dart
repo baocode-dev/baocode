@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:baocode/kernel/antigravity/agy_runtime_io.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -76,6 +77,15 @@ void main() {
     test('none without a token', () {
       expect(parseAgyCredentials('{"token":{}}'), isNull);
       expect(parseAgyCredentials('not json'), isNull);
+    });
+
+    test('from its file, without a keychain to keep it in', () async {
+      final dir = Directory.systemTemp.createTempSync('agy');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      File('${dir.path}/antigravity-oauth-token').writeAsStringSync(json);
+      final credentials = await LocalAgyRuntime(dataDir: dir.path)
+          .credentials();
+      expect(credentials?.accessToken, 'ya29.a');
     });
   });
 }
