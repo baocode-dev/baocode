@@ -224,7 +224,7 @@ class LinkHost extends ChangeNotifier {
     this.filesOf = hostFilesOf,
     this.reachHost = reachProjectHost,
     this.pathSettle = const Duration(seconds: 15),
-    this.relayFailover = const Duration(seconds: 15),
+    this.relayFailover = const Duration(seconds: 5),
     this.relayRecheck = const Duration(minutes: 2),
   }) : platform = platform ?? LinkPlatform.current();
 
