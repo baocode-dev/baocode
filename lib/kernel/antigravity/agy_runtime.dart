@@ -59,6 +59,11 @@ abstract interface class AgyRuntime {
   /// none, or it is too big to read here.
   String? fileText(String path);
 
+  /// What the app keeps of agy from one run to the next (its models, the
+  /// account's limits, as last told); null with nothing kept.
+  Map<String, Object?>? get kept;
+  set kept(Map<String, Object?>? value);
+
   /// Serves the app's own tools to an agy session over MCP (on this
   /// machine's loopback), [handle] answering what it asks.
   Future<McpEndpoint> serveTools(McpHandler handle);

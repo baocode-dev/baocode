@@ -28,9 +28,13 @@ class LocalAgyRuntime implements AgyRuntime {
     Future<Map<String, String>> Function()? environment,
     String? installDir,
     String? dataDir,
+    String? cacheDir,
   }) : _environment = environment ?? ClaudeEnvironment.of,
        _installDirOverride = installDir,
-       _dataDirOverride = dataDir;
+       _dataDirOverride = dataDir,
+       _cacheDirOverride = cacheDir;
+
+  final String? _cacheDirOverride;
 
   final Future<Map<String, String>> Function() _environment;
   final String? _installDirOverride;
@@ -646,6 +650,41 @@ if ($bytes -eq $null) { exit 1 }
 
   @override
   AgyRecords records(String sessionId) => _FileRecords(dataDir, sessionId);
+
+  /// Where [kept] is kept: the app's cache, not agy's folder.
+  String get _keptFile => p.join(
+    _cacheDirOverride ?? DataDirectory.current.cacheDir,
+    'antigravity.json',
+  );
+
+  @override
+  Map<String, Object?>? get kept {
+    try {
+      final file = File(_keptFile);
+      if (!file.existsSync()) return null;
+      return switch (jsonDecode(file.readAsStringSync())) {
+        final Map<String, Object?> kept => kept,
+        _ => null,
+      };
+    } on Object {
+      return null;
+    }
+  }
+
+  @override
+  set kept(Map<String, Object?>? value) {
+    try {
+      final file = File(_keptFile);
+      if (value == null) {
+        if (file.existsSync()) file.deleteSync();
+        return;
+      }
+      file.parent.createSync(recursive: true);
+      file.writeAsStringSync(jsonEncode(value));
+    } on FileSystemException {
+      // Asked again next run then.
+    }
+  }
 
   @override
   String? fileText(String path) {

@@ -91,14 +91,14 @@ class AntigravityTranslator {
     }
     final id = _userId ??= _newId('user');
     _user.write(text);
-    emit(
-      ItemUpserted(
-        nextSeq(),
-        id,
-        UserMessageItem(text: withoutReminders('$_user')),
-      ),
-    );
+    final message = UserMessageItem(text: withoutReminders('$_user'));
+    if (replaying) replayed[id] = message;
+    emit(ItemUpserted(nextSeq(), id, message));
   }
+
+  /// The user's messages read back, in order: timed after, from agy's
+  /// records.
+  final Map<String, UserMessageItem> replayed = {};
 
   static final _reminders = RegExp(
     r'<system-reminder>[\s\S]*?(</system-reminder>|$)',
