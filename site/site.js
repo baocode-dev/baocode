@@ -152,7 +152,7 @@ listedChannel.then((channel) => {
     return el;
   };
   if (name) {
-    for (const el of document.querySelectorAll('.top .brand')) el.replaceChildren(...side(logo, name).childNodes);
+    for (const el of document.querySelectorAll('header .brand')) el.replaceChildren(...side(logo, name).childNodes);
     for (const el of document.querySelectorAll('[data-channel-title]')) {
       el.replaceChildren(side(logo, name), ' ', span('channel-x', '×'), ' ', side('/icon.png', 'BaoCode'));
     }
@@ -402,6 +402,7 @@ function showHash(os, sha256) {
 // depends only on its spacing on screen: fine ones fade in from nothing.
 (() => {
   const canvas = document.querySelector('canvas.grid');
+  if (!canvas) return;
   const ctx = canvas.getContext('2d');
   const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const ANGLE = -14 * Math.PI / 180;   // the tilt

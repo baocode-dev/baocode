@@ -1,0 +1,1842 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BaoCode — 开源 Claude Code 控制面，不仅仅是界面</title>
+  <!-- build:head -->
+  <link rel="icon" href="/icon.png" />
+  <script src="/head.js"></script>
+  <link rel="stylesheet" href="/flutter-window.css?v=1122r" />
+  <!-- build:icons -->
+  <script src="/assets/vendor/iconify-icon.min.js" defer></script>
+  <style>
+    :root {
+      --bg: #111110;
+      --card: #161615;
+      --card-hi: #1b1b19;
+      --ink: #f5f5f3;
+      --ink-2: #989792;
+      --ink-3: #63625d;
+      --line: rgba(255, 255, 255, 0.08);
+      --line-hi: rgba(255, 255, 255, 0.14);
+      --gold: #e5ba7d;
+      --mint: #2e9e72;
+      --sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Inter", system-ui, sans-serif;
+      --mono: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; background: var(--bg); color: var(--ink); font-family: var(--sans); -webkit-font-smoothing: antialiased; color-scheme: dark; }
+    body { margin: 0; background: var(--bg); color: var(--ink); line-height: 1.55; }
+    a { color: inherit; text-decoration: none; }
+    button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
+    img { display: block; max-width: 100%; }
+
+    .wrap { max-width: 1200px; margin: 0 auto; padding: 0 32px; }
+
+    /* Ultra-Clean Top Header */
+    /* At the top the hero's sky shows through; once there's page to scroll
+       under it the bar takes a plain backing. */
+    /* Once scrolled, a ground behind the bar that fades out below it, so the
+       page passes under it without a hard edge. */
+    .hdr { position: sticky; top: 0; z-index: 40; }
+    .hdr::before { content: ""; position: absolute; inset: 0 0 -36px; z-index: -1; pointer-events: none; opacity: 0; transition: opacity 0.3s ease;
+      background: linear-gradient(to bottom, rgba(17, 17, 16, 0.97) 0, rgba(17, 17, 16, 0.94) 64px, rgba(17, 17, 16, 0.6) 82px, rgba(17, 17, 16, 0) 100%); }
+    .hdr.is-stuck::before { opacity: 1; }
+    .hdr-in { height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+    .hdr-left { display: flex; align-items: center; gap: 36px; }
+    .brand { display: inline-flex; align-items: center; gap: 7px; font-weight: 700; font-size: 16px; letter-spacing: 0.02em; color: var(--ink); }
+    /* The mark as a letter of the wordmark: same color, cap height */
+    .brand-mark { width: 20px; height: 15px; flex-shrink: 0; margin-top: -1px; }
+    .hdr-right { display: flex; align-items: center; gap: 10px; }
+    .pill-outline {
+      height: 34px; padding: 0 13px; border-radius: 999px;
+      border: 1px solid var(--line-hi); color: var(--ink-2); font-size: 13px;
+      display: inline-flex; align-items: center; gap: 6px;
+      transition: border-color 0.15s ease, color 0.15s ease;
+    }
+    .hdr-link { padding: 0 8px; font-size: 13.5px; color: var(--ink-2); transition: color .15s ease; }
+    .hdr-link:hover { color: var(--ink); }
+    .gh-stars { display: inline-flex; align-items: center; gap: 4px; margin-left: 2px; padding-left: 9px; border-left: 1px solid var(--line-hi);
+      font-variant-numeric: tabular-nums; color: var(--ink-2); }
+    @media (max-width: 560px) { .hdr-link { display: none; } }
+    .pill-outline:hover { border-color: rgba(255,255,255,0.28); color: var(--ink); }
+    .pill-white {
+      height: 34px; padding: 0 16px; border-radius: 999px;
+      background: #ffffff; color: #111110; font-size: 13px; font-weight: 600;
+      display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; flex-shrink: 0;
+      transition: opacity 0.15s ease;
+    }
+    .pill-white:hover { opacity: 0.9; }
+
+    /* Centered Hero */
+    .hero { position: relative; padding: 72px 0 84px; text-align: center; }
+    .hero > .wrap { position: relative; z-index: 1; }
+    /* The sky behind the hero: an aurora glow along the top and
+       soft beams fanning down over the headline, light flowing out along
+       them. */
+    .hero-sky {
+      position: absolute; left: 0; right: 0; top: -64px; height: calc(var(--warp-h, 640px) + 64px);
+      pointer-events: none; z-index: 0; overflow: hidden;
+      -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 60%, transparent 100%);
+      mask-image: linear-gradient(to bottom, #000 0, #000 60%, transparent 100%);
+      opacity: 0; transition: opacity 2s ease 0.2s;
+    }
+    .hero-sky.is-on { opacity: 1; }
+    .hero-sky > * { position: absolute; }
+    .hero-sky canvas { left: 0; top: 0; width: 100%; height: 100%; }
+    .hero-pill {
+      display: inline-flex; align-items: center; gap: 12px;
+      height: 40px; padding: 0 20px 0 17px; border-radius: 999px;
+      background: #1a1a18; border: 1px solid var(--line-hi);
+      font-size: 14.5px; color: #d6d5d0; margin-bottom: 28px;
+    }
+    .hero-os { display: inline-flex; align-items: center; gap: 9px; }
+    .hero-os iconify-icon, .hero-os svg { display: block; }
+
+    .h1 {
+      margin: 0 auto 16px; max-width: 1080px;
+      font-size: clamp(32px, 4.4vw, 56px); font-weight: 700;
+      line-height: 1.1; letter-spacing: -0.032em; color: #ffffff;
+    }
+    .hero-sub {
+      margin: 0 auto 36px; max-width: 760px;
+      font-size: 16px; line-height: 1.65; color: var(--ink-2); font-weight: 400;
+    }
+
+    /* Pure-White Hardware Download CTA */
+    .dl-hero-wrap { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-bottom: 56px; }
+    .dl-hero-btn {
+      display: inline-flex; align-items: center; gap: 14px;
+      min-width: 240px; padding: 13px 26px; border-radius: 14px;
+      background: #ffffff; color: #111110; text-align: left;
+      box-shadow: 0 12px 32px -12px rgba(0, 0, 0, 0.7);
+      transition: transform 0.16s ease, background-color 0.16s ease;
+    }
+    .dl-hero-btn:hover { transform: translateY(-1px); background: #f2f1ed; }
+    .dl-hero-btn .dl-text { display: flex; flex-direction: column; line-height: 1.25; }
+    .dl-hero-btn strong { font-size: 15px; font-weight: 650; letter-spacing: -0.015em; }
+    .dl-hero-btn span { font-size: 11.5px; color: #6b6a65; margin-top: 2px; }
+    .dl-all-link {
+      font-size: 12.5px; color: var(--ink-2);
+      border-bottom: 1px solid rgba(152, 151, 146, 0.45); padding-bottom: 1px;
+      transition: color 0.14s ease, border-color 0.14s ease;
+    }
+    .dl-all-link:hover { color: #ffffff; border-color: #ffffff; }
+
+    /* Live 1:1 Flutter Window Showcase */
+    .window-stage { text-align: left; }
+    .window-stage .app-window {
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 40px 100px -30px rgba(0, 0, 0, 0.92);
+    }
+    .mode-bar {
+      margin-bottom: 18px; display: flex; justify-content: flex-start; align-items: center; gap: 12px; flex-wrap: wrap;
+    }
+    .mode-seg {
+      display: inline-flex; padding: 3px; border-radius: 999px;
+      background: #181817; border: 1px solid var(--line); gap: 2px;
+      max-width: 100%; overflow-x: auto; scrollbar-width: none;
+    }
+    .mode-seg::-webkit-scrollbar { display: none; }
+    .stage-tab { white-space: nowrap; flex-shrink: 0; }
+    .h1 > span { display: block; }
+    .stage-tab {
+      padding: 6px 14px; border-radius: 999px; font-size: 12.5px; font-weight: 500; color: var(--ink-2);
+      display: inline-flex; align-items: center; gap: 6px;
+      transition: background-color 0.15s ease, color 0.15s ease;
+    }
+    .stage-tab iconify-icon { display: block; width: 15px; height: 15px; flex-shrink: 0; }
+    .stage-tab:hover { color: var(--ink); }
+    .stage-tab.is-active { background: #2a2a28; color: #ffffff; }
+
+    /* Hero variant A: split — headline left, pitch + CTA right */
+    .hero[data-v="a"] { text-align: left; padding-top: 88px; }
+    .hero[data-v="a"] .hero-top { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 72px; align-items: end; margin-bottom: 72px; }
+    .hero[data-v="a"] .hero-pill { margin-bottom: 30px; }
+    .hero[data-v="a"] .h1 { margin: 0; font-size: clamp(40px, 5.2vw, 68px); line-height: 1.06; }
+    .hero[data-v="a"] .h1 span { display: block; }
+    .hero[data-v="a"] .h1 span + span { color: #8f8e89; }
+    .hero[data-v="a"] .hero-sub { margin: 0 0 28px; font-size: 15.5px; }
+    .hero[data-v="a"] .dl-hero-wrap { flex-direction: row; align-items: center; gap: 22px; margin: 0; }
+    .hero[data-v="a"] .mode-bar { padding-top: 18px; border-top: 1px solid var(--line); }
+
+    /* Hero variant B: centered copy, CTA row, clean window */
+    .hero[data-v="b"] .dl-hero-wrap { flex-direction: row; justify-content: center; gap: 22px; margin-bottom: 72px; }
+
+    /* Sections */
+    .sec { padding: 84px 0; }
+    .sec-head {
+      display: flex; align-items: flex-end; justify-content: space-between;
+      gap: 24px; margin-bottom: 40px; flex-wrap: wrap;
+    }
+    .sec-h2 {
+      margin: 0 0 12px; font-size: clamp(28px, 3.6vw, 40px); font-weight: 680;
+      letter-spacing: -0.032em; line-height: 1.15; color: #ffffff;
+    }
+    .sec-sub { margin: 0; font-size: 15.5px; color: var(--ink-2); max-width: 720px; }
+    .sec-head-only { margin-bottom: 42px; }
+
+    /* What users say: two rows of their words drifting past in opposite directions. */
+    .voices-head { margin-bottom: 26px; }
+    .voices { position: relative; overflow: hidden; }
+    .voices::before, .voices::after {
+      content: ""; position: absolute; top: 0; bottom: 0; width: min(16vw, 220px); z-index: 1; pointer-events: none;
+      background: linear-gradient(90deg, var(--bg), transparent);
+    }
+    .voices::before { left: 0; }
+    .voices::after { right: 0; transform: scaleX(-1); }
+    .voice-row { display: flex; width: max-content; gap: 14px; padding: 7px 0; animation: voiceDrift 150s linear infinite; }
+    .voice-row + .voice-row { animation-direction: reverse; animation-duration: 170s; }
+    .voices:not(.is-live) .voice-row { animation-play-state: paused; }
+    @keyframes voiceDrift { to { transform: translateX(-50%); } }
+    .voice {
+      width: 300px; flex: none; display: flex; flex-direction: column; gap: 11px;
+      padding: 16px 18px 17px; border-radius: 14px;
+      background: var(--card); border: 1px solid var(--line);
+      transition: border-color 0.2s ease;
+    }
+    .voice.is-long { width: 380px; }
+    .voice:hover { border-color: var(--line-hi); }
+    .voice-who { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .voice-av {
+      width: 28px; height: 28px; flex: none; border-radius: 50%; object-fit: cover;
+      display: grid; place-items: center; background: #24231f; color: var(--gold); font-size: 12.5px; font-weight: 600;
+    }
+    .voice-av iconify-icon { font-size: 16px; color: var(--ink-2); }
+    .voice-name { font-size: 13px; font-weight: 600; color: #ffffff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    a.voice-name:hover { color: var(--gold); }
+    .voice-src { display: inline-flex; align-items: center; gap: 4px; font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); white-space: nowrap; }
+    .voice p { margin: 0; font-size: 13.5px; line-height: 1.65; color: var(--ink-2); }
+    @media (prefers-reduced-motion: reduce) { .voice-row { animation: none; } }
+
+    /* 3x2 Visual-First Capability Cards */
+    .cap-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+    .cap-card {
+      background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+      overflow: hidden; display: flex; flex-direction: column;
+      transition: border-color 0.2s ease;
+    }
+    .cap-card:hover { border-color: var(--line-hi); }
+
+    .cap-visual {
+      position: relative; height: 224px; background: #121211; overflow: hidden;
+      padding: 20px; display: flex; flex-direction: column; justify-content: center;
+    }
+    .cap-visual::after {
+      content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 52px;
+      background: linear-gradient(to bottom, transparent, var(--card));
+      pointer-events: none;
+    }
+    .cap-body { padding: 20px 24px 26px; display: flex; flex-direction: column; gap: 8px; }
+    .cap-body h3 { margin: 0; font-size: 17.5px; font-weight: 620; letter-spacing: -0.018em; color: #ffffff; }
+
+    .cap-body p { margin: 0; font-size: 13.8px; line-height: 1.62; color: var(--ink-2); }
+    .cap-link { color: var(--ink); text-decoration: underline; text-decoration-color: rgba(255,255,255,0.28); text-underline-offset: 3px; transition: text-decoration-color 0.2s ease; }
+    .cap-link:hover { text-decoration-color: var(--gold); }
+
+    /* Vignette 1: 360FPS GPU */
+    .v-fps-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; font-family: var(--mono); }
+    .v-fps-head strong { font-size: 26px; color: var(--gold); letter-spacing: -0.03em; }
+    .v-fps-head span { font-size: 11px; color: var(--ink-3); }
+    #fpsChart { width: 100%; height: 128px; }
+    #fpsChart .uplot, #fpsChart canvas { display: block; }
+    .v-fps-legend { display: flex; gap: 16px; margin: -2px 0 6px; font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); }
+    .v-fps-legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .v-fps-legend i { width: 8px; height: 2px; border-radius: 1px; }
+    .v-fps-legend b { font-weight: 500; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+
+    /* Vignette 2: SSH Remote */
+    .v-ssh { display: flex; flex-direction: column; gap: 8px; }
+    .v-ssh-row {
+      display: flex; align-items: center; gap: 11px;
+      padding: 7px 12px 7px 8px; border-radius: 10px; background: #191918; border: 1px solid rgba(255,255,255,0.07);
+      font-size: 12px; color: #d8d7d2; text-align: left;
+    }
+    .v-ssh-ic {
+      flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+      min-width: 26px; height: 26px; padding: 0 5px; border-radius: 7px;
+      background: #222220; border: 1px solid rgba(255,255,255,0.06);
+    }
+    .v-ssh-ic iconify-icon, .v-ssh-ic svg { display: block; }
+    .v-ssh-name { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 7px; white-space: nowrap; overflow: hidden; }
+    .v-ssh-name strong { flex-shrink: 0; font-size: 12.5px; font-weight: 500; color: #e6e5e0; }
+    .v-ssh-name small { min-width: 0; font-size: 11px; color: #8f8e89; overflow: hidden; text-overflow: ellipsis; }
+    .v-ssh-row em {
+      flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px;
+      font-style: normal; font-family: var(--mono); font-size: 10.5px; color: #9dc08b;
+    }
+    .v-ssh-row em::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor; box-shadow: 0 0 6px currentColor; }
+
+    /* Vignette 3: Browser 3x */
+    .v-browser { display: flex; flex-direction: column; gap: 10px; }
+    /* The browsers it drives, each on a dark tile. */
+    .br-icons { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .br-icons iconify-icon {
+      display: flex; align-items: center; justify-content: center;
+      width: 42px; height: 42px; border-radius: 11px;
+      background: #1f1f1d; border: 1px solid rgba(255,255,255,0.07);
+    }
+    .v-bar-row { display: flex; flex-direction: column; gap: 6px; font-family: var(--mono); font-size: 10.5px; color: var(--ink-2); }
+    .v-track { height: 6px; border-radius: 99px; background: rgba(255,255,255,0.07); overflow: hidden; }
+    .v-track i { display: block; height: 100%; border-radius: 99px; }
+    .v-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 2px; }
+    .v-tags span { font-family: var(--mono); font-size: 10px; padding: 3px 7px; border-radius: 5px; background: #1d1d1b; border: 1px solid var(--line); color: var(--ink-2); }
+
+    /* Vignette 4: every model and platform plugged in, on an Apple Watch
+       style honeycomb filling the card, drifting and swelling toward the middle. */
+    .v-orbit { position: absolute; inset: 0; }
+    .v-orb {
+      position: absolute; left: 50%; top: 50%; width: 54px; height: 54px; margin: -27px;
+      border-radius: 50%; display: grid; place-items: center;
+      background: radial-gradient(circle at 50% 30%, #252523, #181817);
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 6px 16px rgba(0,0,0,0.4);
+      will-change: transform, opacity;
+    }
+    .v-orb iconify-icon { font-size: 27px; }
+
+    /* Vignette 5: the tools BaoCode Bash has built in, drifting by in rows. */
+    .v-win { position: relative; display: flex; flex-direction: column; gap: 10px; margin: 0 -20px; }
+    /* Edge fades painted over the rows: a mask here dims the whole layer. */
+    .v-win::before, .v-win::after {
+      content: ""; position: absolute; top: 0; bottom: 0; width: 56px; z-index: 1; pointer-events: none;
+      background: linear-gradient(90deg, #121211, transparent);
+    }
+    .v-win::before { left: 0; }
+    .v-win::after { right: 0; transform: scaleX(-1); }
+    .v-win-row { display: flex; width: max-content; gap: 10px; animation: winDrift 60s linear infinite; }
+    .v-win-row:nth-child(2) { animation-direction: reverse; animation-duration: 72s; }
+    .v-win-row:nth-child(3) { animation-duration: 66s; }
+    .v-win:not(.is-live) .v-win-row { animation-play-state: paused; }
+    @keyframes winDrift { to { transform: translateX(-50%); } }
+    .v-win-row span {
+      height: 40px; padding: 0 15px 0 13px; display: inline-flex; align-items: center; gap: 7px;
+      background: #1a1a18; border: 1px solid rgba(255,255,255,0.07); border-radius: 11px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+      font-family: var(--mono); font-size: 12.5px; color: #c9c7c0; white-space: nowrap;
+    }
+    .v-win-row span.hi { color: var(--gold); border-color: rgba(229,186,125,0.3); background: #1e1b16; }
+    .v-win-row span iconify-icon { font-size: 15px; opacity: 0.85; }
+    @media (prefers-reduced-motion: reduce) { .v-win-row { animation: none; } }
+
+    /* Vignette 6: Custom API & Telemetry */
+    .v-api { display: flex; flex-direction: column; gap: 10px; }
+    .v-api-top { display: flex; justify-content: space-between; align-items: flex-end; }
+    .v-api-stat { display: flex; flex-direction: column; gap: 3px; }
+    .v-api-stat.is-saved { align-items: flex-end; }
+    .v-api-stat strong { font-family: var(--mono); font-size: 22px; font-weight: 600; line-height: 1.15; color: #ffffff; font-variant-numeric: tabular-nums; }
+    .v-api-stat.is-saved strong { color: #9dc08b; }
+    .v-api-stat > span { font-size: 11px; color: var(--ink-3); }
+    /* Odometer: a changed character rolls up to the new one. */
+    .v-roll { display: inline-flex; }
+    .v-roll .rd { display: inline-block; height: 1.15em; overflow: hidden; }
+    .v-roll .rt { display: flex; flex-direction: column; transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1); }
+    .v-roll .rt > span { display: block; height: 1.15em; line-height: 1.15em; }
+    .v-roll .rt.go { transform: translateY(-1.15em); }
+    .v-ctx-legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 11px; color: var(--ink-2); }
+    .v-ctx-legend span { display: inline-flex; align-items: center; gap: 5px; }
+    .v-ctx-legend i { width: 8px; height: 8px; border-radius: 2px; }
+    .v-ctx-legend em { font-style: normal; }
+    #ctxChart { width: 100%; height: 106px; }
+    #ctxChart .uplot, #ctxChart canvas { display: block; }
+
+    /* Dedicated 5-Up Mobile Companion Section (Integrated [Image #12]) */
+    .mobile-sec {
+      padding: 84px 0;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+    }
+    .mobile-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .mobile-strip {
+      display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 18px;
+    }
+    .mobile-item {
+      display: flex; flex-direction: column; gap: 11px; text-align: center;
+      padding: 0; border-radius: 22px; transition: transform 0.2s ease;
+    }
+    .mobile-item:hover { transform: translateY(-4px); }
+    .mobile-frame {
+      position: relative; border-radius: 22px; overflow: hidden;
+      background: #151514; border: 1px solid rgba(255, 255, 255, 0.11);
+      box-shadow: 0 22px 48px -24px rgba(0, 0, 0, 0.85);
+      transition: border-color 0.2s ease;
+    }
+    .mobile-item:hover .mobile-frame { border-color: rgba(229, 186, 125, 0.45); }
+    .mobile-frame img { width: 100%; height: auto; display: block; }
+    .mobile-cap {
+      font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em;
+      color: var(--ink-3); text-transform: uppercase;
+      transition: color 0.18s ease;
+    }
+    .mobile-item:hover .mobile-cap { color: var(--ink); }
+
+    /* Lightbox for Mobile Screenshots */
+    .lightbox {
+      position: fixed; inset: 0; z-index: 120;
+      background: rgba(10, 10, 9, 0.88); backdrop-filter: blur(14px);
+      display: none; align-items: center; justify-content: center; padding: 32px;
+    }
+    .lightbox.is-open { display: flex; }
+    .lb-inner {
+      position: relative; display: flex; flex-direction: column; align-items: center; gap: 14px;
+      max-height: 92vh;
+    }
+    .lb-inner img {
+      max-height: 82vh; width: auto; border-radius: 28px;
+      border: 1px solid rgba(255,255,255,0.16);
+      box-shadow: 0 36px 90px rgba(0,0,0,0.9);
+    }
+    .lb-meta {
+      display: flex; align-items: center; gap: 16px;
+      font-family: var(--mono); font-size: 12px; color: var(--ink-2);
+    }
+    .lb-nav {
+      height: 32px; padding: 0 12px; border-radius: 999px;
+      border: 1px solid var(--line-hi); background: #1a1a18; color: var(--ink);
+      font-size: 12px; transition: border-color 0.14s ease;
+    }
+    .lb-nav:hover { border-color: var(--gold); color: var(--gold); }
+
+    /* Philosophy — 2 Quiet Architectural Cards */
+    .phil-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+    .phil-card {
+      background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+      padding: 32px 30px; display: flex; flex-direction: column; gap: 14px;
+    }
+    .phil-card h3 { margin: 0; font-size: 21px; font-weight: 620; letter-spacing: -0.02em; line-height: 1.32; color: #ffffff; }
+    .phil-card p { margin: 0; font-size: 14.5px; line-height: 1.72; color: var(--ink-2); }
+
+    /* All Downloads Matrix */
+    .dl-matrix { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; }
+    .dl-os h3 {
+      margin: 0 0 14px; display: flex; align-items: center; gap: 8px;
+      font-size: 15px; font-weight: 620; color: #ffffff;
+    }
+    .dl-list { display: flex; flex-direction: column; gap: 10px; }
+    .dl-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      padding: 13px 15px; border-radius: 11px;
+      background: var(--card); border: 1px solid var(--line);
+      font-size: 13.5px; color: var(--ink);
+      transition: background-color 0.15s ease, border-color 0.15s ease;
+    }
+    .dl-row:hover { background: var(--card-hi); border-color: rgba(229, 186, 125, 0.35); }
+    .dl-row .fmt {
+      font-family: var(--mono); font-size: 11px; padding: 2px 6px; border-radius: 5px;
+      background: rgba(255, 255, 255, 0.06); color: var(--ink-2); margin-left: 6px;
+    }
+    .dl-row .arch { white-space: nowrap; font-family: var(--mono); font-size: 11px; color: var(--ink-3); }
+
+    .dl-os h3 .dl-ver { margin-left: auto; font-family: var(--mono); font-size: 10.5px; font-weight: 400; color: var(--ink-3); }
+    .dl-more { margin: 26px 0 0; font-size: 13px; }
+    .dl-more a { color: var(--ink-2); border-bottom: 1px solid rgba(152, 151, 146, 0.45); padding-bottom: 1px; transition: color 0.14s ease, border-color 0.14s ease; }
+    .dl-more a:hover { color: #ffffff; border-color: #ffffff; }
+
+    /* The release under the hero's download (site.js fills it in from latest.json). */
+    .hero-meta { margin: 2px 0 0; font-size: 12px; color: var(--ink-3); }
+    .hero-meta span { display: inline-block; }
+    .hero-meta span:not(:last-child)::after { content: "·"; margin: 0 7px; }
+
+    /* A listed channel (channels.json, site.js): its logo and name in the
+       header, and "<logo> <name> × <logo> BaoCode" in the hero's pill.
+       Hidden until site.js knows (head.js), their room kept. */
+    .channel-pending :is(.hdr .brand, [data-channel-title], [data-channel-subtitle]) { visibility: hidden; }
+    .hdr .brand img.channel-logo { height: 20px; width: auto; }
+    .hero-pill .channel { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; font-weight: 600; color: #ffffff; }
+    .hero-pill .channel-x { color: var(--ink-3); }
+    .hero-pill .channel-logo { height: 20px; width: auto; }
+    .hero-pill .channel-logo[src="/icon.png"] { border-radius: 5px; }
+
+    /* Under the reviews: the way to add one, and its dialog (site.js). */
+    .say-line { margin: 22px 0 0; text-align: center; font-size: 13.5px; color: var(--ink-3); }
+    .say-line button { color: var(--ink-2); border-bottom: 1px solid rgba(152, 151, 146, 0.45); padding: 0 0 1px; transition: color 0.14s ease, border-color 0.14s ease; }
+    .say-line button:hover { color: #ffffff; border-color: #ffffff; }
+    dialog.say {
+      width: min(460px, calc(100vw - 40px)); padding: 26px 28px 24px; border-radius: 16px;
+      background: var(--card); color: var(--ink-2); border: 1px solid var(--line-hi);
+      box-shadow: 0 32px 80px -24px rgba(0, 0, 0, 0.85);
+    }
+    dialog.say::backdrop { background: rgba(0, 0, 0, 0.55); }
+    dialog.say h2 { margin: 0 0 8px; font-size: 20px; font-weight: 650; color: #ffffff; letter-spacing: -0.015em; }
+    dialog.say p { margin: 0 0 20px; font-size: 14px; line-height: 1.6; }
+    dialog.say .field { display: block; margin: 0 0 14px; font-size: 13px; color: var(--ink); }
+    dialog.say .field > span { display: block; margin-bottom: 6px; }
+    dialog.say .field em { margin-left: 8px; font-style: normal; color: var(--ink-3); }
+    dialog.say :is(textarea, input) {
+      display: block; width: 100%; padding: 9px 11px; border-radius: 9px; resize: vertical;
+      background: #111110; color: var(--ink); border: 1px solid var(--line-hi); font: 14px/1.5 var(--sans);
+    }
+    dialog.say :is(textarea, input):focus { outline: none; border-color: rgba(229, 186, 125, 0.55); box-shadow: 0 0 0 3px rgba(229, 186, 125, 0.14); }
+    dialog.say :is(textarea, input)::placeholder { color: var(--ink-3); }
+    dialog.say p.hint { margin: -2px 0 20px; font-size: 12.5px; color: var(--ink-3); }
+    dialog.say .get { display: flex; flex-wrap: wrap; gap: 8px; }
+    .say-btn { height: 36px; padding: 0 16px; border-radius: 999px; font-size: 13.5px; font-weight: 600; color: var(--ink); border: 1px solid var(--line-hi); }
+    .say-btn:hover { border-color: rgba(255, 255, 255, 0.28); }
+    .say-btn.primary { background: #ffffff; color: #111110; border-color: #ffffff; }
+    .say-btn.primary:hover { background: #f2f1ed; }
+    .say-btn:disabled { opacity: 0.6; cursor: default; }
+    dialog.say .say-status { margin: 12px 0 0; font-size: 13px; color: #e0866a; }
+    dialog.say .say-status:empty { display: none; }
+    dialog.say .done, dialog.say.sent form { display: none; }
+    dialog.say.sent .done { display: block; }
+
+    /* Minimal Footer */
+    footer {
+      margin-top: 32px; border-top: 1px solid var(--line);
+      padding: 18px 0; font-size: 13px; color: var(--ink-3);
+    }
+    /* One row: the mark in grey, the license and the disclaimer, the links. */
+    .foot-in { display: flex; align-items: center; gap: 28px; }
+    .foot-brand { flex: none; color: var(--ink-3); font-size: 14px; transition: color .15s ease; }
+    .foot-brand:hover { color: var(--ink-2); }
+    .foot-brand .brand-mark { width: 18px; height: 14px; }
+    .foot-note { flex: 1; min-width: 0; margin: 0; font-size: 12px; color: var(--ink-3); }
+    .foot-links { flex: none; display: flex; gap: 22px; }
+    .foot-links a:hover { color: var(--ink); }
+    @media (max-width: 1080px) {
+      .foot-in { flex-wrap: wrap; gap: 12px 24px; }
+      .foot-note { order: 3; flex-basis: 100%; }
+      .foot-links { flex-wrap: wrap; gap: 10px 20px; }
+    }
+
+    @media (max-width: 1040px) {
+      .mobile-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .dl-matrix { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    .window-shots { display: none; }
+    .window-shots img {
+      display: block; width: 100%; height: auto; border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.9);
+    }
+    .window-shots img:not(.is-on) { display: none; }
+    @media (max-width: 860px) {
+      #baocodeWindowMount { display: none; }
+      .window-shots { display: block; }
+      .wrap { padding: 0 20px; }
+      .cap-grid, .phil-grid, .dl-matrix { grid-template-columns: 1fr; }
+      .mobile-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    }
+
+    /* Entrance: the hero settles in on load; sections rise as they scroll in.
+       Opacity + translate/scale only (compositor work); text also unblurs. */
+    :root { --rv-ease: cubic-bezier(0.22, 1, 0.36, 1); }
+    :where(.reveal-on) :where(.hero-pill, .h1, .hero-sub, .dl-hero-wrap, .mode-bar, #baocodeWindowMount, .window-shots,
+                   .sec-head, .sec-head-only, .cap-card, .mobile-item, .phil-card, .dl-os) {
+      --rv-y: 18px;
+      --rv-blur: 0px;
+      --rv-scale: 1;
+    }
+    .reveal-on :is(.hero-pill, .h1, .hero-sub, .sec-head, .sec-head-only) { --rv-blur: 5px; }
+    .reveal-on :is(#baocodeWindowMount, .window-shots) { --rv-y: 36px; --rv-scale: 0.975; }
+    /* Hidden until shown… */
+    .reveal-on :is(.hero-pill, .h1, .hero-sub, .dl-hero-wrap, .mode-bar, #baocodeWindowMount, .window-shots,
+                   .sec-head, .sec-head-only, .cap-card, .mobile-item, .phil-card, .dl-os):not(.is-in) {
+      opacity: 0;
+      translate: 0 var(--rv-y);
+      scale: var(--rv-scale);
+      filter: blur(var(--rv-blur));
+    }
+    /* …and eased in while showing. Once done the element drops this, so its own transitions (hovers) come back. */
+    .reveal-on .is-in:not(.rv-done) {
+      transition:
+        opacity 0.9s var(--rv-ease) var(--d, 0ms),
+        translate 1s var(--rv-ease) var(--d, 0ms),
+        scale 1.1s var(--rv-ease) var(--d, 0ms),
+        filter 0.8s var(--rv-ease) var(--d, 0ms);
+    }
+    .reveal-on :is(#baocodeWindowMount, .window-shots).is-in:not(.rv-done) { transition-duration: 1.1s, 1.3s, 1.4s, 1s; }
+    .reveal-on .hero-pill { --d: 0ms; }
+    .reveal-on .h1 { --d: 90ms; }
+    .reveal-on .hero-sub { --d: 190ms; }
+    .reveal-on .dl-hero-wrap { --d: 280ms; }
+    .reveal-on .mode-bar { --d: 380ms; }
+    .reveal-on :is(#baocodeWindowMount, .window-shots) { --d: 460ms; }
+  </style>
+  <script>
+    // Hidden from the first paint, so nothing flashes before it animates in;
+    // shown anyway if the page script never gets to it.
+    if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      document.documentElement.classList.add("reveal-on");
+      setTimeout(() => {
+        if (!document.documentElement.classList.contains("reveal-ready")) document.documentElement.classList.remove("reveal-on");
+      }, 4000);
+    }
+  </script>
+  <script>
+    // The page's slow animations share one beat of about 30 frames a
+    // second. A timer wakes it, so the frames in between are left alone
+    // (asking for every frame and skipping most still costs each one).
+    // A callback returning false leaves the beat; it ends with the last.
+    window.baoTicker = (() => {
+      const subs = new Set();
+      let armed = false;
+      function fire(now) {
+        armed = false;
+        for (const f of [...subs]) if (f(now) === false) subs.delete(f);
+        arm();
+      }
+      function arm() {
+        if (armed || !subs.size) return;
+        armed = true;
+        setTimeout(() => requestAnimationFrame(fire), 26);
+      }
+      return { add(f) { subs.add(f); arm(); } };
+    })();
+  </script>
+</head>
+<body>
+  <header class="hdr">
+    <div class="wrap hdr-in">
+      <div class="hdr-left">
+        <a class="brand" href="/" data-home>
+          <svg class="brand-mark" viewBox="0 0 56 42" fill="none" aria-hidden="true"><path d="M49 42H7V35H49V42ZM7 35H0V14H7V35ZM56 35H49V14H56V35ZM22 28H14V21H22V28ZM43 28H35V21H43V28ZM14 14H7V7H14V14ZM49 14H42V7H49V14ZM42 7H14V0H42V7Z" fill="currentColor"/></svg>
+          <span>BAOCODE</span>
+        </a>
+      </div>
+      <div class="hdr-right">
+        <a class="hdr-link" href="/changelog" data-i18n="hdrLog">更新日志</a>
+        <a class="pill-outline lang" href="/" hreflang="en" lang="en" data-lang-link>
+          <iconify-icon icon="lucide:globe" width="14" height="14"></iconify-icon>
+          <span data-i18n="langOther">EN</span>
+        </a>
+        <a class="pill-outline" href="https://github.com/baocode-dev/baocode" target="_blank" rel="noopener">
+          <iconify-icon icon="simple-icons:github" width="14" height="14"></iconify-icon>
+          GitHub
+          <span class="gh-stars"><iconify-icon icon="lucide:star" width="12" height="12"></iconify-icon><span data-gh-stars>773</span></span>
+        </a>
+        <a class="pill-white" id="hdrDl" href="/download" data-i18n="hdrDl">下载</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="hero-sky" aria-hidden="true">
+        <canvas></canvas>
+      </div>
+      <div class="wrap">
+        <div class="hero-top">
+        <div class="hero-copy">
+        <div class="hero-pill" data-channel-title>
+          <span class="hero-os" aria-hidden="true">
+            <iconify-icon icon="fa6-brands:windows" width="16" style="color:#00a4ef"></iconify-icon>
+            <iconify-icon icon="logos:linux-tux" width="16" height="18"></iconify-icon>
+            <svg class="finder-icon" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><defs><linearGradient id="fdLHero" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4fb8ff"/><stop offset="1" stop-color="#1477f0"/></linearGradient><linearGradient id="fdRHero" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f4f9ff"/><stop offset="1" stop-color="#cfe3f8"/></linearGradient><clipPath id="fdCHero"><rect x="1" y="1" width="22" height="22" rx="5.2"/></clipPath></defs><g clip-path="url(#fdCHero)"><rect width="24" height="24" fill="url(#fdRHero)"/><path d="M0 0H13.2C12.7 3.6 12.1 7.6 11.5 11.3L9.7 12.7L11.6 13.4C11.2 16.6 11.5 20.2 12.2 24H0Z" fill="url(#fdLHero)"/><path d="M7.4 7.3V10.1M16.6 7.3V10.1" stroke="#16304d" stroke-width="1.6" stroke-linecap="round"/><path d="M5.4 15.4C8.4 18.6 15.6 18.6 18.6 15.4" fill="none" stroke="#16304d" stroke-width="1.5" stroke-linecap="round"/></g></svg>
+          </span>
+          <span data-i18n="heroPill">任意操作系统、服务器上的 Claude Code，随连随用</span>
+        </div>
+
+        <h1 class="h1"><span data-i18n="heroH1a">开源 Claude Code 控制面</span> <span data-i18n="heroH1b">不仅仅是界面</span></h1>
+        </div>
+        <div class="hero-side">
+        <p class="hero-sub" data-i18n="heroSub" data-channel-subtitle>细节拉满的 360FPS 界面之外，还有远程其他电脑的 Claude Code、手机随时接管、Windows 深度优化、10 倍效率的浏览器操控、完整代码编辑器、任意自定义 API、用量洞察、对话编排与 Bot。</p>
+
+        <div class="dl-hero-wrap">
+          <a class="dl-hero-btn" id="heroDlBtn" href="/dl/macos-arm64">
+            <iconify-icon id="heroDlIcon" icon="simple-icons:apple" width="24" height="24"></iconify-icon>
+            <div class="dl-text">
+              <strong id="heroDlTitle" data-i18n="heroDlTitle">下载 BaoCode</strong>
+              <span id="heroDlSub">macOS · Apple Silicon (.dmg)</span>
+            </div>
+          </a>
+          <a class="dl-all-link" href="/download" data-i18n="heroAllDl">查看全部平台下载</a>
+          <p class="hero-meta"><span data-version>版本 2.0.4</span><span data-i18n="heroFree">免费开源</span><span data-updated>更新于 2026 年 11 月 22 日</span></p>
+        </div>
+        </div>
+        </div>
+
+        <div class="window-stage">
+          <div class="mode-bar">
+            <div class="mode-seg">
+              <button class="stage-tab is-active" type="button" role="tab" data-demo="agent"><iconify-icon icon="tabler:message-circle" width="15" height="15"></iconify-icon><span data-i18n="demoAgent">Agent 模式</span></button>
+              <button class="stage-tab" type="button" role="tab" data-demo="editor"><iconify-icon icon="devicon-plain:vscode" width="15" height="15"></iconify-icon><span data-i18n="demoEditor">IDE 模式</span></button>
+            </div>
+          </div>
+          <div id="baocodeWindowMount"></div>
+          <!-- Narrow screens get pictures of the window instead of the live one. -->
+          <div class="window-shots" id="windowShots">
+            <img class="is-on" data-demo="agent" src="/assets/window-agent.webp" alt="BaoCode Agent" width="1600" height="1037" loading="lazy">
+            <img data-demo="editor" src="/assets/window-editor.webp" alt="BaoCode IDE" width="1600" height="1037" loading="lazy">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="reviews">
+      <div class="wrap">
+        <div class="sec-head-only voices-head">
+          <h2 class="sec-h2" data-i18n="voicesH2">他们说</h2>
+        </div>
+      </div>
+      <div class="voices" id="voices" aria-label="用户的评价"></div>
+      <p class="say-line"><span data-i18n="sayQ">用过 BaoCode？</span> <button type="button" data-say-open data-i18n="sayBtn">说一句</button></p>
+    </section>
+
+    <section class="sec" id="capabilities">
+      <div class="wrap">
+        <div class="sec-head-only">
+          <h2 class="sec-h2" data-i18n="capH2">为极致工程效率重做每一环</h2>
+          <p class="sec-sub" data-i18n="capSub">从原生 GPU 渲染管线到跨机真机调试，全部按主力开发工具的标准从底层打磨。</p>
+        </div>
+
+        <div class="cap-grid">
+          <!-- Card 1: 360FPS GPU -->
+          <article class="cap-card">
+            <div class="cap-visual">
+              <div class="v-fps-head">
+                <strong>360 FPS</strong>
+                <span>&lt; 2.77ms · Skia GPU</span>
+              </div>
+              <div class="v-fps-legend">
+                <span><i style="background:#e5ba7d"></i>BaoCode <b id="fpsBao">358</b></span>
+                <span><i style="background:rgba(255,255,255,0.35)"></i><em style="font-style:normal" data-i18n="fpsElectron">Electron 应用</em> <b id="fpsEl">72</b></span>
+              </div>
+              <div id="fpsChart" aria-hidden="true"></div>
+            </div>
+            <div class="cap-body">
+              <h3 data-i18n="c1Title">GPU 360FPS 原生绘制</h3>
+              <p data-i18n="c1Body">彻底放弃 Electron 与 DOM 重排。高吞吐流式输出稳锁高刷，WheelGlide 0.01px 跟手滚动，思考等待自动降频静音。</p>
+            </div>
+          </article>
+
+          <!-- Card 2: Universal SSH Remote -->
+          <article class="cap-card">
+            <div class="cap-visual">
+              <div class="v-ssh">
+                <div class="v-ssh-row">
+                  <span class="v-ssh-ic" aria-hidden="true"><svg  viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><defs><linearGradient id="fdLSsh" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4fb8ff"/><stop offset="1" stop-color="#1477f0"/></linearGradient><linearGradient id="fdRSsh" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f4f9ff"/><stop offset="1" stop-color="#cfe3f8"/></linearGradient><clipPath id="fdCSsh"><rect x="1" y="1" width="22" height="22" rx="5.2"/></clipPath></defs><g clip-path="url(#fdCSsh)"><rect width="24" height="24" fill="url(#fdRSsh)"/><path d="M0 0H13.2C12.7 3.6 12.1 7.6 11.5 11.3L9.7 12.7L11.6 13.4C11.2 16.6 11.5 20.2 12.2 24H0Z" fill="url(#fdLSsh)"/><path d="M7.4 7.3V10.1M16.6 7.3V10.1" stroke="#16304d" stroke-width="1.6" stroke-linecap="round"/><path d="M5.4 15.4C8.4 18.6 15.6 18.6 18.6 15.4" fill="none" stroke="#16304d" stroke-width="1.5" stroke-linecap="round"/></g></svg></span>
+                  <span class="v-ssh-name"><strong>mac-studio</strong><small>macOS 15</small></span>
+                  <em>connected</em>
+                </div>
+                <div class="v-ssh-row">
+                  <span class="v-ssh-ic" aria-hidden="true"><iconify-icon icon="logos:linux-tux" width="15" height="17"></iconify-icon></span>
+                  <span class="v-ssh-name"><strong>prod-gpu-01</strong><small>Ubuntu 24.04</small></span>
+                  <em>connected</em>
+                </div>
+                <div class="v-ssh-row">
+                  <span class="v-ssh-ic" aria-hidden="true"><iconify-icon icon="fa6-brands:windows" width="15" style="color:#00a4ef"></iconify-icon></span>
+                  <span class="v-ssh-name"><strong>win-workstation</strong><small>Windows 11</small></span>
+                  <em>connected</em>
+                </div>
+                <div class="v-ssh-row">
+                  <span class="v-ssh-ic" aria-hidden="true"><iconify-icon icon="logos:android-icon" width="14" height="16"></iconify-icon><iconify-icon icon="logos:chrome" width="15" height="15"></iconify-icon></span>
+                  <span class="v-ssh-name"><strong data-i18n="sshR1">本机安卓 + Chrome</strong></span>
+                  <em>forwarded</em>
+                </div>
+              </div>
+            </div>
+            <div class="cap-body">
+              <h3 data-i18n="c2Title">全平台 SSH 远程 Claude Code</h3>
+              <p data-i18n="c2Body">任意连接多台服务器并使用其自身 Claude Code，同时无缝打通本机：云端编译直接调试插在本机 Type-C 的安卓真机与本机 Chrome。</p>
+            </div>
+          </article>
+
+          <!-- Card 3: Browser 3x -->
+          <article class="cap-card">
+            <div class="cap-visual">
+              <div class="v-browser">
+                <div class="br-icons" title="Chrome · Edge · Brave · Arc · Vivaldi">
+                  <iconify-icon icon="logos:chrome" width="22" height="22"></iconify-icon>
+                  <iconify-icon icon="logos:microsoft-edge" width="22" height="22"></iconify-icon>
+                  <iconify-icon icon="logos:brave" width="19" height="22"></iconify-icon>
+                  <iconify-icon icon="logos:arc" width="22" height="22"></iconify-icon>
+                  <iconify-icon icon="logos:vivaldi-icon" width="22" height="22"></iconify-icon>
+                </div>
+                <div class="v-bar-row">
+                  <span data-i18n="b3Bar1">BaoCode 真实浏览器扩展</span>
+                  <div class="v-track"><i style="width:94%;background:#e5ba7d;"></i></div>
+                  <span style="color:var(--ink-3);" data-i18n="b3Bar2">盲目截屏方案</span>
+                  <div class="v-track"><i style="width:9.4%;background:#4a4945;"></i></div>
+                </div>
+                <div class="v-tags">
+                  <span data-i18n="b3T1">0–1 压感拖拽</span>
+                  <span>React/Vue State</span>
+                  <span data-i18n="b3T3">源码断点</span>
+                  <span data-i18n="b3T4">1ms 性能</span>
+                </div>
+              </div>
+            </div>
+            <div class="cap-body">
+              <h3 data-i18n="c3Title">10 倍浏览器操作效率提升</h3>
+              <p data-i18n="c3Body">直接接管已登录 Chrome，渐进暴露压感微操、组件 State、WebSocket 透视、源码断点与 1ms 性能剖析，任何网页无秘密。</p>
+            </div>
+          </article>
+
+          <!-- Card 4: Every Model -->
+          <article class="cap-card">
+            <div class="cap-visual">
+              <div class="v-orbit" id="modelGrid" role="img" aria-label="Claude, ChatGPT, DeepSeek, Kimi, Gemini, Qwen, GLM, MiniMax, OpenRouter, Ollama …"></div>
+            </div>
+            <div class="cap-body">
+              <h3 data-i18n="c4Title">全模型接入，换谁都好用</h3>
+              <p data-i18n="c4Body">DeepSeek、Kimi、ChatGPT、Gemini 等主流模型与 OpenRouter、Ollama 等平台直接接入，协议差异由 BaoCode 适配，在 Claude Code 里一样表现出色。</p>
+            </div>
+          </article>
+
+          <!-- Card 5: Deep Windows Optimization -->
+          <article class="cap-card">
+            <div class="cap-visual">
+              <div class="v-win" id="winTools" aria-label="bash rg grep sed awk find jq xargs …"></div>
+            </div>
+            <div class="cap-body">
+              <h3 data-i18n="c5Title">深度 Windows 终端与渲染优化</h3>
+              <p><a class="cap-link" href="https://github.com/baocode-dev/bash-exe" target="_blank" rel="noopener">bash.exe</a> <span data-i18n="c5Body">为你的 Windows 抹平了平台差异，用起来与 WSL 差不多；界面与 macOS 同走 Skia GPU 渲染，一样顺滑。</span></p>
+            </div>
+          </article>
+
+          <!-- Card 6: Custom API & Pricing Telemetry -->
+          <article class="cap-card">
+            <div class="cap-visual">
+              <div class="v-api">
+                <div class="v-api-top">
+                  <div class="v-api-stat"><strong class="v-roll" id="apiHit">98.3%</strong><span data-i18n="apiHitL">缓存命中率</span></div>
+                  <div class="v-api-stat is-saved"><strong class="v-roll" id="apiSaved">$135.39</strong><span data-i18n="apiSavedL">已节省</span></div>
+                </div>
+                <div class="v-ctx-legend">
+                  <span><i style="background:#2e9e72"></i><em data-i18n="ctxRead">缓存读取</em></span>
+                  <span><i style="background:#3f86d8"></i><em data-i18n="ctxIn">输入</em></span>
+                  <span><i style="background:#b0679e"></i><em data-i18n="ctxWrite">缓存写入</em></span>
+                  <span><i style="background:#bd8128"></i><em data-i18n="ctxOut">输出</em></span>
+                </div>
+                <div id="ctxChart" aria-hidden="true"></div>
+              </div>
+            </div>
+            <div class="cap-body">
+              <h3 data-i18n="c6Title">任意自定义 API 与精确计费追踪</h3>
+              <p data-i18n="c6Body">协议层直接抹平主流上游差异，零配置污染、无需额外代理工具；内置面板精确追踪峰谷、节假日、阶梯上下文与缓存节省。</p>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- Integrated 5-Up Real iPhone Showcase ([Image #12]) -->
+    <section class="mobile-sec" id="mobile">
+      <div class="wrap">
+        <div class="sec-head">
+          <div>
+            <h2 class="sec-h2" data-i18n="mobH2">移动端无损同屏渲染</h2>
+            <p class="sec-sub" data-i18n="mobSub">同一份实时会话、400K 上下文明细、多模型切换与全部 SSH 远程代码库，完整延伸到 iOS 与 Android。</p>
+          </div>
+          <div class="mobile-actions">
+            <a class="pill-outline" href="/dl/ios">
+              <iconify-icon icon="simple-icons:apple" width="14" height="14"></iconify-icon>
+              iOS TestFlight
+            </a>
+            <a class="pill-outline" href="/dl/android">
+              <iconify-icon icon="simple-icons:android" width="14" height="14"></iconify-icon>
+              Android APK
+            </a>
+          </div>
+        </div>
+
+        <div class="mobile-strip" id="mobileStrip">
+          <button class="mobile-item" type="button" data-shot-index="0">
+            <div class="mobile-frame"><img src="/assets/mobile-5.webp" alt="01 LIVE CHAT" width="945" height="2048" loading="lazy" decoding="async" /></div>
+            <span class="mobile-cap">01 LIVE CHAT</span>
+          </button>
+          <button class="mobile-item" type="button" data-shot-index="1">
+            <div class="mobile-frame"><img src="/assets/mobile-4.webp" alt="02 CONTEXT 400K" width="945" height="2048" loading="lazy" decoding="async" /></div>
+            <span class="mobile-cap">02 CONTEXT 400K</span>
+          </button>
+          <button class="mobile-item" type="button" data-shot-index="2">
+            <div class="mobile-frame"><img src="/assets/mobile-3.webp" alt="03 MODELS &amp; QUOTA" width="945" height="2048" loading="lazy" decoding="async" /></div>
+            <span class="mobile-cap">03 MODELS &amp; QUOTA</span>
+          </button>
+          <button class="mobile-item" type="button" data-shot-index="3">
+            <div class="mobile-frame"><img src="/assets/mobile-1.webp" alt="04 HOST &amp; SSH" width="945" height="2048" loading="lazy" decoding="async" /></div>
+            <span class="mobile-cap">04 HOST &amp; SSH</span>
+          </button>
+          <button class="mobile-item" type="button" data-shot-index="4">
+            <div class="mobile-frame"><img src="/assets/mobile-2.webp" alt="05 REMOTE FILES" width="945" height="2048" loading="lazy" decoding="async" /></div>
+            <span class="mobile-cap">05 REMOTE FILES</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <section class="sec" id="philosophy">
+      <div class="wrap">
+        <div class="sec-head-only">
+          <h2 class="sec-h2" data-i18n="philH2">不重复造轮子，简单自然才好用</h2>
+          <p class="sec-sub" data-i18n="philSub">Claude Code 已经足够好，BaoCode 只补它缺的那部分。开箱即用，不用学新概念，用起来就像它本该如此。</p>
+        </div>
+
+        <div class="phil-grid">
+          <article class="phil-card">
+            <h3 data-i18n="p1Title">为什么是 Claude Code？</h3>
+            <p data-i18n="p1Body">无论基于哪个内核定制，做到最后都会长成 Claude Code 的样子：同样的工具、同样的上下文管理、同样的 Skill 与 MCP。与其绕一圈重造，不如直接用它，再在协议层接入其他模型，一套配置通用全部。</p>
+          </article>
+          <article class="phil-card">
+            <h3 data-i18n="p2Title">一个对话就能调度全部</h3>
+            <p data-i18n="p2Body">不做复杂的编排画布。主对话通过内置 MCP 直接调度其他会话和子代理，跨服务器也一样；复杂的流程口述一遍，或写成 Skill 就能反复用。</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="sec" id="download">
+      <div class="wrap">
+        <div class="sec-head-only">
+          <h2 class="sec-h2" data-i18n="dlH2">全平台最新版本</h2>
+          <p class="sec-sub" data-i18n="dlSub">所有桌面、移动与浏览器扩展均通过统一入口自动分发最新构建。</p>
+        </div>
+
+        <div class="dl-matrix">
+          <div class="dl-os">
+            <h3><iconify-icon icon="simple-icons:apple" width="16" height="16"></iconify-icon> macOS <small class="dl-ver" data-version>版本 2.0.4</small></h3>
+            <div class="dl-list">
+              <a class="dl-row" data-file="macos-arm64" href="/dl/macos-arm64">
+                <span>Apple Silicon <span class="fmt">.dmg</span></span>
+                <span class="arch">arm64</span>
+              </a>
+              <a class="dl-row" data-file="macos-x64" href="/dl/macos-x64">
+                <span>Intel <span class="fmt">.dmg</span></span>
+                <span class="arch">x64</span>
+              </a>
+            </div>
+          </div>
+
+          <div class="dl-os">
+            <h3><iconify-icon icon="simple-icons:windows11" width="15" height="15"></iconify-icon> Windows <small class="dl-ver" data-version>版本 2.0.4</small></h3>
+            <div class="dl-list">
+              <a class="dl-row" data-file="windows" href="/dl/windows">
+                <span>Windows 10 / 11 <span class="fmt">.exe</span></span>
+                <span class="arch">x64</span>
+              </a>
+              <a class="dl-row" data-file="windows-arm64" href="/dl/windows-arm64">
+                <span>Windows ARM <span class="fmt">.exe</span></span>
+                <span class="arch">arm64</span>
+              </a>
+            </div>
+          </div>
+
+          <div class="dl-os">
+            <h3><iconify-icon icon="simple-icons:linux" width="16" height="16"></iconify-icon> Linux <small class="dl-ver" data-version>版本 2.0.4</small></h3>
+            <div class="dl-list">
+              <a class="dl-row" data-file="linux-x64" href="/dl/linux-x64">
+                <span>Linux x64 <span class="fmt">.deb</span></span>
+                <span class="arch">x64</span>
+              </a>
+              <a class="dl-row" data-file="linux-arm64" href="/dl/linux-arm64">
+                <span>Linux arm64 <span class="fmt">.deb</span></span>
+                <span class="arch">arm64</span>
+              </a>
+            </div>
+          </div>
+
+          <div class="dl-os">
+            <h3><iconify-icon icon="lucide:smartphone" width="16" height="16"></iconify-icon> <span data-i18n="dlMob">移动端与扩展</span></h3>
+            <div class="dl-list">
+              <a class="dl-row" href="/dl/ios">
+                <span>iOS <span class="fmt">TestFlight</span></span>
+                <span class="arch" data-mobile-version>版本 0.1.8</span>
+              </a>
+              <a class="dl-row" data-file="androidArm64" href="/dl/android">
+                <span>Android <span class="fmt">.apk</span></span>
+                <span class="arch" data-mobile-version>版本 0.1.8</span>
+              </a>
+              <a class="dl-row" data-file="android" href="/dl/android-universal">
+                <span>Android <span class="fmt" data-i18n="dlUniversal">通用版</span></span>
+                <span class="arch">armv7 · x64</span>
+              </a>
+              <a class="dl-row" href="/dl/chrome-web-store">
+                <span>Chrome <span class="fmt">Store</span></span>
+                <span class="arch" data-extension-version>版本 0.1.0</span>
+              </a>
+            </div>
+          </div>
+        </div>
+        <p class="dl-more"><a href="/download" data-i18n="dlMore">安装说明、二维码与校验值</a></p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap foot-in">
+      <a class="brand foot-brand" href="/" data-home aria-label="BaoCode">
+        <svg class="brand-mark" viewBox="0 0 56 42" fill="none" aria-hidden="true"><path d="M49 42H7V35H49V42ZM7 35H0V14H7V35ZM56 35H49V14H56V35ZM22 28H14V21H22V28ZM43 28H35V21H43V28ZM14 14H7V7H14V14ZM49 14H42V7H49V14ZM42 7H14V0H42V7Z" fill="currentColor"/></svg>
+        <span>BAOCODE</span>
+      </a>
+      <p class="foot-note"><span data-i18n="fLicense">GPL-3.0 开源</span></p>
+      <div class="foot-links">
+        <a href="/download" data-i18n="fDl">下载</a>
+        <a href="/changelog" data-i18n="fLog">更新日志</a>
+        <a href="https://github.com/baocode-dev/baocode" target="_blank" rel="noopener">GitHub</a>
+        <a href="/browser-privacy" data-i18n="fExt">浏览器扩展隐私</a>
+        <a href="/mobile-privacy" data-i18n="fMob">移动端隐私</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Lightbox Modal -->
+  <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Mobile screenshot preview">
+    <div class="lb-inner">
+      <img id="lbImg" src="" alt="" />
+      <div class="lb-meta">
+        <button class="lb-nav" id="lbPrev" type="button">← Prev</button>
+        <span id="lbCap">01 LIVE CHAT</span>
+        <button class="lb-nav" id="lbNext" type="button">Next →</button>
+        <button class="lb-nav" id="lbClose" type="button">ESC</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const hdr = document.querySelector(".hdr");
+      if (!hdr) return;
+      const sync = () => hdr.classList.toggle("is-stuck", scrollY > 8);
+      addEventListener("scroll", sync, { passive: true });
+      sync();
+    })();
+  </script>
+  <script>
+    // The hero's sky. One shader: an edgeless aurora glow drifting sideways,
+    // and broad beams fanning down from above the headline with light
+    // flowing out along them. Everything soft and slow; dithered so the dark
+    // gradients don't band. Runs only while on screen; one still frame when
+    // motion is turned down.
+    (function () {
+      const sky = document.querySelector(".hero-sky");
+      const hero = document.querySelector(".hero");
+      const canvas = sky && sky.querySelector("canvas");
+      const gl = canvas && canvas.getContext("webgl", { premultipliedAlpha: true, antialias: false });
+      if (!gl || !hero) return;
+      const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      const vs = "attribute vec2 p; void main(){ gl_Position = vec4(p, 0.0, 1.0); }";
+      const fs = `
+        precision highp float;
+        uniform vec2 uRes; uniform vec2 uSrc; uniform vec4 uBox; uniform float uT; uniform float uPx;
+        float beam(vec2 d, float cosA, float sA, float sB, float spd) {
+          return clamp(0.45 + 0.15 * sin(cosA * sA + uT * spd) + 0.3 + 0.2 * cos(-cosA * sB + uT * spd), 0.0, 1.0);
+        }
+        void main() {
+          vec2 px = gl_FragCoord.xy;
+          float W = uRes.x, H = uRes.y;
+
+          // Beams: angle from straight down, soft bands across it.
+          vec2 d = px - uSrc;
+          float dist = length(d);
+          float cosA = dot(d / max(dist, 1.0), vec2(0.0, -1.0));
+          float rays = 0.55 * beam(d, cosA, 36.22, 21.11, 0.45) + 0.45 * beam(d, cosA, 22.4, 18.02, 0.3);
+          rays *= smoothstep(0.25, 0.85, cosA);
+          rays *= clamp(1.0 - dist / (H * 1.3), 0.0, 1.0);
+          rays *= smoothstep(0.0, 120.0 * uPx, dist);
+          // Light flowing outward along them.
+          rays *= 0.84 + 0.16 * sin(dist / uPx * 0.022 - uT * 1.6);
+          rays = pow(rays, 1.3);
+
+          // Aurora: a soft glow along the top with no edge anywhere, fading
+          // evenly up and down; patches of it drift sideways and swell and
+          // ebb.
+          float u = px.x / W;
+          float yt = (H - px.y) / uPx;
+          float aurI = exp(-pow((yt - 90.0) / 80.0, 2.0));
+          aurI *= 0.45 + 0.55 * (0.5 + 0.5 * sin(u * 4.2 + uT * 0.12)) * (0.6 + 0.4 * sin(u * 2.3 - uT * 0.09 + 1.0));
+          aurI *= smoothstep(0.0, 0.18, u) * smoothstep(1.0, 0.82, u);
+          vec3 teal = vec3(0.36, 0.78, 0.68), gold = vec3(0.90, 0.73, 0.49), vio = vec3(0.58, 0.52, 0.92);
+          float cu = u + 0.08 * sin(uT * 0.07);
+          vec3 aurCol = cu < 0.5 ? mix(teal, gold, smoothstep(0.12, 0.5, cu)) : mix(gold, vio, smoothstep(0.5, 0.88, cu));
+          aurCol = mix(aurCol, vec3(0.86), 0.22);
+          vec3 aur = aurCol * aurI * 0.22;
+
+          // The words: beams dim behind them.
+          float e = length((px - uBox.xy) / uBox.zw);
+          rays *= mix(0.55, 1.0, smoothstep(0.8, 1.3, e));
+
+          vec3 col = vec3(0.96, 0.87, 0.72) * rays * 0.2 + aur;
+          float n = fract(sin(dot(px, vec2(12.9898, 78.233))) * 43758.5453);
+          col += (n - 0.5) / 255.0;
+          col = max(col, 0.0);
+          gl_FragColor = vec4(col, max(col.r, max(col.g, col.b)));
+        }`;
+      function shader(type, src) {
+        const sh = gl.createShader(type);
+        gl.shaderSource(sh, src); gl.compileShader(sh);
+        return sh;
+      }
+      const prog = gl.createProgram();
+      gl.attachShader(prog, shader(gl.VERTEX_SHADER, vs));
+      gl.attachShader(prog, shader(gl.FRAGMENT_SHADER, fs));
+      gl.linkProgram(prog);
+      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return;
+      gl.useProgram(prog);
+      gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+      const loc = gl.getAttribLocation(prog, "p");
+      gl.enableVertexAttribArray(loc);
+      gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+      const u = (k) => gl.getUniformLocation(prog, k);
+      const uRes = u("uRes"), uSrc = u("uSrc"), uBox = u("uBox"), uT = u("uT"), uPx = u("uPx");
+
+      let visible = true;
+      function layout() {
+        const top = hero.querySelector(".hero-top") || hero;
+        const hr = hero.getBoundingClientRect();
+        const tr = top.getBoundingClientRect();
+        hero.style.setProperty("--warp-h", `${Math.round(tr.bottom - hr.top + 160)}px`);
+        const r = sky.getBoundingClientRect();
+        // Soft light needs few pixels: half of them, scaled up, looks the same.
+        const k = 0.5;
+        canvas.width = Math.round(r.width * k);
+        canvas.height = Math.round(r.height * k);
+        gl.viewport(0, 0, canvas.width, canvas.height);
+        const gy = (y) => (r.height - y) * k;
+        gl.uniform2f(uRes, canvas.width, canvas.height);
+        gl.uniform1f(uPx, k);
+        gl.uniform2f(uSrc, (r.width / 2) * k, gy(-40));
+        gl.uniform4f(uBox, (tr.left + tr.width / 2 - r.left) * k, gy(tr.top + tr.height / 2 - r.top),
+          (tr.width / 2 + 24) * k, (tr.height / 2 + 6) * k);
+        draw(lastT);
+      }
+      let lastT = 12;
+      function draw(sec) {
+        lastT = sec;
+        gl.uniform1f(uT, sec);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+      }
+      // On the page's 30-frame beat, with the window's little canvases:
+      // slow light looks no different, and it costs a fifth. Off screen or
+      // in a hidden tab it stops altogether.
+      let running = false;
+      function frame(now) {
+        if (!visible || document.hidden) { running = false; return false; }
+        draw(12 + now / 1000);
+      }
+      function run() {
+        if (running || !visible || document.hidden) return;
+        running = true;
+        window.baoTicker.add(frame);
+      }
+
+      layout();
+      requestAnimationFrame(() => sky.classList.add("is-on"));
+      addEventListener("resize", layout);
+      document.fonts?.ready.then(layout);
+      if (still) return;
+      if ("IntersectionObserver" in window) {
+        new IntersectionObserver((e) => { visible = e[0].isIntersecting; run(); }).observe(sky);
+      }
+      document.addEventListener("visibilitychange", run);
+      run();
+    })();
+  </script>
+
+  <!-- What a visitor says of BaoCode (site.js), sent to stats.baocode.dev's /v1/review. -->
+  <dialog class="say" data-say aria-labelledby="say-title">
+    <form data-say-form>
+      <h2 id="say-title" data-i18n="sayTitle">说一句</h2>
+      <p data-i18n="sayLead">一句话就行，好的坏的都欢迎，不用斟酌措辞。</p>
+      <label class="field"><span data-i18n="sayText">你觉得 BaoCode 怎么样</span><textarea name="text" rows="3" maxlength="500" required placeholder="比如：启动真快" data-i18n-attr="placeholder:sayTextPh"></textarea></label>
+      <label class="field"><span><span data-i18n="sayWhere">在哪能找到你</span><em data-i18n="sayOpt">选填</em></span><input name="contact" maxlength="200" autocomplete="off" placeholder="主页、GitHub、QQ、微博……什么都行" data-i18n-attr="placeholder:sayWherePh"></label>
+      <p class="hint" data-i18n="sayHint">我们可能会把这句话放到官网上；留了联系方式的话，会配上你的头像。不留也完全没关系。</p>
+      <div class="get"><button class="say-btn primary" type="submit" data-sending="发送中…" data-i18n="saySend" data-i18n-attr="data-sending:saySending">发送</button><button class="say-btn" type="button" data-say-close data-i18n="sayCancel">算了</button></div>
+      <p class="say-status" role="status" data-say-status data-busy="发得有点快，过一分钟再试试吧。" data-failed="没发出去，稍后再试一次吧。" data-i18n-attr="data-busy:sayBusy;data-failed:sayFailed"></p>
+    </form>
+    <div class="done">
+      <h2 data-i18n="sayDone">收到了，谢谢你！</h2>
+      <p data-i18n="sayDoneLead">每一句我们都会看。</p>
+      <div class="get"><button class="say-btn" type="button" data-say-close data-i18n="sayClose">关闭</button></div>
+    </div>
+  </dialog>
+  <script src="/flutter-window.js?v=1122r"></script>
+  <script>
+    (function () {
+      const root = document.documentElement;
+      if (!root.classList.contains("reveal-on")) return;
+      root.classList.add("reveal-ready");
+      const show = (el) => {
+        el.classList.add("is-in");
+        const d = parseFloat(getComputedStyle(el).getPropertyValue("--d")) || 0;
+        setTimeout(() => el.classList.add("rv-done"), d + 1500);
+      };
+
+      // Hero: in order, once the first frame is down.
+      const hero = document.querySelectorAll(".hero-pill, .h1, .hero-sub, .dl-hero-wrap, .mode-bar, #baocodeWindowMount, .window-shots");
+      // A beat after the first paint, so the transition runs from the hidden state.
+      setTimeout(() => hero.forEach(show), 60);
+
+      // Sections: each as it comes into view; cards of a row one after another.
+      const stagger = [
+        [".cap-card", 3, 90],
+        [".mobile-item", 5, 70],
+        [".phil-card", 2, 110],
+        [".dl-os", 4, 70]
+      ];
+      stagger.forEach(([sel, perRow, step]) => {
+        document.querySelectorAll(sel).forEach((el, i) => el.style.setProperty("--d", `${(i % perRow) * step}ms`));
+      });
+      const targets = document.querySelectorAll(".sec-head, .sec-head-only, .cap-card, .mobile-item, .phil-card, .dl-os");
+      if (!("IntersectionObserver" in window)) { targets.forEach(show); return; }
+      const io = new IntersectionObserver((entries) => {
+        entries.forEach((e) => {
+          if (!e.isIntersecting) return;
+          show(e.target);
+          io.unobserve(e.target);
+        });
+      }, { rootMargin: "0px 0px -8% 0px", threshold: 0.12 });
+      targets.forEach((el) => io.observe(el));
+    })();
+  </script>
+  <script>
+    (function () {
+      // Each language its own page (build.mjs): / and /zh/.
+      const lang = document.documentElement.lang.startsWith("zh") ? "zh" : "en";
+
+      const heroV = new URLSearchParams(location.search).get("hero");
+      if (heroV) document.querySelector(".hero")?.setAttribute("data-v", heroV);
+
+      /* The hero's download for the visitor's system. data-file lets site.js
+         put the release's own link on it (or a listed channel's build), and
+         data-windows its Arm64 build on Windows on Arm. */
+      function detectTarget() {
+        const ua = navigator.userAgent || "";
+        const plat = navigator.platform || "";
+        if (/Win/i.test(plat) || /Windows/i.test(ua)) {
+          return { file: "windows", icon: "simple-icons:windows11", sub: "Windows 10 / 11 · x64 (.exe)" };
+        }
+        if (/Linux/i.test(plat) && !/Android/i.test(ua)) {
+          return { file: "linux-x64", icon: "simple-icons:linux", sub: "Linux · x64 (.deb)" };
+        }
+        return { file: "macos-arm64", icon: "simple-icons:apple", sub: "macOS · Apple Silicon (.dmg)" };
+      }
+      const target = detectTarget();
+      const heroBtn = document.getElementById("heroDlBtn");
+      const heroIcon = document.getElementById("heroDlIcon");
+      const heroSub = document.getElementById("heroDlSub");
+      if (heroBtn) {
+        heroBtn.href = `/dl/${target.file}`;
+        heroBtn.dataset.file = target.file;
+      }
+      if (heroBtn && target.file === "windows") heroBtn.dataset.windows = "";
+      if (heroIcon) heroIcon.setAttribute("icon", target.icon);
+      if (heroSub) heroSub.textContent = target.sub;
+
+      /* Bilingual ZH / EN switch */
+      /* The words of both languages are in #i18n, for build.mjs. */
+
+      /* On narrow screens the mode tabs switch the window's pictures. */
+      document.querySelectorAll(".stage-tab").forEach((tab) => tab.addEventListener("click", () => {
+        document.querySelectorAll("#windowShots img").forEach((img) => img.classList.toggle("is-on", img.dataset.demo === tab.dataset.demo));
+        if (!window.baoWindowLive) document.querySelectorAll(".stage-tab").forEach((t) => t.classList.toggle("is-active", t === tab));
+      }));
+
+      /* What users say (the reviews from baocode.dev's form and the group),
+         shuffled, then dealt between the two rows; each row doubled so it loops. */
+      const voices = [
+          {"zh":"速度非常快，内存占用非常少，我现在平常开发都使用 BaoCode，还可以躺在床上用手机就把任务完成了！","en":"Really fast and uses very little memory. I do all my everyday work in BaoCode now, and I can even finish a task from my phone in bed!","name":"QQ 用户","nameEn":"QQ user","img":3,"qq":1,"long":1},
+          {"zh":"比 Cursor 快多了，也很快速准确，头个感觉可以跟 CC 一较高低的存在。","en":"Much faster than Cursor, quick and accurate too: the first I feel can hold its own against Claude Code.","name":"匿名","nameEn":"Anonymous","mark":"匿"},
+          {"zh":"比 Cursor 好用多了，支持，打造最佳工具，成倍放大 LLM 效率。","en":"So much better than Cursor. Keep going, build the best tool, multiply what an LLM can do.","name":"kaka1987","img":5,"gh":"kaka30000"},
+          {"zh":"无敌，没别的。无敌好用。","en":"Unbeatable, nothing more to say. Unbeatably good.","name":"大木","mark":"大"},
+          {"zh":"轻量，流畅，不占内存。","en":"Light, smooth, easy on memory.","name":"QQ 用户","nameEn":"QQ user","img":2,"qq":1},
+          {"zh":"在 BaoCode 身上，我看到了团队倾注的热爱与匠心打磨，它是一款有追求、更焕发着蓬勃生命力的产品。","en":"In BaoCode I see the love and craft the team has poured into it: a product with ambition, and full of life.","name":"Kelen","img":1,"gh":"calonye","long":1},
+          {"zh":"主题亮眼，交互棒棒的，还有最好的！高性能啊！","en":"Striking themes, lovely interactions, and best of all: the speed!","name":"zkldwxz","img":8,"gh":"zkldwxz"},
+          {"zh":"牛逼","en":"Awesome.","name":"佚名","nameEn":"Anonymous","mark":"佚"},
+          {"zh":"Stash 功能真是神器。","en":"Stash is a godsend.","name":"匿名","nameEn":"Anonymous","mark":"匿"},
+          {"zh":"丝滑，便捷，效率高，功能多，开发者堪比阿拉丁神灯！","en":"Smooth, handy, efficient, full of features. The developer is a genie in a lamp!","name":"QQ 用户","nameEn":"QQ user","img":4,"qq":1},
+          {"zh":"好用，工作中的好帮手，随时随地可以开发工作。","en":"Great to use, a real help at work: I can get work done anywhere.","name":"会飞的鱼","mark":"鱼"},
+          {"zh":"让 IDE 在 AI 时代下有了兼顾多者的选择，在众多重型 IDE 中脱颖而出，成为一个兼顾性能、效率与跨平台的新选择。","en":"It gives the AI era an IDE that need not choose, standing out among the heavy ones as fast, efficient and cross-platform.","name":"katkitkat","mark":"K","long":1},
+          {"zh":"还是 BaoCode 的用的不烧心。","en":"BaoCode it is: no heartburn.","name":"NmouZh","img":6,"gh":"NmouZh"},
+          {"zh":"好用、爱用。","en":"Great to use, love using it.","name":"roshin","img":9,"gh":"Roshin0320"},
+          {"zh":"牛逼！！！","en":"Awesome!!!","name":"QQ 用户","nameEn":"QQ user","img":7,"qq":1},
+          {"zh":"审美在线，非常好用，强烈推荐～同时希望作者开足马力修 bug、完善体验。","en":"Great taste, really easy to use. Highly recommended~ And I hope the author goes full throttle on fixing bugs and polishing it.","name":"QQ 用户","nameEn":"QQ user","img":10,"qq":1,"long":1},
+          {"zh":"躺床上写代码，真是好体验。","en":"Writing code lying in bed: what an experience.","name":"匿名","nameEn":"Anonymous","mark":"匿"},
+          {"zh":"用 BaoCode vibe coding 非常丝滑，功能也很完善，非常好的项目！希望博主不要停，遥遥领先！","en":"Vibe coding in BaoCode is silky smooth, and it does it all. A great project! Keep going, way ahead of the rest!","name":"QQ 用户","nameEn":"QQ user","qq":1,"mark":"Q","long":1},
+          {"zh":"原本守着 Cursor 就是想方便地看代码改动。BaoCode 一出来，我立马把 Cursor 卸了。BaoCode 可谓是 AI 时代 IDE 的首选！","en":"I stuck with Cursor only to see code changes easily. The moment BaoCode came out, I uninstalled Cursor. BaoCode is the IDE of choice for the AI era!","name":"Chun Ning SO","img":11,"gh":"xiashuidaolaoshuren","long":1},
+          {"zh":"真的牛逼，非常快。","en":"Seriously awesome, and really fast.","name":"APCAN.","mark":"A"},
+          {"zh":"我去，太好用了，简直了。","en":"Wow, it is just so good. Unreal.","name":"QQ 用户","nameEn":"QQ user","img":15,"qq":1},
+          {"zh":"非常好用，占用很低，完全平替 Cursor。","en":"Great to use, light on resources, a full replacement for Cursor.","name":"匿名","nameEn":"Anonymous","mark":"匿"},
+          {"zh":"太好用了，Claude Code 和 Claude Desktop 的混合体，我已经把 Claude Desktop 抛弃了。","en":"So good: Claude Code and Claude Desktop in one. I have dropped Claude Desktop.","name":"ouli-1242","img":13,"gh":"ouli-1242","long":1},
+          {"zh":"舒服型 GUI。","en":"A comfy GUI.","name":"匿名","nameEn":"Anonymous","mark":"匿"},
+          {"zh":"非常方便。","en":"Very convenient.","name":"Jasion.L","img":12,"gh":"asionbo"},
+          {"zh":"用得非常爽，很快，回复过程中还能学习，知道它在干啥，这在其他 agent 里看不到。","en":"A joy to use, and fast. I learn as it answers and see what it is doing, which no other agent shows me.","name":"GitHub 用户","nameEn":"GitHub user","mark":"gh","long":1},
+          {"zh":"超级好用，电脑没有那么卡了！","en":"Super easy to use, and my computer is not so sluggish any more!","name":"匿名","nameEn":"Anonymous","mark":"匿"},
+          {"zh":"确实好用，我之前用的终端有时候真的很不方便。","en":"Really good. The terminal I used before was a real pain at times.","name":"QQ 用户","nameEn":"QQ user","img":14,"qq":1},
+          {"zh":"用了五分钟就粉了 BaoCode，属实好用，给大佬点赞 👍","en":"Five minutes in and I was a fan. Truly great, hats off 👍","name":"匿名","nameEn":"Anonymous","mark":"匿"},
+          {"zh":"牛逼 Pro Max Ultra","en":"Awesome Pro Max Ultra","name":"匿名","nameEn":"Anonymous","mark":"匿"}
+      ];
+      // A new order on each visit, kept when the language changes.
+      for (let i = voices.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [voices[i], voices[j]] = [voices[j], voices[i]];
+      }
+      const voiceBox = document.getElementById("voices");
+      const renderVoices = () => {
+        if (!voiceBox) return;
+        const card = (v) => {
+          const name = lang === "en" && v.nameEn ? v.nameEn : v.name;
+          const av = v.img ? `<img class="voice-av" src="/reviews/${v.img}.webp" alt="" loading="lazy">`
+            : `<span class="voice-av">${v.mark === "gh" ? '<iconify-icon icon="simple-icons:github"></iconify-icon>' : v.mark}</span>`;
+          const who = v.gh ? `<a class="voice-name" href="https://github.com/${v.gh}" target="_blank" rel="noopener">${name}</a>` : `<span class="voice-name">${name}</span>`;
+          const src = v.gh ? `<span class="voice-src"><iconify-icon icon="simple-icons:github"></iconify-icon>${v.gh}</span>`
+            : v.qq ? `<span class="voice-src"><iconify-icon icon="simple-icons:qq"></iconify-icon>QQ</span>` : "";
+          return `<figure class="voice${v.long ? " is-long" : ""}" style="margin:0"><div class="voice-who">${av}${who}${src}</div><p>${v[lang]}</p></figure>`;
+        };
+        const rows = [voices.filter((_, i) => i % 2 === 0), voices.filter((_, i) => i % 2 === 1)];
+        voiceBox.setAttribute("aria-label", lang === "en" ? "What users say" : "用户的评价");
+        voiceBox.innerHTML = rows.map((r) => `<div class="voice-row">${[...r, ...r].map(card).join("")}</div>`).join("");
+      };
+      if (voiceBox) new IntersectionObserver(([e]) => voiceBox.classList.toggle("is-live", e.isIntersecting)).observe(voiceBox);
+      renderVoices();
+
+      /* The model honeycomb, filling the card: the models most used in the
+         middle, other models and platforms around them, the field's edge
+         past the card's. It drifts slowly while on screen; each icon grows
+         toward the middle and shrinks to the edge. */
+      const orbit = document.getElementById("modelGrid");
+      if (orbit) {
+        const models = [
+          ["logos:claude-icon", "Claude"], ["simple-icons:openai", "ChatGPT"], ["logos:deepseek-icon", "DeepSeek"],
+          ["simple-icons:kimi", "Kimi"], ["devicon:gemini", "Gemini"], ["devicon:qwen", "Qwen"],
+          ["thesvg-color:zhipu", "GLM"], ["logos:minimax-icon", "MiniMax"], ["simple-icons:openrouter", "OpenRouter"],
+          ["thesvg-color:doubao", "Doubao"], ["selfhst:grok-light", "Grok"], ["simple-icons:ollama", "Ollama"],
+          ["logos:mistral-ai-icon", "Mistral"], ["logos:meta-icon", "Llama"], ["thesvg-color:siliconcloud-siliconflow", "SiliconFlow"],
+          ["selfhst:perplexity-ai-light", "Perplexity"], ["devicon:huggingface", "Hugging Face"], ["thesvg-color:microsoft-copilot", "Copilot"],
+          ["thesvg-color:stepfun", "StepFun"], ["thesvg-color:baichuan", "Baichuan"], ["thesvg-color:wenxin", "ERNIE"],
+          ["logos:cohere-icon", "Cohere"], ["logos:google-cloud", "Vertex AI"], ["devicon:azure", "Azure"],
+          ["thesvg-color:iflytekcloud", "Spark"], ["simple-icons:nvidia", "NVIDIA"],
+        ];
+        // Hex rows of 7, 6, 7, 6, 7, nearest the middle first; the outermost
+        // slots, half off the card, take the list round again.
+        const step = 62, slots = [];
+        [-2, -1, 0, 1, 2].forEach((r) => {
+          const n = r % 2 ? 6 : 7;
+          for (let k = 0; k < n; k++) slots.push({ x: (k - (n - 1) / 2) * step, y: r * step * 0.866 });
+        });
+        const reach = (p) => Math.hypot(p.x / 190, p.y / 120);
+        slots.sort((p, q) => reach(p) - reach(q));
+        orbit.innerHTML = slots.map((_, i) => {
+          const [icon, name] = models[i % models.length];
+          return `<i class="v-orb" title="${name}"><iconify-icon icon="${icon}"></iconify-icon></i>`;
+        }).join("");
+        const orbs = [...orbit.children];
+        const place = (now) => {
+          const t = now / 1000, ox = 22 * Math.sin(t * 0.23), oy = 14 * Math.sin(t * 0.37 + 1);
+          orbs.forEach((el, i) => {
+            const x = slots[i].x + ox, y = slots[i].y + oy;
+            const e = Math.min(1, reach({ x, y })) ** 2;
+            const pull = 1 - 0.1 * e, sc = 1 - 0.6 * e;
+            el.style.transform = `translate(${(x * pull).toFixed(1)}px, ${(y * pull).toFixed(1)}px) scale(${sc.toFixed(3)})`;
+            el.style.opacity = (0.3 + 0.7 * (1 - e)).toFixed(3);
+          });
+        };
+        place(0);
+        let orbOn = false, orbRunning = false;
+        const orbTick = (now) => {
+          if (!orbOn || document.hidden) { orbRunning = false; return false; }
+          place(now);
+        };
+        const orbRun = () => {
+          if (orbRunning || !orbOn || document.hidden || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+          orbRunning = true;
+          window.baoTicker.add(orbTick);
+        };
+        new IntersectionObserver(([e]) => { orbOn = e.isIntersecting; orbRun(); }).observe(orbit);
+        document.addEventListener("visibilitychange", orbRun);
+      }
+
+      /* 5-up Mobile Lightbox */
+      const shots = [
+        { src: "/assets/mobile-5.webp", cap: "01 LIVE CHAT" },
+        { src: "/assets/mobile-4.webp", cap: "02 CONTEXT 400K" },
+        { src: "/assets/mobile-3.webp", cap: "03 MODELS & QUOTA" },
+        { src: "/assets/mobile-1.webp", cap: "04 HOST & SSH" },
+        { src: "/assets/mobile-2.webp", cap: "05 REMOTE FILES" }
+      ];
+      let shotIdx = 0;
+      const lb = document.getElementById("lightbox");
+      const lbImg = document.getElementById("lbImg");
+      const lbCap = document.getElementById("lbCap");
+
+      function showShot(idx) {
+        shotIdx = (idx + shots.length) % shots.length;
+        lbImg.src = shots[shotIdx].src;
+        lbImg.alt = shots[shotIdx].cap;
+        lbCap.textContent = shots[shotIdx].cap;
+        lb.classList.add("is-open");
+      }
+      function closeShot() { lb.classList.remove("is-open"); }
+
+      document.querySelectorAll("#mobileStrip .mobile-item").forEach((btn) => {
+        btn.addEventListener("click", () => showShot(Number(btn.getAttribute("data-shot-index"))));
+      });
+      document.getElementById("lbPrev").addEventListener("click", (e) => { e.stopPropagation(); showShot(shotIdx - 1); });
+      document.getElementById("lbNext").addEventListener("click", (e) => { e.stopPropagation(); showShot(shotIdx + 1); });
+      document.getElementById("lbClose").addEventListener("click", (e) => { e.stopPropagation(); closeShot(); });
+      lb.addEventListener("click", (e) => { if (e.target === lb) closeShot(); });
+      window.addEventListener("keydown", (e) => {
+        if (!lb.classList.contains("is-open")) return;
+        if (e.key === "Escape") closeShot();
+        if (e.key === "ArrowLeft") showShot(shotIdx - 1);
+        if (e.key === "ArrowRight") showShot(shotIdx + 1);
+      });
+
+      // uPlot draws the cards' charts; fetched once, when the first of them
+      // comes near.
+      let uPlotLoading = null;
+      const loadUPlot = () => uPlotLoading || (uPlotLoading = new Promise((resolve, reject) => {
+        const css = document.createElement("link");
+        css.rel = "stylesheet";
+        css.href = "/assets/vendor/uPlot.min.css";
+        document.head.appendChild(css);
+        const js = document.createElement("script");
+        js.src = "/assets/vendor/uPlot.iife.min.js";
+        js.onload = resolve; js.onerror = reject;
+        document.head.appendChild(js);
+      }));
+
+      /* The 360 FPS card: frame rate as a performance monitor plots it, with
+         uPlot (loaded once the card comes near). BaoCode holds near 360;
+         a typical Electron app wanders under 120 and drops on GC and
+         layout. Updated on the page's 30-frame beat, only while seen. */
+      const fpsBox = document.getElementById("fpsChart");
+      if (fpsBox && "IntersectionObserver" in window) {
+        const N = 160;
+        const xs = Array.from({ length: N }, (_, i) => i);
+        let bao = 358, el = 72, elDip = 0;
+        const nextBao = () => {
+          bao += (358 - bao) * 0.35 + (Math.random() - 0.5) * 3;
+          const v = Math.random() < 0.015 ? bao - 8 - Math.random() * 10 : bao;
+          return Math.min(360, v);
+        };
+        const nextEl = () => {
+          el += (78 - el) * 0.08 + (Math.random() - 0.5) * 14;
+          el = Math.max(46, Math.min(118, el));
+          if (elDip > 0) { elDip--; return 18 + Math.random() * 14; }
+          if (Math.random() < 0.025) elDip = 1 + Math.floor(Math.random() * 3);
+          return el;
+        };
+        const baoYs = xs.map(nextBao), elYs = xs.map(nextEl);
+        let plot = null, onScreen = false, running = false, beat = 0;
+
+        const build = () => {
+          const mono = '10px "JetBrains Mono", ui-monospace, monospace';
+          plot = new uPlot({
+            width: fpsBox.clientWidth, height: fpsBox.clientHeight,
+            padding: [8, 0, 0, 0],
+            legend: { show: false },
+            cursor: { show: false },
+            scales: { x: { time: false }, y: { range: [0, 400] } },
+            axes: [
+              { show: false },
+              {
+                side: 1, size: 30, gap: 4, font: mono, stroke: "#6f6e69",
+                splits: () => [60, 180, 360],
+                ticks: { show: false },
+                grid: { stroke: "rgba(255,255,255,0.05)", width: 1 },
+              },
+            ],
+            series: [
+              {},
+              { stroke: "rgba(255,255,255,0.32)", width: 1.2, points: { show: false } },
+              {
+                stroke: "#e5ba7d", width: 1.8, points: { show: false },
+                fill: (u) => {
+                  const g = u.ctx.createLinearGradient(0, u.bbox.top, 0, u.bbox.top + u.bbox.height);
+                  g.addColorStop(0, "rgba(229,186,125,0.2)");
+                  g.addColorStop(1, "rgba(229,186,125,0)");
+                  return g;
+                },
+              },
+            ],
+            hooks: {
+              // The 60 FPS line most apps live under.
+              draw: [(u) => {
+                const y = Math.round(u.valToPos(60, "y", true)) + 0.5;
+                const c = u.ctx;
+                c.save();
+                c.setLineDash([3 * devicePixelRatio, 3 * devicePixelRatio]);
+                c.strokeStyle = "rgba(255,255,255,0.16)";
+                c.lineWidth = devicePixelRatio;
+                c.beginPath(); c.moveTo(u.bbox.left, y); c.lineTo(u.bbox.left + u.bbox.width, y); c.stroke();
+                c.restore();
+              }],
+            },
+          }, [xs, elYs, baoYs], fpsBox);
+          addEventListener("resize", () => plot.setSize({ width: fpsBox.clientWidth, height: fpsBox.clientHeight }));
+        };
+
+        const baoEl = document.getElementById("fpsBao"), elEl = document.getElementById("fpsEl");
+        const avg = (a) => Math.round(a.slice(-30).reduce((s, v) => s + v, 0) / 30);
+        const tick = () => {
+          if (!onScreen || document.hidden || !plot) { running = false; return false; }
+          baoYs.shift(); baoYs.push(nextBao());
+          elYs.shift(); elYs.push(nextEl());
+          plot.setData([xs, elYs, baoYs]);
+          if (++beat % 15 === 0) { baoEl.textContent = avg(baoYs); elEl.textContent = avg(elYs); }
+        };
+        const run = () => {
+          if (running || !onScreen || document.hidden || !plot) return;
+          running = true;
+          window.baoTicker.add(tick);
+        };
+        let loading = null;
+        new IntersectionObserver((e) => {
+          const near = e[0].isIntersecting;
+          if (near && !loading) loading = loadUPlot().then(build).then(run).catch(() => {});
+        }, { rootMargin: "400px" }).observe(fpsBox);
+        new IntersectionObserver((e) => { onScreen = e[0].isIntersecting; run(); }).observe(fpsBox);
+        document.addEventListener("visibilitychange", run);
+      }
+
+      /* The API card: context growth as the usage page draws it, simplified.
+         Each request a bar, stacked cache read / input / cache write /
+         output; the context climbs turn by turn and drops at a compaction
+         (a diamond on top). A new request comes in every 1.6 s while seen. */
+      const ctxBox = document.getElementById("ctxChart");
+      if (ctxBox && "IntersectionObserver" in window) {
+        // Few bars, room between them: read at a glance, not a barcode.
+        const N = 26;
+        let total = 150000, pace = 26000, compacted = false;
+        const nextReq = () => {
+          let read, input, write, out;
+          if (total > 330000 + Math.random() * 40000) {
+            compacted = true;
+            total = 40000 + Math.random() * 12000;
+            pace = 20000 + Math.random() * 14000;
+            out = 6000; input = 5000; write = 18000;
+            read = total - out - input - write;
+          } else {
+            compacted = false;
+            const grow = pace * (0.6 + Math.random() * 0.8);
+            out = 5000 + Math.random() * 5000;
+            input = 3000 + Math.random() * 4000;
+            write = Math.max(4000, grow - out - input);
+            read = total;
+            total += grow;
+          }
+          return { read, input, write, out, compacted };
+        };
+        const reqs = [];
+        for (let i = 0; i < N; i++) reqs.push(nextReq());
+        const xs = Array.from({ length: N }, (_, i) => i);
+        const stacks = () => {
+          const c1 = reqs.map((r) => r.read);
+          const c2 = reqs.map((r, i) => c1[i] + r.input);
+          const c3 = reqs.map((r, i) => c2[i] + r.write);
+          const c4 = reqs.map((r, i) => c3[i] + r.out);
+          // Drawn tallest first, each from zero, so each covers the one
+          // above it but for its own slice.
+          return [xs, c4, c3, c2, c1];
+        };
+        let plot = null, onScreen = false, running = false, beat = 0;
+
+        // The whole session's hit rate (a compaction rewrites the cache, so
+        // it dips there) and the money cache reads saved (Sonnet's $3 input
+        // against $0.30 a cached read), rolling to each new value.
+        const hitEl = document.getElementById("apiHit"), savedEl = document.getElementById("apiSaved");
+        let saved = 135.39, hit = 98.3;
+        const roll = (el, next) => {
+          const prev = el.dataset.v || "";
+          el.dataset.v = next;
+          if (prev.length !== next.length || !el.children.length) {
+            el.innerHTML = [...next].map((ch) => `<span class="rd"><span class="rt"><span>${ch}</span></span></span>`).join("");
+            return;
+          }
+          [...next].forEach((ch, i) => {
+            if (ch === prev[i]) return;
+            const slot = el.children[i];
+            slot.innerHTML = `<span class="rt"><span>${prev[i]}</span><span>${ch}</span></span>`;
+            const t = slot.firstChild;
+            void t.offsetWidth;
+            t.classList.add("go");
+          });
+        };
+        const showStats = () => {
+          roll(hitEl, `${hit.toFixed(1)}%`);
+          roll(savedEl, `$${saved.toFixed(2)}`);
+        };
+        showStats();
+
+        const build = () => {
+          const mono = '10px "JetBrains Mono", ui-monospace, monospace';
+          // Only the tallest layer rounds its top: the layers drawn over it
+          // cover the rest of it square.
+          const bars = uPlot.paths.bars({ size: [0.62, 12] });
+          const capped = uPlot.paths.bars({ size: [0.62, 12], radius: 0.3 });
+          const bar = (color, paths = bars) => ({ paths, fill: color, stroke: color, width: 0, points: { show: false } });
+          plot = new uPlot({
+            width: ctxBox.clientWidth, height: ctxBox.clientHeight,
+            padding: [12, 0, 0, 0],
+            legend: { show: false },
+            cursor: { show: false },
+            scales: { x: { time: false, range: [-0.5, N - 0.5] }, y: { range: [0, 420000] } },
+            axes: [
+              { show: false },
+              {
+                side: 1, size: 34, gap: 4, font: mono, stroke: "#6f6e69",
+                splits: () => [200000, 400000],
+                values: (u, v) => v.map((x) => `${x / 1000}K`),
+                ticks: { show: false },
+                grid: { stroke: "rgba(255,255,255,0.05)", width: 1 },
+              },
+            ],
+            series: [{}, bar("#bd8128", capped), bar("#b0679e"), bar("#3f86d8"), bar("#2e9e72")],
+            hooks: {
+              // A diamond over each compaction.
+              draw: [(u) => {
+                const c = u.ctx, d = 3 * devicePixelRatio, y = u.bbox.top - 6 * devicePixelRatio;
+                c.save();
+                c.fillStyle = "rgba(255,255,255,0.55)";
+                reqs.forEach((r, i) => {
+                  if (!r.compacted) return;
+                  const x = u.valToPos(i, "x", true);
+                  c.beginPath(); c.moveTo(x, y - d); c.lineTo(x + d, y); c.lineTo(x, y + d); c.lineTo(x - d, y); c.closePath(); c.fill();
+                });
+                c.restore();
+              }],
+            },
+          }, stacks(), ctxBox);
+          addEventListener("resize", () => plot.setSize({ width: ctxBox.clientWidth, height: ctxBox.clientHeight }));
+        };
+        const tick = () => {
+          if (!onScreen || document.hidden || !plot) { running = false; return false; }
+          if (++beat % 48) return;
+          reqs.shift(); reqs.push(nextReq());
+          const last = reqs[N - 1];
+          saved += last.read / 1e6 * 2.7;
+          hit = Math.min(98.9, Math.max(97.2, hit + (last.compacted ? -0.6 : Math.random() * 0.3 - 0.08)));
+          plot.setData(stacks());
+          showStats();
+        };
+        const run = () => {
+          if (running || !onScreen || document.hidden || !plot) return;
+          running = true;
+          window.baoTicker.add(tick);
+        };
+        let loading = null;
+        new IntersectionObserver((e) => {
+          if (e[0].isIntersecting && !loading) loading = loadUPlot().then(build).then(run).catch(() => {});
+        }, { rootMargin: "400px" }).observe(ctxBox);
+        new IntersectionObserver((e) => { onScreen = e[0].isIntersecting; run(); }).observe(ctxBox);
+        document.addEventListener("visibilitychange", run);
+      }
+    })();
+  </script>
+  <script>
+    // The tools BaoCode Bash runs in-process on Windows, the ones agents
+    // reach for most first. Each row is doubled so the drift loops.
+    (() => {
+      const box = document.getElementById("winTools");
+      const rows = [
+        [["jq", "lucide:braces"], ["bash", "lucide:square-terminal"], ["rg", "lucide:scan-search"], ["grep", "lucide:text-search"], ["sed", "lucide:replace"],
+         ["awk", "lucide:table-2"], ["find", "lucide:folder-search"], ["fd", "lucide:file-search"], ["xargs", "lucide:workflow"]],
+        [["cat", "lucide:cat"], ["ls", "lucide:list-tree"], ["head", "lucide:arrow-up-to-line"], ["tail", "lucide:arrow-down-to-line"], ["wc", "lucide:hash"],
+         ["sort", "lucide:arrow-down-a-z"], ["uniq", "lucide:list-filter"], ["cut", "lucide:scissors"], ["tr", "lucide:arrow-right-left"], ["diff", "lucide:git-compare"]],
+        [["tar", "lucide:package"], ["cp", "lucide:copy"], ["mv", "lucide:move"], ["rm", "lucide:trash"], ["mkdir", "lucide:folder-plus"], ["rsync", "lucide:refresh-cw"],
+         ["sha256sum", "lucide:fingerprint-pattern"], ["base64", "lucide:binary"], ["cygpath", "lucide:route"], ["timeout", "lucide:timer"]],
+      ];
+      const hi = new Set(["bash", "rg", "sed", "jq", "diff", "rsync"]);
+      const tile = ([name, icon]) =>
+        `<span${hi.has(name) ? ' class="hi"' : ""}><iconify-icon icon="${icon}"></iconify-icon>${name}</span>`;
+      box.innerHTML = rows.map((r) => `<div class="v-win-row">${[...r, ...r].map(tile).join("")}</div>`).join("");
+      new IntersectionObserver(([e]) => box.classList.toggle("is-live", e.isIntersecting)).observe(box);
+    })();
+  </script>
+  <script>
+    /* The repository's stars on GitHub: the count the page was built with,
+       then GitHub's own, kept an hour so each visit doesn't ask again. */
+    (() => {
+      const el = document.querySelector("[data-gh-stars]");
+      if (!el) return;
+      const show = (n) => { el.textContent = n < 1000 ? String(n) : `${(n / 1000).toFixed(n < 10000 ? 1 : 0).replace(/\.0$/, "")}k`; };
+      const key = "baocode.ghStars";
+      try {
+        const kept = JSON.parse(localStorage.getItem(key));
+        if (kept && Date.now() - kept.at < 3600e3) return show(kept.n);
+      } catch {}
+      fetch("https://api.github.com/repos/baocode-dev/baocode")
+        .then((res) => (res.ok ? res.json() : null))
+        .then((repo) => {
+          if (typeof repo?.stargazers_count !== "number") return;
+          show(repo.stargazers_count);
+          try { localStorage.setItem(key, JSON.stringify({ n: repo.stargazers_count, at: Date.now() })); } catch {}
+        })
+        .catch(() => {});
+    })();
+  </script>
+
+  <script type="application/json" id="i18n">
+{
+ "zh": {
+  "title": "BaoCode — 开源 Claude Code 控制面，不仅仅是界面",
+  "hdrDl": "下载",
+  "hdrLog": "更新日志",
+  "heroDlTitle": "下载 BaoCode",
+  "heroPill": "任意操作系统、服务器上的 Claude Code，随连随用",
+  "heroH1a": "开源 Claude Code 控制面",
+  "heroH1b": "不仅仅是界面",
+  "heroSub": "细节拉满的 360FPS 界面之外，还有远程其他电脑的 Claude Code、手机随时接管、Windows 深度优化、10 倍效率的浏览器操控、完整代码编辑器、任意自定义 API、用量洞察、对话编排与 Bot。",
+  "heroAllDl": "查看全部平台下载",
+  "demoAgent": "Agent 模式",
+  "demoEditor": "IDE 模式",
+  "demoWindows": "Windows 特别优化",
+  "demoRemote": "连接到任意操作系统",
+  "demoBrowser": "极具效率浏览器控制",
+  "demoApi": "接入任意自定义 API",
+  "demoImage": "生图",
+  "demoOrch": "对话编排",
+  "capH2": "为极致工程效率重做每一环",
+  "capSub": "从原生 GPU 渲染管线到跨机真机调试，全部按主力开发工具的标准从底层打磨。",
+  "c1Title": "GPU 360FPS 原生绘制",
+  "c1Body": "彻底放弃 Electron 与 DOM 重排。高吞吐流式输出稳锁高刷，WheelGlide 0.01px 跟手滚动，思考等待自动降频静音。",
+  "sshR1": "本机安卓 + Chrome",
+  "c2Title": "全平台 SSH 远程 Claude Code",
+  "c2Body": "任意连接多台服务器并使用其自身 Claude Code，同时无缝打通本机：云端编译直接调试插在本机 Type-C 的安卓真机与本机 Chrome。",
+  "b3Bar1": "BaoCode 真实浏览器扩展",
+  "b3Bar2": "盲目截屏方案",
+  "b3T1": "0–1 压感拖拽",
+  "b3T3": "源码断点",
+  "b3T4": "1ms 性能",
+  "c3Title": "10 倍浏览器操作效率提升",
+  "ctxRead": "缓存读取",
+  "apiHitL": "缓存命中率",
+  "apiSavedL": "已节省",
+  "ctxIn": "输入",
+  "ctxWrite": "缓存写入",
+  "ctxOut": "输出",
+  "fpsElectron": "Electron 应用",
+  "c3Body": "直接接管已登录 Chrome，渐进暴露压感微操、组件 State、WebSocket 透视、源码断点与 1ms 性能剖析，任何网页无秘密。",
+  "c4Title": "全模型接入，换谁都好用",
+  "c4Body": "DeepSeek、Kimi、ChatGPT、Gemini 等主流模型与 OpenRouter、Ollama 等平台直接接入，协议差异由 BaoCode 适配，在 Claude Code 里一样表现出色。",
+  "c5Title": "深度 Windows 终端与渲染优化",
+  "c5Body": "为你的 Windows 抹平了平台差异，用起来与 WSL 差不多；界面与 macOS 同走 Skia GPU 渲染，一样顺滑。",
+  "c6Title": "任意自定义 API 与精确计费追踪",
+  "c6Body": "协议层直接抹平主流上游差异，零配置污染、无需额外代理工具；内置面板精确追踪峰谷、节假日、阶梯上下文与缓存节省。",
+  "mobH2": "移动端无损同屏渲染",
+  "mobSub": "同一份实时会话、400K 上下文明细、多模型切换与全部 SSH 远程代码库，完整延伸到 iOS 与 Android。",
+  "voicesH2": "他们说",
+  "philH2": "不重复造轮子，简单自然才好用",
+  "philSub": "Claude Code 已经足够好，BaoCode 只补它缺的那部分。开箱即用，不用学新概念，用起来就像它本该如此。",
+  "p1Title": "为什么是 Claude Code？",
+  "p1Body": "无论基于哪个内核定制，做到最后都会长成 Claude Code 的样子：同样的工具、同样的上下文管理、同样的 Skill 与 MCP。与其绕一圈重造，不如直接用它，再在协议层接入其他模型，一套配置通用全部。",
+  "p2Title": "一个对话就能调度全部",
+  "p2Body": "不做复杂的编排画布。主对话通过内置 MCP 直接调度其他会话和子代理，跨服务器也一样；复杂的流程口述一遍，或写成 Skill 就能反复用。",
+  "dlH2": "全平台最新版本",
+  "dlSub": "所有桌面、移动与浏览器扩展均通过统一入口自动分发最新构建。",
+  "dlMob": "移动端与扩展",
+  "fLog": "更新日志",
+  "fExt": "浏览器扩展隐私",
+  "fMob": "移动端隐私",
+  "metaDesc": "开源的 Claude Code 控制面：360FPS 原生界面，远程任意电脑上的 Claude Code，手机随时接管，真实浏览器操控，任意模型与用量洞察。",
+  "langOther": "EN",
+  "heroFree": "免费开源",
+  "sayQ": "用过 BaoCode？",
+  "sayBtn": "说一句",
+  "sayTitle": "说一句",
+  "sayLead": "一句话就行，好的坏的都欢迎，不用斟酌措辞。",
+  "sayText": "你觉得 BaoCode 怎么样",
+  "sayTextPh": "比如：启动真快",
+  "sayWhere": "在哪能找到你",
+  "sayOpt": "选填",
+  "sayWherePh": "主页、GitHub、QQ、微博……什么都行",
+  "sayHint": "我们可能会把这句话放到官网上；留了联系方式的话，会配上你的头像。不留也完全没关系。",
+  "saySend": "发送",
+  "saySending": "发送中…",
+  "sayCancel": "算了",
+  "sayBusy": "发得有点快，过一分钟再试试吧。",
+  "sayFailed": "没发出去，稍后再试一次吧。",
+  "sayDone": "收到了，谢谢你！",
+  "sayDoneLead": "每一句我们都会看。",
+  "sayClose": "关闭",
+  "dlMore": "安装说明、二维码与校验值",
+  "dlUniversal": "通用版",
+  "fDl": "下载",
+  "fLicense": "GPL-3.0 开源"
+ },
+ "en": {
+  "title": "BaoCode — The Open-Source Control Plane for Claude Code, More Than an Interface",
+  "hdrDl": "Download",
+  "hdrLog": "Changelog",
+  "heroDlTitle": "Download BaoCode",
+  "heroPill": "Claude Code on any OS or server, ready when you connect",
+  "heroH1a": "The Open-Source Control Plane for Claude Code",
+  "heroH1b": "More Than an Interface",
+  "heroSub": "Beyond a detail-rich 360 FPS interface: Claude Code on your other machines, control from your phone, deep Windows tuning, 10× faster browser control, a full code editor, any custom API, usage insights, conversation orchestration and Bots.",
+  "heroAllDl": "View all platforms",
+  "demoAgent": "Agent Mode",
+  "demoEditor": "IDE Mode",
+  "demoWindows": "Made for Windows",
+  "demoRemote": "Connect to Any OS",
+  "demoBrowser": "Fast Browser Control",
+  "demoApi": "Any Custom API",
+  "demoImage": "Image Generation",
+  "demoOrch": "Conversation Orchestration",
+  "capH2": "Engineered from the metal up",
+  "capSub": "Every layer — from GPU frame pacing to cross-machine device debugging — is built to daily-driver standards.",
+  "c1Title": "GPU 360FPS Native Rendering",
+  "c1Body": "Zero Electron overhead, zero DOM reflow jank. High-throughput token streams lock to native refresh with WheelGlide scrolling and automatic idle throttling.",
+  "sshR1": "Local Android + Chrome",
+  "c2Title": "Universal SSH Remote Claude Code",
+  "c2Body": "Attach to any Linux, macOS, or Windows host using its own Claude Code while bridging straight back to your local USB-C phone, local Chrome, and ports.",
+  "b3Bar1": "BaoCode Real-Browser Extension",
+  "b3Bar2": "Blind Screenshot Loop",
+  "b3T1": "0–1 Stylus Drag",
+  "b3T3": "Source Breakpoints",
+  "b3T4": "1ms Profiler",
+  "c3Title": "10× Faster Browser Operation",
+  "ctxRead": "Cache read",
+  "apiHitL": "Cache hit rate",
+  "apiSavedL": "Saved",
+  "ctxIn": "Input",
+  "ctxWrite": "Cache write",
+  "ctxOut": "Output",
+  "fpsElectron": "Electron app",
+  "c3Body": "Control your live signed-in Chrome with stylus-grade input, React/Vue state inspection, WebSocket tracing, source breakpoints, and 1ms performance profiling.",
+  "c4Title": "Every Model, Plugged In",
+  "c4Body": "DeepSeek, Kimi, ChatGPT, Gemini and the other leading models, and platforms like OpenRouter and Ollama, plug straight in. BaoCode adapts each protocol, so every one of them performs just as well in Claude Code.",
+  "c5Title": "Deep Windows Shell & GPU Polish",
+  "c5Body": "smooths over your Windows' platform differences, so it works much like WSL, and the UI renders on Skia's GPU path just as smoothly as on macOS.",
+  "c6Title": "Any Custom API & Pricing Telemetry",
+  "c6Body": "Connect OpenAI Responses, Codex, Gemini, and DeepSeek natively without mutating ~/.claude. Track peak/off-peak windows, holidays, tiered context, and cache savings.",
+  "mobH2": "Lossless Mobile Companion",
+  "mobSub": "The exact same live sessions, 400K context breakdowns, model quotas, and SSH remote codebases mirrored natively to iOS and Android.",
+  "voicesH2": "What they say",
+  "philH2": "No reinvented wheels, just what works",
+  "philSub": "Claude Code is already good; BaoCode adds only what it lacks. It works out of the box, with nothing new to learn, and feels the way it always should have.",
+  "p1Title": "Why Claude Code?",
+  "p1Body": "Customize any agent core far enough and it ends up shaped like Claude Code: the same tools, the same context handling, the same Skills and MCP. Rather than rebuild it the long way round, BaoCode uses it directly and bridges other models at the protocol layer, so one setup works with all of them.",
+  "p2Title": "One conversation runs the rest",
+  "p2Body": "No orchestration canvas. Through built-in MCP, the main conversation directs other sessions and subagents, across servers too; describe a complex flow once, or write it as a Skill to reuse.",
+  "dlH2": "All Downloads",
+  "dlSub": "Every desktop, mobile, and browser package is served from unified latest-release endpoints.",
+  "dlMob": "Mobile & Extension",
+  "fLog": "Changelog",
+  "fExt": "Extension Privacy",
+  "fMob": "Mobile Privacy",
+  "metaDesc": "The open-source control plane for Claude Code: a native 360 FPS interface, Claude Code on any of your machines, control from your phone, your real browser, any model, and usage insights.",
+  "langOther": "中文",
+  "heroFree": "Free and open source",
+  "sayQ": "Used BaoCode?",
+  "sayBtn": "Say a word",
+  "sayTitle": "Say a word",
+  "sayLead": "A sentence is plenty. Good or bad, all welcome; no need to polish it.",
+  "sayText": "What do you think of BaoCode?",
+  "sayTextPh": "e.g. It starts really fast",
+  "sayWhere": "Where can we find you?",
+  "sayOpt": "Optional",
+  "sayWherePh": "A homepage, GitHub, X, anything",
+  "sayHint": "We may put your words on this site; with your avatar, if you leave somewhere to find it. Leaving nothing is fine too.",
+  "saySend": "Send",
+  "saySending": "Sending…",
+  "sayCancel": "Never mind",
+  "sayBusy": "That was quick; try again in a minute.",
+  "sayFailed": "It did not go through; try again in a while.",
+  "sayDone": "Got it, thank you!",
+  "sayDoneLead": "We read every one.",
+  "sayClose": "Close",
+  "dlMore": "Install notes, QR codes and checksums",
+  "dlUniversal": "Universal",
+  "fDl": "Download",
+  "fLicense": "GPL-3.0 open source"
+ }
+}
+  </script>
+  <script src="/site.js"></script>
+</body>
+</html>

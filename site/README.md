@@ -1,7 +1,16 @@
 # baocode.dev
 
-The BaoCode website, hosted on Cloudflare, with no build step: `site/` is
-served as it is, `/download` being `download.html`.
+The BaoCode website, hosted on Cloudflare: `site/` is served as it is,
+`/download` being `download.html`.
+
+- The home page, `index.html` and `zh/index.html`, is made from
+  `site-redesign/zcode-style.html` (both languages' words in its `#i18n`
+  block) by `node site-redesign/build.mjs`, into `site-redesign/dist/`
+  with the rest of `site/`; `rsync -a site-redesign/dist/ site/` puts it
+  here. `node site-redesign/serve.mjs` serves `dist/` as the site does,
+  its Content-Security-Policy too. Its scripts and styles go to `home/`,
+  the icons it shows are bundled, nothing is loaded from elsewhere. The
+  other pages share `style.css` (its source `site-redesign/style.css`).
 
 - English at the root, Chinese under `zh/` (`/zh/`, `/zh/download`,
   `/zh/changelog`); each page links to itself in the other language. A
@@ -18,7 +27,8 @@ served as it is, `/download` being `download.html`.
   `activate.html`, `activate.js`, `channels.json` and `channels/`: the
   channels listed (lib/channel/). A channel asks to be listed with the
   `channel` issue template.
-- `mocks/`: the windows in the home page's figures, drawn in HTML (not
+- `readme/`: the README's pictures, by `node site-redesign/readme-shots.mjs`.
+- `mocks/`: the windows in the old home page's figures, drawn in HTML (not
   screenshots) and framed by it: each drawn at its own width (`data-w`) and
   scaled to the frame's by `mock.js`; both languages in one file (`.z`,
   `.e`, `?lang=en`), a theme by `?theme=light|kimbie|dark`, a part shown by
@@ -28,7 +38,7 @@ served as it is, `/download` being `download.html`.
 - `shots/`: screenshots, `main.png` the README's.
 - `sounds/`: the notification sound the page plays.
 - `reviews/`: the avatars on the home page's reel of what users say (the
-  words are in the pages, translated on the English one). "Say a word"
+  words are in `site-redesign/zcode-style.html`). "Say a word"
   under it sends a visitor's to stats.baocode.dev (`/v1/review`, in the
   private baocode.dev repository), seen on its dashboard. The README's
   picture of them, `docs/readme/reviews*.png`, is drawn as HTML and

@@ -1,0 +1,11 @@
+# The build's output, copied into site/.
+dist/
+# Earlier drafts of the home page, and their pictures.
+index.html
+styles.css
+app.js
+rigor-*.html
+assets/mobile-*.png
+assets/icons/
+assets/micons/folder-base.svg
+assets/micons/folder-lib.svg
