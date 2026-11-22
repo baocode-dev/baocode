@@ -1,195 +1,110 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:baocode/chat/chat_models.dart';
-import 'package:baocode/kernel/acp/acp_connection.dart';
 import 'package:baocode/kernel/acp/mcp_endpoint.dart';
 import 'package:baocode/kernel/agent_kernel.dart';
 import 'package:baocode/kernel/antigravity/agy_runtime.dart';
+import 'package:baocode/kernel/antigravity/antigravity_catalog.dart';
 import 'package:baocode/kernel/antigravity/antigravity_kernel.dart';
-import 'package:baocode/kernel/antigravity/antigravity_translator.dart';
+import 'package:baocode/kernel/claude_code/claude_sdk_tools.dart';
 import 'package:baocode/kernel/kernel_event.dart';
 import 'package:baocode/kernel/kernel_registry.dart';
 import 'package:baocode/kernel/kernel_types.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// `agy acp`, scripted: the requests the kernel makes answered from
-/// [answers] (or left waiting, [waiting]), and what it reports given by
-/// the test, shaped as agy 1.5's.
-class _Agent implements AcpTransport {
-  _Agent(this.answers);
+/// agy's language server, scripted: calls answered from [answers], streams
+/// fed by the test.
+class _Server implements AgyLanguageServer {
+  _Server(this.answers);
 
-  final Map<String, Object? Function(Map<String, Object?> params)> answers;
-  final _out = StreamController<Map<String, Object?>>();
-  final _exit = Completer<AcpExit>();
+  final Map<String, Object? Function(Map<String, Object?> body)> answers;
 
-  /// The requests and notifications written to it, by method.
-  final sent = <(String, Map<String, Object?>)>[];
+  /// The calls made, by method.
+  final calls = <(String, Map<String, Object?>)>[];
 
-  /// The requests not answered yet, by method: their ids.
-  final waiting = <String, Object>{};
+  /// The streams opened, latest last.
+  final streams = <_Watch>[];
 
-  /// What it was answered for its own requests, by their ids.
-  final replies = <Object, Map<String, Object?>>{};
-
-  @override
-  Stream<Map<String, Object?>> get messages => _out.stream;
-
-  @override
-  void write(Map<String, Object?> message) {
-    final method = message['method'];
-    if (method is! String) {
-      replies[message['id']!] = message;
-      return;
-    }
-    final params = (message['params'] as Map).cast<String, Object?>();
-    sent.add((method, params));
-    final id = message['id'];
-    if (id == null) return;
-    final answer = answers[method];
-    if (answer == null) {
-      waiting[method] = id;
-      return;
-    }
-    try {
-      reply(id, answer(params));
-    } on AcpError catch (error) {
-      _out.add({
-        'jsonrpc': '2.0',
-        'id': id,
-        'error': {'code': error.code, 'message': error.message},
-      });
-    }
-  }
-
-  void reply(Object id, Object? result) =>
-      _out.add({'jsonrpc': '2.0', 'id': id, 'result': result ?? {}});
-
-  /// Answers the request [method] left waiting.
-  void answer(String method, Object? result) =>
-      reply(waiting.remove(method)!, result);
-
-  void update(Map<String, Object?> update, {String session = 's1'}) =>
-      _out.add({
-        'jsonrpc': '2.0',
-        'method': 'session/update',
-        'params': {'sessionId': session, 'update': update},
-      });
-
-  void ask(Object id, String method, Map<String, Object?> params) => _out.add({
-    'jsonrpc': '2.0',
-    'id': id,
-    'method': method,
-    'params': params,
-  });
-
-  Iterable<Map<String, Object?>> sentOf(String method) => [
-    for (final (m, params) in sent)
-      if (m == method) params,
+  Iterable<Map<String, Object?>> callsOf(String method) => [
+    for (final (m, body) in calls)
+      if (m == method) body,
   ];
 
   @override
-  void close() => end(0);
-
-  void end(int code, [String stderr = '']) {
-    if (_exit.isCompleted) return;
-    unawaited(_out.close());
-    _exit.complete(AcpExit(code, stderr));
+  Future<Map<String, Object?>> call(
+    String method, [
+    Map<String, Object?> body = const {},
+  ]) async {
+    calls.add((method, body));
+    final answer = answers[method];
+    if (answer == null) {
+      throw AgyError('unknown $method', code: 'not_found', status: 404);
+    }
+    final result = answer(body);
+    if (result is AgyError) throw result;
+    return switch (result) {
+      final Map<String, Object?> map => map,
+      _ => const {},
+    };
   }
 
   @override
-  Future<AcpExit> get exited => _exit.future;
+  Stream<Map<String, Object?>> stream(
+    String method, [
+    Map<String, Object?> body = const {},
+  ]) {
+    final watch = _Watch(method, body);
+    streams.add(watch);
+    return watch.controller.stream;
+  }
 }
 
-class _Records implements AgyRecords {
-  _Records(this.runtime, [this.id = 's1']);
+class _Watch {
+  _Watch(this.method, this.body);
 
-  final _Runtime runtime;
-  final String id;
+  final String method;
+  final Map<String, Object?> body;
+  final controller = StreamController<Map<String, Object?>>();
+
+  void add(Map<String, Object?> frame) => controller.add(frame);
+}
+
+class _Endpoint implements McpEndpoint {
+  _Endpoint(this.key);
+
+  final String key;
 
   @override
-  Future<List<Map<String, Object?>>> messages() async =>
-      id == 's1' ? runtime.inbox : const [];
+  Uri get url => Uri.parse('http://127.0.0.1:7/mcp/tok/$key');
 
   @override
-  String taskLog(String taskId) => '/logs/${taskId.split('/').last}.log';
+  Map<String, String> get headers => const {'Authorization': 'Bearer tok'};
+
+  @override
+  Future<void> close() async {}
 }
 
 class _Runtime implements AgyRuntime {
-  _Runtime(this.answers);
+  _Runtime(this.ls);
 
-  final Map<String, Object? Function(Map<String, Object?> params)> answers;
-  final agents = <_Agent>[];
-  _Agent get agent => agents.last;
+  final _Server ls;
   bool installed = true;
-  final inbox = <Map<String, Object?>>[];
-
-  /// The files as they stand, by path.
-  final files = <String, String>{};
-
-  @override
-  String? fileText(String path) => files[path];
-
-  @override
-  Map<String, Object?>? kept;
-
-  /// The turns timed, by conversation.
-  final timed = <String, List<Map<String, Object?>>>{};
-
-  @override
-  List<Map<String, Object?>> turnsTimed(String sessionId) =>
-      timed[sessionId] ?? const [];
-
-  @override
-  void timeTurn(String sessionId, Map<String, Object?> turn) =>
-      (timed[sessionId] ??= []).add(turn);
-
-  @override
-  Future<AcpTransport> start(String cwd) async {
-    if (!installed) {
-      throw const AgyUnavailable('Not installed', notInstalled: true);
-    }
-    final agent = _Agent(answers);
-    agents.add(agent);
-    return agent;
-  }
-
-  int warmed = 0;
-
-  @override
-  void warm() => warmed++;
-
-  /// What reading a conversation back gives: its updates, then the
-  /// answer. By default nothing, and the session's options.
-  Future<Map<String, Object?>> Function(
-    String sessionId,
-    String cwd,
-    void Function(Map<String, Object?> update) onUpdate,
-  )?
-  replays;
-  int replayed = 0;
-
-  @override
-  Future<Map<String, Object?>> replay(
-    String sessionId,
-    String cwd,
-    void Function(Map<String, Object?> update) onUpdate,
-  ) async {
-    replayed++;
-    if (!installed) {
-      throw const AgyUnavailable('Not installed', notInstalled: true);
-    }
-    if (replays case final script?) return script(sessionId, cwd, onUpdate);
-    return {'configOptions': _session['configOptions']};
-  }
-
-  @override
-  List<SessionRecord>? lastSessions;
-
-  @override
-  AgyRecords records(String sessionId) => _Records(this, sessionId);
+  int booted = 0;
+  final toolKeys = <String, String>{};
+  final served = <String>[];
 
   @override
   Future<String?> locate() async => installed ? '/bin/agy' : null;
+
+  @override
+  Future<AgyLanguageServer> server() async {
+    if (!installed) {
+      throw const AgyUnavailable('Not installed', notInstalled: true);
+    }
+    booted++;
+    return ls;
+  }
 
   @override
   Future<void> install({void Function(double progress)? onProgress}) async {
@@ -213,101 +128,466 @@ class _Runtime implements AgyRuntime {
   Future<void> setMcpServerEnabled(String name, bool enabled) async {}
 
   @override
-  Future<AgyCredentials?> credentials() async => null;
-
-  int quotaAsked = 0;
-
-  @override
-  Future<List<RateLimitWindow>?> quota() async {
-    quotaAsked++;
-    return const [RateLimitWindow('Gemini 5-hour limit', .25)];
-  }
-
-  @override
   Future<void> stopAll() async {}
 
   @override
-  Future<List<SessionRecord>> sessions() async => const [];
+  String? fileText(String path) => null;
 
   @override
-  Future<McpEndpoint> serveTools(McpHandler handle) =>
-      throw UnimplementedError();
+  Map<String, Object?>? kept;
 
   @override
-  Future<void> delete(String sessionId) async {}
+  Future<McpEndpoint> serveTools(McpHandler handle, {String key = ''}) async {
+    served.add(key);
+    return _Endpoint(key);
+  }
+
+  @override
+  String? toolKey(String sessionId) => toolKeys[sessionId];
+
+  @override
+  void keepToolKey(String sessionId, String key) => toolKeys[sessionId] = key;
+
+  @override
+  String get dataDir => '/data';
+
+  @override
+  List<SessionRecord>? lastSessions;
+
+  final deleted = <String>[];
+
+  @override
+  Future<void> delete(String sessionId) async => deleted.add(sessionId);
 }
 
-const _session = {
-  'sessionId': 's1',
-  'models': {
-    'availableModels': [
-      {'modelId': 'gemini-3.8-flash-high', 'name': 'Gemini 3.8 Flash (High)'},
-      {'modelId': 'gemini-3.8-flash-low', 'name': 'Gemini 3.8 Flash (Low)'},
-      {'modelId': 'claude-opus-5-5-low', 'name': 'Claude Opus 5.5 (Low)'},
-      {'modelId': 'claude-opus-5-5-high', 'name': 'Claude Opus 5.5 (High)'},
-      {'modelId': 'gpt-oss-120b-medium', 'name': 'GPT-OSS 120B (Medium)'},
-    ],
-    'currentModelId': 'gemini-3.8-flash-high',
-  },
-  'modes': {'currentModeId': 'default'},
-  'configOptions': [
+const _models = {
+  'clientModelConfigs': [
     {
-      'id': 'model',
-      'type': 'select',
-      'currentValue': 'gemini-3.8-flash',
-      'options': [
-        {'value': 'gemini-3.8-flash', 'name': 'Gemini 3.8 Flash'},
-        {'value': 'claude-opus-5-5', 'name': 'Claude Opus 5.5'},
-        {'value': 'gpt-oss-120b-medium', 'name': 'GPT-OSS 120B (Medium)'},
-      ],
+      'label': 'Gemini 3.8 Flash (High)',
+      'modelId': 'gemini-3.8-flash-high',
+      'modelOrAlias': {'model': 'MODEL_PLACEHOLDER_M318'},
+      'supportsImages': true,
     },
     {
-      'id': 'thought_level',
-      'type': 'select',
-      'currentValue': 'high',
-      'options': [
-        {'value': 'low', 'name': 'Low'},
-        {'value': 'high', 'name': 'High'},
-      ],
+      'label': 'Gemini 3.8 Flash (Medium)',
+      'modelId': 'gemini-3.8-flash-medium',
+      'modelOrAlias': {'model': 'MODEL_PLACEHOLDER_M319'},
     },
     {
-      'id': 'mode',
-      'type': 'select',
-      'currentValue': 'default',
-      'options': [
-        {'value': 'default', 'name': 'Default'},
-        {'value': 'plan', 'name': 'Plan'},
-      ],
+      'label': 'Gemini 3.8 Flash (Low)',
+      'modelId': 'gemini-3.8-flash-low',
+      'modelOrAlias': {'model': 'MODEL_PLACEHOLDER_M320'},
+    },
+    {
+      'label': 'Claude Sonnet 4.6 (Thinking)',
+      'modelId': 'claude-sonnet-4-6',
+      'modelOrAlias': {'model': 'MODEL_PLACEHOLDER_M35'},
+    },
+    {
+      'label': 'Gemini 4 Carbon',
+      'modelId': 'gemini-4-carbon-disabled',
+      'modelOrAlias': {'model': 'MODEL_PLACEHOLDER_M670'},
+      'disabled': true,
     },
   ],
+  'groupedModels': {
+    'gemini-3.8-flash': {
+      'displayName': 'Gemini 3.8 Flash',
+      'supportedThinkingLevels': [
+        {'thinkingSuffix': 'low', 'thinkingDisplayName': 'Low'},
+        {'thinkingSuffix': 'medium', 'thinkingDisplayName': 'Medium'},
+        {'thinkingSuffix': 'high', 'thinkingDisplayName': 'High'},
+      ],
+      'defaultThinkingSuffix': 'medium',
+    },
+  },
 };
 
-Map<String, Object? Function(Map<String, Object?>)> _answers({
-  Object? Function(Map<String, Object?>)? newSession,
+Map<String, Object? Function(Map<String, Object?>)> _answers() => {
+  'GetAuthStatus': (_) => {
+    'authResult': {'hasValidAuth': true},
+  },
+  'GetCascadeModelConfigData': (_) => _models,
+  'StartCascade': (_) => {'cascadeId': 'c1'},
+  'SendUserCascadeMessage': (_) => {},
+  'HandleCascadeUserInteraction': (_) => {},
+  'CancelCascadeInvocation': (_) => {},
+  'UpdateConversationAnnotations': (_) => {},
+  'GetTrajectoryFileDiffs': (body) => {
+    'diffs': [
+      for (final uri in body['fileUris'] as List)
+        {'uri': uri, 'originalContent': 'old\n', 'modifiedContent': 'new\n'},
+    ],
+  },
+  'RetrieveUserQuotaSummary': (_) => {
+    'response': {
+      'groups': [
+        {
+          'displayName': 'Gemini Models',
+          'buckets': [
+            {
+              'bucketId': 'gemini-weekly',
+              'displayName': 'Weekly Limit Remaining',
+              'window': 'weekly',
+              'remainingFraction': 0.6,
+              'resetTime': '2026-11-29T13:22:43Z',
+            },
+          ],
+        },
+      ],
+    },
+  },
+};
+
+// --- Steps, as agy tells them ----------------------------------------------------------
+
+const _trajectory = 't1';
+
+Map<String, Object?> _meta({
+  String? tool,
+  Map<String, Object?>? arguments,
+  String at = '2026-11-22T18:40:00Z',
+  String? done,
+  Map<String, Object?>? usage,
+  int? index,
 }) => {
-  'initialize': (_) => {
-    'protocolVersion': 1,
-    'agentCapabilities': {'loadSession': true},
-    'agentInfo': {'name': 'Antigravity ACP Server', 'version': '1.5.14'},
+  'createdAt': at,
+  'completedAt': ?done,
+  if (tool != null)
+    'toolCall': {
+      'id': 'call_$tool',
+      'name': tool,
+      'argumentsJson': jsonEncode(arguments ?? const {}),
+    },
+  'modelUsage': ?usage,
+  'sourceTrajectoryStepInfo': {
+    'trajectoryId': _trajectory,
+    'stepIndex': ?index,
   },
-  'session/new': newSession ?? (_) => _session,
-  'session/load': (_) => {
-    'models': _session['models'],
-    'configOptions': _session['configOptions'],
+};
+
+Map<String, Object?> _user(
+  String text, {
+  String? id,
+  bool plan = false,
+  String at = '2026-11-22T18:40:00Z',
+}) => {
+  'type': 'CORTEX_STEP_TYPE_USER_INPUT',
+  'status': 'CORTEX_STEP_STATUS_DONE',
+  'metadata': _meta(at: at),
+  'userInput': {
+    'items': [
+      if (plan)
+        {
+          'item': {
+            'slashCommand': {
+              'info': {'name': 'plan', 'modelFacingText': '<PLAN>…</PLAN>'},
+            },
+          },
+        },
+      {'text': text},
+    ],
+    'clientMessageId': ?id,
   },
-  'session/set_mode': (_) => {},
-  'session/set_config_option': (params) => {
-    'configOptions': [
-      for (final option in _session['configOptions']! as List)
-        if ((option as Map)['id'] == params['configId'])
-          {...option, 'currentValue': params['value']}
-        else
-          option,
+};
+
+Map<String, Object?> _reply(
+  String text, {
+  String thinking = '',
+  bool generating = false,
+  String? stop,
+  String at = '2026-11-22T18:40:01Z',
+  String done = '2026-11-22T18:40:05Z',
+  int input = 100,
+  int output = 20,
+}) => {
+  'type': 'CORTEX_STEP_TYPE_PLANNER_RESPONSE',
+  'status': generating
+      ? 'CORTEX_STEP_STATUS_GENERATING'
+      : 'CORTEX_STEP_STATUS_DONE',
+  'metadata': _meta(
+    at: at,
+    done: generating ? null : done,
+    usage: generating
+        ? null
+        : {
+            'model': 'MODEL_PLACEHOLDER_M319',
+            'inputTokens': '$input',
+            'outputTokens': '$output',
+            'thinkingOutputTokens': '7',
+          },
+  ),
+  'plannerResponse': {
+    if (text.isNotEmpty) 'response': text,
+    if (thinking.isNotEmpty) 'thinking': thinking,
+    'thinkingDuration': '2.5s',
+    'stopReason': ?stop,
+  },
+};
+
+Map<String, Object?> _command(
+  String line, {
+  String status = 'CORTEX_STEP_STATUS_DONE',
+  int? exit = 0,
+  String output = 'ok',
+  Map<String, Object?>? task,
+  bool denied = false,
+  int index = 2,
+}) => {
+  'type': 'CORTEX_STEP_TYPE_RUN_COMMAND',
+  'status': status,
+  'metadata': _meta(
+    tool: 'run_command',
+    arguments: {'CommandLine': line, 'toolSummary': 'Do $line'},
+    index: index,
+  ),
+  'taskDetails': ?task,
+  if (denied)
+    'completedInteractions': [
+      {
+        'request': {
+          'permission': {
+            'resource': {'action': 'command', 'target': line},
+          },
+        },
+        'response': {
+          'permission': {'allow': false},
+        },
+      },
+    ],
+  'runCommand': {
+    'commandLine': line,
+    'cwd': '/p',
+    'blocking': task == null,
+    'exitCode': ?exit,
+    'combinedOutput': {
+      'full':
+          'Created At: 2026-11-23T02:40:00+08:00\n'
+          'Command exited with code ${exit ?? 0}.\n\nCommand output:\n$output',
+    },
+  },
+};
+
+/// A step waiting on the user: a permission, as agy asks it (a GENERIC
+/// placeholder at the index the step will be).
+Map<String, Object?> _waiting(
+  String action,
+  String target, {
+  String? description,
+  String? pattern,
+  int index = 2,
+  String? tool,
+}) => {
+  'type': 'CORTEX_STEP_TYPE_GENERIC',
+  'status': 'CORTEX_STEP_STATUS_WAITING',
+  'metadata': _meta(tool: tool, index: index),
+  'requestedInteraction': {
+    'permission': {
+      'resource': {'action': action, 'target': target},
+      'actionDescription': ?description,
+      'suggestedPersistPattern': ?pattern,
+    },
+  },
+  'generic': {},
+};
+
+Map<String, Object?> _question({int index = 2, bool answered = false}) => {
+  'type': 'CORTEX_STEP_TYPE_ASK_QUESTION',
+  'status': answered ? 'CORTEX_STEP_STATUS_DONE' : 'CORTEX_STEP_STATUS_WAITING',
+  'metadata': _meta(tool: 'ask_question', index: index),
+  if (!answered)
+    'requestedInteraction': {
+      'askQuestion': {
+        'questions': [
+          {
+            'question': 'Which file?',
+            'options': [
+              {'id': '1', 'text': 'one'},
+              {'id': '2', 'text': 'two'},
+            ],
+          },
+        ],
+      },
+    },
+  'askQuestion': {
+    'questions': [
+      {
+        'question': 'Which file?',
+        'options': [
+          {'id': '1', 'text': 'one'},
+          {'id': '2', 'text': 'two'},
+        ],
+        if (answered) 'selectedOptionIds': ['2'],
+      },
     ],
   },
 };
 
+Map<String, Object?> _edit(
+  String path, {
+  bool created = false,
+  String status = 'CORTEX_STEP_STATUS_DONE',
+  String? original,
+  List<(String, String)> lines = const [('a', 'UNCHANGED'), ('b', 'INSERT')],
+}) => {
+  'type': 'CORTEX_STEP_TYPE_CODE_ACTION',
+  'status': status,
+  'metadata': _meta(
+    tool: created ? 'write_file' : 'edit_file',
+    arguments: {
+      'Path': path,
+      if (created) 'Content': [for (final (text, _) in lines) text].join('\n'),
+    },
+  ),
+  'codeAction': {
+    'actionSpec': created
+        ? {
+            'createFile': {
+              'path': {'absoluteUri': Uri.file(path).toString()},
+            },
+          }
+        : {
+            'command': {
+              'isEdit': true,
+              'file': {'absoluteUri': Uri.file(path).toString()},
+            },
+          },
+    'actionResult': {
+      'edit': {
+        'diff': {
+          'endLine': 12,
+          'unifiedDiff': {
+            'lines': [
+              for (final (text, type) in lines)
+                {'text': text, 'type': 'UNIFIED_DIFF_LINE_TYPE_$type'},
+            ],
+          },
+        },
+        'absoluteUri': Uri.file(path).toString(),
+        'createFile': ?(created ? true : null),
+        'originalContent': ?original,
+      },
+    },
+    'diffStats': {'additions': 1},
+  },
+};
+
+Map<String, Object?> _view(String path) => {
+  'type': 'CORTEX_STEP_TYPE_VIEW_FILE',
+  'status': 'CORTEX_STEP_STATUS_DONE',
+  'metadata': _meta(tool: 'read_file', arguments: {'Path': path}),
+  'viewFile': {'absolutePathUri': Uri.file(path).toString(), 'content': '…'},
+};
+
+Map<String, Object?> _mcp(String name, {String result = 'Sunny'}) => {
+  'type': 'CORTEX_STEP_TYPE_GENERIC',
+  'status': 'CORTEX_STEP_STATUS_DONE',
+  'metadata': _meta(
+    tool: name,
+    arguments: {'city': 'Paris', 'toolSummary': 'Weather in Paris'},
+  ),
+  'generic': {
+    'args': {'city': 'Paris'},
+    'result': {'result': result},
+  },
+};
+
+Map<String, Object?> _subagent() => {
+  'type': 'CORTEX_STEP_TYPE_INVOKE_SUBAGENT',
+  'status': 'CORTEX_STEP_STATUS_DONE',
+  'metadata': _meta(tool: 'invoke_subagent'),
+  'invokeSubagent': {
+    'subagents': [
+      {'typeName': 'self', 'role': 'counter', 'initialPrompt': 'Say 7'},
+    ],
+    'results': [
+      {'conversationId': 'sub1'},
+    ],
+  },
+};
+
+Map<String, Object?> _error(String text) => {
+  'type': 'CORTEX_STEP_TYPE_ERROR_MESSAGE',
+  'status': 'CORTEX_STEP_STATUS_DONE',
+  'metadata': _meta(),
+  'errorMessage': {
+    'error': {'shortError': text},
+  },
+};
+
+Map<String, Object?> _taskEnd(String taskId, {int exit = 0}) => {
+  'type': 'CORTEX_STEP_TYPE_SYSTEM_MESSAGE',
+  'status': 'CORTEX_STEP_STATUS_DONE',
+  'metadata': _meta(),
+  'systemMessage': {
+    'message':
+        '[Message] sender=$taskId content=Task id "$taskId" finished with '
+        'result:\nCommand exited with code $exit.\n\nCommand output:\ndone\n',
+    'renderInfo': {
+      'title': 'Sleep finished',
+      'contentBlocks': [
+        {
+          'terminal': {
+            'command': 'sleep 1',
+            'cwd': '/p',
+            'exitCode': exit,
+            'output': 'done\n',
+          },
+        },
+      ],
+    },
+    'eventType': 'task_notification',
+  },
+};
+
+Map<String, Object?> _hidden() => {
+  'type': 'CORTEX_STEP_TYPE_SYSTEM_MESSAGE',
+  'status': 'CORTEX_STEP_STATUS_DONE',
+  'metadata': _meta(),
+  'systemMessage': {
+    'message': 'Reminder: work efficiently.',
+    'renderInfo': {'hidden': true},
+  },
+};
+
+/// One frame of the watch: agy's [status], and the steps that changed.
+Map<String, Object?> _frame({
+  String status = 'CASCADE_RUN_STATUS_RUNNING',
+  Map<int, Map<String, Object?>> steps = const {},
+  Map<String, Object?>? context,
+  List<Map<String, Object?>>? tasks,
+}) => {
+  'update': {
+    'conversationId': 'c1',
+    'trajectoryId': _trajectory,
+    'status': status,
+    if (status == 'CASCADE_RUN_STATUS_IDLE') 'fullyIdle': true,
+    'mainTrajectoryUpdate': {
+      'stepsUpdate': steps.isEmpty
+          ? const {}
+          : {
+              'indices': steps.keys.toList(),
+              'steps': steps.values.toList(),
+              'totalLength': steps.keys.reduce((a, b) => a > b ? a : b) + 1,
+            },
+    },
+    'contextWindowUsage': ?context,
+    if (tasks != null)
+      'backgroundTasksUpdate': tasks.isEmpty
+          ? const {}
+          : {
+              'indices': [for (var i = 0; i < tasks.length; i++) i],
+              'backgroundTasks': [
+                for (final task in tasks) {'taskSnapshot': task},
+              ],
+            },
+  },
+};
+
+const _idle = 'CASCADE_RUN_STATUS_IDLE';
+
 void main() {
+  late _Server server;
   late _Runtime runtime;
   late AntigravityKernel kernel;
   late List<KernelEvent> events;
@@ -327,9 +607,8 @@ void main() {
         workspace: workspace == null ? null : () => workspace,
       ),
       runtime: runtime,
-      quiet: const Duration(milliseconds: 30),
-      pollEvery: const Duration(milliseconds: 10),
-      idleFor: const Duration(milliseconds: 150),
+      retryAfter: const Duration(milliseconds: 20),
+      takenWithin: const Duration(milliseconds: 200),
     );
     made.events.listen(events.add);
     return made;
@@ -337,7 +616,8 @@ void main() {
 
   setUp(() {
     AntigravityKernel.forgetKept();
-    runtime = _Runtime(_answers());
+    server = _Server(_answers());
+    runtime = _Runtime(server);
     events = [];
   });
 
@@ -366,42 +646,41 @@ void main() {
     return items;
   }
 
+  _Watch watch() => server.streams.last;
+
   Future<void> started() async {
     kernel.prepare();
     await pumpEventQueue();
   }
 
-  /// Shown, and a first message answered: agy up on the conversation.
-  /// What that put out is forgotten.
+  /// Shown, a first message sent and the watch on the conversation up,
+  /// agy idle after its reply. What that put out is forgotten.
   Future<void> startedOn() async {
     await started();
     kernel.send(const KernelTurn(id: 't0', text: 'hi'));
     await pumpEventQueue();
-    runtime.agent.answer('session/prompt', {'stopReason': 'end_turn'});
+    watch().add(
+      _frame(
+        steps: {
+          0: _user('hi', id: 't0'),
+          1: _reply('Hello'),
+        },
+      ),
+    );
+    watch().add(_frame(status: _idle));
     await pumpEventQueue();
     events.clear();
+    server.calls.clear();
   }
 
-  /// A conversation kept, to continue.
   SessionRecord old() => SessionRecord(
-    id: 's1',
+    id: 'c1',
     title: 'Old',
     updatedAt: DateTime(2026),
     cwd: '/p',
   );
 
-  /// What agy reads back of it: [updates], then [answer].
-  void readsBack(
-    List<Map<String, Object?>> updates, [
-    Map<String, Object?>? answer,
-  ]) {
-    runtime.replays = (_, _, onUpdate) async {
-      updates.forEach(onUpdate);
-      return answer ?? {'configOptions': _session['configOptions']};
-    };
-  }
-
-  test('starts agy in the project, with what it is told', () async {
+  test('starts the conversation in agy with the first message', () async {
     kernel = make(
       workspace: const KernelWorkspace(
         folders: ['/p', '/q'],
@@ -410,866 +689,898 @@ void main() {
     );
     await started();
     expect(kernel.health.status, KernelHealthStatus.ready);
-    // Nothing asked of agy till the first message; one booted ahead.
-    expect(runtime.agents, isEmpty);
-    expect(runtime.warmed, 1);
+    // Checked, its models asked; nothing started till the first message.
+    expect(server.callsOf('GetAuthStatus'), hasLength(1));
+    expect(server.callsOf('GetCascadeModelConfigData'), hasLength(1));
+    expect(server.callsOf('StartCascade'), isEmpty);
+    expect(kernel.sessionId, isNull);
+    kernel.send(
+      const KernelTurn(
+        id: 't0',
+        text: 'hi',
+        notes: ['<system-reminder>x</system-reminder>'],
+      ),
+    );
+    await pumpEventQueue();
+    final start = server.callsOf('StartCascade').single;
+    expect(start['source'], 'CORTEX_TRAJECTORY_SOURCE_CLI');
+    expect(start['workspaceUris'], ['file:///p', 'file:///q']);
+    expect(
+      jsonEncode(start['agentScriptItem']),
+      allOf(contains('AGENT_SURFACE_CLI'), contains('Be brief.')),
+    );
+    expect(kernel.sessionId, 'c1');
+    final sent = server.callsOf('SendUserCascadeMessage').single;
+    expect(sent['cascadeId'], 'c1');
+    expect(sent['clientMessageId'], 't0');
+    expect(sent['items'], [
+      {'text': 'hi'},
+      {'text': '<system-reminder>x</system-reminder>'},
+    ]);
+    final planner = (sent['cascadeConfig'] as Map)['plannerConfig'] as Map;
+    // Gemini 3.8 Flash at its default level, medium.
+    expect(planner['planModel'], 'MODEL_PLACEHOLDER_M319');
+    expect(
+      jsonEncode(planner['toolConfig']),
+      allOf(
+        contains('"enableLazyLoad":false'),
+        contains('CASCADE_COMMANDS_AUTO_EXECUTION_OFF'),
+      ),
+    );
+    expect(
+      ((planner['permissionConfig'] as Map)['effectiveGrants'] as Map)['allow'],
+      ['read_file(/p)', 'read_file(/q)'],
+    );
+    expect(
+      jsonEncode(planner['promptSectionCustomizationConfig']),
+      contains('Be brief.'),
+    );
+    // Watched from then on.
+    expect(watch().method, 'StreamAgentStateUpdates');
+    expect(watch().body['conversationId'], 'c1');
+    expect(of<TurnStarted>().single.turnId, 't0');
+    expect((items()['t0'] as UserMessageItem).text, 'hi');
+  });
+
+  test('a reply streams as agy writes it, and the turn ends idle', () async {
+    kernel = make();
+    await started();
     kernel.send(const KernelTurn(id: 't0', text: 'hi'));
     await pumpEventQueue();
-    final init = runtime.agent.sentOf('initialize').single;
-    expect((init['clientInfo'] as Map)['name'], 'baocode');
-    final session = runtime.agent.sentOf('session/new').single;
-    expect(session['cwd'], '/p');
-    expect(session['additionalDirectories'], ['/q']);
-    expect(session['_meta'], {
-      'antigravity': {
-        'systemPrompt': {'append': 'Be brief.'},
-      },
-    });
-    expect(kernel.sessionId, 's1');
-  });
-
-  test('offers its models, and their thinking levels', () async {
-    kernel = make();
-    await startedOn();
-    expect(
-      [for (final option in kernel.model.options) option.id],
-      ['gemini-3.8-flash', 'claude-opus-5-5', 'gpt-oss-120b-medium'],
+    watch().add(_frame(steps: {0: _user('hi', id: 't0')}));
+    watch().add(
+      _frame(steps: {1: _reply('', thinking: 'Hm', generating: true)}),
     );
-    expect(kernel.model.selected, 'gemini-3.8-flash');
-    expect(kernel.effort.selected, 'high');
+    watch().add(
+      _frame(steps: {1: _reply('', thinking: 'Hmm…', generating: true)}),
+    );
+    watch().add(
+      _frame(steps: {1: _reply('Hel', thinking: 'Hmm…', generating: true)}),
+    );
+    watch().add(
+      _frame(steps: {1: _reply('Hello', thinking: 'Hmm…', generating: true)}),
+    );
+    await pumpEventQueue();
+    // Thought first, then the text: each streamed from where it was.
     expect(
+      [for (final d in of<TextDelta>()) (d.id, d.offset, d.text)],
       [
-        for (final option in kernel.effort.optionsFor('claude-opus-5-5'))
-          option.id,
+        ('agy-s1-think', 0, 'Hm'),
+        ('agy-s1-think', 2, 'm…'),
+        ('agy-s1', 0, 'Hel'),
+        ('agy-s1', 3, 'lo'),
       ],
-      ['low', 'high'],
     );
-    expect(kernel.effort.optionsFor('gpt-oss-120b-medium'), isEmpty);
-
-    kernel.model.select('claude-opus-5-5');
+    expect(of<TurnEnded>(), isEmpty);
+    // The user's own message is not shown again from agy's copy.
+    expect(items().keys.where((id) => id.startsWith('agy-s0')), isEmpty);
+    watch().add(_frame(steps: {1: _reply('Hello', thinking: 'Hmm…')}));
+    watch().add(_frame(status: _idle));
     await pumpEventQueue();
-    expect(runtime.agent.sentOf('session/set_config_option').single, {
-      'sessionId': 's1',
-      'configId': 'model',
-      'value': 'claude-opus-5-5',
-    });
-    expect(kernel.model.selected, 'claude-opus-5-5');
-  });
-
-  test("puts the user's picks in effect as it starts", () async {
-    kernel = make(
-      settings: {
-        KernelChoiceKind.model.name: 'claude-opus-5-5',
-        KernelChoiceKind.permission.name: 'acceptEdits',
-        '${KernelChoiceKind.effort.name}@claude-opus-5-5': 'low',
-      },
-    );
-    await startedOn();
-    expect(
-      [
-        for (final params in runtime.agent.sentOf('session/set_config_option'))
-          (params['configId'], params['value']),
-      ],
-      [('model', 'claude-opus-5-5'), ('thought_level', 'low')],
-    );
-    expect(
-      runtime.agent.sentOf('session/set_mode').single['modeId'],
-      'accept-edits',
-    );
-  });
-
-  test('its modes: Plan, else the approvals; full access is auto', () async {
-    kernel = make();
-    await startedOn();
-    kernel.mode.select('plan');
-    await pumpEventQueue();
-    kernel.mode.select('agent');
-    kernel.permission.select('bypassPermissions');
-    await pumpEventQueue();
-    expect(
-      [
-        for (final params in runtime.agent.sentOf('session/set_mode'))
-          params['modeId'],
-      ],
-      ['plan', 'default', 'auto'],
-    );
-    // agy entering plan mode itself moves the pick along.
-    runtime.agent.update({
-      'sessionUpdate': 'current_mode_update',
-      'currentModeId': 'plan',
-    });
-    await pumpEventQueue();
-    expect(kernel.mode.selected, 'plan');
+    final shown = items();
+    expect((shown['agy-s1'] as AssistantTextItem).text, 'Hello');
+    final thought = shown['agy-s1-think'] as ThinkingItem;
+    expect((thought.text, thought.tokens, thought.seconds), ('Hmm…', 7, 3));
+    final ended = of<TurnEnded>().single;
+    expect(ended.turnId, 't0');
+    expect(ended.interrupted, isFalse);
+    expect((ended.usage!.inputTokens, ended.usage!.outputTokens), (100, 20));
   });
 
   test(
-    'a turn: its thoughts, text, command and edit, then its usage',
+    'offers its models with their thinking levels, and sends the pick',
     () async {
-      kernel = make();
-      await started();
-      kernel.send(const KernelTurn(id: 't1', text: 'Fix it'));
-      await pumpEventQueue();
-      final prompt = runtime.agent.sentOf('session/prompt').single;
-      expect(prompt['prompt'], [
-        {'type': 'text', 'text': 'Fix it'},
-      ]);
-      expect(kernel.sessionId, 's1');
-      final agent = runtime.agent;
-      agent
-        ..update({
-          'sessionUpdate': 'agent_thought_chunk',
-          'content': {'type': 'text', 'text': 'Look first.'},
-        })
-        ..update({
-          'sessionUpdate': 'agent_message_chunk',
-          'content': {'type': 'text', 'text': 'On '},
-        })
-        ..update({
-          'sessionUpdate': 'agent_message_chunk',
-          'content': {'type': 'text', 'text': 'it.'},
-        })
-        ..update({
-          'sessionUpdate': 'tool_call',
-          'toolCallId': 'c1',
-          'name': 'run_command',
-          'kind': 'execute',
-          'title': 'Run ls',
-          'status': 'in_progress',
-          'rawInput': {'CommandLine': 'ls', 'toolSummary': 'List files'},
-        })
-        ..update({
-          'sessionUpdate': 'tool_call_update',
-          'toolCallId': 'c1',
-          'status': 'completed',
-          'rawOutput': {
-            'output': 'Created At: x\nCommand output:\na.txt\n',
-            'exit_code': 0,
-          },
-        })
-        ..update({
-          'sessionUpdate': 'tool_call',
-          'toolCallId': 'c2',
-          'name': 'edit_file',
-          'kind': 'edit',
-          'status': 'completed',
-          'rawInput': {'Path': '/p/a.txt'},
-          'content': [
-            {
-              'type': 'diff',
-              'path': '/p/a.txt',
-              'oldText': 'one\n',
-              'newText': 'two\n',
-            },
-          ],
-        });
-      await pumpEventQueue();
-      agent.answer('session/prompt', {
-        'stopReason': 'end_turn',
-        'usage': {
-          'inputTokens': 110,
-          'cachedReadTokens': 900,
-          'outputTokens': 55,
+      kernel = make(
+        settings: {
+          'model': 'gemini-3.8-flash',
+          'effort@gemini-3.8-flash': 'high',
         },
-      });
+      );
+      await started();
+      expect(
+        [for (final o in kernel.model.options) (o.id, o.label)],
+        [
+          ('gemini-3.8-flash', 'Gemini 3.8 Flash'),
+          ('claude-sonnet-4-6', 'Claude Sonnet 4.6 (Thinking)'),
+        ],
+      );
+      expect(kernel.model.selected, 'gemini-3.8-flash');
+      expect(
+        [for (final o in kernel.effort.optionsFor('gemini-3.8-flash')) o.id],
+        ['low', 'medium', 'high'],
+      );
+      expect(kernel.effort.optionsFor('claude-sonnet-4-6'), isEmpty);
+      expect(kernel.effort.selected, 'high');
+      kernel.send(const KernelTurn(id: 't0', text: 'hi'));
       await pumpEventQueue();
-
-      final shown = items().values.toList();
-      expect(shown.whereType<ThinkingItem>().single.text, 'Look first.');
-      expect(shown.whereType<AssistantTextItem>().single.raw, 'On it.');
-      final command = shown.whereType<TerminalItem>().single;
-      expect(command.command, 'ls');
-      expect(command.output, 'a.txt');
-      expect(command.status, CommandStatus.succeeded);
-      expect(shown.whereType<CodeDiffItem>().single.fileName, 'a.txt');
-      final edit = of<FileEdited>().single;
-      expect(edit.change.path, '/p/a.txt');
-      expect(edit.turnId, 't1');
-      expect(edit.original, isA<OriginalByEdits>());
-      // Guessed as it streamed; as agy counted once done.
-      final guessed = of<OutputReported>();
-      expect(guessed, isNotEmpty);
-      expect(guessed.first.output.tokens, greaterThan(0));
-      final ended = of<TurnEnded>().single;
-      expect(ended.turnId, 't1');
-      expect(ended.interrupted, isFalse);
-      expect(ended.usage?.inputTokens, 1010);
-      expect(ended.usage?.outputTokens, 55);
-      // Timed as it ran, to show again as it is read back.
-      final timed = runtime.timed['s1']!.single;
-      expect(timed['text'], 'Fix it');
-      expect(timed['workedMs'], ended.worked!.inMilliseconds);
-      expect((timed['input'], timed['output']), (1010, 55));
+      Map<String, Object?> planner() =>
+          ((server.callsOf('SendUserCascadeMessage').last['cascadeConfig']
+                      as Map)['plannerConfig']
+                  as Map)
+              .cast();
+      expect(planner()['planModel'], 'MODEL_PLACEHOLDER_M318');
+      watch().add(_frame(steps: {0: _user('hi', id: 't0')}));
+      watch().add(_frame(status: _idle));
+      await pumpEventQueue();
+      kernel.model.select('claude-sonnet-4-6');
+      kernel.send(const KernelTurn(id: 't1', text: 'again'));
+      await pumpEventQueue();
+      expect(planner()['planModel'], 'MODEL_PLACEHOLDER_M35');
+      // Models kept for the next run.
+      expect(jsonEncode(runtime.kept!['models']), contains('gemini-3.8-flash'));
     },
   );
 
-  test('takes messages while busy, and sends them in turn', () async {
+  test(
+    'plan mode: /plan sent, the plan written is a card to approve',
+    () async {
+      kernel = make(settings: {'mode': 'plan'});
+      await started();
+      kernel.send(const KernelTurn(id: 't0', text: 'add a flag'));
+      await pumpEventQueue();
+      final sent = server.callsOf('SendUserCascadeMessage').single;
+      expect(
+        jsonEncode((sent['items'] as List).first),
+        allOf(
+          contains('"name":"plan"'),
+          contains(AntigravityKernel.planPrompt),
+        ),
+      );
+      const plan = '/Users/me/.gemini/antigravity-cli/brain/c1/add_flag.md';
+      watch().add(
+        _frame(
+          steps: {
+            0: _user('add a flag', id: 't0', plan: true),
+            1: _edit(
+              plan,
+              created: true,
+              lines: [('# Add a flag', 'INSERT'), ('Do it.', 'INSERT')],
+            ),
+            2: _reply('Here is the plan.'),
+          },
+        ),
+      );
+      watch().add(_frame(status: _idle));
+      await pumpEventQueue();
+      final card = items()['agy-s1'] as PlanItem;
+      expect(
+        (card.title, card.status, card.round),
+        ('Add a flag', PlanStatus.awaiting, 1),
+      );
+      expect(card.text, '# Add a flag\nDo it.');
+      expect(of<PlanWritten>().single.path, plan);
+      // agy's own notes are not changes to review.
+      expect(of<FileEdited>(), isEmpty);
+      kernel.startBuilding();
+      expect(kernel.mode.selected, 'agent');
+      kernel.send(const KernelTurn(id: 't1', text: 'go'));
+      await pumpEventQueue();
+      final go = server.callsOf('SendUserCascadeMessage').last;
+      expect(
+        jsonEncode(go['items']),
+        allOf(contains('approved the plan'), isNot(contains('"plan"'))),
+      );
+      expect((items()['agy-s1'] as PlanItem).status, PlanStatus.approved);
+    },
+  );
+
+  group('approvals', () {
+    test('a command is put to the user; allowed once', () async {
+      kernel = make();
+      await startedOn();
+      kernel.send(const KernelTurn(id: 't1', text: 'list'));
+      await pumpEventQueue();
+      watch().add(_frame(steps: {2: _user('list', id: 't1')}));
+      watch().add(
+        _frame(
+          steps: {
+            3: _waiting(
+              'command',
+              'ls -la',
+              description: 'List files',
+              pattern: 'ls',
+              index: 3,
+            ),
+          },
+        ),
+      );
+      await pumpEventQueue();
+      final request =
+          of<InteractionRequested>().single.request as ApprovalRequest;
+      expect(request.title, 'List files');
+      expect((request.preview as CommandPreview).command, 'ls -la');
+      expect(request.alwaysAllowLabel, contains('ls'));
+      // Nothing shown for the placeholder itself.
+      expect(items().containsKey('agy-s3'), isFalse);
+      kernel.answer(
+        request.id,
+        const ApprovalAnswer(ApprovalDecision.allowOnce),
+      );
+      await pumpEventQueue();
+      expect(of<InteractionResolved>().single.requestId, request.id);
+      expect(server.callsOf('HandleCascadeUserInteraction').single, {
+        'cascadeId': 'c1',
+        'interaction': {
+          'trajectoryId': _trajectory,
+          'stepIndex': 3,
+          'permission': {'allow': true, 'scope': 'PERMISSION_SCOPE_ONCE'},
+        },
+      });
+      watch().add(
+        _frame(steps: {3: _command('ls -la', output: 'a\nb', index: 3)}),
+      );
+      await pumpEventQueue();
+      final terminal = items()['agy-s3'] as TerminalItem;
+      expect(
+        (terminal.command, terminal.output, terminal.status),
+        ('ls -la', 'a\nb', CommandStatus.succeeded),
+      );
+      expect(terminal.description, 'Do ls -la');
+    });
+
+    test('denied with a word, and always for the conversation', () async {
+      kernel = make();
+      await startedOn();
+      kernel.send(const KernelTurn(id: 't1', text: 'rm'));
+      await pumpEventQueue();
+      watch().add(
+        _frame(steps: {3: _waiting('command', 'rm -rf x', index: 3)}),
+      );
+      await pumpEventQueue();
+      var request = of<InteractionRequested>().last.request;
+      kernel.answer(
+        request.id,
+        const ApprovalAnswer(ApprovalDecision.deny, message: 'keep it'),
+      );
+      await pumpEventQueue();
+      expect(
+        (server.callsOf('HandleCascadeUserInteraction').last['interaction']
+            as Map)['permission'],
+        {
+          'allow': false,
+          'scope': 'PERMISSION_SCOPE_ONCE',
+          'userDenyInstruction': 'keep it',
+        },
+      );
+      watch().add(
+        _frame(
+          steps: {
+            3: _command(
+              'rm -rf x',
+              exit: null,
+              denied: true,
+              output: '',
+              index: 3,
+            ),
+          },
+        ),
+      );
+      watch().add(_frame(steps: {4: _waiting('command', 'ls', index: 4)}));
+      await pumpEventQueue();
+      expect((items()['agy-s3'] as TerminalItem).status, CommandStatus.failed);
+      request = of<InteractionRequested>().last.request;
+      kernel.answer(
+        request.id,
+        const ApprovalAnswer(ApprovalDecision.allowAlways),
+      );
+      await pumpEventQueue();
+      expect(
+        (server.callsOf('HandleCascadeUserInteraction').last['interaction']
+            as Map)['permission'],
+        {'allow': true, 'scope': 'PERMISSION_SCOPE_CONVERSATION'},
+      );
+    });
+
+    test(
+      'reads in the project, and edits with accept edits on, go without asking',
+      () async {
+        kernel = make(settings: {'permission': 'acceptEdits'});
+        await startedOn();
+        kernel.send(const KernelTurn(id: 't1', text: 'edit'));
+        await pumpEventQueue();
+        final sent = server.callsOf('SendUserCascadeMessage').single;
+        expect(
+          jsonEncode(sent['cascadeConfig']),
+          allOf(
+            contains('write_file(/p)'),
+            contains('CASCADE_COMMANDS_AUTO_EXECUTION_OFF'),
+          ),
+        );
+        watch().add(
+          _frame(steps: {3: _waiting('read_file', '/p/a.txt', index: 3)}),
+        );
+        watch().add(
+          _frame(
+            steps: {4: _waiting('write_file', '/private/p/a.txt', index: 4)},
+          ),
+        );
+        watch().add(
+          _frame(steps: {5: _waiting('write_file', '/etc/hosts', index: 5)}),
+        );
+        watch().add(
+          _frame(steps: {6: _waiting('mcp', 'baocode/browser_open', index: 6)}),
+        );
+        watch().add(
+          _frame(steps: {7: _waiting('mcp', 'github/search', index: 7)}),
+        );
+        await pumpEventQueue();
+        expect(
+          [
+            for (final call in server.callsOf('HandleCascadeUserInteraction'))
+              (call['interaction'] as Map)['stepIndex'],
+          ],
+          [3, 4, 6],
+        );
+        expect(of<InteractionRequested>(), hasLength(2));
+      },
+    );
+
+    test('full access allows all, and runs commands eagerly', () async {
+      kernel = make(settings: {'permission': 'bypassPermissions'});
+      await startedOn();
+      kernel.send(const KernelTurn(id: 't1', text: 'go'));
+      await pumpEventQueue();
+      expect(
+        jsonEncode(
+          server.callsOf('SendUserCascadeMessage').single['cascadeConfig'],
+        ),
+        contains('CASCADE_COMMANDS_AUTO_EXECUTION_EAGER'),
+      );
+      watch().add(
+        _frame(steps: {3: _waiting('command', 'rm -rf /', index: 3)}),
+      );
+      await pumpEventQueue();
+      expect(of<InteractionRequested>(), isEmpty);
+      expect(server.callsOf('HandleCascadeUserInteraction'), hasLength(1));
+    });
+
+    test('a step no longer waiting takes its request back', () async {
+      kernel = make();
+      await startedOn();
+      kernel.send(const KernelTurn(id: 't1', text: 'x'));
+      await pumpEventQueue();
+      watch().add(_frame(steps: {3: _waiting('command', 'ls', index: 3)}));
+      await pumpEventQueue();
+      final request = of<InteractionRequested>().single.request;
+      // Answered in the terminal, say.
+      watch().add(_frame(steps: {3: _command('ls', index: 3)}));
+      await pumpEventQueue();
+      expect(of<InteractionResolved>().single.requestId, request.id);
+      kernel.answer(
+        request.id,
+        const ApprovalAnswer(ApprovalDecision.allowOnce),
+      );
+      await pumpEventQueue();
+      expect(server.callsOf('HandleCascadeUserInteraction'), isEmpty);
+    });
+  });
+
+  test('asks the user a question', () async {
     kernel = make();
-    await started();
-    kernel.send(const KernelTurn(id: 't1', text: 'one'));
+    await startedOn();
+    kernel.send(const KernelTurn(id: 't1', text: 'which'));
     await pumpEventQueue();
+    watch().add(_frame(steps: {3: _question(index: 3)}));
+    await pumpEventQueue();
+    final request =
+        of<InteractionRequested>().single.request as QuestionRequest;
+    expect(request.questions.single.prompt, 'Which file?');
+    expect(
+      [for (final o in request.questions.single.options) o.label],
+      ['one', 'two'],
+    );
+    expect((items()['agy-s3'] as ToolCallItem).kind, ToolKind.question);
+    kernel.answer(
+      request.id,
+      const QuestionAnswer([
+        ['two'],
+      ]),
+    );
+    await pumpEventQueue();
+    expect(
+      (server.callsOf('HandleCascadeUserInteraction').single['interaction']
+          as Map)['askQuestion'],
+      {
+        'responses': [
+          {
+            'question': 'Which file?',
+            'selectedOptionIds': ['2'],
+          },
+        ],
+      },
+    );
+    watch().add(_frame(steps: {3: _question(index: 3, answered: true)}));
+    await pumpEventQueue();
+    final asked = items()['agy-s3'] as ToolCallItem;
+    expect((asked.status, asked.output), (ToolStatus.succeeded, 'two'));
+  });
+
+  test(
+    'an edit is a diff card, and a change to review as it was before',
+    () async {
+      kernel = make();
+      await startedOn();
+      kernel.send(const KernelTurn(id: 't1', text: 'edit'));
+      await pumpEventQueue();
+      watch().add(
+        _frame(
+          steps: {3: _edit('/p/a.txt', status: 'CORTEX_STEP_STATUS_RUNNING')},
+        ),
+      );
+      await pumpEventQueue();
+      expect((items()['agy-s3'] as ToolCallItem).status, ToolStatus.running);
+      watch().add(
+        _frame(
+          steps: {
+            3: _edit('/p/a.txt'),
+            4: _edit('/p/new.txt', created: true, lines: [('x', 'INSERT')]),
+            5: _edit(
+              '/p/b.txt',
+              original: 'before\n',
+              lines: [('after', 'INSERT')],
+            ),
+          },
+        ),
+      );
+      await pumpEventQueue();
+      final diff = items()['agy-s3'] as CodeDiffItem;
+      expect(
+        (diff.fileName, diff.directory, diff.added, diff.removed),
+        ('a.txt', '/p', 1, 0),
+      );
+      expect(
+        [for (final l in diff.lines) (l.type, l.lineNumber, l.text)],
+        [
+          // Counted back from where agy says the diff ends.
+          (DiffLineType.context, 11, 'a'),
+          (DiffLineType.added, 12, 'b'),
+        ],
+      );
+      final edits = of<FileEdited>().toList();
+      expect(
+        [for (final e in edits) e.change.path],
+        ['/p/new.txt', '/p/b.txt', '/p/a.txt'],
+      );
+      expect(edits.every((e) => e.turnId == 't1'), isTrue);
+      expect((edits[0].original as OriginalText).text, isNull);
+      expect((edits[1].original as OriginalText).text, 'before\n');
+      // Asked of agy, for the file it did not tell.
+      expect((edits[2].original as OriginalText).text, 'old\n');
+      expect(server.callsOf('GetTrajectoryFileDiffs').single['fileUris'], [
+        'file:///p/a.txt',
+      ]);
+    },
+  );
+
+  test('a command left running is a task, over when agy says', () async {
+    kernel = make();
+    await startedOn();
+    kernel.send(const KernelTurn(id: 't1', text: 'sleep'));
+    await pumpEventQueue();
+    const taskId = 'c1/task-3';
+    final task = {
+      'id': taskId,
+      'logUri': 'file:///Users/me/.gemini/antigravity-cli/brain/c1/.system_generated/tasks/task-3.log',
+      'description': 'sleep 1',
+      'title': 'Sleep a bit',
+    };
+    watch().add(
+      _frame(
+        steps: {
+          3: _command(
+            'sleep 1',
+            status: 'CORTEX_STEP_STATUS_RUNNING',
+            exit: null,
+            output: '',
+            task: task,
+            index: 3,
+          ),
+        },
+        tasks: [
+          {'taskId': taskId, 'toolName': 'run_command'},
+        ],
+      ),
+    );
+    watch().add(_frame(steps: {4: _reply('Started.')}));
+    watch().add(_frame(status: _idle));
+    await pumpEventQueue();
+    var reported = of<TasksReported>().last.tasks.single;
+    expect(
+      (reported.id, reported.description, reported.status, reported.background),
+      (taskId, 'sleep 1', CommandStatus.running, true),
+    );
+    expect(reported.outputFile, endsWith('tasks/task-3.log'));
+    var terminal = items()['agy-s3'] as TerminalItem;
+    expect(
+      (terminal.background, terminal.status),
+      (true, CommandStatus.running),
+    );
+    expect(of<TurnEnded>().single.turnId, 't1');
+    // Its end: agy takes it up on its own.
+    watch().add(
+      _frame(
+        steps: {
+          3: _command('sleep 1', output: 'done', task: task, index: 3),
+          5: _taskEnd(taskId),
+        },
+        tasks: [],
+      ),
+    );
+    await pumpEventQueue();
+    reported = of<TasksReported>().last.tasks.single;
+    expect(reported.status, CommandStatus.succeeded);
+    terminal = items()['agy-s3'] as TerminalItem;
+    expect(
+      (terminal.status, terminal.output),
+      (CommandStatus.succeeded, 'done'),
+    );
+    expect(of<TurnStarted>().last.unprompted, isTrue);
+    watch().add(
+      _frame(steps: {6: _reply('It finished.', input: 5, output: 1)}),
+    );
+    watch().add(_frame(status: _idle));
+    await pumpEventQueue();
+    expect(of<TurnEnded>().last.turnId, startsWith('agy-wake'));
+    expect(of<TurnEnded>().last.usage?.inputTokens, 5);
+    expect((items()['agy-s6'] as AssistantTextItem).text, 'It finished.');
+  });
+
+  test('stopping cancels in agy; what runs is shown given up', () async {
+    kernel = make();
+    await startedOn();
+    kernel.send(const KernelTurn(id: 't1', text: 'x'));
+    await pumpEventQueue();
+    watch().add(
+      _frame(
+        steps: {
+          3: _command(
+            'sleep 9',
+            status: 'CORTEX_STEP_STATUS_RUNNING',
+            exit: null,
+            index: 3,
+          ),
+        },
+      ),
+    );
+    await pumpEventQueue();
+    kernel.cancel();
+    await pumpEventQueue();
+    expect(server.callsOf('CancelCascadeInvocation').single, {
+      'cascadeId': 'c1',
+    });
+    expect(of<TurnEnded>().single.interrupted, isTrue);
+    expect((items()['agy-s3'] as TerminalItem).status, CommandStatus.failed);
+    // agy winding down is not a turn of its own.
+    watch().add(
+      _frame(
+        status: 'CASCADE_RUN_STATUS_CANCELING',
+        steps: {
+          3: _command(
+            'sleep 9',
+            status: 'CORTEX_STEP_STATUS_CANCELED',
+            exit: null,
+            index: 3,
+          ),
+        },
+      ),
+    );
+    watch().add(_frame(status: _idle));
+    await pumpEventQueue();
+    expect(of<TurnStarted>(), hasLength(1));
+  });
+
+  test('messages sent while it works wait their turn', () async {
+    kernel = make();
+    await startedOn();
+    kernel.send(const KernelTurn(id: 't1', text: 'one'));
     kernel.send(const KernelTurn(id: 't2', text: 'two'));
     kernel.send(const KernelTurn(id: 't3', text: 'three'));
     await pumpEventQueue();
-    expect((items()['t2']! as UserMessageItem).queued, isTrue);
+    expect(server.callsOf('SendUserCascadeMessage'), hasLength(1));
+    expect((items()['t2'] as UserMessageItem).queued, isTrue);
     expect(await kernel.cancelQueued('t3'), isTrue);
     expect(items().containsKey('t3'), isFalse);
-    expect(runtime.agent.sentOf('session/prompt'), hasLength(1));
-
-    runtime.agent.answer('session/prompt', {'stopReason': 'end_turn'});
-    await pumpEventQueue();
-    expect(runtime.agent.sentOf('session/prompt'), hasLength(2));
-    expect((items()['t2']! as UserMessageItem).queued, isFalse);
-    expect([for (final s in of<TurnStarted>()) s.turnId], ['t1', 't2']);
-  });
-
-  test('an edit told as the whole file is reviewed against it', () async {
-    kernel = make();
-    await started();
-    final before = [for (var i = 0; i < 1000; i++) 'line $i'].join('\n');
-    final after = before.replaceFirst('line 500', 'line five hundred');
-    runtime.files['/p/big.txt'] = after;
-    kernel.send(const KernelTurn(id: 't1', text: 'edit'));
-    await pumpEventQueue();
-    runtime.agent.update({
-      'sessionUpdate': 'tool_call',
-      'toolCallId': 'c1',
-      'name': 'replace_file_content',
-      'kind': 'edit',
-      'status': 'completed',
-      'rawInput': {'TargetFile': '/p/big.txt'},
-      'content': [
-        {
-          'type': 'diff',
-          'path': '/p/big.txt',
-          'oldText': before,
-          'newText': after,
+    watch().add(
+      _frame(
+        steps: {
+          2: _user('one', id: 't1'),
+          3: _reply('1'),
         },
-      ],
-    });
+      ),
+    );
+    watch().add(_frame(status: _idle));
     await pumpEventQueue();
-    final edit = of<FileEdited>().single;
-    expect((edit.change.added, edit.change.removed), (1, 1));
-    expect((edit.original as OriginalText).text, before);
+    expect(
+      server.callsOf('SendUserCascadeMessage').last['clientMessageId'],
+      't2',
+    );
+    expect((items()['t2'] as UserMessageItem).queued, isFalse);
+    // Sent now: the turn under way is stopped for it.
+    kernel.send(const KernelTurn(id: 't4', text: 'four', now: true));
+    await pumpEventQueue();
+    expect(server.callsOf('CancelCascadeInvocation'), hasLength(1));
+    expect(
+      server.callsOf('SendUserCascadeMessage').last['clientMessageId'],
+      't4',
+    );
   });
 
-  test('a message sent now is a word in: the turn hands on to it', () async {
-    kernel = make();
-    await startedOn();
-    final agent = runtime.agent..sent.clear();
-    kernel.send(const KernelTurn(id: 't1', text: 'run it'));
-    await pumpEventQueue();
-    agent.update({
-      'sessionUpdate': 'tool_call',
-      'toolCallId': 'c1',
-      'name': 'run_command',
-      'kind': 'execute',
-      'status': 'in_progress',
-      'rawInput': {'CommandLine': 'sleep 20'},
-    });
-    kernel.send(const KernelTurn(id: 't2', text: 'and say BANANA'));
-    await pumpEventQueue();
-    final first = agent.waiting['session/prompt']!;
-
-    kernel.sendQueuedNow('t2');
-    await pumpEventQueue();
-    expect(agent.sentOf('session/cancel'), isEmpty);
-    expect(agent.sentOf('session/prompt'), hasLength(2));
-    expect([for (final s in of<TurnStarted>()) s.turnId], ['t1', 't2']);
-    expect(of<TurnEnded>().single.turnId, 't1');
-    expect(of<TurnEnded>().single.interrupted, isFalse);
-    expect((items()['t2']! as UserMessageItem).queued, isFalse);
-    expect((items()['c1']! as TerminalItem).status, CommandStatus.running);
-
-    // agy answers the first at once; the second goes on with its command.
-    agent.reply(first, {'stopReason': 'end_turn'});
-    await pumpEventQueue();
-    expect(of<TurnEnded>(), hasLength(1));
-    agent.update({
-      'sessionUpdate': 'tool_call_update',
-      'toolCallId': 'c1',
-      'status': 'completed',
-      'rawOutput': {'output': 'Command output:\nfirst-done\n'},
-    });
-    agent.answer('session/prompt', {'stopReason': 'end_turn'});
-    await pumpEventQueue();
-    expect(of<TurnEnded>().last.turnId, 't2');
-    expect((items()['c1']! as TerminalItem).status, CommandStatus.succeeded);
-  });
-
-  test('a command in the background stops, once no turn is open', () async {
-    kernel = make();
-    await startedOn();
-    final agent = runtime.agent;
-    kernel.send(const KernelTurn(id: 't1', text: 'serve'));
-    await pumpEventQueue();
-    agent.update({
-      'sessionUpdate': 'tool_call',
-      'toolCallId': 'c1',
-      'name': 'run_command',
-      'kind': 'execute',
-      'status': 'in_progress',
-      'rawInput': {'CommandLine': 'npm run dev'},
-    });
-    agent.answer('session/prompt', {'stopReason': 'end_turn'});
-    await pumpEventQueue();
-    kernel.send(const KernelTurn(id: 't2', text: 'more'));
-    await pumpEventQueue();
-
-    // A cancel now would end the turn too: sent after it.
-    kernel.stopTask('c1');
-    expect(agent.sentOf('session/cancel'), isEmpty);
-    agent.answer('session/prompt', {'stopReason': 'end_turn'});
-    await pumpEventQueue();
-    expect(agent.sentOf('session/cancel').single, {'sessionId': 's1'});
-
-    agent.update({
-      'sessionUpdate': 'tool_call_update',
-      'toolCallId': 'c1',
-      'status': 'failed',
-    });
-    await pumpEventQueue();
-    expect(of<TasksReported>().last.tasks.single.status, CommandStatus.failed);
-    expect(of<TurnStarted>(), hasLength(2));
-  });
-
-  test('asks the user what agy asks leave for, and answers it', () async {
-    kernel = make();
-    await started();
-    kernel.send(const KernelTurn(id: 't1', text: 'go'));
-    await pumpEventQueue();
-    runtime.agent.ask('p1', 'session/request_permission', {
-      'sessionId': 's1',
-      'toolCall': {
-        'toolCallId': 'c1',
-        'title': 'Run rm -rf build',
-        'rawInput': {'CommandLine': 'rm -rf build'},
-      },
-      'options': [
-        {'optionId': 'yes', 'name': 'Allow', 'kind': 'allow_once'},
-        {'optionId': 'always', 'name': 'Always allow', 'kind': 'allow_always'},
-        {'optionId': 'no', 'name': 'Reject', 'kind': 'reject_once'},
-      ],
-    });
-    await pumpEventQueue();
-    final request =
-        of<InteractionRequested>().single.request as ApprovalRequest;
-    expect(request.title, 'Run rm -rf build');
-    expect((request.preview! as CommandPreview).command, 'rm -rf build');
-    expect(request.alwaysAllowLabel, 'Always allow');
-
-    kernel.answer(request.id, const ApprovalAnswer(ApprovalDecision.deny));
-    await pumpEventQueue();
-    expect(runtime.agent.replies['p1']!['result'], {
-      'outcome': {'outcome': 'selected', 'optionId': 'no'},
-    });
-    expect(of<InteractionResolved>().single.requestId, request.id);
-  });
-
-  test('in full access, approves without asking', () async {
-    kernel = make(settings: {'permission': 'bypassPermissions'});
-    await startedOn();
-    runtime.agent.ask('p1', 'session/request_permission', {
-      'sessionId': 's1',
-      'toolCall': {'toolCallId': 'c1'},
-      'options': [
-        {'optionId': 'no', 'name': 'Reject', 'kind': 'reject_once'},
-        {'optionId': 'yes', 'name': 'Allow', 'kind': 'allow_once'},
-      ],
-    });
-    await pumpEventQueue();
-    expect(of<InteractionRequested>(), isEmpty);
-    expect(runtime.agent.replies['p1']!['result'], {
-      'outcome': {'outcome': 'selected', 'optionId': 'yes'},
-    });
-  });
-
-  test('stopping ends the turn, and drops what agy still says', () async {
-    kernel = make();
-    await started();
-    kernel.send(const KernelTurn(id: 't1', text: 'go'));
-    await pumpEventQueue();
-    kernel.cancel();
-    expect(runtime.agent.sentOf('session/cancel').single, {'sessionId': 's1'});
-    expect(of<TurnEnded>().single.interrupted, isTrue);
-    runtime.agent.update({
-      'sessionUpdate': 'agent_message_chunk',
-      'content': {'type': 'text', 'text': 'late'},
-    });
-    runtime.agent.answer('session/prompt', {'stopReason': 'cancelled'});
-    await pumpEventQueue();
-    expect(items().values.whereType<AssistantTextItem>(), isEmpty);
-    expect(of<TurnStarted>(), hasLength(1));
-  });
-
-  test('what agy takes up on its own is a turn of its own', () async {
-    kernel = make();
-    await startedOn();
-    runtime.agent.update({
-      'sessionUpdate': 'agent_message_chunk',
-      'content': {'type': 'text', 'text': 'The build is done.'},
-    });
-    await pumpEventQueue();
-    expect(of<TurnStarted>().single.unprompted, isTrue);
-    await Future<void>.delayed(const Duration(milliseconds: 80));
-    await pumpEventQueue();
-    expect(of<TurnEnded>().single.turnId, of<TurnStarted>().single.turnId);
-  });
-
-  test('a command left running is a task, done once agy says', () async {
-    kernel = make();
-    await started();
-    kernel.send(const KernelTurn(id: 't1', text: 'serve'));
-    await pumpEventQueue();
-    runtime.agent.update({
-      'sessionUpdate': 'tool_call',
-      'toolCallId': 'c1',
-      'name': 'run_command',
-      'kind': 'execute',
-      'status': 'completed',
-      'rawInput': {'CommandLine': 'npm run dev'},
-      'rawOutput': {
-        'output':
-            'Tool is running as a background task with task id: s1/task-1',
-      },
-    });
-    await pumpEventQueue();
-    final running = of<TasksReported>().last.tasks.single;
-    expect(running.id, 's1/task-1');
-    expect(running.status, CommandStatus.running);
-    expect(running.toolUseId, 'c1');
-    expect((items()['c1']! as TerminalItem).background, isTrue);
-
-    runtime.inbox.add({
-      'sender': 's1/task-1',
-      'content': 'Task id "s1/task-1" finished with result:\nServer stopped',
-    });
-    await Future<void>.delayed(const Duration(milliseconds: 40));
-    final done = of<TasksReported>().last.tasks.single;
-    expect(done.status, CommandStatus.succeeded);
-    expect(done.summary, 'Server stopped');
-    expect(done.outputFile, '/logs/task-1.log');
-  });
-
-  test('a command still running as its turn ends goes on as a task', () async {
-    kernel = make();
-    await started();
-    kernel.send(const KernelTurn(id: 't1', text: 'serve'));
-    await pumpEventQueue();
-    final agent = runtime.agent;
-    agent.update({
-      'sessionUpdate': 'tool_call',
-      'toolCallId': 'c1',
-      'name': 'run_command',
-      'kind': 'execute',
-      'status': 'in_progress',
-      'rawInput': {'CommandLine': 'sleep 25', 'toolSummary': 'Wait'},
-    });
-    await pumpEventQueue();
-    agent.answer('session/prompt', {
-      'stopReason': 'end_turn',
-      'usage': {'inputTokens': 100, 'cachedReadTokens': 900, 'outputTokens': 7},
-    });
-    await pumpEventQueue();
-    expect(of<TurnEnded>().single.usage?.inputTokens, 1000);
-    expect(of<TurnEnded>().single.usage?.outputTokens, 7);
-    final command = items()['c1']! as TerminalItem;
-    expect(command.background, isTrue);
-    expect(command.status, CommandStatus.running);
-    expect(of<TasksReported>().last.tasks.single.status, CommandStatus.running);
-
-    // Its end: the task's, no turn of agy's own.
-    agent.update({
-      'sessionUpdate': 'tool_call_update',
-      'toolCallId': 'c1',
-      'status': 'completed',
-      'rawOutput': {
-        'output': 'Command exited with code 0.\n\nCommand output:\nbye\r\n',
-        'exit_code': 0,
-      },
-    });
-    await pumpEventQueue();
-    expect(of<TurnStarted>(), hasLength(1));
-    final task = of<TasksReported>().last.tasks.single;
-    expect(task.status, CommandStatus.succeeded);
-    expect(task.summary, 'bye');
-    expect((items()['c1']! as TerminalItem).status, CommandStatus.succeeded);
-
-    // What agy says of it after: a turn of its own.
-    agent.update({
-      'sessionUpdate': 'agent_message_chunk',
-      'content': {'type': 'text', 'text': 'It finished.'},
-    });
-    await pumpEventQueue();
-    expect(of<TurnStarted>().last.unprompted, isTrue);
-  });
-
-  test('in Plan, its plan is a card to start, not a change', () async {
-    kernel = make(settings: {'mode': 'plan'});
-    await started();
-    kernel.send(const KernelTurn(id: 't1', text: 'Add a line'));
-    await pumpEventQueue();
-    const path = '/home/me/.gemini/antigravity-cli/brain/s1/add_line_plan.md';
-    final agent = runtime.agent;
-    agent
-      ..update({
-        'sessionUpdate': 'tool_call',
-        'toolCallId': 'c1',
-        'name': 'write_file',
-        'kind': 'edit',
-        'status': 'in_progress',
-        'rawInput': {'Path': path},
-      })
-      ..update({
-        'sessionUpdate': 'tool_call_update',
-        'toolCallId': 'c1',
-        'status': 'completed',
-        'content': [
-          {'type': 'diff', 'path': path, 'newText': '# Add a line\n\n1. Edit'},
-        ],
-      });
-    await pumpEventQueue();
-    agent.answer('session/prompt', {'stopReason': 'end_turn'});
-    await pumpEventQueue();
-    var plan = items()['c1']! as PlanItem;
-    expect(plan.title, 'Add a line');
-    expect(plan.status, PlanStatus.awaiting);
-    expect(plan.writes, 1);
-    expect(of<FileEdited>(), isEmpty);
-    expect(of<PlanWritten>().single.path, path);
-
-    kernel.startBuilding();
-    await pumpEventQueue();
-    expect(runtime.agent.sentOf('session/set_mode').last['modeId'], 'default');
-    kernel.send(const KernelTurn(id: 't2', text: 'Go'));
-    await pumpEventQueue();
-    final prompt =
-        runtime.agent.sentOf('session/prompt').last['prompt']! as List;
-    expect((prompt.last as Map)['text'], contains(path));
-    plan = items()['c1']! as PlanItem;
-    expect(plan.status, PlanStatus.approved);
-  });
-
-  test("agy's own notes are not changes to review", () async {
-    kernel = make();
-    await started();
-    kernel.send(const KernelTurn(id: 't1', text: 'go'));
-    await pumpEventQueue();
-    runtime.agent.update({
-      'sessionUpdate': 'tool_call',
-      'toolCallId': 'c1',
-      'name': 'write_file',
-      'kind': 'edit',
-      'status': 'completed',
-      'content': [
-        {
-          'type': 'diff',
-          'path': '/home/me/.gemini/antigravity-cli/brain/s1/task.md',
-          'newText': '- [ ] a',
-        },
-      ],
-    });
-    await pumpEventQueue();
-    expect(items()['c1'], isA<CodeDiffItem>());
-    expect(of<FileEdited>(), isEmpty);
-  });
-
-  test("a subagent's card: what it was asked, not to be opened", () async {
-    kernel = make();
-    await started();
-    kernel.send(const KernelTurn(id: 't1', text: 'research'));
-    await pumpEventQueue();
-    final call = {
-      'sessionUpdate': 'tool_call',
-      'toolCallId': 'c1',
-      'name': 'invoke_subagent',
-      'kind': 'other',
-      'status': 'in_progress',
-      'rawInput': {
-        'Role': 'Look around',
-        'Prompt': 'Find the bug',
-        'TypeName': 'self',
-      },
-    };
-    runtime.agent.update(call);
-    await pumpEventQueue();
-    var card = items()['c1']! as AgentItem;
-    expect(card.description, 'Look around');
-    expect(card.prompt, 'Find the bug');
-    expect(card.agentType, isNull);
-    expect(card.id, isNull);
-    runtime.agent.update({
-      ...call,
-      'sessionUpdate': 'tool_call_update',
-      'status': 'completed',
-    });
-    await pumpEventQueue();
-    card = items()['c1']! as AgentItem;
-    expect(card.status, CommandStatus.succeeded);
-    expect(card.children, isEmpty);
-    // Not one of the tasks: nothing says when it is done.
-    expect(of<TasksReported>().expand((reported) => reported.tasks), isEmpty);
-  });
-
-  test('a conversation continued is read back, its edits not again', () async {
+  test('a conversation kept is read back whole, its turns timed', () async {
     kernel = make(resume: old());
     expect(kernel.loadingHistory, isTrue);
-    expect(kernel.sessionId, 's1');
-    // Read back as agy keeps it, by the reader: no agy of its own.
-    readsBack([
-      {
-        'sessionUpdate': 'user_message_chunk',
-        'content': {'type': 'text', 'text': 'Fix it'},
-      },
-      // The app's notes beside it, which agy keeps with the message.
-      {
-        'sessionUpdate': 'user_message_chunk',
-        'content': {
-          'type': 'text',
-          'text':
-              '<system-reminder>Reply suggestions are on.</system-reminder>',
+    await started();
+    expect(server.callsOf('StartCascade'), isEmpty);
+    expect(watch().body['conversationId'], 'c1');
+    watch().add(
+      _frame(
+        status: _idle,
+        steps: {
+          0: _user(
+            'first <system-reminder>note</system-reminder>',
+            at: '2026-11-22T18:40:00Z',
+          ),
+          1: _reply('one', done: '2026-11-22T18:40:08Z', input: 10, output: 1),
+          2: _command('ls'),
+          3: _reply('two', done: '2026-11-22T18:40:12Z', input: 20, output: 2),
+          4: _user('second', at: '2026-11-22T18:41:00Z'),
+          5: _edit('/p/a.txt'),
+          6: _hidden(),
+          7: _reply('done', done: '2026-11-22T18:41:30Z'),
         },
-      },
-      {
-        'sessionUpdate': 'tool_call',
-        'toolCallId': 'c2',
-        'name': 'edit_file',
-        'kind': 'edit',
-        'status': 'completed',
-        'content': [
-          {'type': 'diff', 'path': '/p/a.txt', 'newText': 'two\n'},
-        ],
-      },
-      {
-        'sessionUpdate': 'agent_message_chunk',
-        'content': {'type': 'text', 'text': 'Done.'},
-      },
-    ]);
+      ),
+    );
     await pumpEventQueue();
     expect(kernel.loadingHistory, isFalse);
-    expect(kernel.health.status, KernelHealthStatus.ready);
-    expect(runtime.agents, isEmpty);
-    final shown = items().values.toList();
-    expect(shown.whereType<UserMessageItem>().single.text, 'Fix it');
-    expect(shown.whereType<CodeDiffItem>(), hasLength(1));
-    expect(shown.whereType<AssistantTextItem>().single.raw, 'Done.');
+    final shown = items();
+    final first = shown['agy-s0'] as UserMessageItem;
+    expect(first.text, 'first');
+    expect(first.worked, const Duration(seconds: 12));
+    expect((first.usage!.inputTokens, first.usage!.outputTokens), (30, 3));
+    expect(
+      (shown['agy-s4'] as UserMessageItem).worked,
+      const Duration(seconds: 30),
+    );
+    expect((shown['agy-s3'] as AssistantTextItem).text, 'two');
+    expect(shown['agy-s2'], isA<TerminalItem>());
+    expect(shown['agy-s5'], isA<CodeDiffItem>());
+    expect(shown.containsKey('agy-s6'), isFalse);
+    // Read back: nothing to review, no turn.
     expect(of<FileEdited>(), isEmpty);
     expect(of<TurnStarted>(), isEmpty);
+    // Going on from it: no start, the message to the same conversation.
+    kernel.send(const KernelTurn(id: 't9', text: 'more'));
+    await pumpEventQueue();
+    expect(server.callsOf('StartCascade'), isEmpty);
+    expect(server.callsOf('SendUserCascadeMessage').single['cascadeId'], 'c1');
   });
 
-  test("titles without the app's notes, even cut in one", () {
-    expect(
-      AntigravityTranslator.withoutReminders(
-        'hi<system-reminder>Reply suggestions are on: the user turned them '
-        'on in BaoC...',
-      ),
-      'hi',
-    );
-    expect(
-      AntigravityTranslator.withoutReminders(
-        'Fix <system-reminder>a</system-reminder>it',
-      ),
-      'Fix it',
-    );
-    expect(AntigravityTranslator.withoutReminders('Plain'), 'Plain');
-  });
-
-  test('taken up by an agy to send to: not read back twice', () async {
+  test('one found running is a turn of agy\'s own', () async {
     kernel = make(resume: old());
-    readsBack([
-      {
-        'sessionUpdate': 'agent_message_chunk',
-        'content': {'type': 'text', 'text': 'Done.'},
-      },
-    ]);
-    await pumpEventQueue();
-    // Out of view and back: nothing to end, nothing to read again.
-    kernel.release();
-    kernel.prepare();
-    await pumpEventQueue();
-    expect(runtime.replayed, 1);
-    expect(kernel.health.status, KernelHealthStatus.ready);
-    // A message: an agy started on the conversation, which agy reads
-    // back to it too; shown already.
-    runtime.answers['session/load'] = (_) {
-      runtime.agent.update({
-        'sessionUpdate': 'agent_message_chunk',
-        'content': {'type': 'text', 'text': 'Done.'},
-      });
-      return {'configOptions': _session['configOptions']};
-    };
-    kernel.send(const KernelTurn(id: 't1', text: 'go on'));
-    await pumpEventQueue();
-    expect(runtime.agent.sentOf('session/load').single['sessionId'], 's1');
-    expect(runtime.agent.sentOf('session/prompt'), hasLength(1));
-    expect(items().values.whereType<AssistantTextItem>(), hasLength(1));
-  });
-
-  test('a pick before the first message goes with it', () async {
-    final reading = Completer<Map<String, Object?>>();
-    runtime.replays = (_, _, _) => reading.future;
-    kernel = make(resume: old());
-    await pumpEventQueue();
-    expect(kernel.loadingHistory, isTrue);
-    reading.complete({'configOptions': _session['configOptions']});
-    await pumpEventQueue();
-    expect(kernel.loadingHistory, isFalse);
-    // Kept: no agy to tell.
-    kernel.model.select('claude-opus-5-5');
-    expect(kernel.model.selected, 'claude-opus-5-5');
-    expect(runtime.agents, isEmpty);
-    kernel.send(const KernelTurn(id: 't1', text: 'go'));
-    await pumpEventQueue();
-    final set = runtime.agent.sentOf('session/set_config_option').single;
-    expect(set['configId'], 'model');
-    expect(set['value'], 'claude-opus-5-5');
-    expect(runtime.agent.sentOf('session/prompt'), hasLength(1));
-  });
-
-  test("a conversation's old mode is not adopted: the user's is set", () async {
-    kernel = make(
-      settings: {KernelChoiceKind.mode.name: 'agent'},
-      resume: old(),
-    );
-    readsBack(
-      [
-        {'sessionUpdate': 'current_mode_update', 'currentModeId': 'plan'},
-      ],
-      {
-        ..._session,
-        'modes': {'currentModeId': 'plan'},
-      },
+    await started();
+    watch().add(
+      _frame(steps: {0: _user('go'), 1: _reply('Wor', generating: true)}),
     );
     await pumpEventQueue();
-    expect(kernel.mode.selected, 'agent');
-    runtime.answers['session/load'] = (_) => {
-      ..._session,
-      'modes': {'currentModeId': 'plan'},
-      'configOptions': [
-        for (final option in _session['configOptions']! as List)
-          if ((option as Map)['id'] == 'mode')
-            {...option, 'currentValue': 'plan'}
-          else
-            option,
-      ],
-    };
-    kernel.send(const KernelTurn(id: 't1', text: 'go'));
+    expect(of<TurnStarted>().single.unprompted, isTrue);
+    watch().add(_frame(steps: {1: _reply('Working', generating: true)}));
+    watch().add(_frame(steps: {1: _reply('Working')}));
+    watch().add(_frame(status: _idle));
     await pumpEventQueue();
+    expect(of<TurnEnded>().single.interrupted, isFalse);
+    expect((items()['agy-s1'] as AssistantTextItem).text, 'Working');
+  });
+
+  test('the watch dropped mid-turn ends it, and is taken up again', () async {
+    kernel = make();
+    await startedOn();
+    kernel.send(const KernelTurn(id: 't1', text: 'x'));
+    await pumpEventQueue();
+    final dropped = watch();
+    dropped.controller.addError(
+      const AgyError('Antigravity is not answering', gone: true),
+    );
+    await dropped.controller.close();
+    await pumpEventQueue();
+    expect(of<TurnEnded>().single.interrupted, isTrue);
     expect(
-      runtime.agent.sentOf('session/set_mode').single['modeId'],
-      'default',
+      items().values.whereType<NoticeItem>().single.text,
+      'Antigravity stopped',
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+    expect(server.streams, hasLength(2));
+    expect(identical(watch(), dropped), isFalse);
+  });
+
+  test('a message agy never takes up is given up on', () async {
+    kernel = make();
+    await startedOn();
+    kernel.send(const KernelTurn(id: 't1', text: 'x'));
+    await pumpEventQueue();
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    expect(of<TurnEnded>().single.interrupted, isTrue);
+    expect(
+      items().values.whereType<NoticeItem>().single.text,
+      contains('did not take'),
     );
   });
 
-  test(
-    'ended once it has nothing to do a while; the next starts one',
-    () async {
-      kernel = make();
-      await started();
-      kernel.send(const KernelTurn(id: 't1', text: 'go'));
-      await pumpEventQueue();
-      final first = runtime.agent;
-      var ended = false;
-      unawaited(first.exited.then((_) => ended = true));
-      first.answer('session/prompt', {'stopReason': 'end_turn'});
-      await pumpEventQueue();
-      expect(ended, isFalse);
-      await Future<void>.delayed(const Duration(milliseconds: 250));
-      expect(ended, isTrue);
-      expect(kernel.health.status, KernelHealthStatus.ready);
-      kernel.send(const KernelTurn(id: 't2', text: 'again'));
-      await pumpEventQueue();
-      expect(runtime.agents, hasLength(2));
-      expect(runtime.agent.sentOf('session/load').single['sessionId'], 's1');
-      runtime.agent.answer('session/prompt', {'stopReason': 'end_turn'});
-      await pumpEventQueue();
-      expect(of<TurnEnded>(), hasLength(2));
-    },
-  );
-
-  test('out of view with nothing to do: ended at once', () async {
+  test('what agy refuses ends the turn with its word', () async {
     kernel = make();
-    await started();
-    kernel.send(const KernelTurn(id: 't1', text: 'go'));
+    await startedOn();
+    server.answers['SendUserCascadeMessage'] = (_) =>
+        const AgyError('plan model not specified', code: 'invalid_argument');
+    kernel.send(const KernelTurn(id: 't1', text: 'x'));
     await pumpEventQueue();
-    var ended = false;
-    unawaited(runtime.agent.exited.then((_) => ended = true));
-    // Not while it works.
-    kernel.release();
-    await pumpEventQueue();
-    expect(ended, isFalse);
-    runtime.agent.answer('session/prompt', {'stopReason': 'end_turn'});
-    await pumpEventQueue();
-    kernel.release();
-    await pumpEventQueue();
-    expect(ended, isTrue);
+    expect(of<TurnEnded>().single.interrupted, isTrue);
+    expect(
+      items().values.whereType<NoticeItem>().single.text,
+      'plan model not specified',
+    );
     expect(kernel.health.status, KernelHealthStatus.ready);
   });
 
-  test('gone by itself with nothing to do: nothing said', () async {
+  test('tools, subagents and errors of the steps', () async {
     kernel = make();
-    await started();
-    kernel.send(const KernelTurn(id: 't1', text: 'go'));
+    await startedOn();
+    kernel.send(const KernelTurn(id: 't1', text: 'x'));
     await pumpEventQueue();
-    runtime.agent.answer('session/prompt', {'stopReason': 'end_turn'});
-    await pumpEventQueue();
-    runtime.agent.end(1, 'bye');
-    await pumpEventQueue();
-    expect(kernel.health.status, KernelHealthStatus.ready);
-    expect(items().values.whereType<NoticeItem>(), isEmpty);
-  });
-
-  test('not signed in: sign-in offered', () async {
-    runtime = _Runtime(
-      _answers(
-        newSession: (_) =>
-            throw const AcpError(-32000, 'Authentication required'),
+    watch().add(
+      _frame(
+        steps: {
+          3: _view('/p/lib/a.dart'),
+          4: _mcp('mcp_github_search'),
+          5: _subagent(),
+          6: _error(
+            'API error (attempt 1): UNAVAILABLE (code 503): No capacity',
+          ),
+          7: _error('Something broke'),
+        },
+        context: {'estimatedTokensUsed': 8787, 'maxContextTokens': 256000},
       ),
     );
-    kernel = make();
-    await started();
-    kernel.send(const KernelTurn(id: 't1', text: 'hi'));
     await pumpEventQueue();
-    expect(kernel.health.status, KernelHealthStatus.failed);
-    expect(kernel.health.setup?.kind, KernelSetupKind.login);
-    expect(kernel.health.setup?.start, isNotNull);
+    final shown = items();
+    final read = shown['agy-s3'] as ToolCallItem;
+    expect(
+      (read.kind, read.target, read.path),
+      (ToolKind.read, 'a.dart', '/p/lib/a.dart'),
+    );
+    final mcp = shown['agy-s4'] as ToolCallItem;
+    expect(
+      (mcp.kind, mcp.label, mcp.target, mcp.output),
+      (ToolKind.mcp, 'github_search', 'Weather in Paris', 'Sunny'),
+    );
+    expect(mcp.input, {'city': 'Paris'});
+    final agent = shown['agy-s5'] as AgentItem;
+    expect(
+      (agent.description, agent.agentType, agent.prompt, agent.status),
+      ('counter', null, 'Say 7', CommandStatus.succeeded),
+    );
+    expect((shown['agy-s6'] as NoticeItem).kind, NoticeKind.retry);
+    expect((shown['agy-s7'] as NoticeItem).kind, NoticeKind.error);
+    final usage = of<UsageReported>().single.usage;
+    expect((usage.used, usage.window), (8787, 256000));
+    expect(kernel.contextWindow, 256000);
   });
 
-  test('not installed: installing offered, then it starts', () async {
+  test('the app\'s tools served to the conversation at a key kept', () async {
+    ClaudeSdkTools.register(
+      ClaudeSdkTool(
+        name: 'bao_probe',
+        description: 'A tool of the app\'s, for the test',
+        inputSchema: const {'type': 'object'},
+        run: (input, call) async => 'ok',
+      ),
+    );
+    addTearDown(() => ClaudeSdkTools.unregister('bao_probe'));
+    kernel = make();
+    await started();
+    kernel.send(const KernelTurn(id: 't0', text: 'hi'));
+    await pumpEventQueue();
+    final key = runtime.served.single;
+    expect(key, hasLength(24));
+    expect(runtime.toolKeys['c1'], key);
+    final start = server.callsOf('StartCascade').single;
+    expect(
+      jsonEncode(start['agentScriptItem']),
+      allOf(
+        contains('http://127.0.0.1:7/mcp/tok/$key'),
+        contains('"serverName":"baocode"'),
+      ),
+    );
+    kernel.dispose();
+    // Continued in a later run: served at the same key.
+    runtime.served.clear();
+    events = [];
+    kernel = make(resume: old());
+    await started();
+    expect(runtime.served, [key]);
+  });
+
+  test('not installed: offered the install; then checked again', () async {
     runtime.installed = false;
     kernel = make();
     await started();
+    expect(kernel.health.status, KernelHealthStatus.failed);
     expect(kernel.health.setup?.kind, KernelSetupKind.install);
     kernel.health.setup!.start!();
     await pumpEventQueue();
     expect(kernel.health.status, KernelHealthStatus.ready);
+    expect(server.callsOf('GetAuthStatus'), hasLength(1));
   });
 
-  test('a remote project is not one it works in', () async {
-    kernel = make(cwd: 'ssh://box/home/me/app');
-    await started();
-    expect(kernel.health.setup?.kind, KernelSetupKind.localOnly);
-    expect(runtime.agents, isEmpty);
-  });
-
-  test('agy ending mid-turn ends the turn, and says why', () async {
+  test('not signed in: offered the sign-in', () async {
+    server.answers['GetAuthStatus'] = (_) => {
+      'authResult': {'hasValidAuth': false},
+    };
     kernel = make();
     await started();
-    kernel.send(const KernelTurn(id: 't1', text: 'go'));
-    await pumpEventQueue();
-    runtime.agent.end(2, 'panic: oops');
-    await pumpEventQueue();
-    expect(of<TurnEnded>().single.interrupted, isTrue);
     expect(kernel.health.status, KernelHealthStatus.failed);
-    expect(kernel.health.detail, 'panic: oops');
+    expect(kernel.health.setup?.kind, KernelSetupKind.login);
   });
 
-  test('its MCP servers, the app’s own among them when served', () async {
+  test('a remote project is turned down', () async {
+    kernel = make(cwd: 'ssh://box/home/me/p');
+    await started();
+    expect(kernel.health.setup?.kind, KernelSetupKind.localOnly);
+    expect(runtime.booted, 0);
+  });
+
+  test('the account\'s limits, as Google tells agy', () async {
+    kernel = make();
+    await kernel.refreshUsage();
+    final stats = of<StatsReported>().last.stats;
+    expect(stats.limitsState, LimitsState.idle);
+    final limit = stats.limits.single;
+    expect(limit.label, 'Weekly Gemini Models limit');
+    expect(limit.utilization, closeTo(0.4, 1e-9));
+    expect(limit.resetsAt, DateTime.parse('2026-11-29T13:22:43Z').toLocal());
+    expect(kernel.accountLimits, hasLength(1));
+    expect(
+      jsonEncode(runtime.kept!['limits']),
+      contains('Weekly Gemini Models limit'),
+    );
+  });
+
+  test('renamed in agy', () async {
+    kernel = make();
+    await startedOn();
+    kernel.rename('Flags');
+    await pumpEventQueue();
+    expect(server.callsOf('UpdateConversationAnnotations').single, {
+      'cascadeId': 'c1',
+      'annotations': {'title': 'Flags'},
+      'mergeAnnotations': true,
+    });
+  });
+
+  test('its MCP servers: the app\'s, and agy\'s own', () async {
     kernel = make();
     await started();
     kernel.refreshMcpServers();
     await pumpEventQueue();
     expect(
-      [for (final server in kernel.mcpServers!) (server.name, server.status)],
+      [for (final s in kernel.mcpServers!) (s.name, s.status)],
       [
         ('github', McpServerStatus.connected),
         ('off', McpServerStatus.disabled),
@@ -1277,94 +1588,53 @@ void main() {
     );
   });
 
-  test('the account’s limits, as asked', () async {
-    kernel = make();
-    await kernel.refreshUsage();
-    expect(kernel.accountLimits.single.label, 'Gemini 5-hour limit');
-    expect(of<StatsReported>().last.stats.limits.single.utilization, .25);
-  });
+  group('the catalog', () {
+    test('lists agy\'s conversations by project, subagents\' left out', () {
+      final records = AntigravityCatalog.summariesOf({
+        'updates': {
+          'a': {
+            'summary': 'fix it <system-reminder>x</system-reminder>',
+            'lastModifiedTime': '2026-11-22T10:00:00Z',
+            'workspaces': [
+              {'workspaceFolderAbsoluteUri': 'file:///Users/me/My%20Project'},
+            ],
+          },
+          'b': {
+            'summary': '/plan plan it',
+            'createdTime': '2026-11-21T10:00:00Z',
+            'annotations': {'title': 'Named'},
+            'trajectoryMetadata': {
+              'workspaceUris': ['file:///p'],
+            },
+          },
+          'sub': {
+            'summary': 'child',
+            'workspaces': [
+              {'workspaceFolderAbsoluteUri': 'file:///p'},
+            ],
+            'trajectoryMetadata': {'parentConversationId': 'b'},
+          },
+          'none': {'summary': 'no workspace'},
+        },
+      }, dataDir: '/data');
+      expect(
+        [for (final r in records) (r.id, r.title, r.cwd, r.path)],
+        [
+          ('a', 'fix it', '/Users/me/My Project', '/data/conversations/a.db'),
+          ('b', 'Named', '/p', '/data/conversations/b.db'),
+        ],
+      );
+      expect(
+        records.first.updatedAt,
+        DateTime.parse('2026-11-22T10:00:00Z').toLocal(),
+      );
+    });
 
-  test('models and limits as last told, kept for the next run', () async {
-    runtime.kept = {
-      'models': [
-        {'id': 'old-model', 'name': 'Old Model', 'description': ''},
-      ],
-      'limits': [
-        {'label': 'Weekly Gemini limit', 'utilization': .5},
-      ],
-      'limitsAt': DateTime.now().toIso8601String(),
-    };
-    kernel = make();
-    // Before agy says anything: what the last run kept.
-    expect(kernel.model.options.single.id, 'old-model');
-    expect(kernel.accountLimits.single.label, 'Weekly Gemini limit');
-    // Asked a moment ago: not asked again, as the panel opens.
-    await kernel.refreshUsage();
-    expect(runtime.quotaAsked, 0);
-    expect(of<StatsReported>().last.stats.limits.single.utilization, .5);
-
-    await startedOn();
-    const told = ['gemini-3.8-flash', 'claude-opus-5-5', 'gpt-oss-120b-medium'];
-    expect(kernel.model.options.map((option) => option.id), told);
-    final models = runtime.kept!['models']! as List;
-    expect(models.map((model) => (model as Map)['id']), told);
-    // Fresh enough as agy started: still not asked.
-    expect(runtime.quotaAsked, 0);
-  });
-
-  test(
-    'limits old or none are asked in the background as agy starts',
-    () async {
+    test('deletes through agy', () async {
       kernel = make();
-      await started();
-      await pumpEventQueue();
-      expect(runtime.quotaAsked, 1);
-      expect((runtime.kept!['limits']! as List).single, {
-        'label': 'Gemini 5-hour limit',
-        'utilization': .25,
-      });
-    },
-  );
-
-  test('turns read back are timed as this app timed them', () async {
-    final sent = DateTime(2026, 11, 22, 10);
-    runtime.timed['s1'] = [
-      {
-        'text': 'Fix it',
-        'sentAt': sent.millisecondsSinceEpoch,
-        'workedMs': 15000,
-        'input': 1000,
-        'output': 20,
-      },
-    ];
-    kernel = make(resume: old());
-    readsBack([
-      {
-        'sessionUpdate': 'user_message_chunk',
-        'content': {'type': 'text', 'text': 'Fix it'},
-      },
-      {
-        'sessionUpdate': 'agent_message_chunk',
-        'content': {'type': 'text', 'text': 'Done.'},
-      },
-      // Sent from agy in a terminal: not timed here.
-      {
-        'sessionUpdate': 'user_message_chunk',
-        'content': {'type': 'text', 'text': 'And the docs'},
-      },
-      {
-        'sessionUpdate': 'agent_message_chunk',
-        'content': {'type': 'text', 'text': 'Done too.'},
-      },
-    ]);
-    await pumpEventQueue();
-    final messages = items().values.whereType<UserMessageItem>().toList();
-    expect([for (final m in messages) m.text], ['Fix it', 'And the docs']);
-    final (timed, untimed) = (messages.first, messages.last);
-    expect(timed.worked, const Duration(seconds: 15));
-    expect(timed.sentAt, sent);
-    expect(timed.usage?.inputTokens, 1000);
-    expect(timed.usage?.outputTokens, 20);
-    expect(untimed.worked, isNull);
+      AgyRuntime.local = runtime;
+      await const AntigravityCatalog().delete('c9');
+      expect(runtime.deleted, ['c9']);
+    });
   });
 }
