@@ -107,15 +107,11 @@ class AntigravityKernel
 
   // --- The connection ----------------------------------------------------------------
 
-  AcpConnection? _connection;
-
-  /// Starting [_connection] and its session; null once failed, to try
-  /// again.
-  Future<bool>? _starting;
-
-  /// Whether the connection was ended on purpose (released, reconnected):
-  /// not a failure.
-  bool _ending = false;
+  /// The agy started for the conversation, starting or up; null before
+  /// one, and once ended (released, restarted, failed or gone). A start
+  /// left behind (its run ended while it waited) finds another here, or
+  /// none, and leaves all to it.
+  _Run? _run;
 
   /// The app's own tools, served to it.
   McpEndpoint? _tools;
@@ -139,18 +135,20 @@ class AntigravityKernel
   void prepare() => unawaited(_ready());
 
   /// Starts agy and its session, unless done; whether it is up.
-  Future<bool> _ready() => _starting ??= _start();
+  Future<bool> _ready() => (_run ?? _launch()).ready;
 
-  /// How many starts there were: one with a later after it (released while
-  /// it started, then used again) is stale, and leaves all to that one.
-  int _starts = 0;
+  _Run _launch() {
+    final run = _run = _Run();
+    run.ready = _start(run);
+    return run;
+  }
 
-  Future<bool> _start() async {
-    final start = ++_starts;
-    bool stale() => _disposed || start != _starts;
+  /// Starts [run]'s agy and its session: this conversation's, loaded, or a
+  /// new one. Whether it is up; false too when [run] was ended meanwhile.
+  Future<bool> _start(_Run run) async {
     // Not within its caller's frame: a screen opening on it is building.
     await Future<void>.value();
-    if (stale()) return false;
+    if (!identical(_run, run)) return false;
     final cwd = _cwd;
     if (cwd == null) {
       _fail('Antigravity needs a project folder');
@@ -167,20 +165,19 @@ class AntigravityKernel
       return false;
     }
     _setHealth(const KernelHealth(KernelHealthStatus.starting));
-    AcpConnection? launched;
     try {
       final transport = await _runtime.start(cwd);
-      if (stale()) {
+      if (!identical(_run, run)) {
+        // Ended before it had the process: nothing else ends it.
         transport.close();
         return false;
       }
-      final connection = launched = _connection = AcpConnection(
+      final connection = run.connection = AcpConnection(
         transport,
         onRequest: _agentRequest,
         onNotification: _notification,
       );
-      _ending = false;
-      unawaited(connection.exited.then((exit) => _exited(connection, exit)));
+      unawaited(connection.exited.then((exit) => _exited(run, exit)));
       final init = await connection.request('initialize', {
         'protocolVersion': 1,
         'clientCapabilities': {
@@ -242,64 +239,58 @@ class AntigravityKernel
         started = await connection.request('session/new', session);
         _sessionId = started['sessionId'] as String?;
       }
-      if (stale()) return false;
+      if (!identical(_run, run)) return false;
       _shown = true;
       _timeHistory();
       _historyRead();
       _options(started);
       await _applyPicks();
-      if (stale()) return false;
+      if (!identical(_run, run)) return false;
       _setHealth(KernelHealth.ready);
       unawaited(_watchRecords());
       if (!_limitsFresh(const Duration(minutes: 5))) _limitsAfterTurn();
       return true;
-    } on AgyUnavailable catch (error) {
-      if (stale()) return false;
-      _historyRead();
-      if (error.notInstalled) {
-        _setHealth(
-          KernelHealth(
-            KernelHealthStatus.failed,
-            message: error.message,
-            setup: KernelSetup(KernelSetupKind.install, start: _install),
-          ),
-        );
-      } else {
-        _fail(error.message, detail: error.detail);
-      }
-    } on AcpError catch (error) {
-      // Its agy ended under it by the release that made it stale: no
-      // failure, and the next start's agy is not to be ended.
-      if (stale()) return false;
-      _historyRead();
-      if (_signInNeeded(error)) {
-        _setHealth(
-          KernelHealth(
-            KernelHealthStatus.failed,
-            message: error.message,
-            setup: KernelSetup(KernelSetupKind.login, start: _login),
-          ),
-        );
-      } else if (!error.closed) {
-        _fail('Antigravity could not start', detail: error.message);
-      } else if (!_ending && launched != null) {
-        // It ended as it started: what it said as it did.
-        final exit = await launched.exited
-            .timeout(const Duration(seconds: 5))
-            .catchError((_) => const AcpExit(-1));
-        _fail(
-          'Antigravity could not start (exit code ${exit.code})',
-          detail: exit.stderr.trim().isEmpty ? null : exit.stderr.trim(),
-        );
-      }
     } on Object catch (error) {
-      if (stale()) return false;
+      // Ended while it started (released, restarted, disposed): the end
+      // was meant, and whatever took its place has the conversation.
+      if (!identical(_run, run)) return false;
       _historyRead();
-      _fail('Antigravity could not start', detail: '$error');
+      switch (error) {
+        case AgyUnavailable(notInstalled: true):
+          _setHealth(
+            KernelHealth(
+              KernelHealthStatus.failed,
+              message: error.message,
+              setup: KernelSetup(KernelSetupKind.install, start: _install),
+            ),
+          );
+        case AgyUnavailable():
+          _fail(error.message, detail: error.detail);
+        case AcpError() when _signInNeeded(error):
+          _setHealth(
+            KernelHealth(
+              KernelHealthStatus.failed,
+              message: error.message,
+              setup: KernelSetup(KernelSetupKind.login, start: _login),
+            ),
+          );
+        case AcpError(closed: false):
+          _fail('Antigravity could not start', detail: error.message);
+        case AcpError():
+          // Its agy ended as it started: what it said as it did.
+          final exit = await run.connection!.exited
+              .timeout(const Duration(seconds: 5))
+              .catchError((_) => const AcpExit(-1));
+          _fail(
+            'Antigravity could not start (exit code ${exit.code})',
+            detail: exit.stderr.trim().isEmpty ? null : exit.stderr.trim(),
+          );
+        default:
+          _fail('Antigravity could not start', detail: '$error');
+      }
     }
-    if (stale()) return false;
-    _starting = null;
-    _end();
+    if (identical(_run, run)) _run = null;
+    run.end();
     return false;
   }
 
@@ -328,25 +319,19 @@ class AntigravityKernel
     if (!_disposed) emitInfoChanged();
   }
 
-  /// Ends the connection on purpose.
+  /// Ends the run on purpose: no run, till the next start.
   void _end() {
-    final connection = _connection;
-    if (connection == null) return;
-    _connection = null;
-    _ending = true;
-    connection.close();
+    final run = _run;
+    if (run == null) return;
+    _run = null;
+    run.end();
   }
 
-  void _exited(AcpConnection connection, AcpExit exit) {
-    if (!identical(connection, _connection) && !_disposed) {
-      return;
-    }
-    if (_disposed) {
-      if (!_stopped.isCompleted) _stopped.complete();
-      return;
-    }
-    _connection = null;
-    _starting = null;
+  /// [run]'s agy is gone. One ended on purpose is no longer [_run] by then
+  /// (see [_end]); one still it went by itself.
+  void _exited(_Run run, AcpExit exit) {
+    if (!identical(run, _run)) return;
+    _run = null;
     _failAsks();
     final turn = _turn;
     if (turn != null) {
@@ -355,10 +340,6 @@ class AntigravityKernel
       _endTurn(turn, interrupted: true);
     }
     _endTasks();
-    if (_ending) {
-      _setHealth(KernelHealth.idle);
-      return;
-    }
     final stderr = exit.stderr.trim();
     _fail(
       'Antigravity stopped (exit code ${exit.code})',
@@ -369,7 +350,6 @@ class AntigravityKernel
   @override
   void restart() {
     _end();
-    _starting = null;
     _setHealth(KernelHealth.idle);
     unawaited(_ready());
   }
@@ -381,9 +361,8 @@ class AntigravityKernel
   void release() {
     if (_turn != null || _queue.isNotEmpty || _asks.isNotEmpty) return;
     if (_runningTasks.isNotEmpty) return;
-    if (_connection == null) return;
+    if (_run == null) return;
     _end();
-    _starting = null;
     _setHealth(KernelHealth.idle);
   }
 
@@ -394,12 +373,10 @@ class AntigravityKernel
     _idle?.cancel();
     _poll?.cancel();
     _failAsks();
-    final connection = _connection;
-    _connection = null;
-    if (connection == null) {
-      if (!_stopped.isCompleted) _stopped.complete();
-    } else {
-      connection.close();
+    final run = _run;
+    _run = null;
+    run?.end();
+    if (run?.connection case final connection?) {
       unawaited(
         connection.exited
             .timeout(const Duration(seconds: 5))
@@ -408,6 +385,8 @@ class AntigravityKernel
               if (!_stopped.isCompleted) _stopped.complete();
             }),
       );
+    } else if (!_stopped.isCompleted) {
+      _stopped.complete();
     }
     unawaited(_tools?.close());
     _tools = null;
@@ -716,7 +695,8 @@ class AntigravityKernel
   }
 
   Future<void> _prompt(KernelTurn turn) async {
-    if (!await _ready() || _connection == null) {
+    final connection = await _ready() ? _run?.connection : null;
+    if (connection == null) {
       if (_turn == turn.id) {
         _notice(
           NoticeKind.error,
@@ -733,7 +713,7 @@ class AntigravityKernel
       emitInfoChanged();
     }
     try {
-      final result = await _connection!.request('session/prompt', {
+      final result = await connection.request('session/prompt', {
         'sessionId': _sessionId,
         'prompt': [
           if (turn.text.isNotEmpty) {'type': 'text', 'text': turn.text},
@@ -943,7 +923,7 @@ class AntigravityKernel
     if (turn == null) return;
     if (!_unprompted && _prompting != null) _draining = true;
     if (!_toolsCancelled.isCompleted) _toolsCancelled.complete();
-    _connection?.notify('session/cancel', {'sessionId': _sessionId});
+    _run?.connection?.notify('session/cancel', {'sessionId': _sessionId});
     _translator.settle(interrupted: true);
     _endTurn(turn, interrupted: true);
   }
@@ -1313,7 +1293,7 @@ class AntigravityKernel
 
   Future<void> _applyMode() async {
     final mode = _wantedMode;
-    final connection = _connection;
+    final connection = _run?.connection;
     if (connection == null || _sessionId == null || mode == _agyMode) return;
     _agyMode = mode;
     try {
@@ -1516,7 +1496,7 @@ class AntigravityKernel
   }
 
   Future<void> _setOption(String id, String value) async {
-    final connection = _connection;
+    final connection = _run?.connection;
     if (connection == null || _sessionId == null) return;
     try {
       final result = await connection.request('session/set_config_option', {
@@ -1780,7 +1760,7 @@ class AntigravityKernel
     if (!_stopCommands) return;
     _stopCommands = false;
     if (_runningTasks.any((task) => !_agyTask(task.id))) {
-      _connection?.notify('session/cancel', {'sessionId': _sessionId});
+      _run?.connection?.notify('session/cancel', {'sessionId': _sessionId});
     }
   }
 
@@ -1919,15 +1899,26 @@ class AntigravityKernel
   /// Starts agy again on the conversation, to take its servers anew; once
   /// idle, if it works now.
   void _reconnect() {
-    if (_disposed || _connection == null) return;
+    if (_disposed || _run == null) return;
     if (_turn != null || _runningTasks.isNotEmpty) return;
     _end();
-    _starting = null;
     unawaited(_ready());
   }
 
   @override
   Future<Uri?> authenticateMcpServer(String name) async => null;
+}
+
+/// One agy started for the conversation: its connection once the process
+/// is up, and whether the start came through. It is the kernel's only
+/// while [AntigravityKernel._run]; ended, it is let go of there first, so
+/// its start, waking after, knows itself ended, and its process's exit
+/// says nothing.
+class _Run {
+  AcpConnection? connection;
+  late final Future<bool> ready;
+
+  void end() => connection?.close();
 }
 
 /// Something agy waits on the user for: its own request, answered with
