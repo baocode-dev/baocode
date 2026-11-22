@@ -778,6 +778,7 @@ if ($bytes -eq $null) { exit 1 }
           })
           .timeout(wait);
       final children = await _subagentConversations();
+      final deleted = _deleted;
       final records = <SessionRecord>[];
       String? cursor;
       do {
@@ -787,7 +788,7 @@ if ($bytes -eq $null) { exit 1 }
         for (final session in page['sessions'] as List? ?? const []) {
           if (session
               case {'sessionId': final String id, 'cwd': final String cwd}
-              when !children.contains(id)) {
+              when !children.contains(id) && !deleted.contains(id)) {
             records.add(
               SessionRecord(
                 id: id,
@@ -856,19 +857,40 @@ if ($bytes -eq $null) { exit 1 }
     }
   }
 
+  /// The conversations deleted here, kept in the app's own state.
+  File get _deletedFile => File(
+    p.join(
+      _stateDirOverride ?? DataDirectory.current.stateDir,
+      'antigravity',
+      'deleted.json',
+    ),
+  );
+
+  Set<String> get _deleted {
+    try {
+      final file = _deletedFile;
+      if (!file.existsSync()) return const {};
+      return switch (jsonDecode(file.readAsStringSync())) {
+        final List<Object?> ids => {...ids.whereType<String>()},
+        _ => const {},
+      };
+    } on Object {
+      return const {};
+    }
+  }
+
+  /// agy offers a client no way to delete a conversation (nothing in ACP,
+  /// no command), and its files are its own: it is left to agy, as the
+  /// terminal has it, and only no longer listed here.
   @override
   Future<void> delete(String sessionId) async {
-    final dir = dataDir;
-    for (final path in [
-      p.join(dir, 'conversations', '$sessionId.db'),
-      p.join(dir, 'conversations', '$sessionId.pb'),
-      p.join(dir, 'annotations', '$sessionId.pbtxt'),
-    ]) {
-      final file = File(path);
-      if (file.existsSync()) await file.delete();
+    try {
+      final file = _deletedFile;
+      file.parent.createSync(recursive: true);
+      file.writeAsStringSync(jsonEncode([..._deleted, sessionId]));
+    } on FileSystemException {
+      // Listed again then.
     }
-    final brain = Directory(p.join(dir, 'brain', sessionId));
-    if (brain.existsSync()) await brain.delete(recursive: true);
     final turns = _turnsFile(sessionId);
     if (turns.existsSync()) await turns.delete();
   }

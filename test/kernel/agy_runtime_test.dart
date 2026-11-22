@@ -136,6 +136,7 @@ for line in sys.stdin:
       runtime = LocalAgyRuntime(
         installDir: dir.path,
         dataDir: dir.path,
+        stateDir: '${dir.path}/state',
         environment: () async => {
           'HOME': dir.path,
           'PATH': Platform.environment['PATH'] ?? '',
@@ -163,5 +164,17 @@ for line in sys.stdin:
       },
       skip: Platform.isWindows,
     );
+
+    test('one deleted is listed no more, its files left to agy', () async {
+      final kept = File('${dir.path}/conversations/a.db')
+        ..createSync(recursive: true);
+      await runtime.delete('a');
+      expect(await runtime.sessions(), isEmpty);
+      expect(kept.existsSync(), isTrue);
+      expect(
+        File('${dir.path}/state/antigravity/deleted.json').existsSync(),
+        isTrue,
+      );
+    }, skip: Platform.isWindows);
   });
 }
