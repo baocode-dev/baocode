@@ -22,9 +22,8 @@ import '../line_diff.dart';
 /// Protocol: its conversations are its own (kept by agy, shared with the
 /// user's terminal), the project and the UI the app's.
 ///
-/// What ACP leaves out is read from what agy keeps of a conversation (see
-/// [AgyRecords]): its background tasks' ends, its subagents' work, what a
-/// turn spent.
+/// What ACP leaves out of its own background tasks (their ends) is read
+/// from what agy keeps of a conversation (see [AgyRecords]).
 class AntigravityKernel
     with KernelEventSource
     implements
@@ -229,7 +228,6 @@ class AntigravityKernel
           _muted = false;
         }
         // What ran before ran in another agy, gone with it.
-        _replayedAgents.addAll(_translator.agents.keys);
         _translator.tasks.clear();
       } else {
         started = await connection.request('session/new', session);
@@ -1681,10 +1679,6 @@ class AntigravityKernel
   /// Tasks the user stopped watching: not shown again.
   final Set<String> _dropped = {};
 
-  /// The subagents of the conversation as read back: they ran in an agy
-  /// gone since, done one way or another.
-  final Set<String> _replayedAgents = {};
-
   void _tasksChanged() {
     _reportTasks();
     unawaited(_watchRecords());
@@ -1696,18 +1690,6 @@ class AntigravityKernel
       TasksReported(nextSeq, [
         for (final task in _translator.tasks.values)
           if (!_dropped.contains(task.id)) task,
-        for (final MapEntry(key: id, value: agent)
-            in _translator.agents.entries)
-          if (!_replayedAgents.contains(id) && !_dropped.contains(id))
-            KernelTask(
-              id: id,
-              description: agent.description,
-              kind: KernelTaskKind.agent,
-              status: agent.status,
-              startedAt: agent.startedAt ?? DateTime.now(),
-              toolUseId: id,
-              summary: agent.activity,
-            ),
       ]),
     );
   }
@@ -1759,11 +1741,11 @@ class AntigravityKernel
   Timer? _poll;
   bool _reading = false;
 
-  /// How often its records are read again while a task or subagent runs.
+  /// How often its records are read again while a task of agy's runs.
   final Duration _pollEvery;
 
   /// Reads what agy keeps of the conversation for what ACP does not tell
-  /// (its tasks' ends, its subagents' work), again while any runs.
+  /// (its own tasks' ends), again while any runs.
   Future<void> _watchRecords() async {
     _poll?.cancel();
     final id = _sessionId;
@@ -1773,21 +1755,15 @@ class AntigravityKernel
       final records = _runtime.records(id);
       final inbox = await records.messages();
       _tasksFrom(inbox, records);
-      if (_translator.agents.isNotEmpty) {
-        await _agentsFrom(records, inbox);
-      }
     } on Object {
       // Read again next time.
     } finally {
       _reading = false;
     }
     if (_disposed) return;
-    final running =
-        _runningTasks.any((task) => _agyTask(task.id)) ||
-        _translator.agents.values.any(
-          (agent) => agent.status == CommandStatus.running,
-        );
-    if (running) _poll = Timer(_pollEvery, () => unawaited(_watchRecords()));
+    if (_runningTasks.any((task) => _agyTask(task.id))) {
+      _poll = Timer(_pollEvery, () => unawaited(_watchRecords()));
+    }
   }
 
   static final _taskEnd = RegExp(
@@ -1832,82 +1808,6 @@ class AntigravityKernel
     if (line == null) return null;
     return line.length > 160 ? '${line.substring(0, 160)}…' : line;
   }
-
-  /// The subagents' work, as agy keeps their conversations: the cards of
-  /// [AntigravityTranslator.agents] filled in, in the order they started.
-  Future<void> _agentsFrom(
-    AgyRecords records,
-    List<Map<String, Object?>> inbox,
-  ) async {
-    final children = await records.subagents();
-    children.sort(
-      (a, b) => _int(a['spawnStepIndex']).compareTo(_int(b['spawnStepIndex'])),
-    );
-    final cards = [..._translator.agents.entries];
-    var changed = false;
-    for (final (index, card) in cards.indexed) {
-      if (index >= children.length) break;
-      final child = children[index];
-      final childId = child['conversationId'] as String?;
-      if (childId == null) continue;
-      // Read whole once done.
-      if (card.value.status != CommandStatus.running &&
-          card.value.children.isNotEmpty) {
-        continue;
-      }
-      final steps = await records.child(childId).steps();
-      final items = agyChildItems(steps);
-      final report = inbox
-          .where((message) => message['sender'] == childId)
-          .map((message) => '${message['content'] ?? ''}')
-          .lastOrNull;
-      var tokens = 0;
-      String? model;
-      for (final step in steps) {
-        if (step['type'] != 'PLANNER_RESPONSE') continue;
-        tokens += _int(step['output_tokens']);
-        model = step['model'] as String? ?? model;
-      }
-      final calls = items.whereType<ToolCallItem>().toList();
-      final agent = card.value;
-      // Done once it reports (to the inbox); one that ran in an agy gone
-      // since is done all the same, or never will be.
-      final status = agent.status == CommandStatus.failed
-          ? CommandStatus.failed
-          : report != null || _replayedAgents.contains(card.key)
-          ? CommandStatus.succeeded
-          : _connection == null
-          ? CommandStatus.failed
-          : CommandStatus.running;
-      final updated = agent.copyWith(
-        agentType: _string((child['subagentDescriptor'] as Map?)?['typeName']),
-        status: status,
-        children: items,
-        toolUses: calls.length,
-        lastTool: calls.lastOrNull?.label,
-        activity: status == CommandStatus.running
-            ? calls.lastOrNull?.target
-            : null,
-        tokens: tokens == 0 ? null : tokens,
-        model: model,
-        result: report,
-        duration:
-            agent.duration ??
-            (status != CommandStatus.running &&
-                    !_replayedAgents.contains(card.key) &&
-                    agent.startedAt != null
-                ? DateTime.now().difference(agent.startedAt!)
-                : null),
-      );
-      _translator.agents[card.key] = updated;
-      emit(ItemUpserted(nextSeq, card.key, updated));
-      changed = true;
-    }
-    if (changed) _reportTasks();
-  }
-
-  static String? _string(Object? value) =>
-      value is String && value.trim().isNotEmpty ? value : null;
 
   // --- MCP servers -----------------------------------------------------------------------
 
@@ -1965,84 +1865,6 @@ class AntigravityKernel
 
   @override
   Future<Uri?> authenticateMcpServer(String name) async => null;
-}
-
-/// A subagent's conversation as items, from its steps (`transcript.jsonl`):
-/// what it said, and the tools it called.
-@visibleForTesting
-List<ChatItem> agyChildItems(List<Map<String, Object?>> steps) {
-  final items = <ChatItem>[];
-  for (final step in steps) {
-    if (step['type'] != 'PLANNER_RESPONSE') continue;
-    if (step['content'] case final String text when text.trim().isNotEmpty) {
-      items.add(AssistantTextItem(text.trim()));
-    }
-    for (final call in step['tool_calls'] as List? ?? const []) {
-      if (call is! Map) continue;
-      final name = '${call['name'] ?? ''}';
-      final args = <String, Object?>{
-        for (final MapEntry(:key, :value)
-            in (call['args'] as Map? ?? const {}).entries)
-          '$key': _argument(value),
-      };
-      String? arg(String key) => switch (args[key]) {
-        final String value when value.trim().isNotEmpty => value,
-        _ => null,
-      };
-      final path = arg('Path') ?? arg('AbsolutePath') ?? arg('File');
-      final kind = switch (name) {
-        'read_file' || 'view_file' || 'list_dir' => ToolKind.read,
-        'edit_file' ||
-        'write_file' ||
-        'replace_file_content' ||
-        'multi_replace_file_content' ||
-        'write_to_file' => ToolKind.edit,
-        'run_command' => ToolKind.command,
-        'grep_search' || 'find_by_name' || 'search' => ToolKind.grep,
-        'read_url_content' || 'search_web' || 'read_url' => ToolKind.web,
-        'invoke_subagent' || 'start_subagent' => ToolKind.agent,
-        _ when name.startsWith('mcp_') => ToolKind.mcp,
-        _ => ToolKind.other,
-      };
-      items.add(
-        ToolCallItem(
-          kind: kind,
-          label: name,
-          path: path,
-          target:
-              path?.split(RegExp(r'[/\\]')).last ??
-              arg('CommandLine') ??
-              arg('Query') ??
-              arg('Url') ??
-              arg('toolSummary') ??
-              '',
-          input: args,
-        ),
-      );
-    }
-  }
-  return items;
-}
-
-/// A tool call's argument as agy logs it: a JSON value written as text
-/// (`"\"/a/b\""`), read back.
-Object? _argument(Object? value) {
-  if (value is! String) return value;
-  final text = value.trim();
-  if (text.isEmpty) return value;
-  if (text.startsWith('"') ||
-      text.startsWith('{') ||
-      text.startsWith('[') ||
-      text == 'true' ||
-      text == 'false' ||
-      num.tryParse(text) != null) {
-    try {
-      return jsonDecode(text);
-    } on FormatException {
-      return value;
-    }
-  }
-  return value;
 }
 
 /// Something agy waits on the user for: its own request, answered with

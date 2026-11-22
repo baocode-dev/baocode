@@ -111,12 +111,12 @@ class AgentStep extends StatefulWidget {
   }
 
   /// What follows its description: while it runs, what it did last; once
-  /// done, how it went. Null with nothing to say.
+  /// done, how it went, else what it was asked. Null with nothing to say.
   static String? trailing(AgentItem item, {AppLocalizations? l10n}) =>
       switch (item.status) {
         CommandStatus.running => latest(item, l10n: l10n),
         _ => switch (meta(item, l10n: l10n)) {
-          '' => null,
+          '' => _firstLine(item.prompt),
           final meta => meta,
         },
       };

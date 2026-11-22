@@ -44,11 +44,7 @@ class AntigravityTranslator {
   /// The background tasks the commands left running, by task id.
   final Map<String, KernelTask> tasks = {};
 
-  /// The subagents started, by the tool call that started them.
-  final Map<String, AgentItem> agents = {};
-
-  /// Called as a command goes on in the background ([tasks] changed), or
-  /// a subagent starts ([agents]).
+  /// Called as a command goes on in the background ([tasks] changed).
   void Function()? onTasksChanged;
 
   /// Whether a call is under way.
@@ -269,34 +265,22 @@ class AntigravityTranslator {
     final summary = _string(input['toolSummary']);
     final output = tool.output;
     if (name == 'invoke_subagent' || name == 'start_subagent') {
-      final agent = AgentItem(
-        description:
-            _string(input['Role']) ??
-            summary ??
-            _string(input['TypeName']) ??
-            'Subagent',
-        id: id,
-        agentType: _string(input['TypeName']),
+      // All ACP tells of one is that it started: its work and its report
+      // stay agy's, the report told in agy's next reply. So it shows what
+      // it was asked, and opens nothing.
+      return AgentItem(
+        description: _string(input['Role']) ?? summary ?? 'Subagent',
+        agentType: switch (_string(input['TypeName'])) {
+          'self' => null,
+          final type => type,
+        },
         prompt: _string(input['Prompt']),
-        status: tool.status == 'failed'
-            ? CommandStatus.failed
-            : CommandStatus.running,
-        startedAt: tool.started,
-        background: true,
+        status: switch (status) {
+          ToolStatus.running => CommandStatus.running,
+          ToolStatus.failed => CommandStatus.failed,
+          _ => CommandStatus.succeeded,
+        },
       );
-      // A new one: its work to follow (see [onTasksChanged]).
-      if (!agents.containsKey(id) && !replaying) {
-        Future.microtask(() => onTasksChanged?.call());
-      }
-      return agents[id] = switch (agents[id]) {
-        // As the kernel filled it in from the records since.
-        final known? when tool.status != 'failed' => known.copyWith(
-          description: agent.description,
-          agentType: agent.agentType,
-          prompt: agent.prompt,
-        ),
-        _ => agent,
-      };
     }
     switch (tool.kind) {
       case 'execute':

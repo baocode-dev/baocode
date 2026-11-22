@@ -78,17 +78,8 @@ class _NoRecords implements AgyRecords {
   const _NoRecords();
 
   @override
-  Future<List<Map<String, Object?>>> steps() async => const [];
-
-  @override
   Future<List<Map<String, Object?>>> messages() async => const [];
 
   @override
-  Future<List<Map<String, Object?>>> subagents() async => const [];
-
-  @override
   String taskLog(String taskId) => '';
-
-  @override
-  AgyRecords child(String id) => this;
 }

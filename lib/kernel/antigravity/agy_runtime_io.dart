@@ -966,35 +966,12 @@ class _FileRecords implements AgyRecords {
   String _dir(String part) =>
       p.join(_root, 'brain', _session, '.system_generated', part);
 
-  /// Past this, a file is not read whole: a record is never that big but
-  /// for the transcript of a very long conversation, whose end matters.
+  /// Past this, a file is not read: a record is never that big.
   static const _maxBytes = 8 << 20;
-
-  @override
-  Future<List<Map<String, Object?>>> steps() async {
-    final file = File(p.join(_dir('logs'), 'transcript.jsonl'));
-    if (!file.existsSync()) return const [];
-    final length = await file.length();
-    final start = length > _maxBytes ? length - _maxBytes : 0;
-    final text = await file
-        .openRead(start)
-        .transform(const Utf8Decoder(allowMalformed: true))
-        .join();
-    final lines = const LineSplitter().convert(text);
-    return [
-      // A cut first line is not a whole step.
-      for (final (index, line) in lines.indexed)
-        if (!(start > 0 && index == 0)) ?_decode(line),
-    ];
-  }
 
   @override
   Future<List<Map<String, Object?>>> messages() =>
       _jsonFiles(_dir('messages'), skip: 'read.json');
-
-  @override
-  Future<List<Map<String, Object?>>> subagents() =>
-      _jsonFiles(_dir('subagents'));
 
   static Future<List<Map<String, Object?>>> _jsonFiles(
     String dir, {
@@ -1033,9 +1010,6 @@ class _FileRecords implements AgyRecords {
   @override
   String taskLog(String taskId) =>
       p.join(_dir('tasks'), '${taskId.split('/').last}.log');
-
-  @override
-  AgyRecords child(String id) => _FileRecords(_root, id);
 }
 
 /// `agy acp` as a child process, over its stdin and stdout.

@@ -52,7 +52,7 @@ abstract interface class AgyRuntime {
   Future<void> stopAll();
 
   /// What it keeps of conversation [sessionId] beside the conversation
-  /// itself: its steps, tasks, subagents and inbox.
+  /// itself: its tasks and inbox.
   AgyRecords records(String sessionId);
 
   /// The text of the file at [path] as it stands; null where there is
@@ -129,19 +129,9 @@ class AgyCredentials {
 /// What agy keeps of a conversation beside it (in its `brain` folder, under
 /// the conversation's id), read only.
 abstract interface class AgyRecords {
-  /// Its steps (`logs/transcript.jsonl`), oldest first; none when not there.
-  Future<List<Map<String, Object?>>> steps();
-
-  /// Its inbox (`messages/*.json`): background tasks' results, subagents'
-  /// reports.
+  /// Its inbox (`messages/*.json`): background tasks' results.
   Future<List<Map<String, Object?>>> messages();
-
-  /// Its subagents (`subagents/*.json`).
-  Future<List<Map<String, Object?>>> subagents();
 
   /// Where background task [taskId]'s output is written (`tasks/<n>.log`).
   String taskLog(String taskId);
-
-  /// The records of subagent conversation [id].
-  AgyRecords child(String id);
 }
