@@ -29,12 +29,15 @@ class LocalAgyRuntime implements AgyRuntime {
     String? installDir,
     String? dataDir,
     String? cacheDir,
+    String? stateDir,
   }) : _environment = environment ?? ClaudeEnvironment.of,
        _installDirOverride = installDir,
        _dataDirOverride = dataDir,
-       _cacheDirOverride = cacheDir;
+       _cacheDirOverride = cacheDir,
+       _stateDirOverride = stateDir;
 
   final String? _cacheDirOverride;
+  final String? _stateDirOverride;
 
   final Future<Map<String, String>> Function() _environment;
   final String? _installDirOverride;
@@ -686,6 +689,53 @@ if ($bytes -eq $null) { exit 1 }
     }
   }
 
+  /// The most of a conversation's turns [timeTurn] keeps.
+  static const _turnsKept = 1000;
+
+  /// Where [sessionId]'s turns are timed: the app's own state.
+  File _turnsFile(String sessionId) => File(
+    p.join(
+      _stateDirOverride ?? DataDirectory.current.stateDir,
+      'antigravity',
+      '${p.basename(sessionId)}.json',
+    ),
+  );
+
+  @override
+  List<Map<String, Object?>> turnsTimed(String sessionId) {
+    try {
+      final file = _turnsFile(sessionId);
+      if (!file.existsSync()) return const [];
+      return switch (jsonDecode(file.readAsStringSync())) {
+        final List<Object?> turns => [
+          for (final turn in turns)
+            if (turn is Map<String, Object?>) turn,
+        ],
+        _ => const [],
+      };
+    } on Object {
+      return const [];
+    }
+  }
+
+  @override
+  void timeTurn(String sessionId, Map<String, Object?> turn) {
+    final turns = [...turnsTimed(sessionId), turn];
+    try {
+      final file = _turnsFile(sessionId);
+      file.parent.createSync(recursive: true);
+      file.writeAsStringSync(
+        jsonEncode(
+          turns.length > _turnsKept
+              ? turns.sublist(turns.length - _turnsKept)
+              : turns,
+        ),
+      );
+    } on FileSystemException {
+      // Untimed when read back then.
+    }
+  }
+
   @override
   String? fileText(String path) {
     try {
@@ -819,6 +869,8 @@ if ($bytes -eq $null) { exit 1 }
     }
     final brain = Directory(p.join(dir, 'brain', sessionId));
     if (brain.existsSync()) await brain.delete(recursive: true);
+    final turns = _turnsFile(sessionId);
+    if (turns.existsSync()) await turns.delete();
   }
 }
 

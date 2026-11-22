@@ -64,6 +64,14 @@ abstract interface class AgyRuntime {
   Map<String, Object?>? get kept;
   set kept(Map<String, Object?>? value);
 
+  /// The turns of conversation [sessionId] run from this app, as it timed
+  /// them, oldest first: agy's conversation itself says nothing of when.
+  List<Map<String, Object?>> turnsTimed(String sessionId);
+
+  /// Keeps [turn] (its message, when it was sent, how long it took and
+  /// what it spent) as the latest of [sessionId]'s.
+  void timeTurn(String sessionId, Map<String, Object?> turn);
+
   /// Serves the app's own tools to an agy session over MCP (on this
   /// machine's loopback), [handle] answering what it asks.
   Future<McpEndpoint> serveTools(McpHandler handle);

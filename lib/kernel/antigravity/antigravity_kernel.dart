@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show listEquals, visibleForTesting;
 import 'package:flutter/material.dart';
@@ -236,14 +235,13 @@ class AntigravityKernel
         started = await connection.request('session/new', session);
         _sessionId = started['sessionId'] as String?;
       }
-      final readBack = _translator.replayed.isNotEmpty;
       _shown = true;
+      _timeHistory();
       _historyRead();
       _options(started);
       await _applyPicks();
       _setHealth(KernelHealth.ready);
       unawaited(_watchRecords());
-      if (readBack) unawaited(_timeHistory());
       if (!_limitsFresh(const Duration(minutes: 5))) _limitsAfterTurn();
       return true;
     } on AgyUnavailable catch (error) {
@@ -545,6 +543,9 @@ class AntigravityKernel
   String? _turn;
   DateTime? _turnStarted;
 
+  /// What the user said for [_turn]; null for one agy took up on its own.
+  String? _turnText;
+
   /// Whether [_turn] was taken up by agy on its own: it ends once agy is
   /// quiet a while.
   bool _unprompted = false;
@@ -626,6 +627,7 @@ class AntigravityKernel
     _turn = turn.id;
     _unprompted = false;
     _turnStarted = DateTime.now();
+    _turnText = turn.text.trim();
     _translator
       ..turnId = turn.id
       ..planning = _work == 'plan'
@@ -741,6 +743,7 @@ class AntigravityKernel
     _turn = id;
     _unprompted = true;
     _turnStarted = DateTime.now();
+    _turnText = null;
     _translator
       ..turnId = id
       ..begin();
@@ -766,8 +769,7 @@ class AntigravityKernel
     });
   }
 
-  /// Ends [turn] with what it spent: as agy said ([usage]), else as it
-  /// kept it.
+  /// Ends [turn] with what it spent, as agy said ([usage]).
   Future<void> _finish(
     String turn, {
     required bool interrupted,
@@ -778,12 +780,6 @@ class AntigravityKernel
       _translator
         ..background()
         ..endPlanRound();
-      try {
-        final kept = await _turnUsage().timeout(const Duration(seconds: 2));
-        usage ??= kept;
-      } on Object {
-        // Without it.
-      }
     }
     if (_turn != turn) return;
     _endTurn(turn, interrupted: interrupted, usage: usage);
@@ -804,96 +800,64 @@ class AntigravityKernel
     _turn = null;
     _unprompted = false;
     if (!handedOn) _failAsks();
+    final started = _turnStarted;
+    final worked = started == null ? null : DateTime.now().difference(started);
     emit(
       TurnEnded(
         nextSeq,
         turn,
         interrupted: interrupted,
-        worked: switch (_turnStarted) {
-          final started? => DateTime.now().difference(started),
-          null => null,
-        },
+        worked: worked,
         usage: usage,
       ),
     );
+    if ((_sessionId, _turnText, started, worked) case (
+      final id?,
+      final text?,
+      final started?,
+      final worked?,
+    )) {
+      _runtime.timeTurn(id, {
+        'text': text,
+        'sentAt': started.millisecondsSinceEpoch,
+        'workedMs': worked.inMilliseconds,
+        if (usage != null) ...{
+          'input': usage.inputTokens,
+          'output': usage.outputTokens,
+        },
+      });
+    }
+    _turnText = null;
     if (handedOn) return;
     _stopBackground();
     unawaited(_next());
   }
 
-  /// How many of agy's steps the turns so far spent: the next counts from
-  /// there.
-  int _stepsCounted = 0;
-
-  /// What the last turn spent: its model's requests since the user's
-  /// message (or the turn before, for one of agy's own), as agy logs them.
-  Future<TurnUsage?> _turnUsage() async {
-    final id = _sessionId;
-    if (id == null) return null;
-    final steps = await _runtime.records(id).steps();
-    final from = _stepsCounted.clamp(0, steps.length);
-    _stepsCounted = steps.length;
-    var input = 0;
-    var output = 0;
-    var any = false;
-    for (final step in steps.sublist(from).reversed) {
-      if (step['type'] == 'USER_INPUT') break;
-      if (step['type'] != 'PLANNER_RESPONSE') continue;
-      any = true;
-      input += _int(step['input_tokens']) + _int(step['cache_read_tokens']);
-      output += _int(step['output_tokens']);
-    }
-    return any ? TurnUsage(inputTokens: input, outputTokens: output) : null;
-  }
-
   static int _int(Object? value) => value is num ? value.toInt() : 0;
 
-  /// The turns read back, timed as agy logged them: when each was sent,
-  /// how long it took and what its model's requests spent, for each to
-  /// show as a turn done here does. The messages are matched from the
-  /// last (the log may keep only the latest of a long conversation).
-  Future<void> _timeHistory() async {
+  /// The turns read back, timed as this app timed them when they ran:
+  /// when each was sent, how long it took and what it spent. Matched from
+  /// the latest by what the user said; one run elsewhere (agy in a
+  /// terminal) has no time and is passed over.
+  void _timeHistory() {
     final id = _sessionId;
     final messages = _translator.replayed.entries.toList();
     _translator.replayed.clear();
     if (id == null || messages.isEmpty) return;
-    final List<Map<String, Object?>> steps;
-    try {
-      steps = await _runtime.records(id).steps();
-    } on Object {
-      return;
-    }
-    final turns = <({DateTime sent, DateTime last, int input, int output})>[];
-    for (final step in steps) {
-      final at = switch (step['created_at']) {
-        final String at => DateTime.tryParse(at)?.toLocal(),
-        _ => null,
-      };
-      if (at == null) continue;
-      if (step['type'] == 'USER_INPUT' && step['source'] == 'USER_EXPLICIT') {
-        turns.add((sent: at, last: at, input: 0, output: 0));
+    final turns = _runtime.turnsTimed(id);
+    var t = turns.length - 1;
+    for (var m = messages.length - 1; m >= 0 && t >= 0; m--) {
+      final MapEntry(key: itemId, value: message) = messages[m];
+      final turn = turns[t];
+      final text = turn['text'];
+      final said = message.text.trim();
+      if (text is! String || !(said == text || said.startsWith(text))) {
         continue;
       }
-      if (turns.isEmpty) continue;
-      final turn = turns.removeLast();
-      final planned = step['type'] == 'PLANNER_RESPONSE';
-      turns.add((
-        sent: turn.sent,
-        last: at,
-        input:
-            turn.input +
-            (planned
-                ? _int(step['input_tokens']) + _int(step['cache_read_tokens'])
-                : 0),
-        output: turn.output + (planned ? _int(step['output_tokens']) : 0),
-      ));
-    }
-    if (_disposed) return;
-    for (var k = 1; k <= math.min(messages.length, turns.length); k++) {
-      final MapEntry(key: itemId, value: message) =
-          messages[messages.length - k];
-      final turn = turns[turns.length - k];
-      final took = turn.last.difference(turn.sent);
+      t--;
+      final (sentAt, workedMs) = (turn['sentAt'], turn['workedMs']);
+      if (sentAt is! int || workedMs is! int) continue;
+      final (input, output) = (turn['input'], turn['output']);
       emit(
         ItemUpserted(
           nextSeq,
@@ -901,13 +865,11 @@ class AntigravityKernel
           UserMessageItem(
             text: message.text,
             images: message.images,
-            sentAt: turn.sent,
-            worked: took < const Duration(seconds: 1)
-                ? const Duration(seconds: 1)
-                : took,
-            usage: turn.input + turn.output == 0
-                ? null
-                : TurnUsage(inputTokens: turn.input, outputTokens: turn.output),
+            sentAt: DateTime.fromMillisecondsSinceEpoch(sentAt),
+            worked: Duration(milliseconds: workedMs),
+            usage: input is int && output is int
+                ? TurnUsage(inputTokens: input, outputTokens: output)
+                : null,
           ),
         ),
       );
