@@ -18,6 +18,7 @@ import '../../models/antigravity/antigravity_api.dart';
 import '../agent_kernel.dart' show SessionRecord;
 import '../kernel_types.dart' show RateLimitWindow;
 import 'agy_runtime.dart';
+import 'antigravity_translator.dart';
 
 AgyRuntime localAgyRuntime() => LocalAgyRuntime();
 
@@ -647,6 +648,19 @@ if ($bytes -eq $null) { exit 1 }
   AgyRecords records(String sessionId) => _FileRecords(dataDir, sessionId);
 
   @override
+  String? fileText(String path) {
+    try {
+      final file = File(path);
+      if (!file.existsSync() || file.lengthSync() > 8 << 20) return null;
+      return file.readAsStringSync();
+    } on FileSystemException {
+      return null;
+    } on FormatException {
+      return null;
+    }
+  }
+
+  @override
   Future<McpEndpoint> serveTools(McpHandler handle) =>
       McpHttpServer.start(handle);
 
@@ -688,7 +702,9 @@ if ($bytes -eq $null) { exit 1 }
             records.add(
               SessionRecord(
                 id: id,
-                title: session['title'] as String? ?? '',
+                title: AntigravityTranslator.withoutReminders(
+                  session['title'] as String? ?? '',
+                ),
                 updatedAt: _updatedAt(id, session['updatedAt']),
                 cwd: agyPath(cwd),
                 path: p.join(dataDir, 'conversations', '$id.db'),
