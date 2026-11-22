@@ -2,12 +2,14 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import '../../images/jpeg_images.dart';
 import '../chat_models.dart';
 
 /// Images as models take them: PNG, JPEG, GIF or WebP, a few megabytes at
 /// most. Past about 1568 pixels a side they are scaled down anyway, so a
-/// larger one only costs upload and context: it is scaled down here, as
-/// PNG. Null for what does not decode as an image.
+/// larger one only costs upload and context: it is scaled down here. An
+/// opaque PNG (a screenshot) goes as JPEG ([compactImage]). Null for what
+/// does not decode as an image.
 Future<ImageAttachment?> prepareImage(ImageAttachment image) async {
   const maxSide = 1568;
   const maxBytes = 3750000; // 5 MB once base64-encoded.
@@ -25,10 +27,8 @@ Future<ImageAttachment?> prepareImage(ImageAttachment image) async {
   final type = _sniff(image.bytes);
   final longest = math.max(width, height);
   if (type != null && longest <= maxSide && image.bytes.length <= maxBytes) {
-    return ImageAttachment(
-      bytes: image.bytes,
-      mediaType: type,
-      name: image.name,
+    return compactImage(
+      ImageAttachment(bytes: image.bytes, mediaType: type, name: image.name),
     );
   }
   final scale = math.min(1.0, maxSide / longest);
@@ -38,6 +38,16 @@ Future<ImageAttachment?> prepareImage(ImageAttachment image) async {
     targetHeight: math.max(1, (height * scale).round()),
   );
   final picture = (await scaled.getNextFrame()).image;
+  final jpeg = await imageAsJpeg(picture, quality: _jpegQuality);
+  if (jpeg != null) {
+    picture.dispose();
+    scaled.dispose();
+    return ImageAttachment(
+      bytes: jpeg,
+      mediaType: 'image/jpeg',
+      name: image.name,
+    );
+  }
   final png = await picture.toByteData(format: ui.ImageByteFormat.png);
   picture.dispose();
   scaled.dispose();
@@ -46,6 +56,23 @@ Future<ImageAttachment?> prepareImage(ImageAttachment image) async {
     bytes: png.buffer.asUint8List(),
     mediaType: 'image/png',
     name: image.name,
+  );
+}
+
+/// How a picture sent is made JPEG: as the phone's photos are.
+const _jpegQuality = 85;
+
+/// [image] as JPEG when it is an opaque PNG worth it ([pngAsJpeg]), else
+/// as it is: sent again on every call that has it in context.
+Future<ImageAttachment> compactImage(ImageAttachment image) async {
+  if (image.mediaType != 'image/png') return image;
+  final jpeg = await pngAsJpeg(image.bytes, quality: _jpegQuality);
+  if (jpeg == null) return image;
+  return ImageAttachment(
+    bytes: jpeg,
+    mediaType: 'image/jpeg',
+    name: image.name,
+    number: image.number,
   );
 }
 

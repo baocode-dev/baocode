@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import '../network/network_proxy_io.dart';
 import '../network/tls.dart';
+import 'antigravity/antigravity_accounts_io.dart';
 import 'codex/codex_accounts_io.dart';
 import 'image_api.dart';
 import 'model_provider.dart';
@@ -12,11 +13,17 @@ import 'model_runtime.dart' show UpstreamException;
 import 'upstream.dart';
 
 /// Asks image models for pictures (see image_api.dart): by the Images API,
-/// a conversation's `modalities`, or a ChatGPT account (Codex's).
+/// a conversation's `modalities`, a ChatGPT account (Codex's), or an
+/// Antigravity Google account.
 class ImageGenerator {
-  ImageGenerator({required this.codex, required this.key});
+  ImageGenerator({
+    required this.codex,
+    required this.antigravity,
+    required this.key,
+  });
 
   final CodexAccounts codex;
+  final AntigravityAccounts antigravity;
 
   /// A provider's key, by its id.
   final Future<String?> Function(String providerId) key;
@@ -42,6 +49,12 @@ class ImageGenerator {
     try {
       final images = switch ((provider.protocol, model.kind)) {
         (ProviderProtocol.codex, _) => await _codex(
+          provider,
+          model,
+          request,
+          session,
+        ),
+        (ProviderProtocol.antigravity, _) => await _antigravity(
           provider,
           model,
           request,
@@ -196,6 +209,38 @@ class ImageGenerator {
       );
     }
     return parseResponsesImages(events);
+  }
+
+  /// As an Antigravity Google account, through Code Assist's
+  /// `streamGenerateContent` with `requestType: image_gen`. Gemini image
+  /// models draw one picture per call, so `count > 1` asks once per needed
+  /// picture.
+  Future<List<GeneratedImage>> _antigravity(
+    ModelProvider provider,
+    ProviderModel model,
+    ImageRequest request,
+    String? session,
+  ) async {
+    final body = antigravityImageRequest(request);
+    final want = request.count < 1 ? 1 : request.count;
+    final out = <GeneratedImage>[];
+    for (var i = 0; i < want && out.length < want; i++) {
+      final (status, events) = await antigravity.postImage(
+        provider,
+        model.id,
+        body,
+        session: session,
+        timeout: timeout,
+      );
+      if (status >= 400) {
+        throw UpstreamException(
+          '${upstreamErrorMessage(status, events)} '
+          '(POST ${antigravity.endpoints.stream})',
+        );
+      }
+      out.addAll(parseAntigravityImages(events));
+    }
+    return out.length > want ? out.sublist(0, want) : out;
   }
 
   ({Uint8List body, String boundary}) _editForm(

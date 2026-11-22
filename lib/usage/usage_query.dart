@@ -389,3 +389,63 @@ class UsageSummary {
     return summary;
   }
 }
+
+/// A turn's start (when the user sent its message) and how long it ran, for
+/// attributing a session's [UsageCall]s to the turn they ran in.
+typedef TurnSpan = ({DateTime? sentAt, Duration? worked});
+
+/// What each turn in [turns] cost at [prices], from a session's [calls].
+///
+/// Each turn takes the calls from its [TurnSpan.sentAt] (pushed to the
+/// previous turn's end when queued while it ran) up to the next turn's start.
+/// A turn without [TurnSpan.sentAt], or with no matching calls, has null.
+List<UsageCost?> turnCostsOf(
+  List<UsageCall> calls,
+  List<TurnSpan> turns, {
+  UsagePrices? prices,
+}) {
+  final result = List<UsageCost?>.filled(turns.length, null);
+  if (calls.isEmpty || turns.isEmpty) return result;
+  final priced = prices ?? UsagePrices.current;
+
+  // Effective start of each turn with a timestamp: a message queued while the
+  // turn before was still running only takes calls once that turn ends.
+  final starts = <(int, DateTime)>[];
+  DateTime? prevEnd;
+  for (var i = 0; i < turns.length; i++) {
+    final sent = turns[i].sentAt;
+    if (sent == null) {
+      prevEnd = null;
+      continue;
+    }
+    final start = prevEnd != null && sent.isBefore(prevEnd) ? prevEnd : sent;
+    starts.add((i, start));
+    prevEnd = switch (turns[i].worked) {
+      final worked? => start.add(worked),
+      null => null,
+    };
+  }
+  if (starts.isEmpty) return result;
+
+  // Small tolerance before the first turn for clock jitter between the UI
+  // recording sentAt and the proxy timestamping the first request.
+  const firstJitter = Duration(milliseconds: 500);
+  final earliest = starts.first.$2.subtract(firstJitter);
+  final sorted = List.of(calls)..sort((a, b) => a.at.compareTo(b.at));
+  var cursor = 0;
+  for (final call in sorted) {
+    if (call.at.isBefore(earliest)) continue;
+    while (cursor + 1 < starts.length &&
+        !call.at.isBefore(starts[cursor + 1].$2)) {
+      cursor++;
+    }
+    final turnIndex = starts[cursor].$1;
+    final price = priced.priceOf(call);
+    if (price != null) {
+      (result[turnIndex] ??= UsageCost()).addCall(call, price);
+    } else if (call.total > 0) {
+      (result[turnIndex] ??= UsageCost()).unpriced++;
+    }
+  }
+  return result;
+}

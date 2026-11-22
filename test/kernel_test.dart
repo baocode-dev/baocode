@@ -282,6 +282,60 @@ List<String> shown(Transcript transcript) => [
 ].where((line) => line.isNotEmpty).toList();
 
 void main() {
+  test("BaoCode's own core for Antigravity's: the session's model, or one "
+      'its roles pick', () async {
+    Future<bool> builtinCore(Map<String, Object?> roles, String model) async {
+      final providers = ModelProviders.memory(
+        providers: [
+          ModelProvider.fromJson({
+            'id': 'ds',
+            'name': 'DeepSeek',
+            'protocol': 'anthropic',
+            'baseUrl': 'https://example.com',
+            'models': [
+              {'id': 'deepseek-v4'},
+            ],
+            'roles': roles,
+          })!,
+          ModelProvider.fromJson({
+            'id': 'ag',
+            'name': 'Antigravity',
+            'protocol': 'antigravity',
+            'models': [
+              {'id': 'gemini-4-neon'},
+            ],
+          })!,
+        ],
+      );
+      final launches = <ClaudeLaunch>[];
+      final kernel = ClaudeCodeKernel(
+        MockKernels.claudeCode,
+        KernelContext(cwd: '/p', settings: {'model': model}),
+        start: (launch) async {
+          launches.add(launch);
+          return FakeCli();
+        },
+        providers: providers,
+        providerEnvironment: (_, _) async => const {},
+      );
+      kernel.send(const KernelTurn(id: 'u1', text: 'hi'));
+      await pumpEventQueue();
+      kernel.dispose();
+      return launches.single.builtinCore;
+    }
+
+    expect(await builtinCore(const {}, '@ds/deepseek-v4'), isFalse);
+    expect(await builtinCore(const {}, '@ag/gemini-4-neon'), isTrue);
+    expect(
+      await builtinCore({'subagent': '@ag/gemini-4-neon'}, '@ds/deepseek-v4'),
+      isTrue,
+    );
+    expect(
+      await builtinCore({'haiku': '@ag/gemini-4-neon'}, '@ds/deepseek-v4'),
+      isTrue,
+    );
+  });
+
   group('Claude Code translator (recorded)', () {
     test('tools, a background command and a subagent', () {
       final transcript = Transcript();

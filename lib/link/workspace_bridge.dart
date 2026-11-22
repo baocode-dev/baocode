@@ -14,6 +14,7 @@ import '../bots/bots.dart';
 import '../chat/chat_models.dart';
 import '../chat/chat_session.dart';
 import '../chat/composer/composer_files.dart' show fileReferenceText;
+import '../chat/composer/composer_images.dart' show compactImage;
 import '../chat/composer/paste_store.dart';
 import '../chat/composer/remote_drops.dart';
 import '../chat/panels/context_usage_panel.dart' show ContextUsagePanel;
@@ -482,6 +483,7 @@ class WorkspaceBridge {
   Future<Object?> _send(Map<String, Object?> params) async {
     final text = (params['text'] as String? ?? '').trim();
     if (text.isEmpty && _images(params['images']).isEmpty) return null;
+    final images = await _compacted(params['images']);
     final AgentThread thread;
     var notes = const <String>[];
     if (params['bot'] case final Object id) {
@@ -507,7 +509,7 @@ class WorkspaceBridge {
       throw const LinkRemoteException('busy', 'The agent is at work');
     }
     session.send(
-      _message(thread, params),
+      _message(thread, params, images),
       now: params['now'] == true,
       from: _from(thread),
       notes: notes,
@@ -583,7 +585,8 @@ class WorkspaceBridge {
       case LinkMethods.edit:
         final thread = _thread(params['session']);
         final index = _messageAt(thread, params);
-        final message = _message(thread, params);
+        final images = await _compacted(params['images']);
+        final message = _message(thread, params, images);
         if (message.isEmpty) return null;
         thread.session.editMessage(
           index,
@@ -871,19 +874,29 @@ class WorkspaceBridge {
         if (key != null) {
           if (_taken[key] case final taken?) return taken;
         }
-        final answer = Future<Object?>.value({
-          'seq': _groups().send(
-            group.id,
-            text: text,
-            images: images,
-            ref: (params['ref'] as num?)?.toInt(),
-          ),
-        });
-        if (key != null) {
-          _taken[key] = answer;
-          if (_taken.length > _takenKept) _taken.remove(_taken.keys.first);
+        // Kept before its pictures are made smaller: one sent again
+        // meanwhile is answered as it, not taken twice.
+        final answer = () async {
+          final compacted = await Future.wait(images.map(compactImage));
+          return <String, Object?>{
+            'seq': _groups().send(
+              group.id,
+              text: text,
+              images: compacted,
+              ref: (params['ref'] as num?)?.toInt(),
+            ),
+          };
+        }();
+        if (key == null) return answer;
+        _taken[key] = answer;
+        if (_taken.length > _takenKept) _taken.remove(_taken.keys.first);
+        try {
+          return await answer;
+        } on Object {
+          // Not taken: it may be sent again.
+          _taken.remove(key);
+          rethrow;
         }
-        return answer;
       case LinkMethods.groupImage:
         final image = _groups().image(
           _group(params['group']).id,
@@ -935,9 +948,12 @@ class WorkspaceBridge {
   /// composer would send it to [thread]: its files named by their paths as
   /// the agent finds them, its pictures numbered on from the
   /// conversation's and named in the text.
-  ComposerMessage _message(AgentThread thread, Map<String, Object?> params) {
+  ComposerMessage _message(
+    AgentThread thread,
+    Map<String, Object?> params,
+    List<ImageAttachment> images,
+  ) {
     var text = (params['text'] as String? ?? '').trim();
-    final images = _images(params['images']);
     final named = [
       for (final mention in (params['mentions'] as List?) ?? const [])
         if (mention is String && mention.isNotEmpty) mention,
@@ -1108,6 +1124,11 @@ class WorkspaceBridge {
     }
     throw const LinkRemoteException('bad', 'Not a picture, or too large');
   }
+
+  /// [json]'s pictures ([_images]), an opaque PNG (a phone's screenshot,
+  /// which its picker keeps PNG) as JPEG ([compactImage]).
+  static Future<List<ImageAttachment>> _compacted(Object? json) =>
+      Future.wait(_images(json).map(compactImage));
 
   static ImageAttachment? _image(String data, String type, String? name) {
     try {

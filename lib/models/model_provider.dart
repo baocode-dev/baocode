@@ -20,7 +20,12 @@ enum ProviderProtocol {
 
   /// ChatGPT's Codex backend, signed in with ChatGPT accounts (OAuth), not
   /// a key: through the local proxy, as Responses.
-  codex('codex');
+  codex('codex'),
+
+  /// Google's Antigravity, signed in with Google accounts (OAuth), not a
+  /// key: through the local proxy, as Gemini's Code Assist; on BaoCode's
+  /// own core only.
+  antigravity('antigravity');
 
   const ProviderProtocol(this.id);
 
@@ -32,7 +37,7 @@ enum ProviderProtocol {
 
   /// Signed in to with accounts ([ModelProvider.accounts]), not a key and
   /// a base URL.
-  bool get usesAccounts => this == codex;
+  bool get usesAccounts => this == codex || this == antigravity;
 
   /// Those a model may be spoken to at instead of its upstream's
   /// ([ProviderModel.protocol]): at the same base URL and key, so not
@@ -253,10 +258,16 @@ class ProviderModel {
   }
 
   /// The contexts offered in the picker, smallest first: [initialContext]
-  /// among them.
+  /// among them, in place of one shown as the same (a 1,048,576 window
+  /// and the 1M offered would both be `1M`).
   List<int> get contextOptions {
-    final offered = {...(contexts ?? defaultContexts), initialContext}.toList()
-      ..sort();
+    final initial = initialContext;
+    final shown = formatTokens(initial);
+    final offered = {
+      for (final tokens in contexts ?? defaultContexts)
+        if (formatTokens(tokens) != shown) tokens,
+      initial,
+    }.toList()..sort();
     return offered;
   }
 
@@ -500,7 +511,8 @@ class ProviderRoles {
   int get hashCode => Object.hashAll(_keys.map((key) => this[key]));
 }
 
-/// An account an upstream is signed in to with ([ProviderProtocol.codex]):
+/// An account an upstream is signed in to with ([ProviderProtocol.codex],
+/// [ProviderProtocol.antigravity]):
 /// what is shown of it, kept in settings.json; its refresh token in the
 /// keychain, under [ModelProvider.accountRefFor].
 class ProviderAccount {
@@ -519,7 +531,8 @@ class ProviderAccount {
   /// The plan it had as it signed in (`plus`, `pro`, `team`…).
   final String? plan;
 
-  /// The ChatGPT workspace its requests are made in.
+  /// The ChatGPT workspace its requests are made in; Antigravity's, the
+  /// Google Cloud project.
   final String? accountId;
 
   /// Taken in turn with the others; off, left out.
@@ -713,9 +726,11 @@ class ModelProvider {
       'provider.$id.$accountId';
 
   /// The host its base URL names (else its endpoint's, or its models'),
-  /// for the list; ChatGPT's for Codex.
+  /// for the list; ChatGPT's for Codex, Antigravity's for it.
   String get host => protocol == ProviderProtocol.codex
       ? 'chatgpt.com'
+      : protocol == ProviderProtocol.antigravity
+      ? 'antigravity.google'
       : [baseUrl, ?endpointUrl, ?modelsUrl]
                 .map((url) => Uri.tryParse(url.trim())?.host ?? '')
                 .where((host) => host.isNotEmpty)
@@ -801,13 +816,22 @@ class ModelProvider {
   static final _sorted = Expando<List<ProviderModel>>();
   static final _enabled = Expando<List<ProviderModel>>();
   static final _labels = Expando<Map<String, String>>();
+  static final _byId = Expando<Map<String, ProviderModel>>();
+  static final _byAlias = Expando<Map<String, ProviderModel>>();
 
   /// Its model [id]; for magpie's, also one kept by its real id that a
   /// session or setting still names by its old alias ([Magpie.alias]).
+  /// Looked up for every event of a conversation, of every one replayed:
+  /// the aliases, hashed one by one, are worked out once.
   ProviderModel? model(String id) =>
-      models.where((model) => model.id == id).firstOrNull ??
+      (_byId[this] ??= {
+        for (final model in models.reversed) model.id: model,
+      })[id] ??
       (followsMagpie && Magpie.isAlias(id)
-          ? models.where((model) => Magpie.alias(model.id) == id).firstOrNull
+          ? (_byAlias[this] ??= {
+              for (final model in models.reversed)
+                Magpie.alias(model.id): model,
+            })[id]
           : null);
 
   /// How [model] is spoken to: at its own endpoint, if it has one, else

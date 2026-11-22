@@ -637,6 +637,9 @@ class ClaudeCodeKernel
           switches: _appliedSwitches,
           attribution: CommitAttribution.current(),
           env: env,
+          // Antigravity's models on BaoCode's own core alone: the session's,
+          // or those its roles pick (a subagent's).
+          builtinCore: custom != null && _providers.builtinCoreOnly(custom.$1),
           directories: [...?workspace?.folders, ...?workspace?.reaches],
           folderInstructions: workspace?.folders.isNotEmpty ?? false,
           // Long pastes are kept on this machine: only its agent reads them.
@@ -652,6 +655,15 @@ class ClaudeCodeKernel
           models: switch (custom) {
             (final provider, _) => _requestedModels(provider),
             null => const [],
+          },
+          additionalModels: switch (custom) {
+            (final provider, _)
+                when isModelProxyUrl(
+                  env?[ClaudeModelVariables.baseUrl],
+                  provider.id,
+                ) =>
+              _providers.proxyModelRefs,
+            _ => const [],
           },
         ),
       );

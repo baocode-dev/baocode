@@ -5,6 +5,13 @@ library;
 String identityLine({required String productName}) =>
     'You are the coding agent built into $productName.';
 
+/// The built-in core's default system prompt (its identity line and core
+/// instructions), shown in Settings as reference and as the starting text
+/// when replacing it.
+String defaultCoreSystemPrompt({String productName = 'BaoCode'}) =>
+    '${identityLine(productName: productName)}\n\n'
+    '${coreInstructions(productName: productName)}';
+
 /// What the model is told of itself and its work, all sessions alike.
 String coreInstructions({required String productName}) => '''
 You work with the user on their software: you read and change their code, run commands, and answer their questions about it, with the tools you are given here.

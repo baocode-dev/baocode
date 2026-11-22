@@ -131,7 +131,7 @@ void main() {
   setUp(() => KeybindingService.instance = KeybindingService());
   tearDown(() => KeybindingService.instance = KeybindingService());
 
-  testWidgets('Enter sends, and Esc then cancels the turn from the input', (
+  testWidgets('Enter sends, and Esc then leaves the turn running', (
     tester,
   ) async {
     final session = await pumpChat(tester);
@@ -144,8 +144,9 @@ void main() {
     expect(session.isStreaming, isTrue);
 
     await press(tester, LogicalKeyboardKey.escape);
-    await tester.pump(const Duration(seconds: 3));
-    expect(session.isStreaming, isFalse);
+    await tester.pump(const Duration(seconds: 1));
+    expect(session.isStreaming, isTrue);
+    await stopTurn(tester, session);
   });
 
   testWidgets('Ctrl+Enter also sends in the default mode', (tester) async {

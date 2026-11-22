@@ -6387,6 +6387,10 @@ class AppLocalizationsZh extends AppLocalizations {
       '用 ChatGPT 账号登录，按套餐额度使用 Codex 模型。添加多个账号时，请求按下方的负载模式分配，额度用尽的账号会自动让给下一个。';
 
   @override
+  String get modelsAccountsDescriptionAntigravity =>
+      '用 Google 账号登录，按套餐额度使用 Antigravity 的模型（Gemini、Claude），始终在 BaoCode 内置内核上运行。每组模型各有额度：某组用尽的账号只在这组模型上让给下一个。Google 发现账号在 Antigravity 之外使用时可能封号，请用可以承受损失的账号。';
+
+  @override
   String get modelsAccountsNone => '还没有账号';
 
   @override
@@ -6603,6 +6607,10 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get modelsAccountPortBusy =>
       '登录回调用的 1455 端口被其他程序占用了（例如 Docker 里的代理，或正在登录的 Codex CLI）。照常在浏览器里登录即可：登录后的页面会打不开或显示别的内容，把地址栏里的完整地址复制粘贴到下面。';
+
+  @override
+  String get modelsAccountPortBusyAntigravity =>
+      '登录回调用的 51121 端口被其他程序占用了（例如 Antigravity 本身，或正在登录的代理）。照常在浏览器里登录即可：登录后的页面会打不开或显示别的内容，把地址栏里的完整地址复制粘贴到下面。';
 
   @override
   String get modelsAccountCallback => '登录后的地址';
@@ -7070,18 +7078,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get modelsManage => '管理模型…';
-
-  @override
-  String modelsSwitchTitle(String name) {
-    return '切换到 $name？';
-  }
-
-  @override
-  String get modelsSwitchDetail =>
-      'Claude Code 会在新上游上重启，并用 --resume 接续当前对话。历史记录会原样发给新模型，部分上游首次处理会较慢。如果还有回复在进行，发送下一条消息时会先停止它。';
-
-  @override
-  String get modelsSwitchConfirm => '切换';
 
   @override
   String modelsFallbackHint(String picked, String fallback) {
@@ -8757,9 +8753,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get mobileRelayInvalid => '不是中继地址，应形如 https://relay.example.com';
 
   @override
-  String get mobileRelayPinned => '指定的中继';
-
-  @override
   String get mobileRelayCustom => '自定义';
 
   @override
@@ -8767,6 +8760,24 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get mobileRelayCustomDescription => '你自己部署的中继（baocode-relay）的地址。';
+
+  @override
+  String get mobileRelayInUse => '正在使用';
+
+  @override
+  String get mobileRelayMoveUp => '上移';
+
+  @override
+  String get mobileRelayMoveDown => '下移';
+
+  @override
+  String get mobileRelayRemove => '移除';
+
+  @override
+  String get mobileRelayAdd => '添加中继';
+
+  @override
+  String get mobileRelayAddPick => '选择…';
 
   @override
   String get mobileRelayMode => '方式';
@@ -8778,11 +8789,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get mobileRelayModeAutoDescription => '使用 BaoCode 的中继，自动选最近的一台。';
 
   @override
-  String get mobileRelayModePinned => '手动指定';
+  String get mobileRelayModePinned => '按顺序';
 
   @override
   String get mobileRelayModePinnedDescription =>
-      '只用你指定的一台：BaoCode 的某一台，或自定义地址。';
+      '用你列出的中继，从上往下：一台连不上时换下一台，前面的恢复后再换回去。可以是 BaoCode 的，也可以是自定义地址。';
 
   @override
   String get mobileRelayModeDirect => '仅直连';
@@ -8835,6 +8846,79 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get settingsSectionStash => 'Stash';
+
+  @override
+  String get settingsSectionBuiltinCore => '内置内核';
+
+  @override
+  String get settingsBuiltinCoreKeywords => '内置内核 系统提示词 提示词 指令 prompt';
+
+  @override
+  String get builtinCoreSettingsTitle => '内置内核';
+
+  @override
+  String get builtinCoreSettingsDescription =>
+      '自定义 BaoCode 内置内核使用的系统提示词。修改仅对新对话生效，Bot 对话仍使用各自的提示词。';
+
+  @override
+  String get builtinCoreSystemPromptGroup => '系统提示词';
+
+  @override
+  String get builtinCoreSystemPromptMode => '模式';
+
+  @override
+  String builtinCoreSystemPromptModeLabel(String mode) {
+    return '系统提示词：$mode';
+  }
+
+  @override
+  String get builtinCoreModeDefault => '默认';
+
+  @override
+  String get builtinCoreModeAppend => '追加到默认';
+
+  @override
+  String get builtinCoreModeReplace => '替换默认';
+
+  @override
+  String get builtinCoreModeDefaultDetail => '使用 BaoCode 默认的核心指令。';
+
+  @override
+  String get builtinCoreModeAppendDetail => '保留默认核心指令，在末尾追加自定义内容。';
+
+  @override
+  String get builtinCoreModeReplaceDetail =>
+      '替换默认核心指令，仍保留自动记忆、输出风格、CLAUDE.md 和格式约定。';
+
+  @override
+  String get builtinCoreAppendLabel => '追加指令';
+
+  @override
+  String get builtinCoreAppendPlaceholder => '填写要追加到默认系统提示词末尾的指令…';
+
+  @override
+  String get builtinCoreReplaceLabel => '自定义核心指令';
+
+  @override
+  String get builtinCoreReplacePlaceholder => '填写用于替换默认核心指令的系统提示词…';
+
+  @override
+  String get builtinCoreLoadDefault => '载入默认原文';
+
+  @override
+  String get builtinCoreResetDefault => '恢复默认';
+
+  @override
+  String get builtinCoreDefaultPromptTitle => '默认系统提示词';
+
+  @override
+  String get builtinCoreDefaultPromptDescription => '未替换时内置内核使用的默认核心指令，可供参考。';
+
+  @override
+  String get builtinCoreCopyDefault => '复制';
+
+  @override
+  String get builtinCoreCopiedDefault => '已复制';
 
   @override
   String get settingsSectionCustomize => '自定义';

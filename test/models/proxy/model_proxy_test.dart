@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:bao_websearch/bao_websearch.dart';
 import 'package:baocode/models/model_provider.dart';
 import 'package:baocode/models/proxy/model_proxy.dart';
 import 'package:baocode/models/upstream.dart';
@@ -901,6 +902,7 @@ void main() {
         {
           'model': '@gw/plain',
           'max_tokens': 100,
+          'output_config': {'effort': 'max'},
           'stream': true,
           'messages': [
             {'role': 'user', 'content': 'hi'},
@@ -912,7 +914,33 @@ void main() {
       expect(anthropic.requests, isEmpty);
       final sent = upstream.requests.single;
       expect((sent.body! as Map)['model'], 'plain');
+      expect((sent.body! as Map)['reasoning_effort'], 'max');
       expect(sent.headers['authorization'], 'Bearer sk-gw');
+
+      // An effort the model does not offer is not asked for.
+      provider = provider.copyWith(
+        models: const [
+          ProviderModel(id: 'plain', efforts: ['low', 'medium', 'high']),
+        ],
+      );
+      upstream.requests.clear();
+      final unoffered = await post(
+        await on('an'),
+        {
+          'model': '@gw/plain',
+          'max_tokens': 100,
+          'output_config': {'effort': 'max'},
+          'stream': true,
+          'messages': [
+            {'role': 'user', 'content': 'hi'},
+          ],
+        },
+        headers: {'x-api-key': 'tok'},
+      );
+      expect(unoffered.status, 200);
+      final plain = upstream.requests.single.body! as Map;
+      expect(plain['model'], 'plain');
+      expect(plain.containsKey('reasoning_effort'), isFalse);
 
       // And the other way: an OpenAI session's subagents on Anthropic.
       anthropic.reply = (_) => (200, const ['{"id":"m2"}']);
@@ -1199,6 +1227,255 @@ void main() {
       expect(sent.path, '/v1/messages');
       expect((sent.body! as Map)['model'], 'claude-sonnet-4-5');
       expect(upstream.requests, isEmpty);
+    });
+  });
+
+  group('a web search tool\'s request', () {
+    late FakeUpstream anthropic;
+    late HttpServer engine;
+    late ModelProxy searching;
+    late ModelProvider claude;
+    late NativeSearchSupport support;
+    final searched = <String>[];
+    var engineUp = true;
+
+    setUp(() async {
+      searched.clear();
+      engineUp = true;
+      anthropic = await FakeUpstream.start();
+      engine = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      engine.listen((request) async {
+        searched.add(request.uri.queryParameters['q'] ?? '');
+        if (!engineUp) {
+          request.response.statusCode = 503;
+        } else {
+          request.response
+            ..headers.contentType = ContentType.html
+            ..write(
+              '<div class="r"><a href="https://dart.dev/">Dart</a>'
+              '<p>The language</p></div>',
+            );
+        }
+        await request.response.close();
+      });
+      claude = ModelProvider(
+        id: 'an',
+        name: 'Relay',
+        baseUrl: anthropic.base,
+        auth: ProviderAuth.apiKey,
+      );
+      support = NativeSearchSupport();
+      searching = ModelProxy(
+        provider: (id) => {'gw': provider, 'an': claude}[id],
+        key: (id) async => 'sk-$id',
+        onError: (_, error) => errors.add(error),
+        findProxy: (_) => 'DIRECT',
+        webSearch: WebSearch(
+          engines: [
+            HtmlEngine(
+              'local',
+              'http://127.0.0.1:${engine.port}/search?q={query}',
+              result: 'div.r',
+              title: 'a',
+              link: 'a',
+              snippet: 'p',
+            ),
+          ],
+        ),
+        searchSupport: support,
+        token: 'tok',
+      );
+    });
+
+    tearDown(() async {
+      await searching.close();
+      await anthropic.close();
+      await engine.close(force: true);
+    });
+
+    Future<ProxyAnswer> search(String id, {bool stream = true}) async => post(
+      Uri.parse('${(await searching.endpoint(id)).baseUrl}/v1/messages'),
+      {
+        'model': id == 'gw' ? 'gpt-5' : 'glm-5',
+        'stream': stream,
+        'max_tokens': 100,
+        'messages': [
+          {
+            'role': 'user',
+            'content': 'Perform a web search for the query: dart 4',
+          },
+        ],
+        'tools': [
+          {'type': 'web_search_20250305', 'name': 'web_search', 'max_uses': 8},
+        ],
+      },
+      headers: {'x-api-key': 'tok'},
+    );
+
+    /// The blocks of a streamed answer, as they started.
+    List<Map<String, Object?>> blocks(ProxyAnswer answer) => [
+      for (final event in answer.data)
+        if (event['type'] == 'content_block_start')
+          (event['content_block']! as Map).cast<String, Object?>(),
+    ];
+
+    void searchedHere(ProxyAnswer answer) {
+      expect(answer.status, 200);
+      final started = blocks(answer);
+      expect(
+        [for (final block in started) block['type']],
+        ['server_tool_use', 'web_search_tool_result', 'text'],
+      );
+      expect(started[1]['content'], [
+        {
+          'type': 'web_search_result',
+          'title': 'Dart',
+          'url': 'https://dart.dev',
+          'encrypted_content': '',
+          'page_age': null,
+        },
+      ]);
+      final text = [
+        for (final event in answer.data)
+          if (event case {'delta': {'type': 'text_delta', 'text': final text}})
+            text,
+      ].join();
+      expect(text, '1. Dart\nURL: https://dart.dev\nThe language');
+    }
+
+    test('OpenAI\'s chat has no such tool: searched here, the upstream not '
+        'asked', () async {
+      searchedHere(await search('gw'));
+      expect(upstream.requests, isEmpty);
+      expect(searched, ['dart 4']);
+
+      final whole = await search('gw', stream: false);
+      expect(whole.status, 200);
+      final message = jsonDecode(whole.text) as Map;
+      expect(
+        [for (final block in message['content'] as List) block['type']],
+        ['server_tool_use', 'web_search_tool_result', 'text'],
+      );
+      expect(upstream.requests, isEmpty);
+    });
+
+    test('nothing found: the tool\'s error, not the API\'s', () async {
+      engineUp = false;
+      final answer = await search('gw');
+      expect(answer.status, 200);
+      expect(blocks(answer)[1]['content'], {
+        'type': 'web_search_tool_result_error',
+        'error_code': 'unavailable',
+        'message': startsWith('Web search found nothing'),
+      });
+    });
+
+    test('a model that refuses the tool: searched here, and known for next '
+        'time', () async {
+      anthropic.reply = (_) => (
+        400,
+        const [
+          '{"type":"error","error":{"type":"invalid_request_error",'
+              '"message":"tools.0: unknown tool type web_search_20250305"}}',
+        ],
+      );
+      searchedHere(await search('an'));
+      expect(anthropic.requests, hasLength(1));
+      expect(support.lookup('an', 'anthropic', 'glm-5'), isFalse);
+      // Not the provider's fault.
+      expect(errors, isEmpty);
+
+      searchedHere(await search('an'));
+      expect(anthropic.requests, hasLength(1));
+    });
+
+    test(
+      'a model that answers without searching: searched here, and known',
+      () async {
+        anthropic.reply = (_) => (
+          200,
+          const [
+            'event: message_start',
+            'data: {"type":"message_start","message":{"id":"m1"}}',
+            '',
+            'event: content_block_start',
+            'data: {"type":"content_block_start","index":0,'
+                '"content_block":{"type":"text","text":""}}',
+            '',
+            'event: message_stop',
+            'data: {"type":"message_stop"}',
+            '',
+          ],
+        );
+        searchedHere(await search('an'));
+        expect(support.lookup('an', 'anthropic', 'glm-5'), isFalse);
+      },
+    );
+
+    test('a model that searches: its answer as it came, and known to; then '
+        'passed as it streams', () async {
+      const events = [
+        'event: message_start',
+        'data: {"type":"message_start","message":{"id":"m1"}}',
+        '',
+        'event: content_block_start',
+        'data: {"type":"content_block_start","index":0,'
+            '"content_block":{"type":"server_tool_use","id":"s1",'
+            '"name":"web_search","input":{}}}',
+        '',
+        'event: content_block_start',
+        'data: {"type":"content_block_start","index":1,'
+            '"content_block":{"type":"web_search_tool_result",'
+            '"tool_use_id":"s1","content":[{"type":"web_search_result",'
+            '"title":"Native","url":"https://native.test"}]}}',
+        '',
+        'event: message_stop',
+        'data: {"type":"message_stop"}',
+        '',
+      ];
+      anthropic.reply = (_) => (200, events);
+      final first = await search('an');
+      expect(first.text, '${events.join('\n')}\n');
+      expect(support.lookup('an', 'anthropic', 'glm-5'), isTrue);
+      final second = await search('an');
+      expect(second.text, '${events.join('\n')}\n');
+      expect(anthropic.requests, hasLength(2));
+      expect(searched, isEmpty);
+    });
+
+    test('a search that failed upstream (a limit): searched here, nothing '
+        'known of the model', () async {
+      anthropic.reply = (_) => (
+        429,
+        const [
+          '{"type":"error","error":{"type":"rate_limit_error",'
+              '"message":"too many tool requests"}}',
+        ],
+      );
+      searchedHere(await search('an'));
+      expect(support.lookup('an', 'anthropic', 'glm-5'), isNull);
+      searchedHere(await search('an'));
+      expect(anthropic.requests, hasLength(2));
+    });
+
+    test('a model known to search, refused this time: searched here, still '
+        'known to', () async {
+      support.record('an', 'anthropic', 'glm-5', true);
+      anthropic.reply = (_) => (400, const ['{"error":"web_search busy"}']);
+      searchedHere(await search('an'));
+      expect(support.lookup('an', 'anthropic', 'glm-5'), isTrue);
+    });
+
+    test('Responses that refuse the tool: searched here, and known', () async {
+      provider = provider.copyWith(protocol: ProviderProtocol.openaiResponses);
+      upstream.reply = (_) => (
+        400,
+        const ['{"error":{"message":"Tool type web_search is not supported"}}'],
+      );
+      searchedHere(await search('gw'));
+      expect(support.lookup('gw', 'openaiResponses', 'gpt-5'), isFalse);
+      searchedHere(await search('gw'));
+      expect(upstream.requests, hasLength(1));
     });
   });
 }

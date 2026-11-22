@@ -3,11 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../channel/channel_setup.dart' show ChannelSetup;
-import '../../ide/ide_dialog.dart';
 import '../../kernel/agent_kernel.dart';
 import '../../kernel/kernel_types.dart';
 import '../../l10n/l10n.dart';
-import '../../models/model_provider.dart' show parseModelRef;
+import '../../models/model_provider.dart' show ProviderProtocol, parseModelRef;
 import '../../models/model_providers.dart';
 import '../../models/model_runtime.dart' show codexService;
 import '../../models/model_welcome.dart';
@@ -69,25 +68,6 @@ class SessionModelPicker extends StatelessWidget {
         selected.label,
   ].join(' · ');
 
-  /// Runs [pick], which switches to [option]: once confirmed, if that
-  /// restarts the agent on another upstream mid-conversation.
-  Future<void> _switch(
-    BuildContext context,
-    KernelOption option,
-    VoidCallback pick,
-  ) async {
-    if (!session.switchRestarts(option.id)) return pick();
-    final l10n = context.l10n;
-    final choice = await showIdeDialog(
-      context,
-      message: l10n.modelsSwitchTitle(option.group?.label ?? option.label),
-      detail: l10n.modelsSwitchDetail,
-      buttons: [l10n.modelsSwitchConfirm],
-      type: IdeDialogType.question,
-    );
-    if (choice == 0 && context.mounted) pick();
-  }
-
   /// Beside a model of the account's plan, last: whether an agent stopped
   /// at its usage limit goes on by itself once it resets. Not where it
   /// cannot be set.
@@ -115,7 +95,10 @@ class SessionModelPicker extends StatelessWidget {
   ModelSettingChoice? _autoResetCredits(BuildContext context, String model) {
     final providers = ModelProviders.current;
     final provider = providers.provider(parseModelRef(model)?.provider);
-    if (provider == null || !provider.protocol.usesAccounts) return null;
+    // Reset credits are ChatGPT's.
+    if (provider == null || provider.protocol != ProviderProtocol.codex) {
+      return null;
+    }
     final on = KernelOption(
       'on',
       context.l10n.autoResetCreditsToggle,
@@ -175,16 +158,7 @@ class SessionModelPicker extends StatelessWidget {
       // heading tell the rest.
       describes: false,
       settingsOf: (option) => [
-        for (final setting in session.modelSettings(option.id))
-          ModelSettingChoice(
-            kind: setting.kind,
-            options: setting.options,
-            selected: setting.selected,
-            toggle: setting.toggle,
-            onSelected: (choice) => unawaited(
-              _switch(context, option, () => setting.onSelected(choice)),
-            ),
-          ),
+        ...session.modelSettings(option.id),
         ?_resumeAfterLimit(context, option.id),
         ?_autoResetCredits(context, option.id),
       ],
@@ -211,8 +185,7 @@ class SessionModelPicker extends StatelessWidget {
       ],
       tapRegionGroupId: tapRegionGroupId,
       focusNode: focusNode,
-      onSelected: (option) =>
-          unawaited(_switch(context, option, () => model.onSelected(option))),
+      onSelected: model.onSelected,
     );
   }
 }

@@ -60,6 +60,21 @@ void main() {
     expect(text, matches(RegExp(r', under [^>:]+: Column, ')));
   });
 
+  testWidgets('a slow line tells the counts, after the chats', (tester) async {
+    await tester.pumpWidget(_app(3));
+    final chat = Object(), app = Object();
+    FrameWatch.notes[chat] = () => '12 items';
+    FrameWatch.counts[app] = () => '700 agents, 20 projects, 4 bots';
+    addTearDown(() {
+      FrameWatch.notes.remove(chat);
+      FrameWatch.counts.remove(app);
+    });
+    expect(
+      FrameWatch.describeState(),
+      contains('chats 12 items; 700 agents, 20 projects, 4 bots; '),
+    );
+  });
+
   testWidgets('a tree of 80,000 elements, walked in a few milliseconds', (
     tester,
   ) async {

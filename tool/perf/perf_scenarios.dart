@@ -10,8 +10,10 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:bao_editor/monaco/flutter/editor_surface.dart';
+import 'package:bao_markdown/bao_markdown.dart' show MarkdownEditor;
 import 'package:baocode/chat/chat_history_view.dart';
 import 'package:baocode/chat/chat_session.dart';
+import 'package:baocode/chat/composer/composer.dart';
 import 'package:baocode/chat/edit_detail.dart';
 import 'package:baocode/chat/widgets/step_header.dart' show StepBody;
 import 'package:baocode/ide/ide_editor.dart';
@@ -837,6 +839,31 @@ export const rateLimiter = (options: RateLimitOptions): MiddlewareHandler => {
         r.extra.addAll(treeCounts());
       });
       PerfContext.log('after load: ${treeCounts()}');
+      // The chat's input typed into below the whole history.
+      Element? editor;
+      void visit(Element element) {
+        if (editor != null) return;
+        if (element.widget is MarkdownEditor) {
+          editor = element;
+          return;
+        }
+        element.visitChildren(visit);
+      }
+
+      c.find<ChatComposer>()?.visitChildren(visit);
+      c.check(editor != null, 'the chat has an input');
+      if (editor case final input?) {
+        await c.input.click(c.rectOf(input).center);
+        await c.settle();
+        c.check(c.input.canType, 'a click puts the caret in the input');
+        await c.phase('typing', (r) async {
+          await c.input.type(
+            c.content.paragraph().replaceAll('\n', ' '),
+            every: const Duration(milliseconds: 80),
+          );
+          await c.settle(const Duration(milliseconds: 150));
+        });
+      }
       final at = c.chatCenter;
       await c.phase('spin', (r) async {
         await c.input.spin(

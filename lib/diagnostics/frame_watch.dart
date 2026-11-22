@@ -33,6 +33,11 @@ class FrameWatch {
   /// user wrote.
   static final Map<Object, String Function()> notes = {};
 
+  /// How much the app holds that its work grows with (its agents, projects,
+  /// bots), each by what holds it: read only for a slow frame's line, to
+  /// tell an app grown slow over a long run.
+  static final Map<Object, String Function()> counts = {};
+
   static FrameWatch? _current;
 
   /// Starts watching, once.
@@ -212,6 +217,8 @@ class FrameWatch {
       binding.semanticsEnabled ? 'semantics on, $nodes nodes' : 'semantics off',
       '$objects render objects',
       if (shown.isNotEmpty) 'chats ${shown.join(' / ')}',
+      for (final count in counts.values)
+        if (count() case final text when text.isNotEmpty) text,
       '${ProcessInfo.currentRss >> 20} MB',
       binding.lifecycleState?.name ?? 'no lifecycle',
       if (root != null && objects >= heavyObjects && _heavyDue())

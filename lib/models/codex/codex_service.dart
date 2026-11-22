@@ -51,6 +51,19 @@ abstract class CodexService extends ChangeNotifier {
   /// in use).
   DateTime? backAt(ModelProvider provider);
 
+  /// [accountFor] a request for [model], where an account's quota is of
+  /// some models (Antigravity's groups): one out of quota on another may
+  /// still take it.
+  ProviderAccount? accountForModel(
+    ModelProvider provider, {
+    String? session,
+    String? model,
+  }) => accountFor(provider, session: session);
+
+  /// [backAt] for a request for [model] (see [accountForModel]).
+  DateTime? backAtFor(ModelProvider provider, {String? model}) =>
+      backAt(provider);
+
   /// Account [accountId]'s quota, as last known.
   CodexUsage? usage(String providerId, String accountId);
 
@@ -72,6 +85,14 @@ abstract class CodexService extends ChangeNotifier {
 
   /// Until when account [accountId] is out of quota; null when it is not.
   DateTime? limitedUntil(String providerId, String accountId);
+
+  /// [limitedUntil] for a request for [model], where an account's quota is
+  /// of some models (see [accountForModel]).
+  DateTime? limitedUntilFor(
+    String providerId,
+    String accountId, {
+    String? model,
+  }) => limitedUntil(providerId, accountId);
 
   /// Whether account [accountId] is signed out: to be signed in again.
   bool signedOut(String providerId, String accountId);

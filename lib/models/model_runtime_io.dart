@@ -2,10 +2,16 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:bao_websearch/bao_websearch.dart';
+import 'package:path/path.dart' as p;
+
 import '../network/network_proxy_io.dart';
+import '../platform/data_dir.dart';
 import '../network/tls.dart';
 import '../usage/usage_ledger.dart';
 import '../workspace/editor_launcher.dart';
+import 'antigravity/antigravity_accounts_io.dart';
+import 'antigravity/antigravity_signatures_io.dart';
 import 'codex/codex_accounts_io.dart';
 import 'codex/codex_service.dart';
 import 'image_api.dart';
@@ -14,6 +20,7 @@ import 'launch_environment.dart';
 import 'model_provider.dart';
 import 'model_providers.dart';
 import 'model_runtime.dart';
+import 'provider_accounts_io.dart';
 import 'proxy/model_proxy.dart';
 import 'upstream.dart';
 
@@ -24,7 +31,21 @@ final CodexAccounts _codex = CodexAccounts(
   openBrowser: openExternal,
 );
 
-CodexService get codexService => _codex;
+/// The app's Antigravity accounts, over [ModelProviders.current].
+final AntigravityAccounts _antigravity = AntigravityAccounts(
+  providers: () => ModelProviders.current,
+  findProxy: (url) => NetworkProxy.instance.findProxy(url),
+  openBrowser: openExternal,
+);
+
+/// Every provider's accounts, each asked of its own.
+final ProviderAccounts _accounts = ProviderAccounts(
+  providers: () => ModelProviders.current,
+  codex: _codex,
+  antigravity: _antigravity,
+);
+
+CodexService get codexService => _accounts;
 
 /// The app's proxy, over [ModelProviders.current].
 final ModelProxy _proxy = ModelProxy(
@@ -33,12 +54,22 @@ final ModelProxy _proxy = ModelProxy(
   onError: (id, error) => ModelProviders.current.reportError(id, error),
   findProxy: (url) => NetworkProxy.instance.findProxy(url),
   codex: _codex,
+  antigravity: _antigravity,
+  signatures: FileSignatureStore(
+    () => p.join(DataDirectory.current.path, 'cache', 'gemini-signatures'),
+  ),
+  // Which models run the web search tool themselves, kept across runs.
+  searchSupport: NativeSearchSupport(
+    path: () =>
+        p.join(DataDirectory.current.path, 'cache', 'web-search-support.json'),
+  ),
   usage: () => UsageLedger.current,
 );
 
 /// The app's image generation, over [ModelProviders.current].
 final ImageGenerator _images = ImageGenerator(
   codex: _codex,
+  antigravity: _antigravity,
   key: (id) => ModelProviders.current.key(id),
 );
 
@@ -55,6 +86,9 @@ Future<List<RemoteModel>> listUpstreamModels(
 ) async {
   if (provider.protocol == ProviderProtocol.codex) {
     return _codex.listModels(provider);
+  }
+  if (provider.protocol == ProviderProtocol.antigravity) {
+    return _antigravity.listModels(provider);
   }
   final urls = UpstreamUrls.models(provider);
   if (urls.isEmpty) {
@@ -199,5 +233,6 @@ Future<void> stopModelProxy() async {
   // What was kept of the calls but not yet written.
   UsageLedger.current.flush();
   _codex.close();
+  _antigravity.close();
   await _proxy.close();
 }

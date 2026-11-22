@@ -29,6 +29,7 @@ enum SettingsSection {
   general,
   appearance,
   models,
+  builtinCore,
   usage,
   network,
   ssh,
@@ -51,6 +52,7 @@ enum SettingsCategory {
     SettingsSection.general,
     SettingsSection.appearance,
     SettingsSection.models,
+    SettingsSection.builtinCore,
     SettingsSection.usage,
     SettingsSection.network,
     SettingsSection.ssh,
@@ -244,6 +246,7 @@ class SettingsDialogState extends State<SettingsDialog> {
     SettingsSection.appearance => Codicons.symbolColor,
     SettingsSection.models =>
       ChannelSetup.channelBuild ? Codicons.person : Codicons.sparkle,
+    SettingsSection.builtinCore => Codicons.chip,
     SettingsSection.usage => SvgIcons.usage,
     SettingsSection.network => Codicons.radioTower,
     SettingsSection.ssh => Codicons.remote,
@@ -277,6 +280,7 @@ class SettingsDialogState extends State<SettingsDialog> {
         ChannelSetup.channelBuild
             ? l10n.channelAccountTitle
             : l10n.settingsSectionModels,
+      SettingsSection.builtinCore => l10n.settingsSectionBuiltinCore,
       SettingsSection.usage => l10n.settingsSectionUsage,
       SettingsSection.network => l10n.settingsSectionNetwork,
       SettingsSection.ssh => l10n.settingsSectionSsh,
@@ -298,6 +302,7 @@ class SettingsDialogState extends State<SettingsDialog> {
   static String keywords(BuildContext context, SettingsSection section) =>
       switch (section) {
         SettingsSection.appearance => context.l10n.settingsAppearanceKeywords,
+        SettingsSection.builtinCore => context.l10n.settingsBuiltinCoreKeywords,
         SettingsSection.usage => context.l10n.ustatKeywords,
         SettingsSection.network => context.l10n.settingsNetworkKeywords,
         SettingsSection.ssh => context.l10n.settingsSshKeywords,

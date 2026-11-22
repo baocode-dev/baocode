@@ -6,7 +6,13 @@ library;
 /// One window of a quota: how much of it is used, and when it starts
 /// over.
 class CodexWindow {
-  const CodexWindow({required this.usedPercent, this.minutes, this.resetsAt});
+  const CodexWindow({
+    required this.usedPercent,
+    this.minutes,
+    this.resetsAt,
+    this.name,
+    this.models,
+  });
 
   /// 0 to 100.
   final double usedPercent;
@@ -15,7 +21,27 @@ class CodexWindow {
   final int? minutes;
   final DateTime? resetsAt;
 
+  /// Of what, where it is not all the account's: the models drawing on it
+  /// (Antigravity's `Gemini`, `Claude & GPT`); its whole name, with no
+  /// [minutes].
+  final String? name;
+
+  /// The models drawing on it, by id; null for all of them.
+  final Set<String>? models;
+
   double get leftPercent => (100 - usedPercent).clamp(0, 100).toDouble();
+
+  /// Whether a request for [model] draws on it.
+  bool covers(String? model) =>
+      models == null || model == null || models!.contains(model);
+
+  CodexWindow withModels(Set<String> models) => CodexWindow(
+    usedPercent: usedPercent,
+    minutes: minutes,
+    resetsAt: resetsAt,
+    name: name,
+    models: models,
+  );
 
   /// As `/wham/usage` has it (`used_percent`, `limit_window_seconds`,
   /// `reset_at` or `reset_after_seconds`).
@@ -73,6 +99,7 @@ class CodexUsage {
     this.limitReached = false,
     this.credits,
     this.resetCredits,
+    this.windowList = const [],
   });
 
   /// When it was learned.
@@ -97,7 +124,20 @@ class CodexUsage {
   /// told.
   final int? resetCredits;
 
-  List<CodexWindow> get windows => [?primary, ?secondary];
+  /// Windows beyond [primary] and [secondary], each of some models
+  /// ([CodexWindow.models]): Antigravity's groups.
+  final List<CodexWindow> windowList;
+
+  List<CodexWindow> get windows => [?primary, ?secondary, ...windowList];
+
+  /// Those a request for [model] draws on; all when none is said to.
+  List<CodexWindow> windowsFor(String? model) {
+    final covering = [
+      for (final window in windows)
+        if (window.covers(model)) window,
+    ];
+    return covering.isEmpty ? windows : covering;
+  }
 
   /// The most used of its windows, 0 to 100; null when none is known.
   double? get mostUsed => windows.isEmpty
@@ -188,6 +228,7 @@ class CodexUsage {
     limitReached: limitReached,
     credits: credits,
     resetCredits: count,
+    windowList: windowList,
   );
 }
 

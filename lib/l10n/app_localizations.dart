@@ -10971,6 +10971,12 @@ abstract class AppLocalizations {
   /// **'Sign in with ChatGPT to use Codex models on your plan\'s quota. With several accounts, requests are spread across them by the load balancing below, and one out of quota gives way to the next.'**
   String get modelsAccountsDescription;
 
+  /// No description provided for @modelsAccountsDescriptionAntigravity.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in with Google to use Antigravity\'s models (Gemini, Claude) on your plan\'s quota, always on BaoCode\'s own core. Each group of models has a quota of its own: an account out of one gives way to the next for those models alone. Google may suspend an account it sees used outside Antigravity: use one you can afford to lose.'**
+  String get modelsAccountsDescriptionAntigravity;
+
   /// No description provided for @modelsAccountsNone.
   ///
   /// In en, this message translates to:
@@ -11312,6 +11318,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Port 1455, which sign-in comes back to, is used by another program (a proxy in Docker, or the Codex CLI signing in). Sign in in the browser all the same: the page it ends on will fail to load or show something else. Copy that page\'s full address and paste it below.'**
   String get modelsAccountPortBusy;
+
+  /// No description provided for @modelsAccountPortBusyAntigravity.
+  ///
+  /// In en, this message translates to:
+  /// **'Port 51121, which sign-in comes back to, is used by another program (Antigravity itself, or a proxy signing in). Sign in in the browser all the same: the page it ends on will fail to load or show something else. Copy that page\'s full address and paste it below.'**
+  String get modelsAccountPortBusyAntigravity;
 
   /// No description provided for @modelsAccountCallback.
   ///
@@ -12140,24 +12152,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Manage Models…'**
   String get modelsManage;
-
-  /// No description provided for @modelsSwitchTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Switch to {name}?'**
-  String modelsSwitchTitle(String name);
-
-  /// No description provided for @modelsSwitchDetail.
-  ///
-  /// In en, this message translates to:
-  /// **'Claude Code restarts on the other upstream and resumes this conversation (--resume). Its history is sent to the new model as it is; some upstreams take it slower the first time. A reply still running stops when you send the next message.'**
-  String get modelsSwitchDetail;
-
-  /// No description provided for @modelsSwitchConfirm.
-  ///
-  /// In en, this message translates to:
-  /// **'Switch'**
-  String get modelsSwitchConfirm;
 
   /// No description provided for @modelsFallbackHint.
   ///
@@ -14949,12 +14943,6 @@ abstract class AppLocalizations {
   /// **'Not a relay address; one looks like https://relay.example.com'**
   String get mobileRelayInvalid;
 
-  /// No description provided for @mobileRelayPinned.
-  ///
-  /// In en, this message translates to:
-  /// **'Relay Used'**
-  String get mobileRelayPinned;
-
   /// No description provided for @mobileRelayCustom.
   ///
   /// In en, this message translates to:
@@ -14972,6 +14960,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The address of a relay you run yourself (baocode-relay).'**
   String get mobileRelayCustomDescription;
+
+  /// No description provided for @mobileRelayInUse.
+  ///
+  /// In en, this message translates to:
+  /// **'In use'**
+  String get mobileRelayInUse;
+
+  /// No description provided for @mobileRelayMoveUp.
+  ///
+  /// In en, this message translates to:
+  /// **'Move Up'**
+  String get mobileRelayMoveUp;
+
+  /// No description provided for @mobileRelayMoveDown.
+  ///
+  /// In en, this message translates to:
+  /// **'Move Down'**
+  String get mobileRelayMoveDown;
+
+  /// No description provided for @mobileRelayRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get mobileRelayRemove;
+
+  /// No description provided for @mobileRelayAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Relay'**
+  String get mobileRelayAdd;
+
+  /// No description provided for @mobileRelayAddPick.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose…'**
+  String get mobileRelayAddPick;
 
   /// No description provided for @mobileRelayMode.
   ///
@@ -14994,13 +15018,13 @@ abstract class AppLocalizations {
   /// No description provided for @mobileRelayModePinned.
   ///
   /// In en, this message translates to:
-  /// **'Pick One'**
+  /// **'Your List'**
   String get mobileRelayModePinned;
 
   /// No description provided for @mobileRelayModePinnedDescription.
   ///
   /// In en, this message translates to:
-  /// **'Only the one picked: one of BaoCode\'s, or a custom address.'**
+  /// **'The relays you list, in order: the next when one cannot be reached, and back to an earlier one once it can. BaoCode\'s, or custom addresses.'**
   String get mobileRelayModePinnedDescription;
 
   /// No description provided for @mobileRelayModeDirect.
@@ -15098,6 +15122,144 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Stash'**
   String get settingsSectionStash;
+
+  /// No description provided for @settingsSectionBuiltinCore.
+  ///
+  /// In en, this message translates to:
+  /// **'Built-in Core'**
+  String get settingsSectionBuiltinCore;
+
+  /// No description provided for @settingsBuiltinCoreKeywords.
+  ///
+  /// In en, this message translates to:
+  /// **'builtin core system prompt instructions agent'**
+  String get settingsBuiltinCoreKeywords;
+
+  /// No description provided for @builtinCoreSettingsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Built-in Core'**
+  String get builtinCoreSettingsTitle;
+
+  /// No description provided for @builtinCoreSettingsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Customize the system prompt used by BaoCode\'s built-in core. Changes apply to new conversations; bots keep their own prompts.'**
+  String get builtinCoreSettingsDescription;
+
+  /// No description provided for @builtinCoreSystemPromptGroup.
+  ///
+  /// In en, this message translates to:
+  /// **'System Prompt'**
+  String get builtinCoreSystemPromptGroup;
+
+  /// No description provided for @builtinCoreSystemPromptMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Mode'**
+  String get builtinCoreSystemPromptMode;
+
+  /// No description provided for @builtinCoreSystemPromptModeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'System Prompt: {mode}'**
+  String builtinCoreSystemPromptModeLabel(String mode);
+
+  /// No description provided for @builtinCoreModeDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Default'**
+  String get builtinCoreModeDefault;
+
+  /// No description provided for @builtinCoreModeAppend.
+  ///
+  /// In en, this message translates to:
+  /// **'Append to Default'**
+  String get builtinCoreModeAppend;
+
+  /// No description provided for @builtinCoreModeReplace.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace Default'**
+  String get builtinCoreModeReplace;
+
+  /// No description provided for @builtinCoreModeDefaultDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Uses BaoCode\'s default core instructions.'**
+  String get builtinCoreModeDefaultDetail;
+
+  /// No description provided for @builtinCoreModeAppendDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Keeps the default core instructions and appends your text at the end.'**
+  String get builtinCoreModeAppendDetail;
+
+  /// No description provided for @builtinCoreModeReplaceDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Replaces the default core instructions while keeping auto memory, output style, CLAUDE.md, and formatting rules.'**
+  String get builtinCoreModeReplaceDetail;
+
+  /// No description provided for @builtinCoreAppendLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Appended Instructions'**
+  String get builtinCoreAppendLabel;
+
+  /// No description provided for @builtinCoreAppendPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'Write instructions to append to the default system prompt…'**
+  String get builtinCoreAppendPlaceholder;
+
+  /// No description provided for @builtinCoreReplaceLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom Core Instructions'**
+  String get builtinCoreReplaceLabel;
+
+  /// No description provided for @builtinCoreReplacePlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'Write the system prompt that replaces the default core instructions…'**
+  String get builtinCoreReplacePlaceholder;
+
+  /// No description provided for @builtinCoreLoadDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Load Default'**
+  String get builtinCoreLoadDefault;
+
+  /// No description provided for @builtinCoreResetDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset to Default'**
+  String get builtinCoreResetDefault;
+
+  /// No description provided for @builtinCoreDefaultPromptTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Default System Prompt'**
+  String get builtinCoreDefaultPromptTitle;
+
+  /// No description provided for @builtinCoreDefaultPromptDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'The built-in core instructions used when no replacement is set, for reference.'**
+  String get builtinCoreDefaultPromptDescription;
+
+  /// No description provided for @builtinCoreCopyDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get builtinCoreCopyDefault;
+
+  /// No description provided for @builtinCoreCopiedDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Copied'**
+  String get builtinCoreCopiedDefault;
 
   /// No description provided for @settingsSectionCustomize.
   ///

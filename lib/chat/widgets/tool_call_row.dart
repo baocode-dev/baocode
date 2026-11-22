@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../../icons/site_icons.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
@@ -14,9 +15,13 @@ import '../side_panel/file_open.dart';
 import 'content_image.dart';
 import 'hover_builder.dart';
 import 'step_header.dart';
+import 'web_step_icons.dart';
 
 /// A message to another agent's icon (Remix Icon's speak-ai-line).
 const speakIcon = 'assets/icons/speak-ai-line.svg';
+
+/// An MCP tool call's icon (Simple Icons' modelcontextprotocol).
+const mcpIcon = 'assets/icons/mcp.svg';
 
 /// A todo's mark by its status (Remix Icon's): done, in progress, to do.
 const todoDoneIcon = 'assets/icons/checkbox-circle-fill.svg';
@@ -143,7 +148,30 @@ class ToolCallRow extends StatelessWidget {
     final todo = kind == ToolKind.todo
         ? todoStep(tool, input, target, output: output, l10n: context.l10n)
         : null;
-    Widget header = StepHeader(
+    final isWebSearch =
+        kind == ToolKind.web && isWebSearchTool(tool: tool, target: target);
+    final fetchSite = kind == ToolKind.web && !isWebSearch
+        ? webFetchSite(target)
+        : null;
+    final searchIcons = isWebSearch && status != ToolStatus.failed
+        ? [
+            for (final site in webSearchResultSites(output))
+              FoldWebSiteIcon(site),
+          ]
+        : const <FoldWebIcon>[];
+    final hasWebTrailing = isWebSearch && status != ToolStatus.failed;
+    final hasImages = images.isNotEmpty && status != ToolStatus.failed;
+    final trailing = !hasWebTrailing && !hasImages
+        ? null
+        : Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (hasWebTrailing)
+                StepWebIcons(icons: searchIcons, shown: !expanded),
+              if (hasImages) StepThumbnails(images: _images, shown: !expanded),
+            ],
+          );
+    Widget buildHeader(Widget? icon) => StepHeader(
       verb:
           label ??
           todo?.verb ??
@@ -155,32 +183,61 @@ class ToolCallRow extends StatelessWidget {
       onToggle: _opens ? onToggle : null,
       onOpen: file == null ? null : () => files!.onOpen(file),
       openTooltip: file == null ? null : context.l10n.sidePanelOpenFile,
-      icon: switch (kind) {
-        // A message to another agent: someone speaking, standing out.
-        ToolKind.message => SvgPicture.asset(
-          speakIcon,
-          width: 15,
-          height: 15,
-          colorFilter: ColorFilter.mode(_amber, BlendMode.srcIn),
-        ),
-        ToolKind.goal => Icon(Icons.flag_outlined, size: 15, color: _amber),
-        ToolKind.todo => Icon(
-          Icons.checklist_rounded,
-          size: 15,
-          color: AppColors.textMuted,
-        ),
-        _ => null,
-      },
+      icon: icon,
       trailingGap: 0,
-      trailing: images.isEmpty || status == ToolStatus.failed
-          ? null
-          : StepThumbnails(images: _images, shown: !expanded),
+      trailing: trailing,
       action: switch ((kind, _shown, onSetGoal)) {
         (ToolKind.goal, final condition?, final set?) when !_running =>
           _SetGoalButton(onTap: () => set(condition)),
         _ => null,
       },
     );
+    Widget header = fetchSite != null
+        ? ListenableBuilder(
+            listenable: SiteIcons.current,
+            builder: (context, _) {
+              final siteIcon = SiteIcons.current.of(fetchSite);
+              return buildHeader(
+                webIconSwitcher(
+                  child: siteIcon == null
+                      ? KeyedSubtree(
+                          key: const ValueKey('globe'),
+                          child: webSearchGlobe(),
+                        )
+                      : KeyedSubtree(
+                          key: const ValueKey('favicon'),
+                          child: webSiteFavicon(siteIcon),
+                        ),
+                ),
+              );
+            },
+          )
+        : buildHeader(switch (kind) {
+            // A message to another agent: someone speaking, standing out.
+            ToolKind.message => SvgPicture.asset(
+              speakIcon,
+              width: 14,
+              height: 14,
+              colorFilter: ColorFilter.mode(_amber, BlendMode.srcIn),
+            ),
+            ToolKind.goal => Icon(Icons.flag_outlined, size: 15, color: _amber),
+            ToolKind.todo => Icon(
+              Icons.checklist_rounded,
+              size: 15,
+              color: AppColors.textMuted,
+            ),
+            ToolKind.web => webSearchGlobe(),
+            ToolKind.mcp => SvgPicture.asset(
+              mcpIcon,
+              width: 13,
+              height: 13,
+              colorFilter: ColorFilter.mode(
+                AppColors.textMuted,
+                BlendMode.srcIn,
+              ),
+            ),
+            _ => null,
+          });
     // A file read or edit shows only its name: the whole path on hover.
     if ((kind == ToolKind.read || kind == ToolKind.edit) && path != null) {
       header = HoverTooltip(content: _pathTooltip, child: header);

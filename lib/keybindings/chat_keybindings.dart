@@ -531,14 +531,6 @@ final List<KeybindingEntry> chatExtraKeybindings = [
     when: _input,
   ),
   const KeybindingEntry(
-    key: 'escape',
-    command: ChatCommandIds.cancel,
-    when:
-        '$_input && ${ChatContextKeys.requestInProgress} && '
-        '!${ChatContextKeys.currentlyEditing} && '
-        '!${ChatContextKeys.suggestWidgetVisible}',
-  ),
-  const KeybindingEntry(
     key: 'ctrl+escape',
     mac: 'cmd+escape',
     win: 'alt+backspace',

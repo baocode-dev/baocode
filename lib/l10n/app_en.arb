@@ -4851,6 +4851,7 @@
   },
   "modelsAccounts": "Accounts",
   "modelsAccountsDescription": "Sign in with ChatGPT to use Codex models on your plan's quota. With several accounts, requests are spread across them by the load balancing below, and one out of quota gives way to the next.",
+  "modelsAccountsDescriptionAntigravity": "Sign in with Google to use Antigravity's models (Gemini, Claude) on your plan's quota, always on BaoCode's own core. Each group of models has a quota of its own: an account out of one gives way to the next for those models alone. Google may suspend an account it sees used outside Antigravity: use one you can afford to lose.",
   "modelsAccountsNone": "No account yet",
   "modelsAccountCount": "{count, plural, =0{no accounts} =1{1 account} other{{count} accounts}}",
   "@modelsAccountCount": {
@@ -5064,6 +5065,7 @@
   "modelsBalanceMostRemaining": "Most Remaining",
   "modelsBalanceMostRemainingDescription": "Each new conversation goes to the account with the most quota left.",
   "modelsAccountPortBusy": "Port 1455, which sign-in comes back to, is used by another program (a proxy in Docker, or the Codex CLI signing in). Sign in in the browser all the same: the page it ends on will fail to load or show something else. Copy that page's full address and paste it below.",
+  "modelsAccountPortBusyAntigravity": "Port 51121, which sign-in comes back to, is used by another program (Antigravity itself, or a proxy signing in). Sign in in the browser all the same: the page it ends on will fail to load or show something else. Copy that page's full address and paste it below.",
   "modelsAccountCallback": "Address after sign-in",
   "modelsAccountCallbackDetail": "If the browser does not come back by itself, paste the address it ended on.",
   "modelsProtocolAnthropic": "Anthropic-compatible",
@@ -5321,16 +5323,6 @@
   "modelsImageNone": "None turned on",
   "modelsSave": "Save",
   "modelsManage": "Manage Models…",
-  "modelsSwitchTitle": "Switch to {name}?",
-  "@modelsSwitchTitle": {
-    "placeholders": {
-      "name": {
-        "type": "String"
-      }
-    }
-  },
-  "modelsSwitchDetail": "Claude Code restarts on the other upstream and resumes this conversation (--resume). Its history is sent to the new model as it is; some upstreams take it slower the first time. A reply still running stops when you send the next message.",
-  "modelsSwitchConfirm": "Switch",
   "modelsFallbackHint": "{picked} flagged a message, so Claude Code answers on {fallback} instead. Switch back from the menu.",
   "@modelsFallbackHint": {
     "placeholders": {
@@ -6770,15 +6762,20 @@
   "mobileStatusDenied": "On, but the relay turned this computer away: {reason}",
   "@mobileStatusDenied": {"placeholders": {"reason": {"type": "String"}}},
   "mobileRelayInvalid": "Not a relay address; one looks like https://relay.example.com",
-  "mobileRelayPinned": "Relay Used",
   "mobileRelayCustom": "Custom",
   "mobileRelayCustomAddress": "Custom Address",
   "mobileRelayCustomDescription": "The address of a relay you run yourself (baocode-relay).",
+  "mobileRelayInUse": "In use",
+  "mobileRelayMoveUp": "Move Up",
+  "mobileRelayMoveDown": "Move Down",
+  "mobileRelayRemove": "Remove",
+  "mobileRelayAdd": "Add Relay",
+  "mobileRelayAddPick": "Choose…",
   "mobileRelayMode": "How",
   "mobileRelayModeAuto": "Automatic",
   "mobileRelayModeAutoDescription": "BaoCode's relays, the nearest that answers.",
-  "mobileRelayModePinned": "Pick One",
-  "mobileRelayModePinnedDescription": "Only the one picked: one of BaoCode's, or a custom address.",
+  "mobileRelayModePinned": "Your List",
+  "mobileRelayModePinnedDescription": "The relays you list, in order: the next when one cannot be reached, and back to an earlier one once it can. BaoCode's, or custom addresses.",
   "mobileRelayModeDirect": "Direct Only",
   "mobileRelayModeDirectDescription": "No relay: phones connect straight to this computer. It needs a public address, or the port below forwarded to it.",
   "mobileDirectPort": "Direct Port",
@@ -6796,6 +6793,36 @@
   "mobileLegacyPhone": "Needs pairing again: paired before the connection was rebuilt",
   "mobileLegacyRepair": "Pair Again",
   "settingsSectionStash": "Stash",
+  "settingsSectionBuiltinCore": "Built-in Core",
+  "settingsBuiltinCoreKeywords": "builtin core system prompt instructions agent",
+  "builtinCoreSettingsTitle": "Built-in Core",
+  "builtinCoreSettingsDescription": "Customize the system prompt used by BaoCode's built-in core. Changes apply to new conversations; bots keep their own prompts.",
+  "builtinCoreSystemPromptGroup": "System Prompt",
+  "builtinCoreSystemPromptMode": "Mode",
+  "builtinCoreSystemPromptModeLabel": "System Prompt: {mode}",
+  "@builtinCoreSystemPromptModeLabel": {
+    "placeholders": {
+      "mode": {
+        "type": "String"
+      }
+    }
+  },
+  "builtinCoreModeDefault": "Default",
+  "builtinCoreModeAppend": "Append to Default",
+  "builtinCoreModeReplace": "Replace Default",
+  "builtinCoreModeDefaultDetail": "Uses BaoCode's default core instructions.",
+  "builtinCoreModeAppendDetail": "Keeps the default core instructions and appends your text at the end.",
+  "builtinCoreModeReplaceDetail": "Replaces the default core instructions while keeping auto memory, output style, CLAUDE.md, and formatting rules.",
+  "builtinCoreAppendLabel": "Appended Instructions",
+  "builtinCoreAppendPlaceholder": "Write instructions to append to the default system prompt…",
+  "builtinCoreReplaceLabel": "Custom Core Instructions",
+  "builtinCoreReplacePlaceholder": "Write the system prompt that replaces the default core instructions…",
+  "builtinCoreLoadDefault": "Load Default",
+  "builtinCoreResetDefault": "Reset to Default",
+  "builtinCoreDefaultPromptTitle": "Default System Prompt",
+  "builtinCoreDefaultPromptDescription": "The built-in core instructions used when no replacement is set, for reference.",
+  "builtinCoreCopyDefault": "Copy",
+  "builtinCoreCopiedDefault": "Copied",
   "settingsSectionCustomize": "Customize",
   "settingsCustomizeKeywords": "skills subagents rules commands agents claude memory hooks mcp plugins",
   "stashTitle": "Stash",

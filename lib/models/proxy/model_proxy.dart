@@ -5,12 +5,15 @@ import 'dart:isolate';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:bao_websearch/bao_websearch.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../network/tls.dart';
 import '../../usage/usage_capture.dart';
 import '../../usage/usage_ledger.dart';
 import '../../usage/usage_trace.dart';
+import '../antigravity/antigravity_accounts_io.dart';
+import '../antigravity/antigravity_api.dart';
 import '../codex/codex_accounts_io.dart';
 import '../codex/codex_api.dart';
 import '../codex/codex_service.dart';
@@ -18,6 +21,9 @@ import '../launch_environment.dart';
 import '../model_provider.dart';
 import '../upstream.dart';
 import 'prompt_cache_key.dart';
+import 'translate/antigravity_request.dart';
+import 'translate/antigravity_response.dart';
+import 'translate/antigravity_signature.dart';
 import 'translate/openai_chat_request.dart';
 import 'translate/openai_chat_response.dart';
 import 'translate/responses_request.dart';
@@ -44,7 +50,8 @@ import 'watched_socket.dart';
 /// here: read as each request goes out, so a key changed applies at once.
 ///
 /// A ChatGPT (Codex) provider's request goes as one of its accounts
-/// ([CodexAccounts]): to another when that one is out of quota.
+/// ([CodexAccounts]), an Antigravity one's as one of its Google accounts
+/// ([AntigravityAccounts]): to another when that one is out of quota.
 ///
 /// `/p/<provider>/v1/messages` and `/p/<provider>/v1/messages/count_tokens`
 /// (an estimate: the upstreams have none).
@@ -52,6 +59,11 @@ import 'watched_socket.dart';
 /// A request Claude Code gives up on (it closes the connection: it timed
 /// out, or was interrupted) is given up on upstream too, at once, and kept
 /// as cancelled ([UsageCall.cancelled]).
+///
+/// A web search tool's own request (Claude Code's `WebSearch`: Anthropic's
+/// `web_search` tool alone) to a model that does not run that tool itself
+/// is answered here, by a search of the web's engines ([WebSearch]): see
+/// [_runsWebSearch].
 class ModelProxy {
   ModelProxy({
     required this._provider,
@@ -59,14 +71,34 @@ class ModelProxy {
     this._onError,
     this._findProxy,
     this._codex,
+    this._antigravity,
+    this._signatures,
     this._usage,
+    WebSearch? webSearch,
+    NativeSearchSupport? searchSupport,
     @visibleForTesting String? token,
-  }) : token = token ?? _newToken();
+  }) : token = token ?? _newToken(),
+       _searchSupport = searchSupport ?? NativeSearchSupport() {
+    _webSearch =
+        webSearch ??
+        WebSearch(
+          client: () async =>
+              HttpClient(context: await upstreamSecurityContext())
+                ..findProxy = _findProxy ?? (_) => 'DIRECT',
+        );
+  }
 
   final ModelProvider? Function(String id) _provider;
 
   /// The ChatGPT (Codex) providers' accounts.
   final CodexAccounts? _codex;
+
+  /// The Antigravity providers' accounts.
+  final AntigravityAccounts? _antigravity;
+
+  /// Where Gemini's thought signatures are kept, which its calls' ids
+  /// refer to; in the ids themselves without it.
+  final SignatureStore? _signatures;
   final Future<String?> Function(String id) _key;
   final void Function(String id, String? error)? _onError;
 
@@ -80,6 +112,13 @@ class ModelProxy {
 
   /// What a request must carry, as a bearer token or `x-api-key`.
   final String token;
+
+  /// The search a web search tool's request is answered by, for a model
+  /// that does not run that tool itself.
+  late final WebSearch _webSearch;
+
+  /// Which models run the web search tool themselves, as last seen.
+  final NativeSearchSupport _searchSupport;
 
   static String _newToken() {
     final random = Random.secure();
@@ -97,8 +136,7 @@ class ModelProxy {
   Future<ProxyEndpoint> endpoint(String providerId) async {
     final server = await (_server ??= _bind());
     return (
-      baseUrl:
-          'http://127.0.0.1:${server.port}/p/${Uri.encodeComponent(providerId)}',
+      baseUrl: modelProxyUrl(server.port, providerId).toString(),
       token: token,
     );
   }
@@ -245,23 +283,46 @@ class ModelProxy {
       }
       // A model of another upstream (a subagent's, `@<id>/<model>`): to
       // that one, by its own name.
-      var wanted = providerId;
-      if (parseModelRef('${body['model'] ?? ''}') case (
-        provider: final id,
-        :final model,
-      )) {
-        wanted = id;
-        body['model'] = model;
-      }
+      final ref = parseModelRef('${body['model'] ?? ''}');
+      final wanted = ref?.provider ?? providerId;
       final found = wanted == builtinProviderId ? null : _provider(wanted);
       if (found == null) {
         return await _fail(response, 404, 'No such provider: $wanted');
       }
       // A model of an endpoint of its own (a relay's Claude at its Messages
       // API): spoken to there, its effort after its name as ever.
-      final provider = found.speakingFor(
-        parseSuffix('${body['model'] ?? ''}').modelName.trim(),
-      );
+      final requested = parseSuffix(ref?.model ?? '${body['model'] ?? ''}');
+      final provider = found.speakingFor(requested.modelName.trim());
+      if (ref != null) {
+        // Agent definitions send effort separately; the picker uses a suffix.
+        // Only one the model offers, as the picker would.
+        final efforts =
+            found.model(requested.modelName.trim())?.effortLevels ??
+            ProviderModel.defaultEfforts;
+        body['model'] = switch ((body['thinking'], body['output_config'])) {
+          ({'type': 'disabled'}, _) => ref.model,
+          (_, {'effort': final String effort})
+              when provider.protocol.proxied &&
+                  !requested.hasSuffix &&
+                  efforts.contains(effort) =>
+            '${ref.model}($effort)',
+          _ => ref.model,
+        };
+      }
+      final modelName = requested.modelName.trim();
+      // A web search tool's own request: answered here when the model
+      // does not run the tool itself, not as a call to it.
+      final search = countTokens ? null : onlyWebSearchTool(body);
+      final native = search == null
+          ? null
+          : _runsWebSearch(provider, modelName);
+      if (search != null && native == false) {
+        return await _searchHere(body, search, response);
+      }
+      // Not known: found out from its answer.
+      final probe = search != null && native == null
+          ? (search: search, model: modelName)
+          : null;
       if (!countTokens) {
         ledger = _usage?.call();
         if (ledger != null && ledger.enabled) {
@@ -294,6 +355,8 @@ class ModelProxy {
           response,
           countTokens: countTokens,
           meter: meter,
+          search: search,
+          probe: probe,
         );
       }
       if (countTokens) {
@@ -307,6 +370,8 @@ class ModelProxy {
         response,
         sessionHeader: request.headers.value(sessionHeaderName),
         meter: meter,
+        search: search,
+        probe: probe,
       );
     } on FormatException catch (error) {
       meter?.fail('The request is not JSON: ${error.message}');
@@ -373,6 +438,8 @@ class ModelProxy {
     HttpResponse response, {
     String? sessionHeader,
     UsageMeter? meter,
+    Map<String, Object?>? search,
+    _Probe? probe,
   }) async {
     // Claude Code's session id, for the custom headers' variables
     // ({{CLAUDE_SESSION_ID}}): the same its `metadata.user_id` carries.
@@ -390,6 +457,18 @@ class ModelProxy {
             .trim();
     final thinking = effort.isNotEmpty && effort != ThinkingLevel.none;
     final stream = body['stream'] == true;
+    if (provider.protocol == ProviderProtocol.antigravity) {
+      return _forwardAntigravity(
+        provider,
+        body,
+        response,
+        modelId: modelId,
+        effort: effort,
+        stream: stream,
+        sessionHeader: sessionHeader,
+        meter: meter,
+      );
+    }
     final Map<String, Object?> outgoing;
     if (provider.protocol == ProviderProtocol.openaiChat) {
       outgoing = convertClaudeRequestToOpenAI(
@@ -485,6 +564,11 @@ class ModelProxy {
       if (answer.statusCode >= 400) {
         final text = await utf8.decodeStream(answer);
         meter?.trace?.upstreamText(text);
+        if (search != null) {
+          return _searchRefused(provider, probe, answer.statusCode, text, () {
+            return _searchHere(body, search, response, meter: meter);
+          });
+        }
         final message = upstreamErrorMessage(answer.statusCode, text);
         meter?.fail(message);
         _onError?.call(provider.id, message);
@@ -549,14 +633,35 @@ class ModelProxy {
         );
         if (message != null) {
           meter?.message(message);
+          if (probe != null &&
+              !_searched(provider, probe, jsonEncode(message))) {
+            return _searchHere(body, probe.search, response);
+          }
           return _json(response, 200, message);
         }
       }
       meter?.fail('${provider.name} ended without a reply');
       return _fail(response, 502, '${provider.name} ended without a reply');
     }
-    _startEvents(response);
     final translator = ResponsesResponseTranslator(body);
+    if (probe != null) {
+      // Whether it searched is seen once it has answered: held till then.
+      final held = StringBuffer();
+      await for (final line in upstreamLines) {
+        meter?.upstreamLine(line);
+        final events = translator.convert(line);
+        if (events.isEmpty) continue;
+        held.write(events);
+        meter?.events(events);
+      }
+      if (!_searched(provider, probe, '$held')) {
+        return _searchHere(body, probe.search, response);
+      }
+      _startEvents(response);
+      response.write(held);
+      return response.close();
+    }
+    _startEvents(response);
     await for (final line in upstreamLines) {
       meter?.upstreamLine(line);
       final events = translator.convert(line);
@@ -565,6 +670,88 @@ class ModelProxy {
       meter?.events(events);
       await response.flush();
     }
+    return response.close();
+  }
+
+  // --- Web search ----------------------------------------------------------
+
+  /// Whether [provider]'s [model] runs Anthropic's `web_search` tool
+  /// itself: null when not known. Known by its protocol (OpenAI's chat has
+  /// no such tool; on Antigravity, Gemini searches Google), else as its
+  /// answers showed in the last 5 hours ([NativeSearchSupport]).
+  bool? _runsWebSearch(ModelProvider provider, String model) =>
+      switch (provider.protocol) {
+        ProviderProtocol.openaiChat => false,
+        ProviderProtocol.antigravity => antigravitySupportsWebSearch(model),
+        _ => _searchSupport.lookup(provider.id, provider.protocol.name, model),
+      };
+
+  /// Whether [answer], to a web search tool's request whose model was
+  /// [probe]d, searched: what it says of the model kept.
+  bool _searched(ModelProvider provider, _Probe probe, String answer) {
+    final outcome = nativeSearchOutcome(answer);
+    if (outcome != NativeSearch.failed) {
+      _searchSupport.record(
+        provider.id,
+        provider.protocol.name,
+        probe.model,
+        outcome == NativeSearch.searched,
+      );
+    }
+    return outcome == NativeSearch.searched;
+  }
+
+  /// A web search tool's request refused ([status], [text]): searched here
+  /// ([searchHere]), and, when it is the tool that was refused, the model
+  /// known not to run it.
+  Future<void> _searchRefused(
+    ModelProvider provider,
+    _Probe? probe,
+    int status,
+    String text,
+    Future<void> Function() searchHere,
+  ) {
+    if (probe != null && refusesWebSearchTool(status, text)) {
+      _searchSupport.record(
+        provider.id,
+        provider.protocol.name,
+        probe.model,
+        false,
+      );
+    }
+    return searchHere();
+  }
+
+  /// [body], a web search tool's request ([tool] its tool), answered by a
+  /// search made here, as the API's own search would answer it.
+  Future<void> _searchHere(
+    Map<String, Object?> body,
+    Map<String, Object?> tool,
+    HttpResponse response, {
+    UsageMeter? meter,
+  }) async {
+    final query = webSearchQueryOf(body);
+    final model = '${body['model'] ?? ''}';
+    Map<String, Object?> message;
+    try {
+      final hits = await _webSearch.search(
+        query,
+        allowedDomains: toolDomains(tool, 'allowed_domains'),
+        blockedDomains: toolDomains(tool, 'blocked_domains'),
+      );
+      message = localSearchMessage(model: model, query: query, hits: hits);
+    } on SearchException catch (error) {
+      message = localSearchMessage(
+        model: model,
+        query: query,
+        error: 'Web search found nothing: ${error.message}',
+      );
+    }
+    if (body['stream'] != true) return _json(response, 200, message);
+    final frames = sseFrames(messageEvents(message));
+    _startEvents(response);
+    response.write(frames);
+    meter?.trace?.answerText(frames);
     return response.close();
   }
 
@@ -600,6 +787,8 @@ class ModelProxy {
     HttpResponse response, {
     required bool countTokens,
     UsageMeter? meter,
+    Map<String, Object?>? search,
+    _Probe? probe,
   }) async {
     final messages = UpstreamUrls.messages(provider);
     if (messages == null) {
@@ -665,6 +854,11 @@ class ModelProxy {
       if (countTokens) {
         return _json(response, 200, {'input_tokens': await _estimate(body)});
       }
+      if (search != null) {
+        return _searchRefused(provider, probe, answer.statusCode, text, () {
+          return _searchHere(body, search, response, meter: meter);
+        });
+      }
       final message = upstreamErrorMessage(answer.statusCode, text);
       meter?.fail(message);
       _onError?.call(provider.id, message);
@@ -673,6 +867,25 @@ class ModelProxy {
       return response.close();
     }
     if (!countTokens) _onError?.call(provider.id, null);
+    if (probe != null) {
+      // Whether it searched is seen once it has answered: held till then.
+      final held = BytesBuilder(copy: false);
+      await for (final chunk in _whileClient(answer)) {
+        held.add(chunk);
+        meter?.bytes(chunk);
+      }
+      final bytes = held.takeBytes();
+      if (!_searched(
+        provider,
+        probe,
+        utf8.decode(bytes, allowMalformed: true),
+      )) {
+        return _searchHere(body, probe.search, response);
+      }
+      _answerAs(response, answer);
+      response.add(bytes);
+      return response.close();
+    }
     _answerAs(response, answer);
     response.bufferOutput = false;
     await for (final chunk in _whileClient(answer)) {
@@ -875,6 +1088,249 @@ class ModelProxy {
     }
   }
 
+  /// [body] to an Antigravity provider, as Code Assist's request, as one of
+  /// its Google accounts; its stream back as Anthropic's. The conversation
+  /// keeps one session ([antigravitySessionId]) and, while it can, one
+  /// account: its prompt is cached there. An account out of quota on the
+  /// model, or signed out, gives way to the next.
+  Future<void> _forwardAntigravity(
+    ModelProvider provider,
+    Map<String, Object?> body,
+    HttpResponse response, {
+    required String modelId,
+    required String effort,
+    required bool stream,
+    String? sessionHeader,
+    UsageMeter? meter,
+  }) async {
+    final accounts = _antigravity;
+    if (accounts == null) {
+      return _fail(
+        response,
+        501,
+        'Antigravity accounts are not available here',
+      );
+    }
+    final session = sessionId(body, header: sessionHeader);
+    final cacheKey = promptCacheKey(body, header: sessionHeader);
+    final conversation = antigravitySessionId(
+      '${session ?? ''}\n${antigravityFirstUserText(body)}',
+    );
+    final custom = customUpstreamHeaders(
+      provider,
+      session: session,
+      model: modelId,
+    );
+    await accounts.loadVersion();
+    final client = await _upstream();
+    final tried = <String>{};
+    String? lastError;
+    var lastStatus = 429;
+    var askedQuota = false;
+    while (true) {
+      final account = accounts.pick(
+        provider,
+        session: cacheKey,
+        model: modelId,
+        exclude: tried,
+      );
+      // Out of quota as last learned: asked again first, as it may have
+      // started over.
+      if (account == null &&
+          !askedQuota &&
+          accounts.backAtFor(provider, model: modelId) != null) {
+        askedQuota = true;
+        await accounts.refreshUsage(provider, force: false).catchError((_) {});
+        continue;
+      }
+      if (account == null) {
+        final back = accounts.backAtFor(provider, model: modelId);
+        final message = back != null
+            ? [
+                'Every Google account of ${provider.name} is out of quota on '
+                    '$modelId until ${back.toLocal().toString().substring(0, 16)}',
+                ?lastError,
+              ].join(': ')
+            : lastError ??
+                  (provider.accounts.isEmpty
+                      ? '${provider.name} is not signed in to a Google account'
+                      : 'No Google account of ${provider.name} can be used now');
+        if (back != null) response.headers.set('x-should-retry', 'false');
+        meter?.fail(message);
+        _onError?.call(provider.id, message);
+        return _json(response, lastStatus, anthropicError(lastStatus, message));
+      }
+      final String project;
+      final List<String> ids;
+      try {
+        project = await accounts.project(provider, account);
+        ids = await accounts.modelIds(provider, account);
+      } on CodexException catch (error) {
+        lastError = '${account.displayName}: ${error.message}';
+        lastStatus = 401;
+        tried.add(account.id);
+        continue;
+      }
+      final sent = antigravityModelId(
+        ids,
+        modelId,
+        effort.isEmpty ? null : effort,
+      );
+      final request = convertClaudeRequestToAntigravity(
+        body,
+        model: sent,
+        effort: effort.isEmpty ? null : effort,
+        store: _signatures,
+      )..['sessionId'] = conversation;
+      final (payload, encoded, gzipped) = await _encodeJsonGzipped({
+        'model': sent,
+        'project': project,
+        'userAgent': 'antigravity',
+        'requestType': 'agent',
+        'requestId': 'agent-${_uuid()}',
+        'request': request,
+      });
+      String? rejected;
+      var waited = false;
+      for (var attempt = 0; attempt < 3; attempt++) {
+        final String token;
+        try {
+          token = await accounts.accessToken(
+            provider,
+            account,
+            rejected: rejected,
+          );
+        } on CodexException catch (error) {
+          lastError = '${account.displayName}: ${error.message}';
+          lastStatus = 401;
+          break;
+        }
+        final upstreamRequest = await client.postUrl(accounts.endpoints.stream);
+        accounts.headers(token).forEach(upstreamRequest.headers.set);
+        custom.forEach(upstreamRequest.headers.set);
+        upstreamRequest.headers
+          ..contentType = ContentType.json
+          ..set(HttpHeaders.acceptHeader, 'text/event-stream');
+        if (gzipped) {
+          upstreamRequest.headers.set(
+            HttpHeaders.contentEncodingHeader,
+            'gzip',
+          );
+        }
+        upstreamRequest.contentLength = encoded.length;
+        meter?.trace?.sending(
+          method: 'POST',
+          url: accounts.endpoints.stream,
+          headers: UsageTraceMessage.headersOf(upstreamRequest.headers.forEach),
+          body: payload,
+        );
+        upstreamRequest.add(encoded);
+        _dropWithClient(response, upstreamRequest);
+        final upstream = await upstreamRequest.close();
+        final status = upstream.statusCode;
+        meter?.trace?.answered(
+          status,
+          UsageTraceMessage.headersOf(upstream.headers.forEach),
+        );
+        if (status >= 400) {
+          final text = await utf8.decodeStream(upstream);
+          meter?.trace?.upstreamText(text);
+          if (status == 401 && rejected == null) {
+            rejected = token;
+            continue;
+          }
+          final message = upstreamErrorMessage(status, text);
+          if (status == 429) {
+            final now = DateTime.now();
+            if (antigravityLimitReset(status, text, now) case final until?) {
+              accounts.markLimited(provider, account, modelId, until);
+            } else if (antigravityRetryAfter(text) case final delay?
+                when !waited) {
+              // A moment's rate limit: the same account, once more.
+              waited = true;
+              await Future<void>.delayed(delay);
+              continue;
+            }
+          }
+          if (status == 401 || status == 403 || status == 429) {
+            accounts.markError(provider, account, message);
+            lastError = '${account.displayName}: $message';
+            lastStatus = status;
+            break;
+          }
+          meter?.fail(message);
+          _onError?.call(provider.id, message);
+          return _json(response, status, anthropicError(status, message));
+        }
+        accounts.markError(provider, account, null);
+        _onError?.call(provider.id, null);
+        meter
+          ?..answered()
+          ..account = account.displayName;
+        final trace = meter?.trace;
+        final lines = _whileClient(upstream)
+            .transform(const Utf8Decoder(allowMalformed: true))
+            .transform(const LineSplitter());
+        final translator = AntigravityResponseTranslator(
+          model: '${body['model'] ?? modelId}',
+          store: _signatures,
+        );
+        if (!stream) {
+          await for (final line in lines) {
+            trace?.upstreamText('$line\n');
+            meter?.upstreamLine(line);
+            translator.convert(line);
+          }
+          translator.finish();
+          final message = antigravityMessage(translator.events);
+          if (message == null) {
+            meter?.fail('${provider.name} ended without a reply');
+            return _fail(
+              response,
+              502,
+              '${provider.name} ended without a reply',
+            );
+          }
+          meter?.message(message);
+          return _json(response, 200, message);
+        }
+        _startEvents(response);
+        await for (final line in lines) {
+          trace?.upstreamText('$line\n');
+          meter?.upstreamLine(line);
+          final frames = translator.convert(line);
+          if (frames.isEmpty) continue;
+          response.write(frames);
+          meter?.events(frames);
+          await response.flush();
+        }
+        final end = translator.finish();
+        if (end.isNotEmpty) {
+          response.write(end);
+          meter?.events(end);
+        }
+        return response.close();
+      }
+      tried.add(account.id);
+    }
+  }
+
+  /// A version 4 UUID.
+  static String _uuid() {
+    final random = Random.secure();
+    final bytes = [for (var i = 0; i < 16; i++) random.nextInt(256)];
+    bytes[6] = bytes[6] & 0x0f | 0x40;
+    bytes[8] = bytes[8] & 0x3f | 0x80;
+    final hex = [for (final b in bytes) b.toRadixString(16).padLeft(2, '0')];
+    return [
+      hex.sublist(0, 4),
+      hex.sublist(4, 6),
+      hex.sublist(6, 8),
+      hex.sublist(8, 10),
+      hex.sublist(10),
+    ].map((part) => part.join()).join('-');
+  }
+
   static Stream<String> _rest(
     List<String> head,
     StreamIterator<String> rest,
@@ -928,6 +1384,23 @@ class ModelProxy {
     return _slot?.large ?? false ? Isolate.run(encode) : encode();
   }
 
+  /// [json] as [_encodeJson] gives it, its bytes gzipped (and true) when
+  /// large enough to be worth it: for an upstream that takes a gzipped
+  /// request (Antigravity), whose long conversations, their screenshots
+  /// sent again each turn, run to megabytes.
+  static Future<(String, List<int>, bool)> _encodeJsonGzipped(
+    Object? json,
+  ) async {
+    (String, List<int>, bool) encode() {
+      final text = jsonEncode(json);
+      final bytes = utf8.encode(text);
+      if (bytes.length < 16 * 1024) return (text, bytes, false);
+      return (text, GZipCodec(level: 1).encode(bytes), true);
+    }
+
+    return _slot?.large ?? false ? Isolate.run(encode) : encode();
+  }
+
   /// [estimateInputTokens], off the UI isolate for a large request.
   static Future<int> _estimate(Map<String, Object?> body) async =>
       _slot?.large ?? false
@@ -961,6 +1434,10 @@ class ModelProxy {
     }
   }
 }
+
+/// A web search tool's request whose model is not known to run the tool
+/// itself or not: its tool, and the model.
+typedef _Probe = ({Map<String, Object?> search, String model});
 
 /// A request being answered, for what answers it: its trace, and whether
 /// Claude Code is still there.

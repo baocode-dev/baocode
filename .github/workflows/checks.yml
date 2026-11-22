@@ -90,6 +90,7 @@ jobs:
           - { dir: packages/bao_link }
           - { dir: packages/bao_markdown }
           - { dir: packages/bao_pty }
+          - { dir: packages/bao_websearch }
           - { dir: packages/bao_xterm }
     steps:
       - uses: actions/checkout@v5

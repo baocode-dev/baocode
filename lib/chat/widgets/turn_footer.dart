@@ -7,6 +7,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../ide/ide_hover.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
+import '../../usage/usage_prices.dart';
 import '../chat_models.dart';
 import 'agent_step.dart';
 import 'copy_button.dart';
@@ -55,6 +56,7 @@ class TurnFooter extends StatelessWidget {
     this.onFork,
     this.worked,
     this.usage,
+    this.cost,
     this.live,
     this.since,
   });
@@ -67,6 +69,10 @@ class TurnFooter extends StatelessWidget {
   final VoidCallback? onFork;
   final Duration? worked;
   final TurnUsage? usage;
+
+  /// What this turn's kept calls cost at the current model prices
+  /// ([UsagePrices]). Takes precedence over [TurnUsage.costUsd] when present.
+  final UsageCost? cost;
 
   /// What the turn under way has written so far, and how fast.
   final TurnOutput? live;
@@ -129,9 +135,23 @@ class TurnFooter extends StatelessWidget {
     children: items,
   );
 
+  String? _costText() {
+    if (cost case final priced?) {
+      if (priced.text case final text?) return text;
+      // Calls were recorded for this turn but none are priced yet: avoid
+      // showing a misleading $0.00 from a CLI unfamiliar with the model.
+      if (usage?.costUsd case final usd? when usd > 0) {
+        return formatCost(usd);
+      }
+      return null;
+    }
+    if (usage?.costUsd case final usd?) return formatCost(usd);
+    return null;
+  }
+
   List<Widget> _stats(AppLocalizations l10n) {
     final speed = usage?.tokensPerSecond;
-    final cost = usage?.costUsd;
+    final costText = _costText();
     final tokens = usage?.totalTokens;
     return [
       if (worked case final worked?)
@@ -146,7 +166,7 @@ class TurnFooter extends StatelessWidget {
           text: l10n.turnSpeed(speed.toStringAsFixed(2)),
           hint: l10n.turnSpeedHint,
         ),
-      if (cost != null) _Stat(text: formatCost(cost), hint: l10n.turnCostHint),
+      if (costText != null) _Stat(text: costText, hint: l10n.turnCostHint),
       if (tokens != null && tokens > 0)
         _Stat(
           text: l10n.turnTokens(AgentStep.formatTokens(tokens, decimals: 2)),

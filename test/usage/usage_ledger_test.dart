@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:baocode/usage/usage_capture.dart';
 import 'package:baocode/usage/usage_ledger.dart';
+import 'package:baocode/usage/usage_prices.dart';
 import 'package:baocode/usage/usage_query.dart';
 import 'package:baocode/usage/usage_record.dart';
 import 'package:baocode/usage/usage_storage_io.dart';
@@ -514,4 +515,119 @@ void main() {
       'text/plain',
     );
   });
+
+  test('turnCostsOf attributes calls to turns, handles queued prompts and '
+      'prices dynamically', () {
+    final t0 = DateTime(2026, 11, 21, 10, 0, 0);
+    final calls = [
+      // Earlier than the first visible turn: ignored.
+      _call(
+        t0.subtract(const Duration(seconds: 5)),
+        provider: 'p3',
+        model: 'gemini-4-neon',
+        input: 100000,
+        output: 10000,
+      ),
+      // Turn 0: two calls, second arrives while Turn 1 was already queued.
+      _call(
+        t0.add(const Duration(seconds: 1)),
+        provider: 'p3',
+        model: 'gemini-4-neon',
+        input: 1000000,
+        output: 0,
+      ),
+      _call(
+        t0.add(const Duration(seconds: 40)),
+        provider: 'p3',
+        model: 'gemini-4-neon',
+        input: 0,
+        output: 100000,
+      ),
+      // Turn 1 (queued at +30s, starts at +60s when Turn 0 ends).
+      _call(
+        t0.add(const Duration(seconds: 65)),
+        provider: 'p3',
+        model: 'gemini-4-neon',
+        input: 500000,
+        output: 0,
+      ),
+      // Turn 2: unpriced model.
+      _call(
+        t0.add(const Duration(minutes: 2, seconds: 2)),
+        provider: 'p3',
+        model: 'unknown-model',
+        input: 10000,
+        output: 1000,
+      ),
+    ];
+    final turns = <TurnSpan>[
+      (sentAt: t0, worked: const Duration(seconds: 60)),
+      (
+        sentAt: t0.add(const Duration(seconds: 30)),
+        worked: const Duration(seconds: 10),
+      ),
+      (
+        sentAt: t0.add(const Duration(minutes: 2)),
+        worked: const Duration(seconds: 5),
+      ),
+      (sentAt: null, worked: const Duration(seconds: 5)),
+    ];
+    final prices = UsagePrices({
+      'p3/gemini-4-neon': const ModelPrice(input: 3, output: 15),
+    });
+
+    final costs = turnCostsOf(calls, turns, prices: prices);
+    expect(costs[0]?.text, r'$4.50');
+    expect(costs[1]?.text, r'$1.50');
+    expect(costs[2]?.isEmpty, isTrue);
+    expect(costs[2]?.unpriced, 1);
+    expect(costs[3], isNull);
+
+    // Updating prices recomputes immediately.
+    prices.update({
+      'p3/gemini-4-neon': const ModelPrice(
+        input: 20,
+        output: 100,
+        currency: 'CNY',
+      ),
+    });
+    final updated = turnCostsOf(calls, turns, prices: prices);
+    expect(updated[0]?.text, '¥30.00');
+    expect(updated[1]?.text, '¥10.00');
+  });
+
+  test('sessionVersion only advances for that session and caches today reads', () async {
+    final now = DateTime(2026, 11, 21, 10);
+    var reads = 0;
+    final storage = _CountingStorage(() => reads++);
+    final ledger = UsageLedger(storage, clock: () => now);
+    addTearDown(ledger.dispose);
+
+    final v1Before = ledger.sessionVersion('s1');
+    final v2Before = ledger.sessionVersion('s2');
+    ledger.record(_call(now, session: 's1'));
+    expect(ledger.sessionVersion('s1'), greaterThan(v1Before));
+    expect(ledger.sessionVersion('s2'), v2Before);
+
+    expect(await ledger.ofSession('s1'), hasLength(1));
+    expect(reads, 1);
+    // Recording another call today serves from memory without re-reading disk.
+    ledger.record(_call(now.add(const Duration(seconds: 10)), session: 's1'));
+    expect(await ledger.ofSession('s1'), hasLength(2));
+    expect(reads, 1);
+
+    await ledger.clear(const UsageClearSpec(session: 's1'));
+    expect(await ledger.ofSession('s1'), isEmpty);
+  });
+}
+
+class _CountingStorage extends MemoryUsageStorage {
+  _CountingStorage(this.onRead);
+  final void Function() onRead;
+
+  @override
+  Future<List<UsageCall>> read(List<String> days) {
+    onRead();
+    return super.read(days);
+  }
 }

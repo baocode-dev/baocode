@@ -17,6 +17,10 @@ import '../ide/ide_hover.dart';
 import '../l10n/l10n.dart';
 import '../theme/app_theme.dart';
 import '../theme/workbench_theme.dart' show themeColors;
+import '../usage/usage_ledger.dart';
+import '../usage/usage_prices.dart';
+import '../usage/usage_query.dart';
+import '../usage/usage_record.dart';
 import 'chat_column.dart';
 import 'chat_feed.dart';
 import 'selection/chat_selection.dart';
@@ -255,6 +259,95 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     for (var index = fold.start; index < fold.end; index++) _feed.itemAt(index),
   ];
 
+  // --- Turn costs ------------------------------------------------------------
+  //
+  // Each finished turn's cost at the current model prices (UsagePrices),
+  // from the session's calls kept in UsageLedger: updates as calls are
+  // recorded and as prices change, without waiting on the CLI's own cost
+  // (which is 0 for custom upstreams).
+
+  String? _usageSessionId;
+  int _usageSessionVersion = -1;
+  List<UsageCall> _usageCalls = const [];
+  Map<int, UsageCost> _turnCosts = const {};
+
+  void _syncUsageSession() {
+    final id = _session?.sessionId;
+    if (id == _usageSessionId) return;
+    _usageSessionId = id;
+    _usageSessionVersion = -1;
+    _usageCalls = const [];
+    _turnCosts = const {};
+    if (id != null) unawaited(_loadUsageCalls(id));
+  }
+
+  Future<void> _loadUsageCalls(String id) async {
+    final ledger = UsageLedger.current;
+    final version = ledger.sessionVersion(id);
+    final calls = await ledger.ofSession(id);
+    if (!mounted || id != _usageSessionId) return;
+    _usageSessionVersion = version;
+    _usageCalls = calls;
+    final next = _computeTurnCosts();
+    if (_turnCostsChanged(_turnCosts, next)) {
+      setState(() => _turnCosts = next);
+    }
+  }
+
+  void _handleUsageLedgerChanged() {
+    final id = _session?.sessionId;
+    if (id == null) return;
+    if (id != _usageSessionId) {
+      _syncUsageSession();
+      return;
+    }
+    if (UsageLedger.current.sessionVersion(id) == _usageSessionVersion) return;
+    unawaited(_loadUsageCalls(id));
+  }
+
+  void _handleUsagePricesChanged() {
+    if (_usageCalls.isEmpty) return;
+    final next = _computeTurnCosts();
+    if (_turnCostsChanged(_turnCosts, next)) {
+      setState(() => _turnCosts = next);
+    }
+  }
+
+  Map<int, UsageCost> _computeTurnCosts() {
+    if (_usageCalls.isEmpty) return const {};
+    final prompts = <int>[];
+    final spans = <TurnSpan>[];
+    final count = _feed.itemCount;
+    for (var i = 0; i < count; i++) {
+      if (_feed.itemAt(i) case UserMessageItem(
+        queued: false,
+        :final sentAt,
+        :final worked,
+      )) {
+        prompts.add(i);
+        spans.add((sentAt: sentAt, worked: worked));
+      }
+    }
+    final costs = turnCostsOf(_usageCalls, spans);
+    return {
+      for (var i = 0; i < prompts.length; i++)
+        if (spans[i].worked != null && costs[i] != null) prompts[i]: costs[i]!,
+    };
+  }
+
+  static bool _turnCostsChanged(Map<int, UsageCost> a, Map<int, UsageCost> b) {
+    if (a.length != b.length) return true;
+    for (final MapEntry(:key, :value) in a.entries) {
+      final other = b[key];
+      if (other == null ||
+          other.text != value.text ||
+          other.unpriced != value.unpriced) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   /// The footer under item [index], when it ends a finished turn: its
   /// answer to copy, a fork from there, how fast, how long, and what it
   /// cost.
@@ -278,6 +371,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       onFork: widget.forkAfter?.call(index),
       worked: message.worked,
       usage: message.usage,
+      cost: _turnCosts[prompt],
     );
   }
 
@@ -691,12 +785,15 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     _statusIndex = _lastStatusIndex();
     UserMessageStyle.current.addListener(_handleStyleChanged);
     ChatMinimap.side.addListener(_handleStyleChanged);
+    UsageLedger.current.addListener(_handleUsageLedgerChanged);
+    UsagePrices.current.addListener(_handleUsagePricesChanged);
     // Its size, for a slow frame's line in the event log.
     FrameWatch.notes[this] = _frameNote;
     _wasLive = _feed.isStreaming;
     _prependedSeen = _session?.prependedCount ?? 0;
     _long = _longFeeds[_feed] ?? false;
     _refold();
+    _syncUsageSession();
     _seeItems();
     _resumeEditing();
     _goBack();
@@ -813,7 +910,12 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       _leaving.clear();
       _entering.clear();
       _wasLive = widget.feed.isStreaming;
+      _usageSessionId = null;
+      _usageSessionVersion = -1;
+      _usageCalls = const [];
+      _turnCosts = const {};
       _refold();
+      _syncUsageSession();
       _seeItems();
       _resumeEditing();
       _goBack();
@@ -886,6 +988,8 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       ..dispose();
     UserMessageStyle.current.removeListener(_handleStyleChanged);
     ChatMinimap.side.removeListener(_handleStyleChanged);
+    UsageLedger.current.removeListener(_handleUsageLedgerChanged);
+    UsagePrices.current.removeListener(_handleUsagePricesChanged);
     _scrubEnded?.cancel();
     _leavingDone?.cancel();
     _autoScroll?.dispose();
@@ -1552,6 +1656,32 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
 
   final ContextMenuController _menu = ContextMenuController();
 
+  /// Whether [event] landed on an interactive scrollbar anywhere inside this
+  /// view (a table's sideways bar, a code block's, a step card's, …).
+  bool _hitScrollbar(PointerDownEvent event) {
+    final box = context.findRenderObject();
+    if (box is! RenderBox || !box.hasSize) return false;
+    final result = BoxHitTestResult();
+    box.hitTest(result, position: box.globalToLocal(event.position));
+    for (final entry in result.path) {
+      if (entry is! BoxHitTestEntry) continue;
+      final target = entry.target;
+      if (target is RenderCustomPaint) {
+        final foreground = target.foregroundPainter;
+        if (foreground is ScrollbarPainter &&
+            foreground.hitTestInteractive(entry.localPosition, event.kind)) {
+          return true;
+        }
+        final background = target.painter;
+        if (background is ScrollbarPainter &&
+            background.hitTestInteractive(entry.localPosition, event.kind)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   void _handlePointerDown(PointerDownEvent event) {
     _pressedDevices.add(event.device);
     _menu.remove();
@@ -1571,9 +1701,17 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       final right = list.localToGlobal(Offset(list.size.width, 0)).dx;
       onBar = !_minimapShown && event.position.dx >= right - _scrollbarGutter;
     }
-    // Nor one in what selects on its own (an edit card's editor): the two
-    // selections are apart, and the focus is its.
+    // Nor one in what selects on its own (an edit card's editor) or on an
+    // inner scrollbar (a table's, a code block's, a step card's): dragging a
+    // bar must not select text under it or take focus.
     final own = OwnSelection.pressedIn(event);
+    final onInnerBar =
+        !onBar &&
+        !own &&
+        !_pressInEditor &&
+        !_pressOnSticky &&
+        !_pressOnMinimap &&
+        _hitScrollbar(event);
     if ((_pressOnMinimap || onBar) && event.buttons == kPrimaryMouseButton) {
       _scrub(true);
     }
@@ -1581,6 +1719,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
         _pressInEditor ||
         own ||
         onBar ||
+        onInnerBar ||
         _pressOnSticky ||
         _pressOnMinimap ||
         event.kind != PointerDeviceKind.mouse;
@@ -1601,7 +1740,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     _pressOnMinimap = false;
     if (_pressInEditor) {
       _pressInEditor = false;
-    } else if (!own) {
+    } else if (!own && !onInnerBar) {
       _selectionFocusNode.requestFocus();
     }
     if (!elsewhere && event.buttons & kSecondaryMouseButton != 0) {
@@ -1614,6 +1753,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
         event.kind != PointerDeviceKind.mouse &&
         !own &&
         !onBar &&
+        !onInnerBar &&
         !onSticky &&
         !onMinimap &&
         !inEditor) {
@@ -2107,6 +2247,10 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
         moved == 0 &&
         count == _itemCountSeen &&
         _statusShowing == _statusShown;
+    if (!wordsOnly) {
+      _syncUsageSession();
+      if (_usageCalls.isNotEmpty) _turnCosts = _computeTurnCosts();
+    }
     _itemCountSeen = count;
     _itemsCame();
     _scheduleStickyUpdate();
@@ -2909,6 +3053,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                       stopped: fold.stopped,
                       edits: turnEdits(_itemsIn(fold)),
                       images: foldImages(_itemsIn(fold)),
+                      webIcons: foldWebIcons(_itemsIn(fold)),
                       expanded: _isFoldOpen(fold),
                       onToggle: () => _toggleFold(fold),
                     ),
@@ -2920,6 +3065,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                     StepsFoldLine(
                       tally: StepTally(_itemsIn(fold)),
                       images: foldImages(_itemsIn(fold)),
+                      webIcons: foldWebIcons(_itemsIn(fold)),
                       expanded: _isFoldOpen(fold),
                       onToggle: () => _toggleFold(fold),
                     ),

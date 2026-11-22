@@ -58,6 +58,7 @@ class ClaudeLaunch {
     this.attribution = CommitAttribution.agent,
     this.persist = true,
     this.env,
+    this.builtinCore = false,
     this.settingsPath,
     this.promptPath,
     this.directories = const [],
@@ -66,6 +67,7 @@ class ClaudeLaunch {
     this.instructions,
     this.ownPrompt = false,
     this.models = const [],
+    this.additionalModels = const [],
     this.sdkServers = const [],
     this.tools,
     this.userServers = false,
@@ -125,6 +127,10 @@ class ClaudeLaunch {
   /// first sending each a request of its own, to see that it is one: a
   /// provider's, as `modelPicker` rows, which it takes as known.
   final List<String> models;
+
+  /// Qualified model refs the local proxy can route, not picker rows.
+  final List<String> additionalModels;
+
   final String? permissionMode;
   final String? effort;
 
@@ -159,6 +165,12 @@ class ClaudeLaunch {
   /// [launchEnvironment]), as the flag settings' `env`, over the user's
   /// own; null for Claude Code as the user set it up.
   final Map<String, String>? env;
+
+  /// Whether it runs on BaoCode's own core whatever the setting says: an
+  /// upstream only it speaks to as it should (Antigravity's, whose prompt
+  /// and requests the CLI's would get the account turned away for), as
+  /// the session's model or one its roles pick (ModelProviders.builtinCoreOnly).
+  final bool builtinCore;
 
   /// A file the flag settings ([settings]) are written to, given in their
   /// place: so that a key in them is in no command line.
@@ -215,6 +227,7 @@ class ClaudeLaunch {
     attribution: attribution,
     persist: persist,
     env: env ?? this.env,
+    builtinCore: builtinCore,
     settingsPath: settingsPath ?? this.settingsPath,
     promptPath: promptPath ?? this.promptPath,
     directories: directories,
@@ -223,6 +236,7 @@ class ClaudeLaunch {
     instructions: instructions ?? this.instructions,
     ownPrompt: ownPrompt,
     models: models,
+    additionalModels: additionalModels,
     sdkServers: sdkServers,
     tools: tools,
     userServers: userServers,
@@ -283,9 +297,9 @@ class ClaudeLaunch {
   }
 
   /// A provider's session's models, let through the user's own
-  /// `availableModels`: those it is switched to and starts on, and its
-  /// roles' (see [allowedModels]).
-  List<String> get allowlist => allowedModels(env, [...models, ?model]);
+  /// `availableModels`: its picker rows, routed refs and roles at launch.
+  List<String> get allowlist =>
+      allowedModels(env, [...models, ...additionalModels, ?model]);
 
   /// The user's own setup set empty, in the shell's environment or their
   /// settings' `env`: `CLAUDE_CODE_EFFORT_LEVEL` would hold every request
