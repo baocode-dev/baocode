@@ -1491,6 +1491,7 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
             for (final value in ProviderProtocol.values)
               IdeMenuAction(
                 ModelsSettingsPage.protocolName(context, value),
+                enabled: value.selectable || value == provider.protocol,
                 checked: value == provider.protocol,
                 onSelected: () => unawaited(_setProtocol(value)),
               ),
