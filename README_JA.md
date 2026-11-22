@@ -2,7 +2,9 @@
 
 [English](README.md) · [简体中文](README_CN.md) · **日本語** · [Français](README_FR.md) · [Español](README_ES.md)
 
-[Claude Code](https://github.com/anthropics/claude-code) のための、使いやすいデスクトップ UI。ミリ秒単位で応答する高速な IDE を内蔵しています。
+**[Claude Code](https://github.com/anthropics/claude-code) のためのオープンソースのコントロールプレーン。単なるインターフェースではありません。**
+
+細部まで作り込んだ 360 FPS のインターフェースに加えて、別のマシン上の Claude Code、スマートフォンからの操作、Windows 向けの徹底した最適化、10 倍速いブラウザ操作、本格的なコードエディタ、任意のカスタム API、使用量の可視化、会話のオーケストレーション、そして Bot。
 
 [公式サイト](https://baocode.dev) · [ダウンロード](https://baocode.dev/download) · [変更履歴](https://baocode.dev/changelog)
 
@@ -14,82 +16,120 @@
 
 > 英語 README の日本語版です。内容に相違がある場合は [English](README.md) を参照してください。リンク先のサイトや文書が日本語に対応しているとは限りません。
 
-## 開発の理由
+## 車輪の再発明はしない、自然に使えるものを
 
-私たちは毎日 Claude Code を使っています。ターミナルは実行には適していますが、内容を読むには不便です。長い diff は画面外へ流れ、以前の手順を探し直すのは難しく、変更の確認にはアプリの切り替えが必要になります。BaoCode は、私たちが欲しかったそのためのウィンドウです。
+Claude Code はすでに十分に優れています。BaoCode は足りない部分だけを補います。すぐに使えて、新しい概念を覚える必要はなく、最初からこうあるべきだったと感じられる使い心地です。
 
-BaoCode は意図的に独自のエージェントを持ちません。エージェントは Claude Code です。そのツール、スキル、プラグイン、MCP サーバー、サブエージェント、hooks を活かしながら、BaoCode は読みやすい UI とすぐに使える周辺機能を提供します。すでにインストールされた Claude Code を、既存の設定と `CLAUDE.md` のまま実行します。
+**なぜ Claude Code なのか？** どのエージェントのコアをカスタマイズしても、突き詰めれば Claude Code と同じ形になります。同じツール、同じコンテキスト管理、同じスキルと MCP。遠回りして作り直すより、それをそのまま使い、他のモデルはプロトコル層でつなぐ。ひとつの設定ですべてのモデルが動きます。BaoCode はインストール済みの Claude Code を、あなたの設定、サインイン、`CLAUDE.md` のまま実行します。Claude Code がない環境では、同じ設定を読む BaoCode 内蔵のエージェントが、追加したモデルプロバイダーで動きます。
+
+**ひとつの会話で全体を動かす。** オーケストレーション用のキャンバスはありません。内蔵の MCP を通じて、メインの会話が他のセッションやサブエージェントを、サーバーをまたいでも指揮します。複雑な流れは一度説明するだけ、あるいはスキルとして書いておけば何度でも使えます。
 
 ## 機能
 
-- **読みやすさを重視した UI。** ファイルの読み込み、検索、コマンドを一行に折りたためます。Claude の変更をファイルごとに保持または取り消せます。チェックポイントは BaoCode のデータフォルダーに保存され、リポジトリの `.git` には入りません。
-- **目標。** `/goal` と実現したい内容を入力すると、Claude が目標達成まで作業を続けます。目標と進捗は入力欄の上に表示されます。
-- **リッチテキスト入力。** エディターからコピーしたコードはファイルと行への参照として挿入されます。画像の貼り付けやファイルのドロップも、文中の指定位置に配置できます。
-- **高速 IDE。** エディター、ターミナル、コミットグラフ付きソース管理を内蔵しています。Claude Code によるコミットメッセージの作成、キーマップ、言語サーバーに対応しています。
-- **統一されたテーマ。** エディター、会話、サイドバーに同じテーマを適用できます。
-- **スキル、MCP サーバーなど。** プラグイン、MCP サーバー、スキル、サブエージェント、ルール、コマンド、hooks を一か所で管理し、個人用またはプロジェクト単位で設定できます。
-- **複数のモデル。** Anthropic API、OpenAI Chat Completions、OpenAI Responses に対応するプロバイダーを追加できます。ローカルプロキシが Claude Code とのプロトコル変換を行い、キーはシステムのキーチェーンに保存されます。
-- **SSH 経由のリモートプロジェクト。** UI は手元のマシンに残り、ファイル、Git、検索、ターミナル、言語サーバー、Claude Code はリモートホスト上で動作します（Linux、x64 または arm64）。
-- **通知。** エージェントが操作を求めたときや作業を終えたときに、システム通知、音、バッジで知らせます。ウィンドウを閉じてもメニューバーやトレイで作業を続けられます。
-- **更新。** バックグラウンドでの自動更新、手動更新、更新の無効化を選べます。
+### GPU による 360 FPS のネイティブ描画
 
-## 速度
+Electron も DOM のリフローもありません。BaoCode は GPU に直接インターフェースを描くネイティブアプリです。高速なトークンストリームもディスプレイのリフレッシュレートに追従し、スクロールは手の動きにぴったりついてきて、待機中は自動的に描画を抑えます。
 
-BaoCode は GPU に直接 UI を描画するネイティブアプリです。以下は英語 README に記載された数値であり、この翻訳で再測定したものではありません。実際の結果はハードウェア、バージョン、使用状況によって異なります。
+| | BaoCode | VS Code | Cursor |
+| --- | --- | --- | --- |
+| 起動 | 約 0.18 秒 | 約 2〜3 秒 | 約 2〜3 秒 |
+| メモリ（ウィンドウ 1 つ、アイドル時） | 約 120 MB | 約 970 MB | 約 1.9 GB |
+| プロセス数（ウィンドウ 1 つ） | 2 | 8 | 13 |
+| ダウンロードサイズ（Windows） | 約 16 MB | 約 244 MB | 約 214 MB |
 
-| 指標 | BaoCode |
-| --- | --- |
-| 起動時間 | 約 0.18 秒 |
-| 一つのウィンドウのアイドル時メモリ | 約 120 MB |
-| 一つのウィンドウのプロセス数 | 2 |
-| Windows のダウンロードサイズ | 約 16 MB |
+### どのマシンでも、SSH 越しの Claude Code
+
+Linux、macOS、Windows のどのホストにも接続し、そこにインストールされた Claude Code を使えます。同時に手元のマシンにもそのままつながります。USB-C で接続した Android 端末、ローカルの Chrome、ローカルのポート。ウィンドウは手元に残り、ファイル、Git、検索、ターミナル、言語サーバー、Claude Code はホスト上で動きます。Windows では WSL のディストリビューションも同じように開けます。
+
+### 10 倍速いブラウザ操作
+
+BaoCode 拡張機能（Chrome、Edge、Brave、Arc）を入れると、エージェントは手探りのスクリーンショットの繰り返しではなく、サインイン済みの実際のブラウザで作業します。スタイラス並みの精密な入力、React や Vue の状態、WebSocket のトレース、ソースのブレークポイント、1 ms 単位のパフォーマンス計測。エージェントに見えるのは共有したタブだけで、すべてはあなたのコンピュータの中にとどまります。
+
+### あらゆるモデルをそのまま接続
+
+DeepSeek、Kimi、ChatGPT、Gemini などの主要モデル、OpenRouter や Ollama などのプラットフォームをそのまま接続できます。プロトコルの違い（Anthropic Messages、OpenAI Chat Completions と Responses、Codex、Gemini）は BaoCode のローカルプロキシが吸収し、`~/.claude` には手を加えません。どのモデルも Claude Code の中で同じように力を発揮します。キーはシステムのキーチェーンに保存されます。
+
+### 使用量と料金
+
+トークンの行き先が見えます。入力、出力、キャッシュの読み書き、キャッシュヒット率、節約できた金額。料金は各プロバイダーのルールに従い、ピーク時間帯やオフピーク、休日、段階的なコンテキスト料金も反映します。
+
+### Windows のために
+
+[bash.exe](https://github.com/baocode-dev/bash-exe) が Windows のプラットフォーム差を吸収し、WSL に近い感覚で使えます。インターフェースは macOS と同じく Skia の GPU パスで描画され、同じように滑らかです。x64 と Arm64 に対応。
+
+### スマートフォンでも同じセッション
+
+まったく同じライブセッション、400K コンテキストの内訳、モデルのクォータ、SSH 越しのリモートコードベースが、iOS と Android にネイティブに映し出されます。QR コードでペアリングし、接続は直接でも BaoCode のリレー経由でもエンドツーエンドで暗号化されます。
+
+### 本格的なコードエディタ
+
+エディタ（Flutter に移植した Monaco）、ターミナル、コミットグラフ付きのソース管理を内蔵。言語サーバー、VS Code・IntelliJ・Sublime・Atom のキーマップに対応し、コミットメッセージは Claude Code が下書きします。VS Code のテーマがエディタ、会話、サイドバーをまとめて彩ります。
+
+### その他
+
+- Claude が加えた変更を、ファイルごとに**保持または取り消し**。チェックポイントは BaoCode 自身のデータフォルダに保存され、リポジトリの `.git` には書き込みません。
+- **ゴール。** `/goal` と達成したいことを入力すると、Claude は達成するまで作業を続けます。
+- **リッチテキスト入力。** エディタからコピーしたコードはファイルと行への参照として入り、貼り付けた画像やドロップしたファイルは文中の置いた位置に収まります。
+- **プラグイン、MCP サーバー、スキル**、サブエージェント、ルール、コマンド、フックを一か所で管理。全体にも、特定のプロジェクトだけにも設定できます。
+- エージェントが入力を必要としたときや完了したときに**通知**。ウィンドウを閉じても、エージェントはメニューバーやトレイで動き続けます。
+- **自動更新**はバックグラウンドで、手動で、またはオフにもできます。
 
 ## 必要環境
 
-- macOS 12 以降（Apple silicon と Intel 向けにそれぞれ配布）、Windows 10 以降（x64）、または Linux：Ubuntu 20.04 以降とその他の Debian 系ディストリビューション（x64 と arm64 向けにそれぞれ .deb）。
-- [Claude Code](https://github.com/anthropics/claude-code) がインストールされていること。
+- **デスクトップ：** macOS 12 以降（Apple シリコンまたは Intel）、Windows 10 以降（x64 または Arm64）、または Linux：Ubuntu 22.04 以降とその他の Debian 系ディストリビューション（x64 または arm64）。
+- **スマートフォン：** Android 7.0 以降、または iOS 15 以降（TestFlight でベータ版）。コンピュータ上の BaoCode とペアリングして使います。
+- **ブラウザ拡張機能：** macOS または Windows 上の Chrome、Edge、Brave、Arc。
+- [Claude Code](https://github.com/anthropics/claude-code)（インストールされていれば）。なければ、追加したモデルプロバイダーで動きます。
+
+すべて[ダウンロードページ](https://baocode.dev/download)にあります。
 
 ## ソースからのビルド
 
-BaoCode は Flutter アプリです。Dart SDK の要件は `^3.13.4` です。
+BaoCode は Flutter アプリです（Dart SDK `^3.13.4`）。
 
 ```sh
 flutter pub get
-flutter run -d macos        # Windows: flutter run -d windows
+flutter run -d macos        # または: flutter run -d windows
 ```
 
-リリース用の成果物を `build/installers/` に作成するには：
+リリース版を `build/installers/` にビルドするには：
 
 ```sh
 dart run tool/build_macos.dart            # BaoCode-<version>-{arm64,x64}.dmg と BaoCode-<version>-mac-{arm64,x64}.zip
 dart run tool/build_windows.dart          # BaoCode-<version>-setup.exe（Inno Setup が必要）
-dart run tool/build_remote_server.dart    # Linux x64 / arm64 用の SSH リモートサーバー
+flutter build linux --release && sh tool/package_linux_deb.sh   # BaoCode-<version>-linux-{amd64,arm64}.deb と .tar.gz（Ubuntu 上で）
+dart run tool/build_remote_server.dart    # SSH リモートサーバー（Linux、macOS、Windows ホスト用）
 ```
 
-テスト全体の実行には時間がかかるため、変更に関連するテストだけを実行してください。例：`flutter test test/update`。
+テストスイート全体は時間がかかります。変更した部分のテストだけを実行してください（例：`flutter test test/update`）。
 
-`v*` タグを push すると CI がリリースをビルドして公開します。バージョン、署名、公開先については [docs/release.md](docs/release.md) を参照してください。[docs/](docs) には[自動更新](docs/auto-update.md)、[SSH リモート](docs/ssh-remote.md)、[Windows](docs/windows.md) の文書もあります。一部は中国語です。
+`v*` タグをプッシュすると、CI がリリースをビルドして公開します。バージョン、署名、公開先については [docs/release.md](docs/release.md) を参照してください。その他の文書は [docs/](docs) にあります：[自動更新](docs/auto-update.md)、[SSH リモート](docs/ssh-remote.md)、[Windows](docs/windows.md)、[スマートフォン接続](docs/mobile-link.md)（一部は中国語）。
 
 ## リポジトリ構成
 
 | パス | 内容 |
 | --- | --- |
-| [lib/](lib) | アプリケーション |
-| [packages/bao_editor](packages/bao_editor) | エディター、シンタックスハイライト、テーマ、キーバインド |
+| [lib/](lib) | アプリ本体 |
+| [packages/bao_agent](packages/bao_agent) | 内蔵エージェント。Claude Code の stream-json プロトコルを話します |
+| [packages/bao_editor](packages/bao_editor) | Flutter に移植した Monaco：エディタ、シンタックスハイライト、VS Code のテーマとキーバインド |
 | [packages/bao_xterm](packages/bao_xterm) | xterm.js の Dart 移植 |
-| [packages/bao_pty](packages/bao_pty) | Dart 用疑似端末：macOS / Linux は forkpty、Windows は ConPTY |
-| [packages/bao_remote](packages/bao_remote) | SSH 経由でサービスを提供するリモート側 |
+| [packages/bao_pty](packages/bao_pty)、[bao_conpty](packages/bao_conpty) | Dart 用の疑似端末：macOS と Linux では forkpty、Windows では ConPTY |
+| [packages/bao_remote](packages/bao_remote) | SSH 経由で提供されるリモートホスト側 |
+| [packages/bao_link](packages/bao_link)、[bao_iroh](packages/bao_iroh) | スマートフォンとの接続：QR ペアリング、iroh によるエンドツーエンド暗号化通信 |
+| [packages/bao_markdown](packages/bao_markdown) | 入力しながら表示される Markdown エディタ |
+| [packages/bao_websearch](packages/bao_websearch) | 検索 API を使わない、どのモデルでも使える Web 検索 |
+| [browser_extension/](browser_extension) | ブラウザ拡張機能 |
 | [macos/](macos)、[windows/](windows)、[linux/](linux) | ネイティブランナー |
-| [tool/](tool) | ビルド、パッケージング、リリースのスクリプト |
-| [site/](site) | [baocode.dev](https://baocode.dev) のソース |
-| [docs/](docs) | 設計資料 |
+| [tool/](tool) | ビルド、パッケージング、リリース用スクリプト |
+| [site/](site) | 公式サイト [baocode.dev](https://baocode.dev) |
+| [docs/](docs) | 設計メモ |
 
 ## フィードバック
 
-Issue と Pull Request を歓迎します。変更はまず Issue で相談してください。大きすぎる Pull Request や、事前に相談のない Pull Request は受け付けません。詳しくは [CONTRIBUTING.md](CONTRIBUTING.md) を参照してください。
+Issue と Pull Request を歓迎します。変更を書く前に Issue で相談してください。大きな Pull Request や、事前に相談のない変更の Pull Request は受け付けません。詳しくは [CONTRIBUTING.md](CONTRIBUTING.md) を参照してください。
 
 ## ライセンス
 
-BaoCode は [GNU General Public License v3.0](LICENSE)（GPL-3.0-only）で公開されています。[packages/](packages) 内のエディターおよび端末パッケージ（bao_editor、bao_xterm、bao_pty）は MIT ライセンスです。第三者のコンポーネントにはそれぞれのライセンスが適用され、ファイルは対応するソースの隣にあります。
+BaoCode は [GNU General Public License v3.0](LICENSE)（GPL-3.0-only）でライセンスされています。[packages/](packages) 内のエディタとターミナルのパッケージ（bao_editor、bao_xterm、bao_pty）は MIT です。サードパーティのコンポーネントはそれぞれのライセンスに従い、ライセンスファイルはソースツリー内の各コンポーネントの隣にあります。
 
-BaoCode は独立したプロジェクトであり、Anthropic との提携や同社による推奨を意味しません。
+BaoCode は独立したプロジェクトであり、Anthropic とは提携しておらず、その承認も受けていません。
