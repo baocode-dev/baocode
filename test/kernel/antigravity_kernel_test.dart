@@ -655,6 +655,129 @@ void main() {
     expect(done.outputFile, '/logs/task-1.log');
   });
 
+  test('a command still running as its turn ends goes on as a task', () async {
+    kernel = make();
+    await started();
+    kernel.send(const KernelTurn(id: 't1', text: 'serve'));
+    await pumpEventQueue();
+    final agent = runtime.agent;
+    agent.update({
+      'sessionUpdate': 'tool_call',
+      'toolCallId': 'c1',
+      'name': 'run_command',
+      'kind': 'execute',
+      'status': 'in_progress',
+      'rawInput': {'CommandLine': 'sleep 25', 'toolSummary': 'Wait'},
+    });
+    await pumpEventQueue();
+    agent.answer('session/prompt', {
+      'stopReason': 'end_turn',
+      'usage': {'inputTokens': 100, 'cachedReadTokens': 900, 'outputTokens': 7},
+    });
+    await pumpEventQueue();
+    expect(of<TurnEnded>().single.usage?.inputTokens, 1000);
+    expect(of<TurnEnded>().single.usage?.outputTokens, 7);
+    final command = items()['c1']! as TerminalItem;
+    expect(command.background, isTrue);
+    expect(command.status, CommandStatus.running);
+    expect(of<TasksReported>().last.tasks.single.status, CommandStatus.running);
+
+    // Its end: the task's, no turn of agy's own.
+    agent.update({
+      'sessionUpdate': 'tool_call_update',
+      'toolCallId': 'c1',
+      'status': 'completed',
+      'rawOutput': {
+        'output': 'Command exited with code 0.\n\nCommand output:\nbye\r\n',
+        'exit_code': 0,
+      },
+    });
+    await pumpEventQueue();
+    expect(of<TurnStarted>(), hasLength(1));
+    final task = of<TasksReported>().last.tasks.single;
+    expect(task.status, CommandStatus.succeeded);
+    expect(task.summary, 'bye');
+    expect((items()['c1']! as TerminalItem).status, CommandStatus.succeeded);
+
+    // What agy says of it after: a turn of its own.
+    agent.update({
+      'sessionUpdate': 'agent_message_chunk',
+      'content': {'type': 'text', 'text': 'It finished.'},
+    });
+    await pumpEventQueue();
+    expect(of<TurnStarted>().last.unprompted, isTrue);
+  });
+
+  test('in Plan, its plan is a card to start, not a change', () async {
+    kernel = make(settings: {'mode': 'plan'});
+    await started();
+    kernel.send(const KernelTurn(id: 't1', text: 'Add a line'));
+    await pumpEventQueue();
+    const path = '/home/me/.gemini/antigravity-cli/brain/s1/add_line_plan.md';
+    final agent = runtime.agent;
+    agent
+      ..update({
+        'sessionUpdate': 'tool_call',
+        'toolCallId': 'c1',
+        'name': 'write_file',
+        'kind': 'edit',
+        'status': 'in_progress',
+        'rawInput': {'Path': path},
+      })
+      ..update({
+        'sessionUpdate': 'tool_call_update',
+        'toolCallId': 'c1',
+        'status': 'completed',
+        'content': [
+          {'type': 'diff', 'path': path, 'newText': '# Add a line\n\n1. Edit'},
+        ],
+      });
+    await pumpEventQueue();
+    agent.answer('session/prompt', {'stopReason': 'end_turn'});
+    await pumpEventQueue();
+    var plan = items()['c1']! as PlanItem;
+    expect(plan.title, 'Add a line');
+    expect(plan.status, PlanStatus.awaiting);
+    expect(plan.writes, 1);
+    expect(of<FileEdited>(), isEmpty);
+    expect(of<PlanWritten>().single.path, path);
+
+    kernel.startBuilding();
+    await pumpEventQueue();
+    expect(runtime.agent.sentOf('session/set_mode').last['modeId'], 'default');
+    kernel.send(const KernelTurn(id: 't2', text: 'Go'));
+    await pumpEventQueue();
+    final prompt =
+        runtime.agent.sentOf('session/prompt').last['prompt']! as List;
+    expect((prompt.last as Map)['text'], contains(path));
+    plan = items()['c1']! as PlanItem;
+    expect(plan.status, PlanStatus.approved);
+  });
+
+  test("agy's own notes are not changes to review", () async {
+    kernel = make();
+    await started();
+    kernel.send(const KernelTurn(id: 't1', text: 'go'));
+    await pumpEventQueue();
+    runtime.agent.update({
+      'sessionUpdate': 'tool_call',
+      'toolCallId': 'c1',
+      'name': 'write_file',
+      'kind': 'edit',
+      'status': 'completed',
+      'content': [
+        {
+          'type': 'diff',
+          'path': '/home/me/.gemini/antigravity-cli/brain/s1/task.md',
+          'newText': '- [ ] a',
+        },
+      ],
+    });
+    await pumpEventQueue();
+    expect(items()['c1'], isA<CodeDiffItem>());
+    expect(of<FileEdited>(), isEmpty);
+  });
+
   test("a subagent's card is filled in from its conversation", () async {
     kernel = make();
     await started();
