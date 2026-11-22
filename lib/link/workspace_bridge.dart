@@ -202,6 +202,15 @@ class WorkspaceBridge {
   static String idOf(AgentThread thread) =>
       _ids[thread] ??= thread.id ?? 'new-$_run-${_nextId++}';
 
+  /// [thread]'s session's own id, when the phones know it by another
+  /// ([idOf]: given before it had a session, and kept for the run). That
+  /// is what the agents' tools call it ([SessionTools.idOf]), and so what
+  /// a bot writes in a card of its chat: the phone takes either.
+  static String? _aliasOf(AgentThread thread) => switch (thread.id) {
+    final id? when id != idOf(thread) => id,
+    _ => null,
+  };
+
   /// A conversation's id ([SessionTools.idOf]: its session's, kept across
   /// runs) as the phones know it ([idOf]): a new agent's, given here, until
   /// the run ends.
@@ -293,6 +302,7 @@ class WorkspaceBridge {
         for (final thread in threads.take(maxSessions))
           SessionSummary(
             id: idOf(thread),
+            alias: _aliasOf(thread),
             project: thread.project.path,
             title: thread.localizedTitle(l10n),
             updatedAt: thread.updatedAt,

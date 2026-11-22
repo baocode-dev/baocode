@@ -670,6 +670,7 @@ class SessionSummary {
     this.model,
     this.mode,
     this.permission,
+    this.alias,
   });
 
   factory SessionSummary.fromJson(Map<String, Object?> json) => SessionSummary(
@@ -687,9 +688,16 @@ class SessionSummary {
     model: json['model'] as String?,
     mode: json['mode'] as String?,
     permission: json['permission'] as String?,
+    alias: json['alias'] as String?,
   );
 
   final String id;
+
+  /// What the agents call it, when it is not [id]: a conversation the
+  /// phone was told of before it had a session of its own goes by an id
+  /// given for the run, while the tools (and the bots' cards, which name
+  /// one by the id those give) go by its session's once it has one.
+  final String? alias;
 
   /// Its project's [ProjectInfo.id].
   final String project;
@@ -713,6 +721,7 @@ class SessionSummary {
     'model': ?model,
     'mode': ?mode,
     'permission': ?permission,
+    'alias': ?alias,
   };
 }
 
