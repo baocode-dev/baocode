@@ -112,6 +112,34 @@ void main() {
     },
   );
 
+  test('one deleted goes, in whichever folder agy keeps it', () async {
+    final home = Directory.systemTemp.createTempSync('agy');
+    addTearDown(() => home.deleteSync(recursive: true));
+    final runtime = LocalAgyRuntime(
+      dataDir: '${home.path}/antigravity-cli',
+      stateDir: '${home.path}/state',
+    );
+    final files = [
+      // agy's own, and the Antigravity app's beside it, which agy lists.
+      for (final root in ['antigravity-cli', 'antigravity']) ...[
+        File('${home.path}/$root/conversations/a.db'),
+        File('${home.path}/$root/conversations/a.db-wal'),
+        File('${home.path}/$root/annotations/a.pbtxt'),
+        File('${home.path}/$root/brain/a/plan.md'),
+      ],
+      File('${home.path}/antigravity-cli/conversations/b.db'),
+    ];
+    for (final file in files) {
+      file.createSync(recursive: true);
+    }
+    await runtime.delete('a');
+    expect(
+      [for (final file in files) file.existsSync()],
+      [for (var i = 0; i < 8; i++) false, true],
+    );
+    expect(Directory('${home.path}/antigravity/brain/a').existsSync(), isFalse);
+  });
+
   group('a spare', () {
     late Directory dir;
     late LocalAgyRuntime runtime;
@@ -164,17 +192,5 @@ for line in sys.stdin:
       },
       skip: Platform.isWindows,
     );
-
-    test('one deleted is listed no more, its files left to agy', () async {
-      final kept = File('${dir.path}/conversations/a.db')
-        ..createSync(recursive: true);
-      await runtime.delete('a');
-      expect(await runtime.sessions(), isEmpty);
-      expect(kept.existsSync(), isTrue);
-      expect(
-        File('${dir.path}/state/antigravity/deleted.json').existsSync(),
-        isTrue,
-      );
-    }, skip: Platform.isWindows);
   });
 }
