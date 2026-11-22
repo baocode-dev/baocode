@@ -329,8 +329,8 @@ class AntigravityKernel
 
   /// Shows [run]'s conversation, once: as its reading back goes quiet, or
   /// as agy answers, whichever comes first. Shown early, it is ready to
-  /// the user; a message waits for the answer ([_prompt]), a pick for
-  /// [_applyPicks] after it.
+  /// the user: a pick goes to agy at once (taken mid-load, and in its
+  /// answer), a message waits for the answer ([_prompt]).
   void _readBack(_Run run) {
     if (!identical(_run, run) || run.shown) return;
     run.shown = true;
@@ -523,6 +523,9 @@ class AntigravityKernel
       case 'available_commands_update':
         _commandsFrom(update['availableCommands']);
       case 'current_mode_update':
+        // Read back, it is the conversation's old mode: the user's own
+        // choice is put in effect once loaded ([_applyPicks]).
+        if (_translator.replaying) return;
         if (update['currentModeId'] case final String mode) _modeReported(mode);
       case 'config_option_update':
         _options(update);
@@ -1320,8 +1323,6 @@ class AntigravityKernel
     final mode = _wantedMode;
     final connection = _run?.connection;
     if (connection == null || _sessionId == null || mode == _agyMode) return;
-    // Picked as the session loads: kept, put in effect once it has.
-    if (_run?.loading ?? false) return;
     _agyMode = mode;
     try {
       await connection.request('session/set_mode', {
@@ -1505,7 +1506,8 @@ class AntigravityKernel
     if (!_disposed) emitInfoChanged();
   }
 
-  /// Puts what the user picked in effect in a session just started.
+  /// Puts what the user picked in effect in a session just started: the
+  /// conversation is this app's, whatever it was left on elsewhere.
   Future<void> _applyPicks() async {
     final model = _model;
     if (model != null &&
@@ -1525,8 +1527,6 @@ class AntigravityKernel
   Future<void> _setOption(String id, String value) async {
     final connection = _run?.connection;
     if (connection == null || _sessionId == null) return;
-    // Picked as the session loads: kept, put in effect once it has.
-    if (_run?.loading ?? false) return;
     try {
       final result = await connection.request('session/set_config_option', {
         'sessionId': _sessionId,
@@ -1542,7 +1542,7 @@ class AntigravityKernel
   @override
   late final KernelChoiceSource model = _Choice(
     options: () => _models,
-    selected: () => _currentModel ?? _model,
+    selected: () => _model ?? _currentModel,
     select: (id) {
       _model = id;
       _currentModel = id;
