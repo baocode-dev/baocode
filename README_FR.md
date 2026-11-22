@@ -6,8 +6,6 @@ Une interface de bureau conviviale pour [Claude Code](https://github.com/anthrop
 
 [Site web](https://baocode.dev) · [Télécharger](https://baocode.dev/download) · [Historique des versions](https://baocode.dev/changelog)
 
-![Ce que les utilisateurs disent de BaoCode](docs/readme/reviews.png)
-
 ![BaoCode en mode Agent : des agents sur plusieurs machines, une conversation en cours et sa consommation](https://baocode.dev/readme/agent.webp)
 
 ![BaoCode en mode IDE : l'arborescence et l'éditeur, avec la conversation à côté](https://baocode.dev/readme/ide.webp)

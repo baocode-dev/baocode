@@ -6,8 +6,6 @@
 
 [公式サイト](https://baocode.dev) · [ダウンロード](https://baocode.dev/download) · [変更履歴](https://baocode.dev/changelog)
 
-![BaoCode ユーザーの声](docs/readme/reviews.png)
-
 ![BaoCode の Agent モード：複数マシン上のエージェント、進行中の会話とその使用量](https://baocode.dev/readme/agent.webp)
 
 ![BaoCode の IDE モード：ファイルツリーとエディタ、その横に会話](https://baocode.dev/readme/ide.webp)

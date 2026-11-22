@@ -6,8 +6,6 @@ Una interfaz de escritorio fácil de usar para [Claude Code](https://github.com/
 
 [Sitio web](https://baocode.dev) · [Descargar](https://baocode.dev/download) · [Historial de cambios](https://baocode.dev/changelog)
 
-![Lo que dicen los usuarios de BaoCode](docs/readme/reviews.png)
-
 ![BaoCode en modo Agent: agentes en varias máquinas, una conversación en curso y su consumo](https://baocode.dev/readme/agent.webp)
 
 ![BaoCode en modo IDE: el árbol de archivos y el editor, con la conversación al lado](https://baocode.dev/readme/ide.webp)
