@@ -434,19 +434,34 @@ class LocalAgyRuntime implements AgyRuntime {
         }, at: _endpoints.loadBase),
       );
       final project = {'project': ?load.project};
-      final models = parseAntigravityModels(
-        await call('fetchAvailableModels', project),
-      );
-      Object? summary;
-      try {
-        summary = await call('retrieveUserQuotaSummary', project);
-      } on Object {
-        // Each model's own then.
+      // Consumer accounts are metered at one host, Workspace ones at the
+      // other: both asked.
+      final hosts = [_endpoints.base, _endpoints.loadBase];
+      List<AntigravityModel> models = const [];
+      for (final host in hosts) {
+        try {
+          models = parseAntigravityModels(
+            await call('fetchAvailableModels', project, at: host),
+          );
+          if (models.isNotEmpty) break;
+        } on Object {
+          if (host == hosts.last) rethrow;
+        }
       }
+      final now = DateTime.now();
+      final summaries = await Future.wait([
+        for (final host in hosts)
+          call(
+            'retrieveUserQuotaSummary',
+            project,
+            at: host,
+          ).then<Object?>((summary) => summary, onError: (_) => null),
+      ]);
       final usage = antigravityUsage(
         models: models,
-        summary: summary,
-        now: DateTime.now(),
+        // Each model's own when neither tells.
+        summary: mergeAntigravitySummaries(summaries),
+        now: now,
         plan: load.plan,
       );
       return [
@@ -470,6 +485,15 @@ class LocalAgyRuntime implements AgyRuntime {
 
   @override
   Future<AgyCredentials?> credentials() async {
+    // Without a keychain to keep it in, agy writes it to a file.
+    final file = File(p.join(dataDir, 'antigravity-oauth-token'));
+    if (file.existsSync()) {
+      try {
+        return parseAgyCredentials(await file.readAsString());
+      } on FileSystemException {
+        // The keychain's then.
+      }
+    }
     final secret = await _keychainSecret();
     if (secret == null) return null;
     return parseAgyCredentials(secret);

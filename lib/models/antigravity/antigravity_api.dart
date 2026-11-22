@@ -585,21 +585,20 @@ CodexUsage antigravityUsage({
   String? plan,
 }) {
   final windows = <CodexWindow>[];
-  final groups = switch (summary) {
-    {'groups': final List groups} => groups.whereType<Map>().toList(),
-    _ => const <Map>[],
-  };
+  final groups = _summaryGroups(summary);
   for (final group in groups) {
     final display = group['displayName'];
     if (display is! String || display.trim().isEmpty) continue;
     final pool = antigravityPoolName(display);
     final about = '$display ${group['description'] ?? ''}'.toLowerCase();
-    // A group named for one model ("Gemini 4 Argon") is that model's; one
-    // of a family ("Gemini Models") its family's others.
-    final versioned = RegExp('[0-9]').hasMatch(pool);
+    // A group named for one model ("Gemini 4 Argon") or kind ("Gemini
+    // Argon") is theirs; one of a family ("Gemini Models") its family's
+    // others (and so one naming none of them).
+    final own =
+        _ownPool(pool) && models.any((model) => _poolNames(pool, model));
     final ids = <String>{
       for (final model in models)
-        if (versioned
+        if (own
             ? _poolNames(pool, model)
             : about.contains(_vendorOf(model.id)) &&
                   !groups.any((other) => _ownGroup(other, model))) ...{
@@ -607,8 +606,7 @@ CodexUsage antigravityUsage({
           splitAntigravityId(model.id).$1,
         },
     };
-    for (final bucket
-        in (group['buckets'] as List? ?? const []).whereType<Map>()) {
+    for (final bucket in _bucketsOf(group)) {
       if (bucket['disabled'] == true) continue;
       final minutes = switch ('${bucket['window'] ?? ''}'.toLowerCase()) {
         '5h' => 300,
@@ -619,14 +617,24 @@ CodexUsage antigravityUsage({
         final num fraction => fraction.toDouble(),
         _ => 0.0,
       };
+      var resetsAt = switch (bucket['resetTime']) {
+        final String at => DateTime.tryParse(at),
+        _ => null,
+      };
+      // A bucket not drawn on yet tells a reset a whole window off, which
+      // rolls on with the clock: none, really.
+      if (resetsAt != null &&
+          minutes != null &&
+          left >= 1 &&
+          bucket['description'] == null &&
+          (resetsAt.difference(now).inSeconds - minutes * 60).abs() <= 60) {
+        resetsAt = null;
+      }
       windows.add(
         CodexWindow(
           usedPercent: ((1 - left) * 100).clamp(0, 100).toDouble(),
           minutes: minutes,
-          resetsAt: switch (bucket['resetTime']) {
-            final String at => DateTime.tryParse(at),
-            _ => null,
-          },
+          resetsAt: resetsAt,
           name: minutes == null
               ? [
                   pool,
@@ -676,13 +684,109 @@ CodexUsage antigravityUsage({
   return CodexUsage(at: now, plan: plan, windowList: windows);
 }
 
+/// A summary's groups. Some accounts' summaries hold their buckets loose,
+/// in no group: grouped then by the family each one's id tells.
+List<Map> _summaryGroups(Object? summary) {
+  final groups = switch (summary) {
+    {'groups': final List groups} => groups.whereType<Map>().toList(),
+    _ => <Map>[],
+  };
+  if (groups.any((group) => _bucketsOf(group).isNotEmpty)) return groups;
+  final byFamily = <String, List<Map>>{};
+  for (final bucket in _bucketsOf(summary)) {
+    final id = '${bucket['bucketId'] ?? ''}';
+    final family = id.startsWith('gemini-argon-')
+        ? 'Gemini Argon'
+        : id.startsWith('gemini-carbon-')
+        ? 'Gemini Carbon'
+        : id.startsWith('gemini-')
+        ? 'Gemini Models'
+        : id.startsWith('3p-')
+        ? 'Claude and GPT models'
+        : null;
+    if (family != null) byFamily.putIfAbsent(family, () => []).add(bucket);
+  }
+  return [
+    for (final MapEntry(key: name, value: buckets) in byFamily.entries)
+      {'displayName': name, 'buckets': buckets},
+  ];
+}
+
+List<Map> _bucketsOf(Object? holder) => switch (holder) {
+  {'buckets': final List buckets} => buckets.whereType<Map>().toList(),
+  _ => const [],
+};
+
+/// Summaries from Code Assist's hosts as one. Each host meters some
+/// accounts and shows the others' buckets untouched, and the groups they
+/// tell differ: of a bucket both tell, the one used more is the metering
+/// host's.
+Map<String, Object?> mergeAntigravitySummaries(Iterable<Object?> summaries) {
+  String keyOf(Map bucket) =>
+      '${bucket['bucketId'] ?? '${bucket['window']} ${bucket['displayName']}'}';
+  double leftOf(Map bucket) => switch (bucket['remainingFraction']) {
+    final num fraction => fraction.toDouble(),
+    _ => 0,
+  };
+  void merge(Map<String, Map> into, List<Map> buckets) {
+    for (final bucket in buckets) {
+      final key = keyOf(bucket);
+      final known = into[key];
+      if (known == null || leftOf(bucket) < leftOf(known)) into[key] = bucket;
+    }
+  }
+
+  final groups = <String, Map>{};
+  final bucketsOf = <String, Map<String, Map>>{};
+  final loose = <String, Map>{};
+  for (final summary in summaries) {
+    if (summary is! Map) continue;
+    if (summary['groups'] case final List list) {
+      for (final group in list.whereType<Map>()) {
+        final name = '${group['displayName'] ?? ''}';
+        groups.putIfAbsent(name, () => group);
+        merge(bucketsOf.putIfAbsent(name, () => {}), _bucketsOf(group));
+      }
+    }
+    merge(loose, _bucketsOf(summary));
+  }
+  return {
+    'groups': [
+      for (final MapEntry(key: name, value: group) in groups.entries)
+        {...group, 'buckets': bucketsOf[name]!.values.toList()},
+    ],
+    'buckets': loose.values.toList(),
+  };
+}
+
+/// Whether a pool is of some models alone: one naming a version ("Gemini
+/// 4 Argon") or a kind ("Gemini Argon"), not a family ("Gemini", "Claude
+/// & GPT").
+bool _ownPool(String pool) =>
+    RegExp('[0-9]').hasMatch(pool) ||
+    pool
+        .toLowerCase()
+        .split(RegExp(r'[\s&]+'))
+        .any(
+          (word) =>
+              word.isNotEmpty &&
+              !const {'gemini', 'claude', 'gpt', 'and'}.contains(word),
+        );
+
 bool _poolNames(String pool, AntigravityModel model) {
   final lower = pool.toLowerCase();
+  final versioned = RegExp('[0-9]').hasMatch(pool);
+  final words = lower.split(RegExp(r'\s+')).toSet();
   for (final name in [model.label ?? '', model.id.replaceAll('-', ' ')]) {
     final text = name.toLowerCase();
     if (text == lower ||
         text.startsWith('$lower ') ||
         text.startsWith('$lower(')) {
+      return true;
+    }
+    // A kind's: each of its words in the model's name.
+    if (!versioned &&
+        words.every(text.split(RegExp(r'[\s()]+')).toSet().contains)) {
       return true;
     }
   }
@@ -693,7 +797,7 @@ bool _poolNames(String pool, AntigravityModel model) {
 bool _ownGroup(Map group, AntigravityModel model) =>
     switch (group['displayName']) {
       final String name =>
-        RegExp('[0-9]').hasMatch(antigravityPoolName(name)) &&
+        _ownPool(antigravityPoolName(name)) &&
             _poolNames(antigravityPoolName(name), model),
       _ => false,
     };

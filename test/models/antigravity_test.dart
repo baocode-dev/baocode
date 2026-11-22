@@ -175,6 +175,98 @@ void main() {
       );
     });
 
+    test("a bucket not drawn on yet has no reset: it rolls with the clock", () {
+      final usage = antigravityUsage(
+        models: models,
+        now: now,
+        summary: {
+          'groups': [
+            {
+              'displayName': 'Gemini Models',
+              'buckets': [
+                {
+                  'window': '5h',
+                  'remainingFraction': 1,
+                  'resetTime': '2026-11-21T17:00:20Z',
+                },
+                {
+                  'window': 'weekly',
+                  'remainingFraction': 0.9,
+                  'resetTime': '2026-11-28T12:00:00Z',
+                },
+              ],
+            },
+          ],
+        },
+      );
+      final gemini = usage.windowsFor('gemini-4-neon');
+      expect(gemini.first.resetsAt, isNull);
+      expect(gemini.last.resetsAt, DateTime.utc(2026, 11, 28, 12));
+    });
+
+    test('loose buckets, by the family their ids tell', () {
+      final usage = antigravityUsage(
+        models: models,
+        now: now,
+        summary: {
+          'buckets': [
+            {'bucketId': 'gemini-5h', 'window': '5h', 'remainingFraction': 0.5},
+            {
+              'bucketId': '3p-weekly',
+              'window': 'weekly',
+              'remainingFraction': 0,
+            },
+          ],
+        },
+      );
+      expect(usage.windowsFor('gemini-4-neon').single.usedPercent, 50);
+      final claude = usage.windowsFor('claude-opus-5-5').single;
+      expect(claude.name, 'Claude & GPT');
+      expect(claude.minutes, 10080);
+    });
+
+    test("both hosts' summaries as one, the more used bucket of each", () {
+      final merged = mergeAntigravitySummaries([
+        {
+          'groups': [
+            {
+              'displayName': 'Gemini Models',
+              'buckets': [
+                {'bucketId': 'g-5h', 'window': '5h', 'remainingFraction': 1},
+              ],
+            },
+          ],
+        },
+        null,
+        {
+          'groups': [
+            {
+              'displayName': 'Gemini Models',
+              'buckets': [
+                {'bucketId': 'g-5h', 'window': '5h', 'remainingFraction': 0.4},
+              ],
+            },
+            {
+              'displayName': 'Claude and GPT models',
+              'buckets': [
+                {'bucketId': 'c-5h', 'window': '5h', 'remainingFraction': 0.8},
+              ],
+            },
+          ],
+        },
+      ]);
+      final usage = antigravityUsage(models: models, now: now, summary: merged);
+      expect(usage.windows, hasLength(2));
+      expect(
+        usage.windowsFor('gemini-4-neon').single.usedPercent,
+        closeTo(60, 1e-9),
+      );
+      expect(
+        usage.windowsFor('claude-opus-5-5').single.usedPercent,
+        closeTo(20, 1e-9),
+      );
+    });
+
     test("without groups, each family's own five hours", () {
       final usage = antigravityUsage(models: models, now: now);
       expect(usage.windowsFor('claude-opus-5-5').single.usedPercent, 50);
