@@ -13,6 +13,7 @@ import '../agent_kernel.dart';
 import '../claude_code/claude_sdk_tools.dart';
 import '../kernel_event.dart';
 import '../kernel_types.dart';
+import '../output_meter.dart';
 import 'agy_runtime.dart';
 import 'antigravity_catalog.dart';
 import 'antigravity_translator.dart';
@@ -547,8 +548,51 @@ class AntigravityKernel
         }
         if (_turn == null) _wake();
         _translator.update(update);
+        _meter(update);
         _activity();
     }
+  }
+
+  /// What the turn's model writes, guessed from its text as it streams:
+  /// agy says how much only as the turn ends ([_finish]).
+  final OutputMeter _output = OutputMeter();
+  DateTime? _outputReported;
+  static const _outputEvery = Duration(milliseconds: 250);
+
+  void _meter(Map<String, Object?> update) {
+    switch (update) {
+      case {
+        'sessionUpdate': 'agent_message_chunk',
+        'content': {'text': final String text},
+      }:
+        _output.streamed(text);
+      case {
+        'sessionUpdate': 'agent_thought_chunk',
+        'content': {'text': final String text},
+      }:
+        _output.streamed(text, timed: false);
+      // A call ends the model's request: its time stops till the next.
+      case {
+        'sessionUpdate': 'tool_call',
+        'rawInput': final Map<Object?, Object?> input,
+      }:
+        _output
+          ..streamed(jsonEncode(input))
+          ..endMessage();
+      default:
+        return;
+    }
+    final now = DateTime.now();
+    if (_outputReported case final at? when now.difference(at) < _outputEvery) {
+      return;
+    }
+    _outputReported = now;
+    emit(OutputReported(nextSeq, _output.output));
+  }
+
+  void _meterTurn() {
+    _output.begin();
+    _outputReported = null;
   }
 
   // --- Turns -----------------------------------------------------------------------------
@@ -642,6 +686,7 @@ class AntigravityKernel
     _unprompted = false;
     _turnStarted = DateTime.now();
     _turnText = turn.text.trim();
+    _meterTurn();
     _translator
       ..turnId = turn.id
       ..planning = _work == 'plan'
@@ -718,6 +763,7 @@ class AntigravityKernel
                 _int(usage['cachedReadTokens']) +
                 _int(usage['cachedWriteTokens']),
             outputTokens: _int(usage['outputTokens']),
+            tokensPerSecond: _output.averageSpeed,
           ),
           _ => null,
         },
@@ -758,6 +804,7 @@ class AntigravityKernel
     _unprompted = true;
     _turnStarted = DateTime.now();
     _turnText = null;
+    _meterTurn();
     _translator
       ..turnId = id
       ..begin();

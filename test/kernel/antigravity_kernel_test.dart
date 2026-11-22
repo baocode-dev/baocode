@@ -518,6 +518,10 @@ void main() {
       expect(edit.change.path, '/p/a.txt');
       expect(edit.turnId, 't1');
       expect(edit.original, isA<OriginalByEdits>());
+      // Guessed as it streamed; as agy counted once done.
+      final guessed = of<OutputReported>();
+      expect(guessed, isNotEmpty);
+      expect(guessed.first.output.tokens, greaterThan(0));
       final ended = of<TurnEnded>().single;
       expect(ended.turnId, 't1');
       expect(ended.interrupted, isFalse);
