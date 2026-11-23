@@ -1,5 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
+
+import 'package:baocode/chat/widgets/web_step_icons.dart';
+
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -654,6 +657,61 @@ void main() {
       // It says it in words of its own: "Said …".
       expect(items.map((item) => item.label), everyElement(isNull));
       expect(toolVerb(ToolKind.message), 'Said');
+    });
+
+    test("a web search's long result keeps its Links line whole", () {
+      final transcript = Transcript();
+      var seq = 0;
+      final translator = ClaudeTranslator(
+        emit: transcript.apply,
+        nextSeq: () => ++seq,
+      )..turnId = '11111111-1111-4111-8111-111111111111';
+      // Fifteen results with long redirect URLs: the list alone runs past
+      // the 2000 characters an output is cut to.
+      final links = jsonEncode([
+        for (var i = 0; i < 15; i++)
+          {
+            'title': 'Result $i',
+            'url': 'https://site$i.example/go/${'x' * 180}',
+          },
+      ]);
+      final result =
+          'Web search results for query: "q"\n\nLinks: $links\n\n'
+          '${'Summary line.\n' * 200}';
+      translator
+        ..translate({
+          'type': 'assistant',
+          'parent_tool_use_id': null,
+          'message': {
+            'id': 'msg-w1',
+            'role': 'assistant',
+            'content': [
+              {
+                'type': 'tool_use',
+                'id': 'w1',
+                'name': 'WebSearch',
+                'input': {'query': 'q'},
+              },
+            ],
+          },
+        })
+        ..translate({
+          'type': 'user',
+          'parent_tool_use_id': null,
+          'message': {
+            'role': 'user',
+            'content': [
+              {'type': 'tool_result', 'tool_use_id': 'w1', 'content': result},
+            ],
+          },
+        });
+      final item = [
+        for (var i = 0; i < transcript.length; i++) transcript.itemAt(i),
+      ].whereType<ToolCallItem>().single;
+      expect(item.output, contains('Links: $links'));
+      expect(item.output, endsWith(links));
+      expect(item.output!.length, lessThan(result.length));
+      expect(webSearchResultSites(item.output), hasLength(15));
     });
 
     test('todos written read as a step: the list its text', () {
