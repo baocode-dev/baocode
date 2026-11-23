@@ -121,6 +121,27 @@ void main() {
     );
   }, variant: _mac);
 
+  testWidgets('what is typed goes along to the folder picked after it', (
+    tester,
+  ) async {
+    final workspace = await _pumpNew(tester);
+    workspace.selected.session.draft.save(
+      'fix the build',
+      const TextSelection.collapsed(offset: 13),
+      const [],
+    );
+    await tester.pump();
+    await tester.tap(find.descendant(of: _bar, matching: find.text('baocode')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('No folder'));
+    await tester.pumpAndSettle();
+
+    final moved = workspace.selected;
+    expect(moved.project.path, _desktop);
+    expect(moved.session.draft.content, 'fix the build');
+    expect(find.text('fix the build', findRichText: true), findsOneWidget);
+  }, variant: _mac);
+
   testWidgets('a folder picked in Finder becomes its project', (tester) async {
     final workspace = await _pumpNew(tester);
     NewChatFolderBar.pickDirectory = () async => '/tmp/picked';

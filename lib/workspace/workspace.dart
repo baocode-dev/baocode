@@ -559,7 +559,8 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
 
   /// Has [thread], a new agent nothing was sent to yet, work in [path]
   /// instead: a new agent there (an untouched one reused) takes its pane,
-  /// and it goes. [path] is opened as a project if it was not one.
+  /// and it goes. [path] is opened as a project if it was not one. What is
+  /// typed goes along: the project is often picked after it.
   AgentThread moveNew(AgentThread thread, String path) {
     final project = _openProject(path);
     if (project == thread.project || !_threads.contains(thread)) {
@@ -568,6 +569,10 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     // Into its pane: the focused one is what [create] shows the new in.
     if (_grid.contains(thread)) _focus(thread);
     final moved = create(project: project);
+    final draft = thread.session.draft;
+    if (draft.content?.trim().isNotEmpty ?? false) {
+      moved.session.draft.save(draft.content!, draft.selection, draft.images);
+    }
     if (_isUntouched(thread)) _discard(thread);
     return moved;
   }
