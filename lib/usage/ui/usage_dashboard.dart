@@ -115,13 +115,18 @@ class _UsageSettingsPageState extends State<UsageSettingsPage> {
   UsageSummary? _summary;
   bool _loading = true;
   int _loadedVersion = -1;
+  int _settingsVersion = 0;
   UsageSpace? _space;
   Timer? _reload;
+
+  /// Since when the calls shown are out of date, a reload put off.
+  DateTime? _staleSince;
 
   @override
   void initState() {
     super.initState();
     _ledger.addListener(_changed);
+    _settingsVersion = _ledger.settingsVersion;
     UsagePrices.current.addListener(_repriced);
     unawaited(_load());
   }
@@ -132,6 +137,7 @@ class _UsageSettingsPageState extends State<UsageSettingsPage> {
     if (old.ledger != widget.ledger) {
       (old.ledger ?? UsageLedger.current).removeListener(_changed);
       _ledger.addListener(_changed);
+      _settingsVersion = _ledger.settingsVersion;
       unawaited(_load());
     }
   }
@@ -147,15 +153,29 @@ class _UsageSettingsPageState extends State<UsageSettingsPage> {
   /// The costs, at the prices as they are now.
   void _repriced() => setState(_summarize);
 
+  /// The ledger told of something: only what it concerns is done. A call
+  /// begun or over is nothing to it; summing a week's calls up each time
+  /// one did, with subagents at work, froze the page.
   void _changed() {
-    if (_ledger.version == _loadedVersion) {
-      // Its choices: those beside the conversation shown or not.
-      setState(_summarize);
+    final ledger = _ledger;
+    final settings = ledger.settingsVersion != _settingsVersion;
+    _settingsVersion = ledger.settingsVersion;
+    if (ledger.version != _loadedVersion) {
+      // Calls come in bursts: read once they settle; but not put off for
+      // ever while they keep coming.
+      final now = DateTime.now();
+      final since = _staleSince ??= now;
+      _reload?.cancel();
+      if (now.difference(since) >= const Duration(seconds: 3)) {
+        _reload = null;
+        unawaited(_load());
+      } else {
+        _reload = Timer(const Duration(milliseconds: 800), () => _load());
+      }
       return;
     }
-    // Calls come in bursts: read once they settle.
-    _reload?.cancel();
-    _reload = Timer(const Duration(milliseconds: 800), () => _load());
+    // Its choices: those beside the conversation shown or not.
+    if (settings) setState(_summarize);
   }
 
   ({DateTime? from, DateTime? until}) get _time {
@@ -167,6 +187,7 @@ class _UsageSettingsPageState extends State<UsageSettingsPage> {
 
   Future<void> _load() async {
     final version = _ledger.version;
+    _staleSince = null;
     final time = _time;
     final calls = await _ledger.range(from: time.from, until: time.until);
     final space = await _ledger.space();

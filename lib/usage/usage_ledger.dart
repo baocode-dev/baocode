@@ -259,9 +259,17 @@ class UsageLedger extends ChangeNotifier {
     retentionDays = days;
     trace = tracing;
     showAuxiliary = auxiliary;
+    _settingsVersion++;
     if (shorter) unawaited(prune());
     notifyListeners();
   }
+
+  /// Grows as its choices ([enabled], [detailed], [retentionDays], [trace],
+  /// [showAuxiliary]) change: what is shown under them is to be summed up
+  /// again. Pages told compare it, and [version] and [underwayVersion], with
+  /// what they last saw, and do only what each asks.
+  int get settingsVersion => _settingsVersion;
+  int _settingsVersion = 0;
 
   /// Keeps [key]'s [value] in settings.json (null: its default).
   Future<void> save(String key, Object? value) async {
@@ -279,6 +287,7 @@ class UsageLedger extends ChangeNotifier {
         case auxiliaryKey:
           showAuxiliary = value == true;
       }
+      _settingsVersion++;
       notifyListeners();
       return;
     }
@@ -388,6 +397,13 @@ class UsageLedger extends ChangeNotifier {
 
   void _changed() {
     _version++;
+    _notifySoon();
+  }
+
+  /// Tells the listeners once for a burst: with subagents at work, calls
+  /// begin, are kept and end many times a second, and each page told sums
+  /// its calls up again.
+  void _notifySoon() {
     _notify ??= Timer(const Duration(milliseconds: 250), () {
       _notify = null;
       notifyListeners();
@@ -421,16 +437,25 @@ class UsageLedger extends ChangeNotifier {
   /// them: what each is so far. Not kept: only shown, till it is.
   final Map<Object, UsageCall Function()> _underway = {};
 
+  /// Grows as calls [begin] and [end]: what is under way is out of date.
+  /// (What each is so far changes all along: asked again, see
+  /// [underway].)
+  int get underwayVersion => _underwayVersion;
+  int _underwayVersion = 0;
+
   /// [key]'s call is under way, [progress] telling what it is so far.
   void begin(Object key, UsageCall Function() progress) {
     if (!enabled) return;
     _underway[key] = progress;
-    notifyListeners();
+    _underwayVersion++;
+    _notifySoon();
   }
 
   /// [key]'s call is over: kept ([record]) first, where it is.
   void end(Object key) {
-    if (_underway.remove(key) != null) notifyListeners();
+    if (_underway.remove(key) == null) return;
+    _underwayVersion++;
+    _notifySoon();
   }
 
   /// The calls under way, as they are now: [session]'s (all, without it),
