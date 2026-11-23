@@ -226,8 +226,7 @@
     @media (max-width: 560px) {
       .voices-head { margin-bottom: 16px; }
       .voice-row { gap: 10px; padding: 5px 0; align-items: center; }
-      .voice { width: 228px; gap: 8px; padding: 12px 14px 13px; border-radius: 12px; }
-      .voice.is-long { width: 280px; }
+      .voice, .voice.is-long { width: 250px; gap: 8px; padding: 12px 14px 13px; border-radius: 12px; }
       .voice-av { width: 24px; height: 24px; font-size: 11px; }
       .voice-av iconify-icon { font-size: 14px; }
       .voice-name { font-size: 12.5px; }
@@ -522,7 +521,7 @@
     @media (max-width: 1080px) {
       .foot-in { flex-wrap: wrap; gap: 12px 24px; }
       .foot-note { order: 3; flex-basis: 100%; }
-      .foot-links { flex-wrap: wrap; gap: 10px 20px; }
+      .foot-links { flex: 0 1 auto; min-width: 0; max-width: 100%; flex-wrap: wrap; gap: 10px 20px; }
     }
 
     @media (max-width: 1040px) {
