@@ -270,6 +270,26 @@ void main() {
         const FileLink('/D:/other/a.dart').resolveIn(r'C:\p', paths: windows),
         r'D:\other\a.dart',
       );
+      // Git Bash's `/e/…` (issue #1145), not `\e\…` on the current drive.
+      expect(
+        const FileLink('/e/project/a.sql').resolveIn(r'C:\p', paths: windows),
+        r'E:\project\a.sql',
+      );
+      expect(
+        const FileLink('/cygdrive/e/a.sql').resolveIn(r'C:\p', paths: windows),
+        r'E:\a.sql',
+      );
+      expect(const FileLink('/e').resolveIn(r'C:\p', paths: windows), r'E:\');
+      // A folder's name longer than a letter is not a drive.
+      expect(
+        const FileLink('/etc/a.conf').resolveIn(r'C:\p', paths: windows),
+        r'\etc\a.conf',
+      );
+      // Not on macOS or Linux, where `/e` is a folder.
+      expect(
+        const FileLink('/e/a.sql').resolveIn('/p', paths: p.posix),
+        '/e/a.sql',
+      );
     });
   });
 

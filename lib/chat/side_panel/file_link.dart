@@ -1,5 +1,7 @@
 import 'package:path/path.dart' as p;
 
+import '../../platform/native_path.dart';
+
 /// Lines of a file, from 1: [start] to [end], at [column] (from 1) when
 /// one is said.
 class FileLineRange {
@@ -173,9 +175,7 @@ class FileLink {
   }) {
     final context = paths ?? p.context;
     if (path.isEmpty) return null;
-    // `/C:/a.dart` (a code citation's, inline code's): rooted at no drive
-    // on Windows, where it is the drive's.
-    var expanded = context.style == p.Style.windows ? _driveOf(path) : path;
+    var expanded = nativePath(path, context);
     if (path.startsWith('~')) {
       final rest = path.substring(1);
       if (home == null || home.isEmpty) return null;

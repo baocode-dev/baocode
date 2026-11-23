@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
+import '../../platform/native_path.dart';
 import '../../remote/remote_location.dart';
 import '../chat_models.dart';
 import 'review_store.dart';
@@ -913,6 +914,7 @@ class ChangeReview extends ChangeNotifier {
   /// [path] (absolute, or relative to [root]) absolute, normalized, and in
   /// [root] where it is in [realRoot].
   String _key(String path) {
+    path = nativePath(path, _paths);
     final absolute = _paths.normalize(
       _paths.isAbsolute(path)
           ? path

@@ -24,6 +24,7 @@ import '../customize/customizations.dart';
 import '../ide/file_service.dart';
 import '../kernel/agent_kernel.dart' show KernelChoiceKind;
 import '../kernel/kernel_types.dart';
+import '../platform/native_path.dart';
 import '../remote/project_host.dart';
 import '../remote/ssh_host.dart';
 import '../workspace/session_tools.dart';
@@ -1187,6 +1188,7 @@ class WorkspaceBridge {
   /// user's own, and opens what they would here. Null for one not full.
   String? _anywhere(Project project, String path) {
     final paths = _filesOf(project).paths;
+    path = nativePath(path, paths);
     return paths.isAbsolute(path) ? paths.normalize(path) : null;
   }
 
@@ -1422,7 +1424,9 @@ class WorkspaceBridge {
     final paths = params['paths'];
     if (paths is! List) return null;
     return {
-      for (final path in paths.whereType<String>())
+      for (final path in paths.whereType<String>().map(
+        (path) => nativePath(path, session.paths),
+      ))
         session.paths.isAbsolute(path) || session.root == null
             ? path
             : session.paths.join(session.root!, path),

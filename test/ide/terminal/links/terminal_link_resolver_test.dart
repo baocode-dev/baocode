@@ -123,11 +123,14 @@ void main() {
       await resolver.resolve('~/foo', '');
       await resolver.resolve(r'\\?\C:\foo', '');
       await resolver.resolve('file:///c:/foo/bar%20baz', '');
+      // Git Bash's way of writing a drive.
+      await resolver.resolve('/e/foo/bar.sql', '');
       expect(stats, [
         r'C:\Parent\foo',
         r'C:\Home\foo',
         r'C:\foo',
         r'c:\foo\bar baz',
+        r'E:\foo\bar.sql',
       ]);
     });
   });

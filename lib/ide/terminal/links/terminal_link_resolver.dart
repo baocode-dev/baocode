@@ -17,7 +17,8 @@
 // dart:io's by default (none on the web, where nothing resolves).
 //
 // Deviations: no remote terminals (`vscode-remote` URIs) and no WSL `/mnt/`
-// paths (upstream asks the backend's `wslpath`); `\\wsl$\` paths are left as
+// paths (upstream asks the backend's `wslpath`), but Git Bash's `/c/x` is
+// `C:/x` on Windows; `\\wsl$\` paths are left as
 // they are when the process's OS is Windows (upstream: when the app runs on
 // Windows). The cache is keyed by the directory as well as the link (the
 // cwd can change), and expires 10 s after the last write by a clock instead
@@ -26,6 +27,7 @@
 
 import 'package:path/path.dart' as p;
 
+import '../../../platform/native_path.dart';
 import 'terminal_link_parsing.dart';
 import 'terminal_link_resolver_stub.dart'
     if (dart.library.io) 'terminal_link_resolver_io.dart'
@@ -208,6 +210,9 @@ class TerminalFileLinkResolver implements TerminalLinkResolver {
         return null;
       }
       link = joinPath(osPath, userHome, link.substring(1));
+    } else if (os == OperatingSystem.windows && link[0] == '/') {
+      // Git Bash's `/c/x` -> `C:/x`
+      link = nativePath(link, osPath);
     } else if (link[0] != '/' && link[0] != '~') {
       // Resolve workspace path . | .. | <relative_path> -> <path>/. |
       // <path>/.. | <path>/<relative_path>
