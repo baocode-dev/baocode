@@ -54,7 +54,6 @@ import 'icons/emoji_sheet.dart';
 import 'icons/icon_library.dart';
 import 'icons/icon_storage.dart';
 import 'icons/site_icons.dart';
-import 'kernel/antigravity/agy_runtime.dart';
 import 'kernel/claude_code/claude_code_kernel.dart';
 import 'kernel/claude_code/claude_core_setting.dart';
 import 'kernel/claude_code/claude_onboarding.dart';
@@ -918,7 +917,6 @@ class _BaoCodeAppState extends State<BaoCodeApp>
       }
       await Future.wait([
         stopClaudeProcesses(),
-        AgyRuntime.local.stopAll(),
         RemoteClaudeTransport.stopAll(),
         stopModelProxy(),
         stopLspProcesses(),
