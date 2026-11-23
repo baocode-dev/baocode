@@ -210,11 +210,12 @@
     .voice-src { display: inline-flex; align-items: center; gap: 4px; font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); white-space: nowrap; }
     .voice p { margin: 0; font-size: 13.5px; line-height: 1.65; color: var(--ink-2); }
     @media (prefers-reduced-motion: reduce) { .voice-row { animation: none; } }
-    /* A phone: smaller cards, each as tall as its own words. */
+    /* A phone: smaller cards, all one size, the words cut at three lines. */
     @media (max-width: 560px) {
       .voices-head { margin-bottom: 16px; }
-      .voice-row { gap: 10px; padding: 5px 0; align-items: center; }
-      .voice, .voice.is-long { width: 250px; gap: 8px; padding: 12px 14px 13px; border-radius: 12px; }
+      .voice-row { gap: 10px; padding: 5px 0; }
+      .voice, .voice.is-long { width: 250px; height: 118px; gap: 8px; padding: 12px 14px 13px; border-radius: 12px; }
+      .voice p { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
       .voice-av { width: 24px; height: 24px; font-size: 11px; }
       .voice-av iconify-icon { font-size: 14px; }
       .voice-name { font-size: 12.5px; }
