@@ -597,8 +597,12 @@ class ClaudeCodeKernel
       // Through the proxy, the effort goes with the model's name; to
       // Anthropic's API, as Claude Code's own, if it is one of its.
       final direct = custom == null || !custom.$1.protocolOf(custom.$2).proxied;
+      // Antigravity's: on its CLI, which needs no environment of ours.
+      final agy =
+          custom != null &&
+          custom.$1.protocolOf(custom.$2) == ProviderProtocol.agy;
       Map<String, String>? env;
-      if ((custom, model) case ((final provider, _), final model?)) {
+      if ((custom, model) case ((final provider, _), final model?) when !agy) {
         try {
           env = {
             // The window picked, as the model's own: else the CLI holds
@@ -629,7 +633,9 @@ class ClaudeCodeKernel
           // Plan is entered once started.
           permissionMode: _cliMode = _cliApproval,
           autoModeDuringPlan: _planReviewed = _reviewsPlan,
-          effort: direct && (custom == null || _cliEfforts.contains(effort))
+          effort:
+              agy ||
+                  (direct && (custom == null || _cliEfforts.contains(effort)))
               ? effort
               : null,
           thinking: custom != null && direct && effort == 'none' ? false : null,
@@ -640,6 +646,7 @@ class ClaudeCodeKernel
           // Antigravity's models on BaoCode's own core alone: the session's,
           // or those its roles pick (a subagent's).
           builtinCore: custom != null && _providers.builtinCoreOnly(custom.$1),
+          agy: agy,
           directories: [...?workspace?.folders, ...?workspace?.reaches],
           folderInstructions: workspace?.folders.isNotEmpty ?? false,
           // Long pastes are kept on this machine: only its agent reads them.
@@ -3292,6 +3299,20 @@ class ClaudeCodeKernel
   /// The provider and model of the user's [_model] picks, if it is one.
   (ModelProvider, ProviderModel)? get _custom => _providers.resolve(_model);
 
+  /// Whether the model picked is Antigravity's, run on its CLI.
+  bool get _onAgy => switch (_custom) {
+    (final provider, final info) =>
+      provider.protocolOf(info) == ProviderProtocol.agy,
+    null => false,
+  };
+
+  /// Whether Antigravity's models are offered here: on this machine's
+  /// projects, not over SSH; not to a bot, which works unwatched.
+  bool get _agyOffered =>
+      !RemoteLocation.isRemote(_cwd) &&
+      _workspace?.tools == null &&
+      !(_workspace?.approvesAll ?? false);
+
   /// What a session on [model] is started on: '' for Claude Code as the
   /// user set it up, else the provider and its setup.
   String _providerKeyOf(String? model) => switch (_providers.resolve(model)) {
@@ -3522,7 +3543,11 @@ class ClaudeCodeKernel
   @override
   late final KernelChoiceSource model = _Choice(
     options: () {
-      final providers = _providers.enabled;
+      final providers = [
+        for (final provider in _providers.enabled)
+          if (provider.protocol != ProviderProtocol.agy || _agyOffered)
+            provider,
+      ];
       return [
         // Shown unless turned off in Settings → Models; never on BaoCode's
         // own core, which runs on the upstreams alone.
@@ -3773,7 +3798,7 @@ class ClaudeCodeKernel
 
   /// The CLI's permission mode for what is picked: the approvals, but in
   /// Plan.
-  String get _mode => _work == 'plan' ? 'plan' : _cliApproval;
+  String get _mode => _work == 'plan' && !_onAgy ? 'plan' : _cliApproval;
 
   /// The CLI's mode for the approvals picked. Full access is not the
   /// CLI's bypassPermissions, which it refuses as root and cannot switch
@@ -3852,7 +3877,11 @@ class ClaudeCodeKernel
 
   @override
   late final KernelChoiceSource mode = _Choice(
-    options: () => _works,
+    // No Plan on Antigravity's models yet.
+    options: () => [
+      for (final option in _works)
+        if (option.id != 'plan' || !_onAgy) option,
+    ],
     selected: () => _work,
     select: (id) {
       _work = id;

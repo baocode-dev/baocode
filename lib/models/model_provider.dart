@@ -25,7 +25,12 @@ enum ProviderProtocol {
   /// Google's Antigravity, signed in with Google accounts (OAuth), not a
   /// key: through the local proxy, as Gemini's Code Assist; on BaoCode's
   /// own core only.
-  antigravity('antigravity');
+  antigravity('antigravity'),
+
+  /// Google's Antigravity CLI (`agy`), which BaoCode installs and drives
+  /// over the Agent Client Protocol: its own agent runs the conversation's
+  /// turns on its models, signed in as agy is (see AgyTransport).
+  agy('antigravity-cli');
 
   const ProviderProtocol(this.id);
 
@@ -33,11 +38,16 @@ enum ProviderProtocol {
   final String id;
 
   /// Spoken to through the proxy ([ModelProxy]).
-  bool get proxied => this != anthropic;
+  bool get proxied => this != anthropic && this != agy;
 
   /// Signed in to with accounts ([ModelProvider.accounts]), not a key and
   /// a base URL.
   bool get usesAccounts => this == codex || this == antigravity;
+
+  /// Whether an upstream may be switched to it: Antigravity no longer, as
+  /// Google's terms forbid it outside its own tools; those that speak it
+  /// already keep it. Its CLI ([agy]), Google's own tool, may be.
+  bool get selectable => this != antigravity;
 
   /// Those a model may be spoken to at instead of its upstream's
   /// ([ProviderModel.protocol]): at the same base URL and key, so not
@@ -738,8 +748,10 @@ class ModelProvider {
             '';
 
   /// Whether it has what it is reached with: a base URL, or an account.
-  bool get connected =>
-      protocol.usesAccounts ? accounts.isNotEmpty : host.isNotEmpty;
+  bool get connected => protocol.usesAccounts
+      ? accounts.isNotEmpty
+      // Antigravity's CLI: reached on this machine, signed in there.
+      : protocol == ProviderProtocol.agy || host.isNotEmpty;
 
   ProviderAccount? account(String id) =>
       accounts.where((account) => account.id == id).firstOrNull;

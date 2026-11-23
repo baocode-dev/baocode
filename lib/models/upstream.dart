@@ -93,6 +93,8 @@ abstract final class UpstreamUrls {
         ProviderProtocol.codex => [const CodexEndpoints().models],
         // Listed by its accounts (AntigravityAccounts.listModels).
         ProviderProtocol.antigravity => const [],
+        // Listed by agy itself (AgyRuntime.models).
+        ProviderProtocol.agy => const [],
         ProviderProtocol.anthropic => switch (anthropicBase(provider.baseUrl)) {
           final base? => _anthropicModels(Uri.parse(base)),
           null => const [],
@@ -158,7 +160,8 @@ abstract final class UpstreamUrls {
             ProviderProtocol.openaiResponses => Uri.parse('$base/responses'),
             ProviderProtocol.anthropic ||
             ProviderProtocol.codex ||
-            ProviderProtocol.antigravity => null,
+            ProviderProtocol.antigravity ||
+            ProviderProtocol.agy => null,
           },
           null => null,
         };

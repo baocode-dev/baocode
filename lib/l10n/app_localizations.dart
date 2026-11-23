@@ -11475,6 +11475,96 @@ abstract class AppLocalizations {
   /// **'The key could not be kept: {error}'**
   String modelsApiKeyError(String error);
 
+  /// No description provided for @agyCli.
+  ///
+  /// In en, this message translates to:
+  /// **'Antigravity CLI'**
+  String get agyCli;
+
+  /// No description provided for @agyCliDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Google\'s own Antigravity CLI, which BaoCode installs and keeps up to date. Its conversations are kept apart from the terminal\'s agy.'**
+  String get agyCliDescription;
+
+  /// No description provided for @agyVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'Version {version}'**
+  String agyVersion(String version);
+
+  /// No description provided for @agyNotInstalled.
+  ///
+  /// In en, this message translates to:
+  /// **'Not installed'**
+  String get agyNotInstalled;
+
+  /// No description provided for @agyUpdateAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Version {version} is out'**
+  String agyUpdateAvailable(String version);
+
+  /// No description provided for @agyInstall.
+  ///
+  /// In en, this message translates to:
+  /// **'Install'**
+  String get agyInstall;
+
+  /// No description provided for @agyUpdate.
+  ///
+  /// In en, this message translates to:
+  /// **'Update'**
+  String get agyUpdate;
+
+  /// No description provided for @agyInstalling.
+  ///
+  /// In en, this message translates to:
+  /// **'Installing… {percent}%'**
+  String agyInstalling(int percent);
+
+  /// No description provided for @agyAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Google Account'**
+  String get agyAccount;
+
+  /// No description provided for @agyAccountDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Signing in opens the browser. The sign-in is the terminal\'s agy\'s too: signing out signs it out as well.'**
+  String get agyAccountDescription;
+
+  /// No description provided for @agySignIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign In'**
+  String get agySignIn;
+
+  /// No description provided for @agySignOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign Out'**
+  String get agySignOut;
+
+  /// No description provided for @agySigningIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for the browser…'**
+  String get agySigningIn;
+
+  /// No description provided for @agySignedIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Signed in: {count} models'**
+  String agySignedIn(int count);
+
+  /// No description provided for @agyNotSignedIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Not signed in'**
+  String get agyNotSignedIn;
+
   /// No description provided for @modelsTest.
   ///
   /// In en, this message translates to:

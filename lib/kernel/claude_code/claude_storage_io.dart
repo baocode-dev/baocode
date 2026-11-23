@@ -2,6 +2,7 @@ import 'package:bao_remote/local.dart';
 import 'package:path/path.dart' as p;
 
 import '../../platform/data_dir.dart';
+import '../antigravity/agy_transport_io.dart';
 import '../agent_kernel.dart';
 
 /// Claude Code's own record of its sessions on this machine (see
@@ -31,7 +32,19 @@ class ClaudeStorage implements SessionCatalog, MovesSessions {
   );
 
   @override
-  Future<void> delete(String id) => _sessions.delete(id);
+  Future<void> delete(String id) async {
+    // What Antigravity kept of it, if it ran there: its process ended,
+    // its files gone with the conversation's.
+    try {
+      await AgyTransport.forget(
+        id,
+        configDir ?? await ClaudeEnvironment.configDir(),
+      );
+    } on Object {
+      // The conversation goes all the same.
+    }
+    await _sessions.delete(id);
+  }
 
   @override
   Future<int> moveSessions(String from, String to) => _sessions.move(from, to);

@@ -7126,6 +7126,61 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get agyCli => 'Antigravity CLI';
+
+  @override
+  String get agyCliDescription =>
+      'Google\'s own Antigravity CLI, which BaoCode installs and keeps up to date. Its conversations are kept apart from the terminal\'s agy.';
+
+  @override
+  String agyVersion(String version) {
+    return 'Version $version';
+  }
+
+  @override
+  String get agyNotInstalled => 'Not installed';
+
+  @override
+  String agyUpdateAvailable(String version) {
+    return 'Version $version is out';
+  }
+
+  @override
+  String get agyInstall => 'Install';
+
+  @override
+  String get agyUpdate => 'Update';
+
+  @override
+  String agyInstalling(int percent) {
+    return 'Installing… $percent%';
+  }
+
+  @override
+  String get agyAccount => 'Google Account';
+
+  @override
+  String get agyAccountDescription =>
+      'Signing in opens the browser. The sign-in is the terminal\'s agy\'s too: signing out signs it out as well.';
+
+  @override
+  String get agySignIn => 'Sign In';
+
+  @override
+  String get agySignOut => 'Sign Out';
+
+  @override
+  String get agySigningIn => 'Waiting for the browser…';
+
+  @override
+  String agySignedIn(int count) {
+    return 'Signed in: $count models';
+  }
+
+  @override
+  String get agyNotSignedIn => 'Not signed in';
+
+  @override
   String get modelsTest => 'Test Connection';
 
   @override
