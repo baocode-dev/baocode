@@ -130,6 +130,45 @@ Widget webSiteFavicon(IconImage image, {double size = 16}) => ClipOval(
   ),
 );
 
+/// How dark a favicon may be and still read on the dark surface, and how
+/// light it may be and do the same: below the first it stands on a light
+/// plate, above the second on a dark one.
+const _darkFavicon = 0.3;
+const _lightFavicon = 0.7;
+
+/// Renders a fetched site's favicon in a step's row, on a plate picked by
+/// how light it is ([IconImage.luminance]): a dark mark (GitHub's) on a
+/// light one, a light mark on a dark one, anything between (or one whose
+/// light is not known) on the faint plate the folded header's badges have.
+/// [size] is the plate's, its 1px ring's included.
+Widget webSiteFaviconBadge(IconImage image, {double size = 18}) {
+  final surface = AppColors.conversationSurface;
+  final (plate, ring) = switch (image.luminance) {
+    final light? when light < _darkFavicon => (
+      Color.alphaBlend(Colors.white.withValues(alpha: 0.92), surface),
+      Colors.black.withValues(alpha: 0.12),
+    ),
+    final light? when light > _lightFavicon => (
+      Color.alphaBlend(Colors.black.withValues(alpha: 0.5), surface),
+      AppColors.text.withValues(alpha: 0.2),
+    ),
+    _ => (
+      Color.alphaBlend(AppColors.text.withValues(alpha: 0.08), surface),
+      AppColors.text.withValues(alpha: 0.12),
+    ),
+  };
+  return Container(
+    width: size,
+    height: size,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      color: plate,
+      border: Border.all(color: ring),
+    ),
+    child: ClipOval(child: IconImageView(image, size: size - 2)),
+  );
+}
+
 /// Smoothly cross-fades and subtly scales when a site's favicon replaces the
 /// fallback globe icon.
 Widget webIconSwitcher({

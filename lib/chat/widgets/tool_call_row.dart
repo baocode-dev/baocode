@@ -206,7 +206,7 @@ class ToolCallRow extends StatelessWidget {
                         )
                       : KeyedSubtree(
                           key: const ValueKey('favicon'),
-                          child: webSiteFavicon(siteIcon),
+                          child: webSiteFaviconBadge(siteIcon),
                         ),
                 ),
               );
