@@ -37,16 +37,51 @@ final _domainHostPattern = RegExp(
   caseSensitive: false,
 );
 
+/// A `"url":"…"` pair in a results list, for one cut short of valid JSON.
+final _urlPairPattern = RegExp(r'"url"\s*:\s*"(https?://[^"\\]+)"');
+
+/// Whether [url] is a search engine's own redirect to a result: no site
+/// of its own to show (Brave's `/go/`, 360's and Sogou's `/link`, Bing's
+/// `/ck/a`, DuckDuckGo's `/l/`).
+bool _isEngineRedirect(Uri url) {
+  final host = url.host.toLowerCase();
+  final path = url.path;
+  bool at(String domain) => host == domain || host.endsWith('.$domain');
+  return (at('brave.com') && path.startsWith('/go/')) ||
+      ((at('so.com') || at('sogou.com')) && path.startsWith('/link')) ||
+      (at('bing.com') && path.startsWith('/ck/')) ||
+      (at('duckduckgo.com') && path.startsWith('/l/'));
+}
+
 /// Extracts deduplicated source sites from a `WebSearch` tool's [output]
 /// (`Results: [...]` from bao_agent or `Links: [...]` from Claude Code CLI).
 ///
 /// Google Grounding redirect URLs (`vertexaisearch.cloud.google.com`) carry the
 /// real domain in their `title` field; when `title` is a valid hostname, it is
-/// used as the site so its favicon can be fetched.
+/// used as the site so its favicon can be fetched. A search engine's own
+/// redirect links are skipped: their site is the engine's, not the result's.
+/// A list cut short (an output shortened for showing) still gives the sites
+/// of the entries that survived whole.
 List<Uri> webSearchResultSites(String? output) {
   if (output == null || output.isEmpty) return const [];
   final sites = <Uri>[];
   final hosts = <String>{};
+  void add(String url, {Object? title}) {
+    final raw = webFetchSite(url);
+    if (raw == null) return;
+    final Uri site;
+    if (raw.host.toLowerCase() == _groundingRedirectHost) {
+      final candidate = title is String ? title.trim() : '';
+      if (!_domainHostPattern.hasMatch(candidate)) return;
+      site = Uri.https(candidate.toLowerCase());
+    } else if (_isEngineRedirect(raw)) {
+      return;
+    } else {
+      site = raw;
+    }
+    if (hosts.add(site.host.toLowerCase())) sites.add(site);
+  }
+
   for (final line in const LineSplitter().convert(output)) {
     final trimmed = line.trim();
     final String? payload;
@@ -58,30 +93,21 @@ List<Uri> webSearchResultSites(String? output) {
       continue;
     }
     if (payload.isEmpty || !payload.startsWith('[')) continue;
-    final Object? decoded;
+    Object? decoded;
     try {
       decoded = jsonDecode(payload);
     } on FormatException {
-      continue;
+      decoded = null;
     }
-    if (decoded is! List) continue;
-    for (final entry in decoded) {
-      if (entry is! Map) continue;
-      final url = entry['url'];
-      if (url is! String) continue;
-      final raw = webFetchSite(url);
-      if (raw == null) continue;
-      final Uri site;
-      if (raw.host.toLowerCase() == _groundingRedirectHost) {
-        final title = entry['title'];
-        final candidate = title is String ? title.trim() : '';
-        if (!_domainHostPattern.hasMatch(candidate)) continue;
-        site = Uri.https(candidate.toLowerCase());
-      } else {
-        site = raw;
+    if (decoded is List) {
+      for (final entry in decoded) {
+        if (entry is! Map) continue;
+        final url = entry['url'];
+        if (url is String) add(url, title: entry['title']);
       }
-      if (hosts.add(site.host.toLowerCase())) {
-        sites.add(site);
+    } else {
+      for (final match in _urlPairPattern.allMatches(payload)) {
+        add(match.group(1)!);
       }
     }
   }
@@ -258,7 +284,9 @@ class StepWebIcons extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Transform.translate(
-            offset: const Offset(0, -1),
+            // The line's glyphs sit a little below its box's middle (CJK
+            // ideographs and lowercase Latin both): the badges follow.
+            offset: const Offset(0, 0.5),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               curve: Curves.easeOutCubic,

@@ -54,6 +54,39 @@ void main() {
   });
 
   group('webSearchResultSites', () {
+    test('reads the whole entries of a list cut short', () {
+      final links = jsonEncode([
+        {'title': 'A', 'url': 'https://a.example/one'},
+        {'title': 'B', 'url': 'https://b.example/two'},
+        {'title': 'C', 'url': 'https://c.example/three'},
+      ]);
+      final cut = links.substring(0, links.indexOf('c.example') + 3);
+      expect(
+        webSearchResultSites(
+          'Web search results for query: "x"\n\n'
+          'Links: $cut…',
+        ).map((u) => u.host),
+        ['a.example', 'b.example'],
+      );
+    });
+
+    test("skips search engines' own redirect links", () {
+      final output =
+          'Links: ${jsonEncode([
+            {'title': 'Brave', 'url': 'https://search.brave.com/go/v1/AfJz3j'},
+            {'title': '360', 'url': 'https://www.so.com/link?m=eVRDD4IRRT4'},
+            {'title': 'Sogou', 'url': 'https://www.sogou.com/link?url=hedJ'},
+            {'title': 'Bing', 'url': 'https://www.bing.com/ck/a?!&&p=1&u=a1'},
+            {'title': 'DDG', 'url': 'https://duckduckgo.com/l/?uddg=https'},
+            {'title': 'Real', 'url': 'https://en.wikipedia.org/wiki/2026'},
+            {'title': 'Brave itself', 'url': 'https://brave.com/search/'},
+          ])}';
+      expect(webSearchResultSites(output).map((u) => u.host), [
+        'en.wikipedia.org',
+        'brave.com',
+      ]);
+    });
+
     test('parses Results: and Links: JSON lines and deduplicates by host', () {
       final resultsOutput =
           'Search results for "flutter":\n\n'
