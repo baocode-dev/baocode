@@ -227,15 +227,19 @@ class ToolCallRow extends StatelessWidget {
               color: AppColors.textMuted,
             ),
             ToolKind.web => webSearchGlobe(),
-            ToolKind.mcp => SvgPicture.asset(
-              mcpIcon,
-              width: 13,
-              height: 13,
-              colorFilter: ColorFilter.mode(
-                AppColors.textMuted,
-                BlendMode.srcIn,
+            // Claude Code's ToolSearch loads tools' definitions, MCP tools'
+            // mostly: it wears their mark too.
+            ToolKind.mcp || ToolKind.search
+                when kind == ToolKind.mcp || tool == 'ToolSearch' =>
+              SvgPicture.asset(
+                mcpIcon,
+                width: 13,
+                height: 13,
+                colorFilter: ColorFilter.mode(
+                  AppColors.textMuted,
+                  BlendMode.srcIn,
+                ),
               ),
-            ),
             _ => null,
           });
     // A file read or edit shows only its name: the whole path on hover.
