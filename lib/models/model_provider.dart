@@ -39,11 +39,6 @@ enum ProviderProtocol {
   /// a base URL.
   bool get usesAccounts => this == codex || this == antigravity;
 
-  /// Whether an upstream may be switched to it: Antigravity no longer, as
-  /// Google's terms forbid it outside its own tools; those that speak it
-  /// already keep it.
-  bool get selectable => this != antigravity;
-
   /// Those a model may be spoken to at instead of its upstream's
   /// ([ProviderModel.protocol]): at the same base URL and key, so not
   /// Codex's, signed in to.

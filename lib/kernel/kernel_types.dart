@@ -517,7 +517,6 @@ class KernelHealth {
     this.detail,
     this.missingFolder,
     this.noModel = false,
-    this.setup,
   });
 
   static const idle = KernelHealth(KernelHealthStatus.idle);
@@ -538,60 +537,6 @@ class KernelHealth {
   /// Whether what it lacks is a model to run on (BaoCode's own core with
   /// no upstream turned on): offered setting one up rather than a retry.
   final bool noModel;
-
-  /// What the user is to set up for it to run (install it, sign in), and
-  /// how that goes: offered rather than a retry.
-  final KernelSetup? setup;
-}
-
-enum KernelSetupKind {
-  /// Its runtime is not on this computer: to install.
-  install,
-
-  /// Not signed in.
-  login,
-
-  /// It runs only in projects on this computer, not a remote host's:
-  /// nothing to do.
-  localOnly,
-}
-
-/// Setting up a kernel's runtime ([KernelHealth.setup]): what, and where
-/// it stands.
-class KernelSetup {
-  const KernelSetup(
-    this.kind, {
-    this.start,
-    this.progress,
-    this.signingIn = false,
-    this.link,
-    this.submitCode,
-    this.cancel,
-    this.error,
-  });
-
-  final KernelSetupKind kind;
-
-  /// Starts it; null while under way, and where there is nothing to do.
-  final VoidCallback? start;
-
-  /// How far installing is, 0 to 1, while it is.
-  final double? progress;
-
-  /// Whether signing in is under way.
-  final bool signingIn;
-
-  /// The page to sign in at, once known: opened for the user.
-  final Uri? link;
-
-  /// Takes the code the sign-in page shows, while it is waited for.
-  final void Function(String code)? submitCode;
-
-  /// Gives up signing in.
-  final VoidCallback? cancel;
-
-  /// Why the last try failed.
-  final String? error;
 }
 
 /// A task the kernel runs beside the conversation: a background command, a

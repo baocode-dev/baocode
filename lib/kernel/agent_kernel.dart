@@ -446,13 +446,6 @@ abstract interface class SessionCatalog {
   Future<void> delete(String id);
 }
 
-/// A [SessionCatalog] whose listing may change after it was asked: one
-/// that answers with what it last listed while it lists anew, say.
-abstract interface class ChangingCatalog {
-  /// Notifies as the listing changed: worth asking again.
-  Listenable get changes;
-}
-
 /// A [SessionCatalog] that can have a directory's sessions belong to
 /// another (a project's folder moved): listed, and continued, there.
 abstract interface class MovesSessions {
@@ -472,7 +465,6 @@ class KernelDescriptor {
     required this.description,
     required this.create,
     this.catalog,
-    this.iconBuilder,
   });
 
   final String id;
@@ -484,20 +476,7 @@ class KernelDescriptor {
   /// Its kept sessions, when it keeps any.
   final SessionCatalog? catalog;
 
-  /// Its own mark, drawn in place of [icon] at a size (in its colors);
-  /// none to draw [icon].
-  final Widget Function(double size)? iconBuilder;
-
-  KernelOption get option => KernelOption(
-    id,
-    label,
-    icon,
-    description,
-    iconBuilder: switch (iconBuilder) {
-      final build? => (size, _) => build(size),
-      null => null,
-    },
-  );
+  KernelOption get option => KernelOption(id, label, icon, description);
 }
 
 /// The event plumbing adapters share: sequence numbers and a synchronous
