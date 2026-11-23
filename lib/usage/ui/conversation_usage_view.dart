@@ -53,19 +53,21 @@ class _ConversationUsageViewState extends State<ConversationUsageView> {
   bool _loading = true;
   int _loadedVersion = -1;
   Timer? _reload;
+
+  /// Since when the calls shown are out of date, a reload put off.
+  DateTime? _staleSince;
+  int _settingsVersion = 0;
+  int _underwayVersion = 0;
   UsageFilter _filter = const UsageFilter();
   UsageSummary? _all;
   UsageSummary? _summary;
-
-  /// Its calls under way, as last read: read again each second while
-  /// there are any.
-  List<UsageCall> _underway = const [];
-  Timer? _tick;
 
   @override
   void initState() {
     super.initState();
     _ledger.addListener(_ledgerChanged);
+    _settingsVersion = _ledger.settingsVersion;
+    _underwayVersion = _ledger.underwayVersion;
     UsagePrices.current.addListener(_repriced);
     widget.session.addListener(_sessionChanged);
     _sessionId = _idOf(widget);
@@ -84,13 +86,14 @@ class _ConversationUsageViewState extends State<ConversationUsageView> {
       _filter = const UsageFilter();
       _sessionId = _idOf(widget);
       _calls = const [];
-      _underway = const [];
       _loading = true;
       unawaited(_load());
     }
     if (old.ledger != widget.ledger) {
       (old.ledger ?? UsageLedger.current).removeListener(_ledgerChanged);
       _ledger.addListener(_ledgerChanged);
+      _settingsVersion = _ledger.settingsVersion;
+      _underwayVersion = _ledger.underwayVersion;
       unawaited(_load());
     }
   }
@@ -98,7 +101,6 @@ class _ConversationUsageViewState extends State<ConversationUsageView> {
   @override
   void dispose() {
     _reload?.cancel();
-    _tick?.cancel();
     _ledger.removeListener(_ledgerChanged);
     UsagePrices.current.removeListener(_repriced);
     widget.session.removeListener(_sessionChanged);
@@ -115,17 +117,38 @@ class _ConversationUsageViewState extends State<ConversationUsageView> {
     unawaited(_load());
   }
 
+  /// The ledger told of something: only what it concerns is done. With
+  /// subagents at work it tells many times a minute, and summing a long
+  /// conversation's calls up each time, the page froze.
   void _ledgerChanged() {
-    if (_ledger.version == _loadedVersion) {
-      // A call begun or over (and not kept), or its choices: those beside
-      // the conversation shown or not.
-      setState(() {
-        _readUnderway();
-        _summarize();
-      });
+    final ledger = _ledger;
+    // A call kept (in any conversation): read again once they settle.
+    if (ledger.version != _loadedVersion) _loadSoon();
+    final settings = ledger.settingsVersion != _settingsVersion;
+    final underway = ledger.underwayVersion != _underwayVersion;
+    _settingsVersion = ledger.settingsVersion;
+    _underwayVersion = ledger.underwayVersion;
+    if (settings) {
+      // Its choices: those beside the conversation shown or not.
+      setState(_summarize);
+    } else if (underway && !_hasCalls) {
+      // Its first call, under way: its card shown. With calls, the calls'
+      // card follows what is under way by itself.
+      setState(() {});
+    }
+  }
+
+  /// Calls come in bursts: read once they settle; but not put off for
+  /// ever while they keep coming.
+  void _loadSoon() {
+    final now = DateTime.now();
+    final since = _staleSince ??= now;
+    _reload?.cancel();
+    if (now.difference(since) >= const Duration(seconds: 2)) {
+      _reload = null;
+      unawaited(_load());
       return;
     }
-    _reload?.cancel();
     _reload = Timer(const Duration(milliseconds: 500), () => _load());
   }
 
@@ -133,61 +156,37 @@ class _ConversationUsageViewState extends State<ConversationUsageView> {
   Future<void> _load({bool force = false}) async {
     final id = _sessionId;
     final version = _ledger.version;
+    _staleSince = null;
     final calls = id == null
         ? const <UsageCall>[]
         : await _ledger.ofSession(id);
     if (!mounted || id != _sessionId) return;
-    _loadedVersion = version;
-    // Another conversation's call: this one's page left as it is.
+    // Another conversation's call: this one's page left as it is, but
+    // for its calls under way (the calls' card reads them again, told
+    // the version).
     if (!force && !_loading && calls.isNotEmpty && _same(calls, _calls)) {
-      setState(_readUnderway);
+      setState(() => _loadedVersion = version);
       return;
     }
     setState(() {
       _loadedVersion = version;
       _calls = calls;
       _loading = false;
-      _readUnderway();
       _summarize();
     });
   }
 
-  /// [call] as the same as it goes on, and once kept.
-  static Object _keyOf(UsageCall call) =>
-      (call.at.millisecondsSinceEpoch, call.agentId, call.model);
+  bool get _hasCalls => _all?.calls.isNotEmpty ?? false;
 
-  /// Reads its calls under way again. [keepGone]: those over kept as they
-  /// were last read, till its calls are read again with them kept (they
-  /// would blink out first).
-  void _readUnderway({bool keepGone = false}) {
+  /// Whether a call of it is under way, as filtered: its page is shown
+  /// before its first call is kept.
+  bool get _anyUnderway {
     final id = _sessionId;
-    final now = id == null ? const <UsageCall>[] : _ledger.underway(id);
-    if (keepGone && _underway.isNotEmpty) {
-      final still = {for (final call in now) _keyOf(call)};
-      _underway = [
-        for (final call in _underway)
-          if (!still.contains(_keyOf(call))) call,
-        ...now,
-      ]..sort((a, b) => a.at.compareTo(b.at));
-    } else {
-      _underway = now;
-    }
-    if (_underway.isEmpty) {
-      _tick?.cancel();
-      _tick = null;
-    } else {
-      _tick ??= Timer.periodic(
-        const Duration(seconds: 1),
-        (_) => setState(() => _readUnderway(keepGone: true)),
-      );
-    }
+    if (id == null) return false;
+    return _ledger
+        .shown(_ledger.underway(id))
+        .any((call) => _filter.matches(call));
   }
-
-  /// Its calls under way, as filtered.
-  List<UsageCall> get _shownUnderway => [
-    for (final call in _ledger.shown(_underway))
-      if (_filter.matches(call)) call,
-  ];
 
   /// Whether [a] and [b] are the same calls, though read again.
   static bool _same(List<UsageCall> a, List<UsageCall> b) {
@@ -329,15 +328,12 @@ class _ConversationUsageViewState extends State<ConversationUsageView> {
     ];
   }
 
-  Widget _callsCard(List<UsageCall> calls) => UsageCard(
-    title: context.l10n.ustatCallsTitle,
-    subtitle: context.l10n.ustatRecentCallsDetail(calls.length),
-    child: UsageCallsList(
-      calls: calls,
-      underway: _shownUnderway,
-      showSession: false,
-      ledger: _ledger,
-    ),
+  Widget _callsCard(List<UsageCall> calls) => _CallsCard(
+    sessionId: _sessionId,
+    calls: calls,
+    filter: _filter,
+    ledger: _ledger,
+    loadedVersion: _loadedVersion,
   );
 
   Widget _empty() {
@@ -390,7 +386,7 @@ class _ConversationUsageViewState extends State<ConversationUsageView> {
                   padding: EdgeInsets.fromLTRB(16, hasCalls ? 12 : 14, 16, 32),
                   children: [
                     // Its first call, under way.
-                    if (!hasCalls && !_loading && _shownUnderway.isNotEmpty)
+                    if (!hasCalls && !_loading && _anyUnderway)
                       _callsCard(const [])
                     else if (!hasCalls)
                       _loading ? const SizedBox(height: 120) : _empty()
@@ -412,6 +408,140 @@ class _ConversationUsageViewState extends State<ConversationUsageView> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// The conversation's calls' card: [calls], and above them its calls under
+/// way, read again each second while there are any. It follows them by
+/// itself, so that the page above it (its charts over every call) is not
+/// built again each second, nor each time a call begins or ends.
+class _CallsCard extends StatefulWidget {
+  const _CallsCard({
+    required this.sessionId,
+    required this.calls,
+    required this.filter,
+    required this.ledger,
+    required this.loadedVersion,
+  });
+
+  final String? sessionId;
+
+  /// Kept, and filtered.
+  final List<UsageCall> calls;
+  final UsageFilter filter;
+  final UsageLedger ledger;
+
+  /// The ledger's version [calls] were read at: behind the ledger's, they
+  /// are about to be read again.
+  final int loadedVersion;
+
+  @override
+  State<_CallsCard> createState() => _CallsCardState();
+}
+
+class _CallsCardState extends State<_CallsCard> {
+  /// Its calls under way, as last read.
+  List<UsageCall> _underway = const [];
+  Timer? _tick;
+  int _version = -1;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.ledger.addListener(_changed);
+    _version = widget.ledger.underwayVersion;
+    _read();
+  }
+
+  @override
+  void didUpdateWidget(_CallsCard old) {
+    super.didUpdateWidget(old);
+    if (old.ledger != widget.ledger) {
+      old.ledger.removeListener(_changed);
+      widget.ledger.addListener(_changed);
+      _version = widget.ledger.underwayVersion;
+    }
+    // The calls read again: those over are among them now.
+    if (old.sessionId != widget.sessionId ||
+        old.loadedVersion != widget.loadedVersion ||
+        !identical(old.calls, widget.calls)) {
+      _read();
+    }
+  }
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    widget.ledger.removeListener(_changed);
+    super.dispose();
+  }
+
+  void _changed() {
+    final ledger = widget.ledger;
+    if (ledger.underwayVersion == _version) return;
+    _version = ledger.underwayVersion;
+    final before = _underway;
+    // A call over is kept first: left where it is till the calls are read
+    // again with it among them (it would blink out first).
+    _read(keepGone: ledger.version != widget.loadedVersion);
+    if (!_same(before, _underway)) setState(() {});
+  }
+
+  /// [call] as the same as it goes on, and once kept.
+  static Object _keyOf(UsageCall call) =>
+      (call.at.millisecondsSinceEpoch, call.agentId, call.model);
+
+  static bool _same(List<UsageCall> a, List<UsageCall> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (_keyOf(a[i]) != _keyOf(b[i])) return false;
+    }
+    return true;
+  }
+
+  /// Reads its calls under way again. [keepGone]: those over kept as they
+  /// were last read.
+  void _read({bool keepGone = false}) {
+    final id = widget.sessionId;
+    final now = id == null ? const <UsageCall>[] : widget.ledger.underway(id);
+    if (keepGone && _underway.isNotEmpty) {
+      final still = {for (final call in now) _keyOf(call)};
+      _underway = [
+        for (final call in _underway)
+          if (!still.contains(_keyOf(call))) call,
+        ...now,
+      ]..sort((a, b) => a.at.compareTo(b.at));
+    } else {
+      _underway = now;
+    }
+    if (_underway.isEmpty) {
+      _tick?.cancel();
+      _tick = null;
+    } else {
+      _tick ??= Timer.periodic(
+        const Duration(seconds: 1),
+        (_) => setState(() => _read(keepGone: true)),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final underway = [
+      for (final call in widget.ledger.shown(_underway))
+        if (widget.filter.matches(call)) call,
+    ];
+    return UsageCard(
+      title: l10n.ustatCallsTitle,
+      subtitle: l10n.ustatRecentCallsDetail(widget.calls.length),
+      child: UsageCallsList(
+        calls: widget.calls,
+        underway: underway,
+        showSession: false,
+        ledger: widget.ledger,
       ),
     );
   }

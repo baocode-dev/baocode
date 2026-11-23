@@ -153,7 +153,41 @@ class _UsageCallsListState extends State<UsageCallsList> {
     for (final call in [...calls, ...widget.underway]) {
       if (call.total > scale) scale = call.total;
     }
-    return Column(
+    // A kept call's row as last built, while its call and what it shows
+    // are the same: the same widget, so that it is not built again. The
+    // list is built again each second while a call is under way.
+    final rows = <Object, _CallRow>{};
+    _CallRow row(UsageCall call) {
+      final key = _keyOf(call);
+      final open = _open == key;
+      final session = widget.showSession
+          ? widget.sessionLabel?.call(call)
+          : null;
+      final last = _rows[key];
+      if (last != null &&
+          identical(last.call, call) &&
+          last.wide == wide &&
+          last.barColumn == barColumn &&
+          last.scale == scale &&
+          last.open == open &&
+          last.session == session &&
+          last.ledger == widget.ledger) {
+        return rows[key] = last;
+      }
+      return rows[key] = _CallRow(
+        key: ValueKey(key),
+        wide: wide,
+        barColumn: barColumn,
+        scale: scale,
+        call: call,
+        open: open,
+        session: session,
+        ledger: widget.ledger,
+        onTap: () => setState(() => _open = _open == key ? null : key),
+      );
+    }
+
+    final list = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (wide) _CallHeader(barColumn: barColumn),
@@ -171,23 +205,7 @@ class _UsageCallsListState extends State<UsageCallsList> {
                 : null,
             ledger: widget.ledger,
           ),
-        for (final call in calls.reversed.take(count))
-          _CallRow(
-            key: ValueKey(_keyOf(call)),
-            wide: wide,
-            barColumn: barColumn,
-            scale: scale,
-            call: call,
-            open: _open == _keyOf(call),
-            session: widget.showSession
-                ? widget.sessionLabel?.call(call)
-                : null,
-            ledger: widget.ledger,
-            onTap: () => setState(() {
-              final key = _keyOf(call);
-              _open = _open == key ? null : key;
-            }),
-          ),
+        for (final call in calls.reversed.take(count)) row(call),
         if (count < calls.length)
           Padding(
             padding: const EdgeInsets.only(top: 6),
@@ -215,7 +233,12 @@ class _UsageCallsListState extends State<UsageCallsList> {
           ),
       ],
     );
+    _rows = rows;
+    return list;
   }
+
+  /// The kept calls' rows as last built, by [_keyOf].
+  Map<Object, _CallRow> _rows = const {};
 }
 
 /// The columns of a wide [UsageCallsList]: the numbers' widths.

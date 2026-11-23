@@ -319,6 +319,10 @@ void main() {
     expect(progress.firstToken, isNull);
     expect(ledger.underway('another'), isEmpty);
     expect(await ledger.ofSession(session), isEmpty);
+    // Told of it: once the burst settles, not at once.
+    for (var i = 0; i < 100 && told == 0; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
     expect(told, greaterThan(0));
     upstream.held!.complete();
     expect(await posted, 200);
