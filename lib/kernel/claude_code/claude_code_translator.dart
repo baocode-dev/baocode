@@ -1297,8 +1297,10 @@ class ClaudeTranslator {
         target: _string(input['skill']) ?? _string(input['command']) ?? '',
         status: status,
       ),
+      // Loads tools' definitions, MCP tools' mostly: drawn with their mark.
       'ToolSearch' => ToolCallItem(
         kind: ToolKind.search,
+        tool: name,
         label: tense('Looked up tools', 'Looking up tools'),
         target: _string(input['query']) ?? '',
         status: status,
