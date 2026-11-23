@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:bao_remote/files.dart' show windowsAppExecutionAliasExists;
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path/path.dart' as p;
 
@@ -43,7 +44,8 @@ abstract final class PtyProcesses {
       ? TerminalOs.macOS
       : TerminalOs.linux;
 
-  static bool _exists(String path) => File(path).existsSync();
+  static bool _exists(String path) =>
+      File(path).existsSync() || windowsAppExecutionAliasExists(path);
 
   static List<String> _list(String directory) {
     try {

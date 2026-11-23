@@ -6,8 +6,9 @@ import 'package:bao_conpty/bao_conpty.dart';
 import 'package:path/path.dart' as p;
 
 import '../claude/claude_environment.dart';
-import '../protocol.dart';
+import '../files/browse.dart' show windowsAppExecutionAliasExists;
 import '../platform/process_tree.dart';
+import '../protocol.dart';
 import '../pty/posix_pty.dart';
 import '../rpc/rpc_peer.dart';
 import '../terminal/shell_integration_files.dart';
@@ -98,7 +99,8 @@ class ServerPty {
       ? TerminalOs.macOS
       : TerminalOs.linux;
 
-  static bool _exists(String path) => File(path).existsSync();
+  static bool _exists(String path) =>
+      File(path).existsSync() || windowsAppExecutionAliasExists(path);
 
   static List<String> _list(String directory) {
     try {
