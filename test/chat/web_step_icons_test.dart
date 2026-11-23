@@ -261,6 +261,54 @@ void main() {
       },
     );
 
+    testWidgets('a site icon stands on a plate picked by how light it is', (
+      tester,
+    ) async {
+      final library = IconLibrary();
+      final dark = (await tester.runAsync(
+        () => library.add(_svgBytes('#000000'), name: 'dark'),
+      ))!;
+      final light = (await tester.runAsync(
+        () => library.add(_svgBytes('#ffffff'), name: 'light'),
+      ))!;
+      final mid = (await tester.runAsync(
+        () => library.add(_svgBytes('#336699'), name: 'mid'),
+      ))!;
+      expect(dark.luminance, isNotNull);
+      expect(dark.luminance, lessThan(0.25));
+      expect(light.luminance, greaterThan(0.75));
+      expect(mid.luminance, inInclusiveRange(0.3, 0.55));
+
+      Future<Color> plateOf(IconImage image) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: buildAppTheme(),
+            home: Center(child: webSiteFaviconBadge(image)),
+          ),
+        );
+        final container = tester.widget<Container>(
+          find
+              .descendant(
+                of: find.byType(Center),
+                matching: find.byType(Container),
+              )
+              .first,
+        );
+        return (container.decoration! as BoxDecoration).color!;
+      }
+
+      final surface = AppColors.conversationSurface.computeLuminance();
+      // A dark mark on a light plate.
+      expect(
+        (await plateOf(dark)).computeLuminance(),
+        greaterThan(surface + 0.2),
+      );
+      // A light mark on a dark one.
+      expect((await plateOf(light)).computeLuminance(), lessThan(surface));
+      // Anything between on the faint plate of the header's badges.
+      expect((await plateOf(mid)).computeLuminance(), closeTo(surface, 0.08));
+    });
+
     testWidgets(
       'WebSearch row shows stacked result site icons when collapsed and hides when expanded',
       (tester) async {

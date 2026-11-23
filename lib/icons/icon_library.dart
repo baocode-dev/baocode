@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
+import 'package:flutter_svg/svg.dart';
 import 'package:path/path.dart' as p;
 
 import 'icon_storage.dart';
@@ -31,6 +32,7 @@ class IconImage {
     required this.kind,
     required this.name,
     required this.bytes,
+    this.luminance,
   });
 
   /// From the content as uploaded: the same picture uploaded again is the
@@ -45,6 +47,12 @@ class IconImage {
   /// As kept, the same list for as long as it is: drawn from the image
   /// cache after the first time.
   final Uint8List bytes;
+
+  /// The mean brightness of its visible pixels, 0 (black) to 1 (white):
+  /// what draws it stands it on a plate picked by this, so a dark mark
+  /// (GitHub's) stays visible on a dark surface. Null while not worked out
+  /// (a GIF's, or one that could not be read).
+  final double? luminance;
 
   String get file => '$id.${kind.name}';
 }
@@ -108,6 +116,7 @@ class IconLibrary extends ChangeNotifier {
   Future<void>? _loading;
 
   Future<void> _load() async {
+    var workedOut = false;
     for (final entry in await storage.readIndex()) {
       if (entry case {'id': final String id, 'kind': final String kind}
           when !_images.any((image) => image.id == id)) {
@@ -115,16 +124,28 @@ class IconLibrary extends ChangeNotifier {
         if (type == null) continue;
         final bytes = await storage.read('$id.$kind');
         if (bytes == null) continue;
+        var luminance = (entry['luminance'] as num?)?.toDouble();
+        // Kept before its brightness was worked out: done once, now.
+        if (luminance == null) {
+          luminance = switch (type) {
+            IconImageKind.png => await _pictureLuminance(bytes),
+            IconImageKind.svg => await _svgLuminance(bytes),
+            IconImageKind.gif => null,
+          };
+          if (luminance != null) workedOut = true;
+        }
         _images.add(
           IconImage(
             id: id,
             kind: type,
             name: entry['name'] as String? ?? '',
             bytes: bytes,
+            luminance: luminance,
           ),
         );
       }
     }
+    if (workedOut) _writeIndex();
     notifyListeners();
   }
 
@@ -171,12 +192,28 @@ class IconLibrary extends ChangeNotifier {
       _ => IconImageKind.png,
     };
     final Uint8List kept;
+    final double? luminance;
     try {
-      kept = kind == IconImageKind.png ? await _square(bytes) : bytes;
+      if (kind == IconImageKind.png) {
+        final square = await _square(bytes);
+        kept = square.bytes;
+        luminance = square.luminance;
+      } else {
+        kept = bytes;
+        luminance = kind == IconImageKind.svg
+            ? await _svgLuminance(bytes)
+            : null;
+      }
     } on Object {
       throw const IconUploadException(IconUploadError.unsupported);
     }
-    final image = IconImage(id: id, kind: kind, name: name, bytes: kept);
+    final image = IconImage(
+      id: id,
+      kind: kind,
+      name: name,
+      bytes: kept,
+      luminance: luminance,
+    );
     await storage.write(image.file, kept);
     _images.insert(0, image);
     _writeIndex();
@@ -198,7 +235,12 @@ class IconLibrary extends ChangeNotifier {
   void _writeIndex() => unawaited(
     storage.writeIndex([
       for (final image in _images)
-        {'id': image.id, 'kind': image.kind.name, 'name': image.name},
+        {
+          'id': image.id,
+          'kind': image.kind.name,
+          'name': image.name,
+          if (image.luminance != null) 'luminance': image.luminance,
+        },
     ]),
   );
 
@@ -231,8 +273,11 @@ class IconLibrary extends ChangeNotifier {
   }
 
   /// [bytes] as a square PNG of at most [side] pixels, the middle of the
-  /// picture: decoded at that size, never at its own.
-  static Future<Uint8List> _square(Uint8List bytes) async {
+  /// picture: decoded at that size, never at its own; and the brightness
+  /// of what it shows.
+  static Future<({Uint8List bytes, double? luminance})> _square(
+    Uint8List bytes,
+  ) async {
     final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
     final ui.ImageDescriptor descriptor;
     try {
@@ -271,13 +316,113 @@ class IconLibrary extends ChangeNotifier {
       picture.dispose();
       try {
         final data = await image.toByteData(format: ui.ImageByteFormat.png);
-        return data!.buffer.asUint8List();
+        final luminance = await _meanLuminance(image);
+        return (bytes: data!.buffer.asUint8List(), luminance: luminance);
       } finally {
         image.dispose();
       }
     } finally {
       descriptor.dispose();
     }
+  }
+
+  /// The brightness of [bytes] (a picture kept before its brightness was
+  /// worked out), decoded small; null when it cannot be read.
+  static Future<double?> _pictureLuminance(Uint8List bytes) async {
+    try {
+      final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
+      final ui.ImageDescriptor descriptor;
+      try {
+        descriptor = await ui.ImageDescriptor.encoded(buffer);
+      } finally {
+        buffer.dispose();
+      }
+      try {
+        final longest = math.max(descriptor.width, descriptor.height);
+        if (longest == 0) return null;
+        final scale = math.min(1.0, 32 / longest);
+        final codec = await descriptor.instantiateCodec(
+          targetWidth: math.max(1, (descriptor.width * scale).round()),
+          targetHeight: math.max(1, (descriptor.height * scale).round()),
+        );
+        try {
+          final image = (await codec.getNextFrame()).image;
+          try {
+            return await _meanLuminance(image);
+          } finally {
+            image.dispose();
+          }
+        } finally {
+          codec.dispose();
+        }
+      } finally {
+        descriptor.dispose();
+      }
+    } on Object {
+      return null;
+    }
+  }
+
+  /// The brightness of [bytes] (an SVG icon) drawn onto a transparent
+  /// square; null when it cannot be read or drawn.
+  static Future<double?> _svgLuminance(Uint8List bytes) async {
+    try {
+      final info = await vg.loadPicture(SvgBytesLoader(bytes), null);
+      try {
+        final size = info.size;
+        if (size.isEmpty) return null;
+        const side = 32.0;
+        final recorder = ui.PictureRecorder();
+        final canvas = ui.Canvas(recorder);
+        final scale = math.min(side / size.width, side / size.height);
+        canvas
+          ..translate(
+            (side - size.width * scale) / 2,
+            (side - size.height * scale) / 2,
+          )
+          ..scale(scale)
+          ..drawPicture(info.picture);
+        final picture = recorder.endRecording();
+        try {
+          final image = await picture.toImage(side.round(), side.round());
+          try {
+            return await _meanLuminance(image);
+          } finally {
+            image.dispose();
+          }
+        } finally {
+          picture.dispose();
+        }
+      } finally {
+        info.picture.dispose();
+      }
+    } on Object {
+      return null;
+    }
+  }
+
+  /// The mean brightness of [image]'s visible pixels, each weighted by its
+  /// alpha; null for one with nothing visible.
+  static Future<double?> _meanLuminance(ui.Image image) async {
+    final data = await image.toByteData(
+      format: ui.ImageByteFormat.rawStraightRgba,
+    );
+    if (data == null) return null;
+    final pixels = data.buffer.asUint8List();
+    var sum = 0.0;
+    var weight = 0.0;
+    for (var i = 0; i + 3 < pixels.length; i += 4) {
+      final alpha = pixels[i + 3] / 255;
+      if (alpha == 0) continue;
+      final brightness =
+          (0.2126 * pixels[i] +
+              0.7152 * pixels[i + 1] +
+              0.0722 * pixels[i + 2]) /
+          255;
+      sum += brightness * alpha;
+      weight += alpha;
+    }
+    return weight == 0 ? null : sum / weight;
   }
 }
 
