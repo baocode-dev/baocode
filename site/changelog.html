@@ -30,6 +30,35 @@
   <h1>Changelog</h1>
   <p class="subtitle">What changed in each version of BaoCode.</p>
 
+  <section class="release" id="v2.0.5">
+    <h2 class="plain"><a href="#v2.0.5">2.0.5</a></h2>
+    <p>This release brings web search to models without native web search, lets the phone relay setting list several relays as fallbacks, and keeps a new chat's draft when you switch its project.</p>
+    <p>New</p>
+    <ul>
+    <li>Upstreams without native web search (such as OpenAI Chat-compatible ones) can now search the web: BaoCode asks several search engines at once and merges their results.</li>
+    <li>Settings → Mobile: list several relays in order (BaoCode's or custom addresses); when the current one is out of reach for 5 seconds the next is used, and the earlier one is taken back once it answers.</li>
+    </ul>
+    <p>Improved</p>
+    <ul>
+    <li>Web search steps reliably show the result sites' icons, and dark icons stand on a light plate so they stay visible on dark themes.</li>
+    <li>Claude Code's ToolSearch steps show the MCP icon.</li>
+    <li>The conversation sidebar's list fades out at its scroll edges instead of being cut off.</li>
+    <li>Usage pages stay responsive with many subagents at work.</li>
+    </ul>
+    <p>Phone (phone app 0.2.5)</p>
+    <ul>
+    <li>A sent message can be sent again unchanged.</li>
+    <li>The question, approval or plan card the agent is waiting on folds down to its heading with a tap.</li>
+    <li>Fixed conversation cards from bots showing &quot;No longer listed&quot;.</li>
+    </ul>
+    <p>Fixed</p>
+    <ul>
+    <li>A new chat's draft (text and images) is kept when you switch its project after typing.</li>
+    <li>Custom subagent models work across upstreams, and only send an effort level the model offers. Thanks to @zmaker127.</li>
+    <li>Windows: /c/x paths written by agents working in Git Bash now open as drive C:.</li>
+    </ul>
+  </section>
+
   <section class="release" id="v2.0.4">
     <h2 class="plain"><a href="#v2.0.4">2.0.4</a></h2>
     <p>This release adds Antigravity account support, letting you sign in with a Google account for chat, web search and image generation, along with forking from any finished turn, a Built-in Core settings page, and much faster file search.</p>

@@ -107,6 +107,6 @@ class AppVersion implements Comparable<AppVersion> {
 
 /// The version this app is: pubspec.yaml's `version`, which
 /// test/update/version_test.dart keeps this in step with.
-const appVersionString = '2.0.4+37';
+const appVersionString = '2.0.5+38';
 
 final AppVersion currentAppVersion = AppVersion.parse(appVersionString);
