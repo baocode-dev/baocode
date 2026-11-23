@@ -61,11 +61,16 @@ void main() {
     expect(find.byType(UsageCallDetail), findsOneWidget);
     final opened = tester.element(find.byType(UsageCallDetail));
 
-    // A newer call kept: the same ones read again as new objects, one more
-    // above them.
+    // A newer call kept: the same ones read again, one more above them.
+    // Read from their files (another day's, or after a restart) they are
+    // new objects, as decoded here: the row open stays open by its key.
     ledger.record(_call(now.add(const Duration(seconds: 9)), 'model-c'));
-    final again = await tester.runAsync(() => ledger.ofSession('s1'));
-    expect(identical(again![0], first[0]), isFalse);
+    final again = [
+      for (final call in (await tester.runAsync(() => ledger.ofSession('s1')))!)
+        UsageCall.decode(call.encode())!,
+    ];
+    expect(again, hasLength(3));
+    expect(identical(again[0], first[0]), isFalse);
     await tester.pumpWidget(_app(again, ledger));
 
     expect(find.byType(UsageCallDetail), findsOneWidget);
