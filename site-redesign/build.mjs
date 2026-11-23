@@ -147,6 +147,7 @@ const iconStyles = ["", ...["-0.125em", "0"].map((align) => `:host{display:inlin
 // The header's GitHub stars are asked of api.github.com as the page loads.
 let headers = readFileSync(join(dist, "_headers"), "utf8");
 for (const [from, to] of [["style-src 'self';", `style-src 'self' ${iconStyles.join(" ")};`], ["connect-src 'self'", "connect-src 'self' https://api.github.com"]]) {
+  if (headers.includes(to)) continue; // A build before wrote it into site/.
   if (!headers.includes(from)) throw new Error(`_headers: no ${from}`);
   headers = headers.replace(from, to);
 }
