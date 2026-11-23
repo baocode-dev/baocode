@@ -13,6 +13,7 @@ import '../chat/floating/floating_placement.dart';
 import '../chat/widgets/hover_builder.dart';
 import '../chat/widgets/inline_rename_field.dart';
 import '../chat/widgets/pixel_loader.dart';
+import '../chat/widgets/scroll_edge_fade.dart';
 import '../forge/forge_api.dart' show ForgeState;
 import '../forge/forge_ref.dart' show ForgeItemKind;
 import '../forge/forge_view.dart' show forgeStateLook;
@@ -1773,74 +1774,81 @@ class _SidebarState extends State<Sidebar>
             _listFocus.requestFocus();
             listClear();
           },
-          child: ListView.builder(
-            controller: _listScroll,
-            padding: const EdgeInsets.only(bottom: 12),
-            itemCount: rows.length,
-            itemExtentBuilder: (index, _) =>
-                index < rows.length ? rows[index].extent : null,
-            findChildIndexCallback: (key) => _rowIndices[key],
-            itemBuilder: (context, index) {
-              final row = rows[index];
-              final child = switch (row.kind) {
-                _ListRowKind.header => _Slot(
-                  slot: row.group.id,
-                  slots: _slots,
-                  child: _buildHeader(row.group, projects),
-                ),
-                _ListRowKind.thread => _buildRow(
-                  row.thread!,
-                  row.group,
-                  aside: row.aside,
-                ),
-                _ListRowKind.pinZone => _PinZone(
-                  height: _rowHeight,
-                  active: _spot?.group.id == row.group.id,
-                ),
-                _ListRowKind.more => _MoreRow(
-                  label: row.more!.less
-                      ? context.l10n.sidebarShowLess
-                      : context.l10n.sidebarShowMore(row.more!.more),
-                  onTap: () => _workspace.toggleExpanded(row.group.id),
-                ),
-              };
-              final spot = _spot;
-              final before =
-                  (row.thread != null && identical(spot?.before, row.thread)) ||
-                  (row.kind == _ListRowKind.header &&
-                      row.group.project != null &&
-                      _projectSpot == projects.indexOf(row.group.project!));
-              final after =
-                  (row.thread != null && identical(spot?.after, row.thread)) ||
-                  (row.kind == _ListRowKind.header &&
-                      spot != null &&
-                      spot.group.id == row.group.id &&
-                      spot.before == null &&
-                      spot.after == null &&
-                      row.group.threads.isNotEmpty) ||
-                  (index == rows.length - 1 && _projectSpot == projects.length);
-              return Stack(
-                key: row.key,
-                clipBehavior: Clip.none,
-                children: [
-                  Positioned.fill(child: child),
-                  if (before)
-                    const Positioned(
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      child: _DropLine(),
-                    ),
-                  if (after)
-                    const Positioned(
-                      bottom: 0,
-                      left: 0,
-                      right: 0,
-                      child: _DropLine(),
-                    ),
-                ],
-              );
-            },
+          // Faded out towards an edge scrolled past, as the conversation's
+          // list is.
+          child: ScrollEdgeFade(
+            child: ListView.builder(
+              controller: _listScroll,
+              padding: const EdgeInsets.only(bottom: 12),
+              itemCount: rows.length,
+              itemExtentBuilder: (index, _) =>
+                  index < rows.length ? rows[index].extent : null,
+              findChildIndexCallback: (key) => _rowIndices[key],
+              itemBuilder: (context, index) {
+                final row = rows[index];
+                final child = switch (row.kind) {
+                  _ListRowKind.header => _Slot(
+                    slot: row.group.id,
+                    slots: _slots,
+                    child: _buildHeader(row.group, projects),
+                  ),
+                  _ListRowKind.thread => _buildRow(
+                    row.thread!,
+                    row.group,
+                    aside: row.aside,
+                  ),
+                  _ListRowKind.pinZone => _PinZone(
+                    height: _rowHeight,
+                    active: _spot?.group.id == row.group.id,
+                  ),
+                  _ListRowKind.more => _MoreRow(
+                    label: row.more!.less
+                        ? context.l10n.sidebarShowLess
+                        : context.l10n.sidebarShowMore(row.more!.more),
+                    onTap: () => _workspace.toggleExpanded(row.group.id),
+                  ),
+                };
+                final spot = _spot;
+                final before =
+                    (row.thread != null &&
+                        identical(spot?.before, row.thread)) ||
+                    (row.kind == _ListRowKind.header &&
+                        row.group.project != null &&
+                        _projectSpot == projects.indexOf(row.group.project!));
+                final after =
+                    (row.thread != null &&
+                        identical(spot?.after, row.thread)) ||
+                    (row.kind == _ListRowKind.header &&
+                        spot != null &&
+                        spot.group.id == row.group.id &&
+                        spot.before == null &&
+                        spot.after == null &&
+                        row.group.threads.isNotEmpty) ||
+                    (index == rows.length - 1 &&
+                        _projectSpot == projects.length);
+                return Stack(
+                  key: row.key,
+                  clipBehavior: Clip.none,
+                  children: [
+                    Positioned.fill(child: child),
+                    if (before)
+                      const Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        child: _DropLine(),
+                      ),
+                    if (after)
+                      const Positioned(
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        child: _DropLine(),
+                      ),
+                  ],
+                );
+              },
+            ),
           ),
         ),
       ),
