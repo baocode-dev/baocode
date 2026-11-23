@@ -4,6 +4,7 @@ import 'package:path/path.dart' as p;
 
 import '../engine/session.dart';
 import '../tools/tool.dart';
+import '../util/windows_paths.dart';
 import 'decision.dart';
 import 'rules.dart';
 import 'shell_command.dart';
@@ -94,9 +95,11 @@ class PermissionEngine {
 
   // --- Paths ---------------------------------------------------------------------
 
-  /// [path] made absolute, from [cwd].
+  /// [path] made absolute, from [cwd]. On Windows, `/c/x` (as the shell
+  /// writes it) is `C:/x`.
   String absolute(String path, String cwd) {
-    final expanded = session.paths.expandHome(path);
+    var expanded = session.paths.expandHome(path);
+    if (p.style == p.Style.windows) expanded = windowsDrivePath(expanded);
     return p.normalize(
       p.isAbsolute(expanded) ? expanded : p.join(cwd, expanded),
     );

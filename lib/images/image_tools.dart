@@ -15,6 +15,7 @@ import '../models/model_provider.dart';
 import '../models/model_providers.dart';
 import '../models/model_runtime.dart';
 import '../platform/data_dir.dart';
+import '../platform/native_path.dart';
 import '../remote/remote_location.dart';
 import '../remote/remote_services.dart';
 import '../remote/ssh_host.dart';
@@ -414,9 +415,12 @@ class ImageHost {
     _root,
   );
 
-  String _absolute(String path) => _paths.normalize(
-    _paths.isAbsolute(path) ? path : _paths.join(_root, path),
-  );
+  String _absolute(String path) {
+    path = nativePath(path, _paths);
+    return _paths.normalize(
+      _paths.isAbsolute(path) ? path : _paths.join(_root, path),
+    );
+  }
 
   /// The picture at [path], to send with a request.
   Future<ImageInput> readImage(String path) async {

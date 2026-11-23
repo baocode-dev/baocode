@@ -10,6 +10,7 @@ import '../permissions/shell_command.dart';
 import '../util/ids.dart';
 import '../util/json.dart';
 import '../util/processes.dart';
+import '../util/windows_paths.dart';
 import 'tool.dart';
 
 /// Runs a shell command.
@@ -358,6 +359,8 @@ ${_shellNote(session)}- ${_search(session)} Keep a search narrow (a folder, a fi
       // Left in the temp folder.
     }
     if (ended == null || ended.isEmpty) return null;
+    // Git Bash's `pwd`: `/c/x`.
+    if (Platform.isWindows) ended = windowsDrivePath(ended);
     final permissions = context.session.permissions;
     if (permissions.inWorkingDirectories(ended) ||
         _sameDirectory(ended, context.cwd)) {
