@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:bao_websearch/bao_websearch.dart';
 import 'package:path/path.dart' as p;
 
+import '../kernel/antigravity/agy_runtime.dart';
 import '../network/network_proxy_io.dart';
 import '../platform/data_dir.dart';
 import '../network/tls.dart';
@@ -89,6 +90,21 @@ Future<List<RemoteModel>> listUpstreamModels(
   }
   if (provider.protocol == ProviderProtocol.antigravity) {
     return _antigravity.listModels(provider);
+  }
+  if (provider.protocol == ProviderProtocol.agy) {
+    try {
+      return [
+        for (final model in await AgyRuntime.local.models())
+          RemoteModel(
+            model.id,
+            label: model.label,
+            efforts: model.efforts.isEmpty ? null : model.efforts,
+            images: true,
+          ),
+      ];
+    } on AgyUnavailable catch (error) {
+      throw UpstreamException(error.message);
+    }
   }
   final urls = UpstreamUrls.models(provider);
   if (urls.isEmpty) {

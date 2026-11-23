@@ -1,0 +1,168 @@
+import 'package:flutter/foundation.dart' show listEquals;
+
+import '../acp/acp_connection.dart';
+import 'agy_runtime_stub.dart'
+    if (dart.library.io) 'agy_runtime_io.dart'
+    as platform;
+
+/// Google's Antigravity CLI (`agy`) as BaoCode runs it: installed by the
+/// app from Google's own release feed, its conversations kept in a folder
+/// of the app's (`--gemini-dir`), apart from the user's terminal; signed in
+/// as agy is (its sign-in is the system's, shared with the terminal's).
+///
+/// Only the Agent Client Protocol is spoken to it ([AcpConnection]).
+abstract interface class AgyRuntime {
+  /// This machine's.
+  static AgyRuntime get local => _local ??= platform.localAgyRuntime();
+  static AgyRuntime? _local;
+
+  /// Uses [runtime] in place of this machine's, e.g. a fake under test.
+  static set local(AgyRuntime runtime) => _local = runtime;
+
+  /// The version installed; null when none is.
+  Future<String?> version();
+
+  /// The version Google's feed offers for this machine. Throws
+  /// [AgyUnavailable] when it could not be asked.
+  Future<String> latestVersion();
+
+  /// Downloads Google's build for this machine and installs it, telling
+  /// [onProgress] how far it got (0 to 1). The one before stays until the
+  /// new one starts; sessions under way keep theirs.
+  Future<void> install({void Function(double progress)? onProgress});
+
+  /// Starts `agy acp` for one conversation in [cwd]: one booted ahead
+  /// ([warm]) when there is one, its backend up. Throws [AgyUnavailable].
+  Future<AcpTransport> start(String cwd);
+
+  /// Boots an agy ahead, for the next [start] to be at once: its backend
+  /// asks Google for the account and its models first, seconds that
+  /// sending a message would otherwise wait out.
+  void warm();
+
+  /// The models the account has, as `agy models` lists them. Throws
+  /// [AgyUnavailable] (with [AgyUnavailable.signIn] when not signed in).
+  Future<List<AgyModel>> models();
+
+  /// Signs in with a Google account in the browser (ACP `authenticate`);
+  /// completes once signed in.
+  Future<void> signIn();
+
+  /// Signs out (ACP `logout`): the terminal's agy too, whose sign-in it is.
+  Future<void> signOut();
+
+  /// Deletes what agy keeps of conversation [sessionId], for good. Its
+  /// process is to be ended first.
+  Future<void> deleteSession(String sessionId);
+
+  /// Ends every agy this app started (as it quits).
+  Future<void> stopAll();
+}
+
+/// A model of the account's, as the picker offers it: thinking levels
+/// listed apart (`gemini-3.8-flash` with low, medium and high), as ACP
+/// picks them (`thought_level`).
+class AgyModel {
+  const AgyModel(this.id, this.label, {this.efforts = const []});
+
+  final String id;
+  final String label;
+
+  /// Its thinking levels, least first; none when it has no choice of them.
+  final List<String> efforts;
+
+  @override
+  bool operator ==(Object other) =>
+      other is AgyModel &&
+      other.id == id &&
+      other.label == label &&
+      listEquals(other.efforts, efforts);
+
+  @override
+  int get hashCode => Object.hash(id, label, Object.hashAll(efforts));
+
+  @override
+  String toString() => 'AgyModel($id, $label, $efforts)';
+}
+
+/// What this app tells agy of itself as it connects (`initialize`): no
+/// files or terminals of its own to offer (agy reads and runs them itself).
+const agyHello = {
+  'protocolVersion': 1,
+  'clientCapabilities': {
+    'fs': {'readTextFile': false, 'writeTextFile': false},
+    'terminal': false,
+  },
+  'clientInfo': {'name': 'baocode', 'title': 'BaoCode', 'version': '1'},
+};
+
+/// The thinking levels agy names its models with (`-high`), least first.
+const agyEfforts = ['low', 'medium', 'high'];
+
+/// `agy models`' lines (`<id>\t<label>`) as models: those that differ only
+/// by a thinking level (`gemini-3.8-flash-high`, `…-low`) as one, its
+/// levels its efforts, its label without the level.
+List<AgyModel> parseAgyModels(String output) {
+  final rows = <(String, String)>[];
+  for (final line in output.split('\n')) {
+    final parts = line.split('\t');
+    if (parts.length < 2) continue;
+    final id = parts[0].trim();
+    if (id.isEmpty || id.contains(' ')) continue;
+    rows.add((id, parts.sublist(1).join('\t').trim()));
+  }
+  final levels = RegExp('-(${agyEfforts.join('|')})\$');
+  final byBase = <String, List<(String, String, String)>>{};
+  for (final (id, label) in rows) {
+    final match = levels.firstMatch(id);
+    if (match == null) continue;
+    byBase.putIfAbsent(id.substring(0, match.start), () => []).add((
+      id,
+      label,
+      match.group(1)!,
+    ));
+  }
+  final models = <AgyModel>[];
+  final done = <String>{};
+  for (final (id, label) in rows) {
+    final match = levels.firstMatch(id);
+    final base = match == null ? null : id.substring(0, match.start);
+    if (base != null && (byBase[base]?.length ?? 0) > 1) {
+      if (!done.add(base)) continue;
+      final variants = byBase[base]!;
+      models.add(
+        AgyModel(
+          base,
+          label.replaceFirst(RegExp(r'\s*\((Low|Medium|High)\)$'), ''),
+          efforts: [
+            for (final level in agyEfforts)
+              if (variants.any((v) => v.$3 == level)) level,
+          ],
+        ),
+      );
+      continue;
+    }
+    if (done.add(id)) models.add(AgyModel(id, label));
+  }
+  return models;
+}
+
+/// agy could not be run: not installed, not signed in, or failing.
+class AgyUnavailable implements Exception {
+  const AgyUnavailable(
+    this.message, {
+    this.notInstalled = false,
+    this.signIn = false,
+    this.detail,
+  });
+
+  final String message;
+  final bool notInstalled;
+
+  /// Whether signing in is what it takes.
+  final bool signIn;
+  final String? detail;
+
+  @override
+  String toString() => detail == null ? message : '$message\n$detail';
+}
