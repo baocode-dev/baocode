@@ -23,6 +23,7 @@ import '../../usage/claude_usage_meter.dart';
 import '../../usage/usage_ledger.dart';
 import '../../workspace/editor_launcher.dart' show openExternal;
 import '../agent_kernel.dart';
+import '../antigravity/agy_quota.dart';
 import '../commit_attribution.dart';
 import '../extension_switches.dart';
 import '../kernel_event.dart';
@@ -1176,6 +1177,8 @@ class ClaudeCodeKernel
       }
     }
     _permissions.clear();
+    // What the turn spent of Antigravity's limits.
+    if (_onAgy) unawaited(_agyQuota.refresh());
     // Stopped too: its work folds all the same (the session file tells it
     // was stopped).
     if (worked != null) {
@@ -2571,7 +2574,8 @@ class ClaudeCodeKernel
   }
 
   @override
-  List<RateLimitWindow> get accountLimits => _limits;
+  List<RateLimitWindow> get accountLimits =>
+      _onAgy ? AgyQuota.current.windows : _limits;
 
   // The account's usage, asked for (as `/usage` does): no more than once in
   // [_usageFresh], and one request at a time for all sessions.
@@ -2599,6 +2603,8 @@ class ClaudeCodeKernel
 
   @override
   Future<void> refreshUsage() {
+    // Antigravity's account, on its model: its own limits.
+    if (_onAgy) return _agyQuota.refresh();
     if (_usageFetchedAt case final at?
         when DateTime.now().difference(at) < _usageFresh) {
       return Future.value();
@@ -2704,14 +2710,17 @@ class ClaudeCodeKernel
     return true;
   }
 
+  /// Antigravity's limits, told to every session as they are read.
+  static final AgyQuota _agyQuota = AgyQuota.current..addListener(_reportAll);
+
   void _reportStats() => emit(
     StatsReported(
       nextSeq,
       UsageStats(
         costUsd: _cost,
-        limits: _limits,
-        limitsState: _limitsState,
-        limitsOffBy: _limitsOffBy,
+        limits: _onAgy ? _agyQuota.windows : _limits,
+        limitsState: _onAgy ? _agyQuota.state : _limitsState,
+        limitsOffBy: _onAgy ? null : _limitsOffBy,
         cache: switch (_requests[_lastRequest]) {
           final last? when _cachingModels.contains(_lastModel) => PromptCache(
             last: last,
