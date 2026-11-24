@@ -832,6 +832,9 @@ class AgentSidePanelView extends StatelessWidget {
                               panel.open(session, FileOpenRequest(path)),
                           // A paste, rename or delete that failed.
                           onError: (error) => _showFileError(context, error),
+                          onOpenInTerminal: terminals == null
+                              ? null
+                              : _openInTerminal,
                         ),
                 ),
               ],
@@ -1091,6 +1094,17 @@ class AgentSidePanelView extends StatelessWidget {
       skipShell: terminalSkipShell,
       onOpenLink: onOpenTerminalLink,
     );
+  }
+
+  /// Open in Terminal, from the files' menu: a terminal started in
+  /// [folder], on the terminal page beside it, focused (as the IDE's
+  /// explorer opens one in its panel).
+  void _openInTerminal(String folder) {
+    final shell = terminals?.create(cwd: folder, activate: false);
+    if (shell == null) return;
+    (terminalHosts ?? _pageHosts).claim(shell, session);
+    panel.openTerminal(session, shell);
+    WidgetsBinding.instance.addPostFrameCallback((_) => shell.focus());
   }
 
   /// The plan the agent wrote, on its own: no list, its tab over it.
