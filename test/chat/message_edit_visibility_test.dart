@@ -48,8 +48,11 @@ Future<void> _stopped(
   UserMessageStyle style, {
   bool partialReply = false,
   bool reducedMotion = false,
+  Size size = const Size(1000, 600),
+  bool following = false,
+  bool toolRunning = false,
 }) async {
-  tester.view.physicalSize = const Size(1000, 600);
+  tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   final previous = UserMessageStyle.current.value;
@@ -100,10 +103,29 @@ Future<void> _stopped(
     });
     await tester.pump();
   }
+  if (toolRunning) {
+    cli.push({
+      'type': 'assistant',
+      'message': {
+        'id': 'tool-call',
+        'role': 'assistant',
+        'content': [
+          {
+            'type': 'tool_use',
+            'id': 'toolu_1',
+            'name': 'Read',
+            'input': {'file_path': '/p/plan.md'},
+          },
+        ],
+      },
+    });
+    await tester.pump(const Duration(milliseconds: 500));
+  }
   session.stop();
   await tester.pumpAndSettle();
   final position = _position(tester);
   expect(position.pixels, position.maxScrollExtent);
+  if (following) return;
   tester.binding.handlePointerEvent(
     PointerScrollEvent(
       position: tester.getCenter(find.byType(ChatHistoryView)),
@@ -184,6 +206,27 @@ void main() {
       await _edit(tester);
       _visible(tester);
       await tester.pumpWidget(const SizedBox());
+    }, variant: platforms);
+
+    testWidgets('in a short window, the editor is not under the composer '
+        '($style)', (tester) async {
+      for (final (following, toolRunning, height) in [
+        (false, false, 280.0),
+        (true, false, 280.0),
+        (true, true, 600.0),
+        (true, true, 280.0),
+      ]) {
+        await _stopped(
+          tester,
+          style,
+          size: Size(1040, height),
+          following: following,
+          toolRunning: toolRunning,
+        );
+        await _edit(tester);
+        _visible(tester);
+        await tester.pumpWidget(const SizedBox());
+      }
     }, variant: platforms);
 
     testWidgets('a growing message editor stays above the composer ($style)', (
