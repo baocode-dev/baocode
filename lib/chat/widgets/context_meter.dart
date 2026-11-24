@@ -36,11 +36,19 @@ class ContextMeter extends StatelessWidget {
   /// How full the context is when the label warns.
   static const warnAt = 0.8;
 
-  /// [tokens] short: `1.2M`, `100K`, `12.5K`, `800`.
+  /// [tokens] short: `1.2M`, `100K`, `12.5K`, `800`; a window of 2^20
+  /// (Antigravity's) `1M`, as one of a million, not `1.0M`.
   static String format(int tokens) {
-    String short(double value) => value >= 100 || value == value.roundToDouble()
-        ? value.round().toString()
-        : value.toStringAsFixed(1);
+    String short(double value) {
+      if (value >= 100 || value == value.roundToDouble()) {
+        return value.round().toString();
+      }
+      final fixed = value.toStringAsFixed(1);
+      return fixed.endsWith('.0')
+          ? fixed.substring(0, fixed.length - 2)
+          : fixed;
+    }
+
     if (tokens >= 1000000) return '${short(tokens / 1000000)}M';
     if (tokens >= 1000) return '${short(tokens / 1000)}K';
     return '$tokens';

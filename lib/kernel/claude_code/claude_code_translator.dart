@@ -759,6 +759,10 @@ class ClaudeTranslator {
           tokensPerSecond: _meter.averageSpeed,
         );
 
+  /// How fast the turn wrote, on average, as streamed: for a turn whose
+  /// messages told no usage (Antigravity's), whose result alone counts it.
+  double? get averageSpeed => _meter.averageSpeed;
+
   void _completeThought(String id, String? whole) {
     final streamed = _thoughts.remove(id)?.toString() ?? '';
     final started = _thinkingStarted.remove(id);

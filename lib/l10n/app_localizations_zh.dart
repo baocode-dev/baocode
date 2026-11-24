@@ -6705,7 +6705,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get agyCliDescription =>
-      'Google 官方的 Antigravity CLI，由 BaoCode 安装并保持最新。它的对话和终端里的 agy 分开存放。';
+      'Google 官方的 Antigravity CLI，由 BaoCode 安装并保持最新。BaoCode 只通过官方 ACP 和它通信，完全符合官方 ACP 策略，不会导致封号。';
 
   @override
   String agyVersion(String version) {

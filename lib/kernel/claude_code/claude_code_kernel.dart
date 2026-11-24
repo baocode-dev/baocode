@@ -1160,6 +1160,14 @@ class ClaudeCodeKernel
         tokensPerSecond: streamed.tokensPerSecond,
         costUsd: usage?.costUsd,
       );
+    } else if (usage != null && usage.tokensPerSecond == null) {
+      // Counted by the result alone: timed as it streamed all the same.
+      usage = TurnUsage(
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        tokensPerSecond: _translator.averageSpeed,
+        costUsd: usage.costUsd,
+      );
     }
     for (final MapEntry(key: id, value: permission) in _permissions.entries) {
       emit(InteractionResolved(nextSeq, id));
