@@ -2264,6 +2264,14 @@ class _ModelRow extends StatelessWidget {
                             !model.kind.generatesImages,
                         onSelected: onTest,
                       ),
+                      // To ask about it, or to take a new address from it.
+                      if (test?.error case final error?)
+                        IdeMenuAction(
+                          l10n.modelsCopyTestError,
+                          onSelected: () => unawaited(
+                            Clipboard.setData(ClipboardData(text: error)),
+                          ),
+                        ),
                     ],
                   ),
                 );
@@ -2288,7 +2296,7 @@ class _ModelTest {
 }
 
 /// How soon a model's first text came and how fast the rest, or that it
-/// failed; the reply, or the error, on hover.
+/// failed; the reply, or the error, on hover (a click copies the error).
 class _ModelTestResult extends StatelessWidget {
   const _ModelTestResult(this.test);
 
@@ -2304,9 +2312,16 @@ class _ModelTestResult extends StatelessWidget {
     if (test.error case final error?) {
       return IdeHover(
         message: error,
-        child: Text(
-          l10n.modelsTestModelFailed,
-          style: SettingsText.description,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            onTap: () =>
+                unawaited(Clipboard.setData(ClipboardData(text: error))),
+            child: Text(
+              l10n.modelsTestModelFailed,
+              style: SettingsText.description,
+            ),
+          ),
         ),
       );
     }

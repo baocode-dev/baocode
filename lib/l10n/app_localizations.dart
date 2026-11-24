@@ -11727,6 +11727,12 @@ abstract class AppLocalizations {
   /// **'Failed'**
   String get modelsTestModelFailed;
 
+  /// No description provided for @modelsCopyTestError.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy Error'**
+  String get modelsCopyTestError;
+
   /// No description provided for @modelsTestFirstText.
   ///
   /// In en, this message translates to:
