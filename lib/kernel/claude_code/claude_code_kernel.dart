@@ -623,6 +623,8 @@ class ClaudeCodeKernel
       _launchedModel = custom != null ? _model : null;
       _modelRefused = false;
       _launchedWindow = _autocompact;
+      // Counted again by the CLI it starts: until then, the window it has.
+      _contextReported = false;
       _appliedSwitches = ExtensionSwitches.current();
       final sdkServers = ClaudeSdkTools.serversFor(_cwd);
       final transport = await _start(
@@ -3181,8 +3183,13 @@ class ClaudeCodeKernel
   ];
   List<KernelCommand>? _commandCache;
 
+  /// What the CLI counted, once it runs with the window now picked; before
+  /// that, the window it is to start with (200K when none is picked), so
+  /// the context reads the same before the first message as after it.
   @override
-  int get contextWindow => _contextWindow;
+  int get contextWindow => _contextReported && _launchedWindow == _autocompact
+      ? _contextWindow
+      : _autocompact ?? 200000;
 
   _ModelInfo? get _currentModel {
     final models = _catalog.models;
@@ -3673,7 +3680,7 @@ class ClaudeCodeKernel
           ? _window
           : _contextReported
           ? _contextWindow
-          : null;
+          : _launchedWindow;
       return _windows.entries
           .where((entry) => entry.value == window)
           .firstOrNull

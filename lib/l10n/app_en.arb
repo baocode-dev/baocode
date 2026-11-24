@@ -5098,7 +5098,7 @@
       }
     }
   },
-  "agyCli": "Antigravity CLI",
+  "agyCli": "Antigravity ACP",
   "agyProtocolDescription": "BaoCode drives the Antigravity CLI on this machine over ACP, the Agent Client Protocol: not through the local proxy.",
   "agyCliDescription": "Google's own Antigravity CLI, which BaoCode installs and keeps up to date. Its conversations are kept apart from the terminal's agy.",
   "agyVersion": "Version {version}",

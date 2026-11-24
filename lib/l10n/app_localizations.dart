@@ -11478,7 +11478,7 @@ abstract class AppLocalizations {
   /// No description provided for @agyCli.
   ///
   /// In en, this message translates to:
-  /// **'Antigravity CLI'**
+  /// **'Antigravity ACP'**
   String get agyCli;
 
   /// No description provided for @agyProtocolDescription.
