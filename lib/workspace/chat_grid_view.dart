@@ -178,13 +178,13 @@ class _ChatGridViewState extends State<ChatGridView> {
       );
     }
     final next = splitGrid.copy()..split(target, side, thread);
-    // A new line needs room for a pane at its least either side of it.
+    // Room for each pane at its least, where the grid needs more than it did.
+    final before = grid.least(_min, _gap);
+    final after = next.least(_min, _gap);
     final growth = Size(
-      !grid.columnsSplit && next.columnsSplit
-          ? math.max(0, 2 * _min.width + _gap - size.width)
-          : 0,
-      !grid.rowsSplit && next.rowsSplit
-          ? math.max(0, 2 * _min.height + _gap - size.height)
+      after.width > before.width ? math.max(0, after.width - size.width) : 0,
+      after.height > before.height
+          ? math.max(0, after.height - size.height)
           : 0,
     );
     final windowRoom = widget.drag.room;
@@ -204,8 +204,8 @@ class _ChatGridViewState extends State<ChatGridView> {
   }
 
   ChatPanePlace _place(ChatGrid<AgentThread> grid, AgentThread thread) => (
-    topLeft: grid.at(0) == thread,
-    topRight: grid.at(1) == thread,
+    topLeft: grid.topLeft == thread,
+    topRight: grid.topRight == thread,
     top: grid.touches(thread, PaneSide.top),
     alone: grid.length == 1,
   );
@@ -213,58 +213,25 @@ class _ChatGridViewState extends State<ChatGridView> {
   /// Where the line being dragged was when the drag began.
   double _dragStart = 0;
 
-  /// The ratio [part] of a line is at (see [_parts]).
-  static double _ratio(ChatGrid<AgentThread> grid, _LinePart part) =>
-      part.axis == Axis.horizontal
-      ? grid.columnRatioIn(part.index ?? 0)
-      : grid.rowRatioIn(part.index ?? 0);
-
-  static void _setRatio(
-    ChatGrid<AgentThread> grid,
-    _LinePart part,
-    double ratio,
-  ) {
-    if (part.axis == Axis.horizontal) {
-      grid.setColumnRatioIn(part.index ?? 0, ratio);
-    } else {
-      grid.setRowRatioIn(part.index ?? 0, ratio);
-    }
-  }
-
-  /// Drags [part] of the column line (or, vertical, the row line) [delta]
-  /// from where it was when the drag began.
-  void _dragLine(_LinePart part, double delta) {
-    final horizontal = part.axis == Axis.horizontal;
-    final extent = horizontal ? _size.width : _size.height;
-    if (extent <= 0) return;
-    final least = horizontal ? _min.width : _min.height;
-    final ratio =
-        ChatGrid.line(
-          (_dragStart + delta) / extent,
-          extent,
-          gap: _gap,
-          minPane: least,
-        ) /
-        extent;
-    _setRatio(widget.grid, part, ratio);
-    _moved.value++;
-  }
-
-  Widget _sash(_LinePart part) {
+  Widget _sash(GridLine line) {
     final grid = widget.grid;
-    final horizontal = part.axis == Axis.horizontal;
     return _GridSash(
-      axis: part.axis,
-      onStart: () => _dragStart = ChatGrid.line(
-        _ratio(grid, part),
-        horizontal ? _size.width : _size.height,
-        gap: _gap,
-        minPane: horizontal ? _min.width : _min.height,
-      ),
-      onDrag: (delta) => _dragLine(part, delta),
+      axis: grid.isColumnLine(line) ? Axis.horizontal : Axis.vertical,
+      onStart: () =>
+          _dragStart = grid.position(line, _size, gap: _gap, minPane: _min),
+      onDrag: (delta) {
+        grid.moveLine(
+          line,
+          _dragStart + delta,
+          size: _size,
+          gap: _gap,
+          minPane: _min,
+        );
+        _moved.value++;
+      },
       onEnd: () => widget.onLinesMoved?.call(),
       onReset: () {
-        _setRatio(grid, part, .5);
+        grid.centerLine(line);
         _moved.value++;
         widget.onLinesMoved?.call();
       },
@@ -294,8 +261,12 @@ class _ChatGridViewState extends State<ChatGridView> {
               child: widget.paneBuilder(context, thread, _place(grid, thread)),
             ),
           ),
-        for (final part in _parts(grid))
-          LayoutId(key: ValueKey(part.key), id: part, child: _sash(part)),
+        for (final line in grid.lines)
+          LayoutId(
+            key: ValueKey(_sashKey(grid, line)),
+            id: line,
+            child: _sash(line),
+          ),
         LayoutId(
           id: _GridPart.preview,
           child: _DropPreview(drag: widget.drag),
@@ -326,37 +297,17 @@ class KeepPaneFocus extends StatelessWidget {
 
 enum _GridPart { preview }
 
-/// A sash: on the column line ([Axis.horizontal], it moves across) or the
-/// row line; [index] the row (or column) of its part, null for the line
-/// that runs straight through the grid (see [ChatGrid.columnsFirst]).
-typedef _LinePart = ({Axis axis, int? index});
-
-extension on _LinePart {
-  /// `column sash`, or `row sash 1` for the row line's part in the right
-  /// column.
-  String get key =>
-      '${axis == Axis.horizontal ? 'column' : 'row'} sash'
-      '${index == null ? '' : ' $index'}';
-}
-
-/// The sashes [grid] has: the straight line's, and the other line's part
-/// in each row (or column) it runs through.
-List<_LinePart> _parts(ChatGrid<AgentThread> grid) {
-  final columnsFirst = grid.columnsFirst;
-  return [
-    if (grid.columnsSplit)
-      if (columnsFirst)
-        (axis: Axis.horizontal, index: null)
-      else
-        for (var row = 0; row < 2; row++)
-          if (grid.columnLineIn(row)) (axis: Axis.horizontal, index: row),
-    if (grid.rowsSplit)
-      if (!columnsFirst)
-        (axis: Axis.vertical, index: null)
-      else
-        for (var column = 0; column < 2; column++)
-          if (grid.rowLineIn(column)) (axis: Axis.vertical, index: column),
-  ];
+/// `column sash` for the first line between the columns (`row sash`, the
+/// rows); `column sash 2` for the third; `row sash 1` for the row line in
+/// the second column, `row sash 1.2` for the third in the second row's.
+String _sashKey(ChatGrid<AgentThread> grid, GridLine line) {
+  final axis = grid.isColumnLine(line) ? 'column' : 'row';
+  return switch (line) {
+    (group: null, index: 0) => '$axis sash',
+    (group: null, :final index) => '$axis sash $index',
+    (:final group?, index: 0) => '$axis sash $group',
+    (:final group?, :final index) => '$axis sash $group.$index',
+  };
 }
 
 /// The panes on [grid]'s rectangles (see [ChatGrid.layout]); the sashes on
@@ -384,29 +335,9 @@ class _GridLayout extends MultiChildLayoutDelegate {
         in grid.layout(size, gap: _gap, minPane: _min).entries) {
       if (hasChild(pane)) _place(pane, rect);
     }
-    final (:xs, :ys) = grid.lines(size, gap: _gap, minPane: _min);
-    // The straight line across the whole grid; each part of the other, from
-    // the edge up to it.
-    for (final part in _parts(grid)) {
-      if (!hasChild(part)) continue;
-      if (part.axis == Axis.horizontal) {
-        final x = xs[part.index ?? 0];
-        final y = ys[0];
-        final (top, bottom) = switch (part.index) {
-          0 => (0.0, y - _gap / 2),
-          1 => (y + _gap / 2, size.height),
-          _ => (0.0, size.height),
-        };
-        _place(part, Rect.fromLTRB(x - _gap / 2, top, x + _gap / 2, bottom));
-      } else {
-        final y = ys[part.index ?? 0];
-        final x = xs[0];
-        final (left, right) = switch (part.index) {
-          0 => (0.0, x - _gap / 2),
-          1 => (x + _gap / 2, size.width),
-          _ => (0.0, size.width),
-        };
-        _place(part, Rect.fromLTRB(left, y - _gap / 2, right, y + _gap / 2));
+    for (final line in grid.lines) {
+      if (hasChild(line)) {
+        _place(line, grid.lineRect(line, size, gap: _gap, minPane: _min));
       }
     }
     _place(_GridPart.preview, Offset.zero & size);
