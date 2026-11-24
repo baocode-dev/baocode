@@ -113,7 +113,7 @@ class FakeRuntime implements AgyRuntime {
   Future<List<AgyModel>> models() async => const [];
 
   @override
-  Future<void> signIn() async {}
+  Future<void> signIn({Future<void>? cancel}) async {}
 
   @override
   Future<void> signOut() async {}

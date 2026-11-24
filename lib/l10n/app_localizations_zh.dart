@@ -6700,6 +6700,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get agyCli => 'Antigravity CLI';
 
   @override
+  String get agyProtocolDescription =>
+      'BaoCode 通过 ACP（Agent Client Protocol）驱动本机的 Antigravity CLI，不经本地代理。';
+
+  @override
   String get agyCliDescription =>
       'Google 官方的 Antigravity CLI，由 BaoCode 安装并保持最新。它的对话和终端里的 agy 分开存放。';
 

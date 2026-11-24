@@ -45,8 +45,8 @@ abstract interface class AgyRuntime {
   Future<List<AgyModel>> models();
 
   /// Signs in with a Google account in the browser (ACP `authenticate`);
-  /// completes once signed in.
-  Future<void> signIn();
+  /// completes once signed in. Given up once [cancel] completes.
+  Future<void> signIn({Future<void>? cancel});
 
   /// Signs out (ACP `logout`): the terminal's agy too, whose sign-in it is.
   Future<void> signOut();

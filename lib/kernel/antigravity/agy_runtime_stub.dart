@@ -31,7 +31,7 @@ class _NoAgy implements AgyRuntime {
   Future<List<AgyModel>> models() => Future.error(_unavailable);
 
   @override
-  Future<void> signIn() => Future.error(_unavailable);
+  Future<void> signIn({Future<void>? cancel}) => Future.error(_unavailable);
 
   @override
   Future<void> signOut() => Future.error(_unavailable);

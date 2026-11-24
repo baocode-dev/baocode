@@ -18,6 +18,7 @@ import '../../models/model_runtime.dart';
 import '../../remote/port_forwards.dart';
 import '../../remote/remote_location.dart';
 import '../../settings/user_settings.dart';
+import '../../usage/agy_usage_meter.dart';
 import '../../usage/claude_usage_meter.dart';
 import '../../usage/usage_ledger.dart';
 import '../../workspace/editor_launcher.dart' show openExternal;
@@ -680,23 +681,33 @@ class ClaudeCodeKernel
       }
       _transport = transport;
       // Share the request merger; custom providers record their calls already.
-      _usage = custom == null
-          ? ClaudeUsageMeter(
-              record: (call, {trace}) =>
-                  UsageLedger.current.record(call, trace: trace),
-              tracing: () => UsageLedger.current.trace,
-              underway: (key, progress) => progress == null
-                  ? UsageLedger.current.end(key)
-                  : UsageLedger.current.begin(key, progress),
-              makeup: () => _shownDetail,
-              session: () => _sessionId,
-              providerName: 'Claude Code',
-              quota: () => _quota,
-            )
-          : ClaudeUsageMeter(
-              record: (call, {trace}) {},
-              session: () => _sessionId,
-            );
+      _usage = switch (custom) {
+        // The CLI's calls are not through the proxy: kept a turn each.
+        (final provider, _) when agy => AgyUsageMeter(
+          record: (call, {trace}) => UsageLedger.current.record(call),
+          session: () => _sessionId,
+          provider: provider.id,
+          providerName: provider.name,
+          effort: effort,
+        ),
+        null => ClaudeUsageMeter(
+          record: (call, {trace}) =>
+              UsageLedger.current.record(call, trace: trace),
+          tracing: () => UsageLedger.current.trace,
+          underway: (key, progress) => progress == null
+              ? UsageLedger.current.end(key)
+              : UsageLedger.current.begin(key, progress),
+          makeup: () => _shownDetail,
+          session: () => _sessionId,
+          providerName: 'Claude Code',
+          quota: () => _quota,
+        ),
+        // Its provider records its calls already, through the proxy.
+        _ => ClaudeUsageMeter(
+          record: (call, {trace}) {},
+          session: () => _sessionId,
+        ),
+      };
       final control = _control = ControlChannel(transport.write);
       _subscription = transport.messages.listen(_receive);
       _applyInitialize(

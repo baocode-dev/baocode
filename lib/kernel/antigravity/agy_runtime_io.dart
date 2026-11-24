@@ -421,7 +421,9 @@ class LocalAgyRuntime implements AgyRuntime {
   }
 
   @override
-  Future<void> signIn() => _session((connection) async {
+  Future<void> signIn({Future<void>? cancel}) => _session((connection) async {
+    // Given up: its agy ended, the browser's sign-in with it.
+    unawaited(cancel?.then((_) => connection.close()));
     try {
       await connection
           .request('authenticate', {'methodId': 'oauth-personal'})

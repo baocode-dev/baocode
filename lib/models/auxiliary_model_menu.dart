@@ -34,18 +34,20 @@ List<IdeMenuEntry> auxiliaryModelEntries(
       onSelected: () => onPick(builtinProviderId),
     ),
   for (final provider in providers.enabled)
-    IdeMenuAction(
-      provider.name,
-      checked: parseModelRef(current)?.provider == provider.id,
-      submenu: [
-        for (final model in provider.enabledModels)
-          IdeMenuAction(
-            provider.labelOf(model),
-            checked: current == modelRef(provider.id, model.id),
-            onSelected: () => onPick(modelRef(provider.id, model.id)),
-          ),
-      ],
-    ),
+    // The Antigravity CLI is no API to ask.
+    if (provider.protocol != ProviderProtocol.agy)
+      IdeMenuAction(
+        provider.name,
+        checked: parseModelRef(current)?.provider == provider.id,
+        submenu: [
+          for (final model in provider.enabledModels)
+            IdeMenuAction(
+              provider.labelOf(model),
+              checked: current == modelRef(provider.id, model.id),
+              onSelected: () => onPick(modelRef(provider.id, model.id)),
+            ),
+        ],
+      ),
 ];
 
 /// [ModelProviders.actionsModel] by name, as its menu shows it; null while

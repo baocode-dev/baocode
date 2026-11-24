@@ -1896,6 +1896,7 @@
   "modelsApiKeyHide": "隐藏 Key",
   "modelsApiKeyError": "Key 保存失败：{error}",
   "agyCli": "Antigravity CLI",
+  "agyProtocolDescription": "BaoCode 通过 ACP（Agent Client Protocol）驱动本机的 Antigravity CLI，不经本地代理。",
   "agyCliDescription": "Google 官方的 Antigravity CLI，由 BaoCode 安装并保持最新。它的对话和终端里的 agy 分开存放。",
   "agyVersion": "版本 {version}",
   "agyNotInstalled": "未安装",
