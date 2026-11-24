@@ -3991,6 +3991,81 @@ void main() {
       kernel.dispose();
     });
 
+    test('out of view, a process with jobs scheduled is kept until they are '
+        'deleted, a loop\'s round until it comes (#994)', () async {
+      final cli = FakeCli();
+      final (:kernel, transcript: _, events: _) = claude(cli);
+      const result = {
+        'type': 'result',
+        'subtype': 'success',
+        'is_error': false,
+      };
+      Future<void> called(
+        String turn,
+        String call,
+        String tool,
+        Map<String, Object?> input, {
+        Map<String, Object?>? answered,
+      }) async {
+        kernel.send(KernelTurn(id: turn, text: 'schedule it'));
+        await pumpEventQueue();
+        cli
+          ..push({
+            'type': 'assistant',
+            'parent_tool_use_id': null,
+            'message': {
+              'id': 'msg-$call',
+              'role': 'assistant',
+              'content': [
+                {'type': 'tool_use', 'id': call, 'name': tool, 'input': input},
+              ],
+            },
+          })
+          ..push({
+            'type': 'user',
+            'parent_tool_use_id': null,
+            'message': {
+              'role': 'user',
+              'content': [
+                {'type': 'tool_result', 'tool_use_id': call, 'content': 'ok'},
+              ],
+            },
+            'tool_use_result': ?answered,
+          })
+          ..push(result);
+        await pumpEventQueue();
+      }
+
+      await called(
+        'u1',
+        'toolu_1',
+        'CronCreate',
+        {'cron': '0 23 * * *', 'prompt': 'report', 'recurring': false},
+        answered: {'id': 'job1'},
+      );
+      kernel.release();
+      expect(cli.closed, isFalse, reason: 'its job comes at 23:00');
+      await called('u2', 'toolu_2', 'CronDelete', {'id': 'job1'});
+      kernel.release();
+      expect(cli.closed, isTrue);
+
+      cli.closed = false;
+      await called('u3', 'toolu_3', 'ScheduleWakeup', {
+        'delaySeconds': 1200,
+        'prompt': '/loop check',
+      });
+      kernel.release();
+      expect(cli.closed, isFalse, reason: 'the next round is to come');
+      // The round comes: a prompt of the CLI's own.
+      cli
+        ..push({'type': 'system', 'subtype': 'status', 'status': 'requesting'})
+        ..push(result);
+      await pumpEventQueue();
+      kernel.release();
+      expect(cli.closed, isTrue);
+      kernel.dispose();
+    });
+
     test(
       'renamed in the CLI (/rename): told; the names sent, not (#171)',
       () async {
