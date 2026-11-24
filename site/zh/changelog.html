@@ -30,6 +30,28 @@
   <h1>更新日志</h1>
   <p class="subtitle">BaoCode 每个版本的变化。</p>
 
+  <section class="release" id="v2.0.6">
+    <h2 class="plain"><a href="#v2.0.6">2.0.6</a></h2>
+    <p>这一版新增 Antigravity ACP 上游，可以在同一个对话里和其他上游的模型来回切换；聊天布局里从搜索面板和终端打开的文件改为在侧边面板显示，并修复了 PDF 发给 OpenAI 上游时失败的问题。</p>
+    <p>新功能</p>
+    <ul>
+    <li>新增 Antigravity ACP 上游：BaoCode 自动安装并更新官方 Antigravity CLI，通过 ACP 驱动它。登录 Google 账号后即可使用其中的 Gemini、Claude、GPT 模型，并能在同一个对话里和其他上游的模型来回切换。</li>
+    <li>Antigravity 对话的上下文面板：按系统提示、规则、技能、消息估算上下文的构成，并显示账号的每周额度和重置时间。</li>
+    <li>Antigravity 的命令、编辑、读文件、网页搜索等步骤和 Claude Code 的显示方式一致；完全访问模式下命令不再逐个询问；用量记录里能看到 Antigravity 的回合。</li>
+    </ul>
+    <p>改进</p>
+    <ul>
+    <li>聊天布局里，从搜索面板（Ctrl+P）或终端点开的文件，在当前智能体的侧边面板打开，不再跳到 IDE。</li>
+    <li>Claude Code 自己的模型始终可以选 200K / 400K / 1M 上下文。</li>
+    <li>内置内核读取图片和 PDF 的方式与 Claude Code 一致：大图自动缩放，长 PDF 按页读取，重复读取没有改动的文件时会提示。</li>
+    </ul>
+    <p>修复</p>
+    <ul>
+    <li>内置内核读到的 PDF 发给 OpenAI 上游时，不再整个当成文本发送而失败；上游报错时会显示出来，不再静默重试。</li>
+    <li>Antigravity：命令失败且没有输出时不再报 400 错误；回合结束后显示输出速度；1M 上下文显示为 1M。</li>
+    </ul>
+  </section>
+
   <section class="release" id="v2.0.5">
     <h2 class="plain"><a href="#v2.0.5">2.0.5</a></h2>
     <p>这一版让不支持原生网页搜索的模型也能联网搜索，手机中继支持按顺序配置多个备用，并修复了切换新对话项目时草稿丢失等问题。</p>
