@@ -11490,7 +11490,7 @@ abstract class AppLocalizations {
   /// No description provided for @agyCliDescription.
   ///
   /// In en, this message translates to:
-  /// **'Google\'s own Antigravity CLI, which BaoCode installs and keeps up to date. Its conversations are kept apart from the terminal\'s agy.'**
+  /// **'Google\'s own Antigravity CLI, which BaoCode installs and keeps up to date. BaoCode talks to it only over its official ACP, entirely within Google\'s ACP policy: no risk of an account ban.'**
   String get agyCliDescription;
 
   /// No description provided for @agyVersion.

@@ -2312,6 +2312,52 @@ void main() {
       kernel.dispose();
     });
 
+    test('a turn its result alone counts (Antigravity\'s) keeps the speed '
+        'it streamed at', () async {
+      final cli = FakeCli();
+      final (:kernel, :transcript, events: _) = claude(cli);
+      kernel.send(const KernelTurn(id: 'u1', text: 'hi'));
+      await pumpEventQueue();
+      Future<void> stream(Map<String, Object?> event) async {
+        cli.push({'type': 'stream_event', 'event': event});
+        await pumpEventQueue();
+      }
+
+      // As agy's are told: no usage on the message.
+      await stream({
+        'type': 'message_start',
+        'message': {'id': 'm1', 'role': 'assistant'},
+      });
+      await stream({
+        'type': 'content_block_start',
+        'index': 0,
+        'content_block': {'type': 'text', 'text': ''},
+      });
+      for (var i = 0; i < 6; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 250));
+        await stream({
+          'type': 'content_block_delta',
+          'index': 0,
+          'delta': {'type': 'text_delta', 'text': 'word ' * 12},
+        });
+      }
+      await stream({'type': 'content_block_stop', 'index': 0});
+      await stream({'type': 'message_stop'});
+      cli.push({
+        'type': 'result',
+        'subtype': 'success',
+        'usage': {'input_tokens': 9000, 'output_tokens': 120},
+      });
+      await pumpEventQueue();
+      final usage = (transcript.itemAt(
+        transcript.indexOf('u1')!,
+      ) as UserMessageItem).usage!;
+      expect(usage.inputTokens, 9000);
+      expect(usage.outputTokens, 120);
+      expect(usage.tokensPerSecond, isNotNull);
+      kernel.dispose();
+    });
+
     test('starts on first send, then writes the message', () async {
       final cli = FakeCli();
       final (:kernel, :transcript, events: _) = claude(cli);
