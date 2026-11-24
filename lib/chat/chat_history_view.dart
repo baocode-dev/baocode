@@ -2271,6 +2271,12 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       _feed.editing = (index: index, draft: ComposerDraft());
     }
     _editorClose.stop();
+    // Not following the end as the editor grows: that would push its top out
+    // of a short view, the end of the list in view but not the editor
+    // (#1257). It is brought into view as it grows (_ensureEditorVisible);
+    // closed, it follows again.
+    _followedBeforeEdit = _scrollController.anchored;
+    _scrollController.anchored = false;
     setState(() {
       _closingIndex = null;
       _editingIndex = index;
@@ -2304,8 +2310,14 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     if (x >= column.left && x <= column.right) _cancelEditing();
   }
 
+  /// Whether the list followed its end when the editor opened.
+  bool _followedBeforeEdit = false;
+
   void _cancelEditing() {
     _feed.editing = null;
+    if (_editingIndex != null && _followedBeforeEdit) {
+      _scrollController.anchored = true;
+    }
     if (_editingIndex case final index?) {
       // Back to the message: from the editor's height to its own, the
       // editor's frame shrinking back into the message's (stuck to the top,
@@ -2333,9 +2345,11 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     if (_editorReveal.isCompleted) _ensureEditorVisible();
   }
 
-  /// Once the placeholder has its full height, reveal only what extends
-  /// below the history. The editor is painted above the list, so its own
-  /// scrollable cannot bring it into view there.
+  /// Once the placeholder has its full height, reveal only what of it is out
+  /// of view: what extends below the history, then what is above it (its top
+  /// first, where it is taller than the view), but for one stuck to the top.
+  /// The editor is painted above the list, so its own scrollable cannot
+  /// bring it into view there.
   void _ensureEditorVisible() {
     final index = _editingIndex;
     if (index == null) return;
@@ -2350,12 +2364,21 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       final placeholder = _editorPlaceholderKey.currentContext
           ?.findRenderObject();
       if (placeholder == null || !placeholder.attached) return;
-      unawaited(
-        _scrollController.position.ensureVisible(
-          placeholder,
-          alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
-        ),
+      final viewport = RenderAbstractViewport.maybeOf(placeholder);
+      if (viewport == null) return;
+      final position = _scrollController.position;
+      var target = math.max(
+        position.pixels,
+        viewport.getOffsetToReveal(placeholder, 1).offset,
       );
+      if (!_sticks) {
+        target = math.min(
+          target,
+          viewport.getOffsetToReveal(placeholder, 0).offset - _editorInset,
+        );
+      }
+      target = target.clamp(position.minScrollExtent, position.maxScrollExtent);
+      if ((target - position.pixels).abs() >= 0.5) position.jumpTo(target);
     });
   }
 
