@@ -168,6 +168,8 @@ class Compaction {
     });
     // What the next request reports is the context now.
     session.lastUsage = null;
+    // The files read are no longer in it: read again, they are given.
+    session.mainRun.readFiles.forgetShown();
     session.emitSystem('status', {'status': null});
     session.hooks.notify(HookEvent.postCompact, {
       'trigger': trigger,

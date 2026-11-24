@@ -553,7 +553,8 @@ void main() {
     expect('${bad['content']}', contains('not valid JSON'));
     expect('${u16['content']}', allOf(contains('héllo'), contains('wörld')));
     expect(jsonEncode(pdf['content']), contains('application/pdf'));
-    expect(jsonEncode(pages['content']), contains('application/pdf'));
+    // Never the whole document for pages it cannot give.
+    expect('${pages['content']}', contains('at most 20'));
     expect(edit['is_error'], isNot(isTrue));
     final written = File(p.join(h.cwd, 'u16.txt')).readAsBytesSync();
     expect(written.sublist(0, 2), [0xFF, 0xFE]);

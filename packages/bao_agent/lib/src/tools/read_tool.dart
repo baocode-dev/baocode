@@ -1,11 +1,15 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:path/path.dart' as p;
 
 import '../permissions/decision.dart';
 import '../util/json.dart';
 import 'file_state.dart';
+import 'image_fit.dart';
+import 'pdf_info.dart';
 import 'tool.dart';
 
 /// Reads a file: text numbered by line, an image as an image, a PDF as a
@@ -22,8 +26,23 @@ class ReadTool extends Tool {
   /// The most a read's text may come to, in tokens (about 4 characters).
   static const maxTokens = 25000;
 
-  /// The most an image may be as the API takes it.
-  static const maxImageBytes = 3750 * 1024;
+  /// The most pages a PDF read whole may have.
+  static const pdfPagesWhole = 10;
+
+  /// The most pages that may be asked for at once.
+  static const pdfPagesAtOnce = 20;
+
+  /// The most a PDF read whole may be.
+  static const pdfMaxBytes = 20 * 1024 * 1024;
+
+  /// What a file the user mentioned was shown by ([FileRecord.shownBy]).
+  static const mentioned = '@mention';
+
+  /// What the model is told of a read the same as one it has in its
+  /// conversation, of a file not changed since (the CLI's words).
+  static const unchanged =
+      'Wasted call — file unchanged since your last Read. Refer to that '
+      'earlier tool_result instead.';
 
   static const imageTypes = {
     '.png': 'image/png',
@@ -43,8 +62,8 @@ class ReadTool extends Tool {
 - Give an absolute path.
 - Without offset and limit you get the first $maxLines lines, which is usually best. Use them only for a file too long to take at once.
 - Every line comes back after its number and a tab, the first line 1. A line longer than $maxLineLength characters is cut short.
-- An image (PNG, JPG, GIF, WebP) comes back as the picture itself.
-- A PDF comes back as the document; for a long one, ask for some pages, at most 20 at a time (pages: "1-5").
+- An image (PNG, JPG, GIF, WebP) comes back as the picture itself, made smaller when it is large.
+- A PDF of up to $pdfPagesWhole pages comes back as the document. For a larger one you MUST give the pages parameter (pages: "1-5"): reading it without will fail. At most $pdfPagesAtOnce pages a request; they come back as pictures of the pages.
 - A notebook comes back cell by cell, each with what it printed.
 - A folder cannot be read: list it with `ls` through Bash.
 - Several files that may matter can be read at once, in calls side by side in one reply.
@@ -138,10 +157,29 @@ class ReadTool extends Tool {
       return _image(file, mediaType, context);
     }
     if (extension == '.pdf') return _pdf(file, asString(input['pages']));
-    if (extension == '.ipynb') return _notebook(file, context);
-    final length = file.lengthSync();
     final offset = asInt(input['offset']);
     final limit = asInt(input['limit']);
+    // Read just as before, and not changed since: the model has it.
+    if (context.run.readFiles[path] case final previous?
+        when previous.shownBy != null &&
+            previous.offset == offset &&
+            previous.limit == limit &&
+            file.lastModifiedSync() == previous.modified) {
+      return ToolOutput(
+        previous.shownBy == mentioned
+            ? '<system-reminder>This file is already in your context (see '
+                  '"The user mentioned $path" above) and has not changed on '
+                  'disk. Use that content instead of re-reading.'
+                  '</system-reminder>'
+            : unchanged,
+        result: {
+          'type': 'file_unchanged',
+          'file': {'filePath': path},
+        },
+      );
+    }
+    if (extension == '.ipynb') return _notebook(file, context);
+    final length = file.lengthSync();
     if (length > maxBytes && offset == null && limit == null) {
       return ToolOutput.error(
         'The file is ${(length / 1024).round()}KB, over the '
@@ -166,12 +204,17 @@ class ReadTool extends Tool {
     // `offset` is a line number, 1 the first: 0 is taken as 1.
     final start = offset == null || offset <= 1 ? 0 : offset - 1;
     final count = limit ?? maxLines;
-    context.run.readFiles[path] = FileRecord(
+    FileRecord record({String? shownBy}) => FileRecord(
       content: text,
       modified: modified,
       offset: offset,
       limit: limit,
+      shownBy: shownBy,
     );
+    context.run.readFiles[path] = record();
+    // Shown: a read the same again, the file as it was, is not repeated.
+    void markShown() =>
+        context.run.readFiles[path] = record(shownBy: context.toolUseId);
     final reminders = context.session.memoryFor(path, context.run);
     String withReminders(String body) => [
       body,
@@ -179,6 +222,7 @@ class ReadTool extends Tool {
         '<system-reminder>\n$reminder\n</system-reminder>',
     ].join('\n\n');
     if (text.isEmpty) {
+      markShown();
       return ToolOutput(
         withReminders(
           '<system-reminder>The file is there, but empty.</system-reminder>',
@@ -187,6 +231,7 @@ class ReadTool extends Tool {
       );
     }
     if (start >= total) {
+      markShown();
       return ToolOutput(
         withReminders(
           '<system-reminder>The file has only $total lines, so nothing '
@@ -215,6 +260,7 @@ class ReadTool extends Tool {
               '${start + 1}-$end are shown. Use offset and limit to read '
               'the rest.</system-reminder>'
         : '';
+    markShown();
     return ToolOutput(
       withReminders('$body$note'),
       result: _textResult(
@@ -272,18 +318,19 @@ class ReadTool extends Tool {
     return buffer.toString();
   }
 
-  ToolOutput _image(File file, String mediaType, ToolContext context) {
+  Future<ToolOutput> _image(
+    File file,
+    String mediaType,
+    ToolContext context,
+  ) async {
     final bytes = file.readAsBytesSync();
-    if (bytes.length > maxImageBytes) {
-      return ToolOutput.error(
-        'The image is ${(bytes.length / 1024 / 1024).toStringAsFixed(1)}MB, '
-        'more than the ${(maxImageBytes / 1024 / 1024).toStringAsFixed(1)}MB '
-        'the model takes. Resize it first (for example with `sips -Z 1568` '
-        'on macOS or ImageMagick `convert -resize`), then read the smaller '
-        'copy.',
-      );
+    final FittedImage image;
+    try {
+      image = await fitImage(bytes, fallbackType: mediaType);
+    } on ImageFitException catch (error) {
+      return ToolOutput.error(error.message);
     }
-    final data = base64Encode(bytes);
+    final data = base64Encode(image.bytes);
     context.run.readFiles[file.path] = FileRecord(
       content: '',
       modified: file.lastModifiedSync(),
@@ -293,39 +340,61 @@ class ReadTool extends Tool {
       [
         {
           'type': 'image',
-          'source': {'type': 'base64', 'media_type': mediaType, 'data': data},
+          'source': {
+            'type': 'base64',
+            'media_type': image.mediaType,
+            'data': data,
+          },
         },
+        if (image.note case final note?) {'type': 'text', 'text': note},
       ],
       result: {
         'type': 'image',
         'file': {
           'base64': data,
-          'type': mediaType,
+          'type': image.mediaType,
           'originalSize': bytes.length,
+          if (image.width != null)
+            'dimensions': {
+              'originalWidth': image.width,
+              'originalHeight': image.height,
+              'displayWidth': image.displayWidth,
+              'displayHeight': image.displayHeight,
+            },
         },
       },
     );
   }
 
-  ToolOutput _pdf(File file, String? pages) {
-    final bytes = file.readAsBytesSync();
-    if (pages != null) {
-      final text = _pdfText(file.path, pages);
-      if (text != null) {
-        return ToolOutput(
-          text,
-          result: {
-            'type': 'text',
-            'file': {'filePath': file.path, 'content': text, 'pages': pages},
-          },
-        );
-      }
-    }
-    if (bytes.length > 20 * 1024 * 1024) {
+  Future<ToolOutput> _pdf(File file, String? pages) async {
+    final length = file.lengthSync();
+    if (length == 0) return ToolOutput.error('The PDF is empty.');
+    if (pages != null) return _pdfPages(file, pages);
+    if (length > pdfMaxBytes) {
       return ToolOutput.error(
-        'The PDF is too large to read whole '
-        '(${(bytes.length / 1024 / 1024).toStringAsFixed(1)}MB). Give the '
-        'pages parameter to read part of it.',
+        'PDF file exceeds maximum allowed size of '
+        '${pdfMaxBytes ~/ 1024 ~/ 1024}MB. Use the pages parameter to read '
+        'specific page ranges (e.g., pages: "1-5").',
+      );
+    }
+    final bytes = file.readAsBytesSync();
+    if (!looksLikePdf(bytes)) {
+      return ToolOutput.error('File is not a valid PDF (missing %PDF- header)');
+    }
+    final count = pdfPageCount(bytes, path: file.path);
+    if (count != null && count > pdfPagesWhole) {
+      return ToolOutput.error(
+        'This PDF has $count pages, which is too many to read at once. Use '
+        'the pages parameter to read specific page ranges (e.g., pages: '
+        '"1-5"). Maximum $pdfPagesAtOnce pages per request.',
+      );
+    }
+    if (count == null && length > 3 * 1024 * 1024) {
+      return ToolOutput.error(
+        'How many pages this PDF has could not be told, and at '
+        '${_mb(length)} it may be too many to read at once. Use the pages '
+        'parameter to read specific page ranges (e.g., pages: "1-5"). '
+        'Maximum $pdfPagesAtOnce pages per request.',
       );
     }
     return ToolOutput(
@@ -346,16 +415,144 @@ class ReadTool extends Tool {
     );
   }
 
-  /// The text of [pages] of the PDF at [path], by `pdftotext` where it is
-  /// installed.
-  static String? _pdfText(String path, String pages) {
-    final match = RegExp(r'^\s*(\d+)\s*(?:-\s*(\d+))?\s*$').firstMatch(pages);
-    if (match == null) return null;
-    final first = int.parse(match[1]!);
-    final last = int.parse(match[2] ?? match[1]!);
-    if (last < first || last - first >= 20) return null;
+  /// [pages] of the PDF [file], as pictures of the pages by `pdftoppm`;
+  /// as their text by `pdftotext` where only that is installed. Never the
+  /// whole document.
+  Future<ToolOutput> _pdfPages(File file, String pages) async {
+    final match = RegExp(r'^\s*(\d+)\s*(?:-\s*(\d*)\s*)?$').firstMatch(pages);
+    final first = match == null ? 0 : int.parse(match[1]!);
+    final open = match?[2]?.isEmpty ?? false;
+    final last = match == null
+        ? 0
+        : open
+        ? first + pdfPagesAtOnce - 1
+        : int.parse(match[2] ?? match[1]!);
+    if (match == null || first < 1 || last < first) {
+      return ToolOutput.error(
+        'pages must be one page ("3") or a range ("1-5"), counting from 1.',
+      );
+    }
+    if (last - first >= pdfPagesAtOnce) {
+      return ToolOutput.error(
+        'That is ${last - first + 1} pages: at most $pdfPagesAtOnce can be '
+        'read at once. Ask for a smaller range.',
+      );
+    }
+    final header = await file
+        .openRead(0, 1024)
+        .fold(<int>[], (a, b) => a..addAll(b));
+    if (!looksLikePdf(Uint8List.fromList(header))) {
+      return ToolOutput.error('File is not a valid PDF (missing %PDF- header)');
+    }
+    final size = _mb(file.lengthSync());
+    final folder = Directory.systemTemp.createTempSync('bao-pdf-');
     try {
-      final result = Process.runSync('pdftotext', [
+      final ProcessResult result;
+      try {
+        result = await _run('pdftoppm', [
+          '-jpeg',
+          '-r',
+          '100',
+          '-f',
+          '$first',
+          '-l',
+          '$last',
+          file.path,
+          p.join(folder.path, 'page'),
+        ]);
+      } on ProcessException {
+        return await _pdfText(file.path, first, last, size);
+      }
+      if (result.exitCode != 0) {
+        final error = '${result.stderr}'.trim();
+        if (error.toLowerCase().contains('password')) {
+          return ToolOutput.error(
+            'PDF is password-protected. Please provide an unprotected '
+            'version of the file.',
+          );
+        }
+        return ToolOutput.error(
+          'The pages could not be rendered: '
+          '${error.isEmpty ? 'pdftoppm exited ${result.exitCode}' : error}',
+        );
+      }
+      final images = folder.listSync().whereType<File>().toList()
+        ..sort((a, b) => _pageOf(a.path).compareTo(_pageOf(b.path)));
+      if (images.isEmpty) {
+        return ToolOutput.error(
+          'No pages were rendered: the PDF has fewer than $first pages.',
+        );
+      }
+      final blocks = <Map<String, Object?>>[
+        {
+          'type': 'text',
+          'text':
+              'PDF pages extracted: ${images.length} page(s) from '
+              '${file.path} ($size)',
+        },
+      ];
+      for (final image in images) {
+        try {
+          final fitted = await fitImage(
+            image.readAsBytesSync(),
+            fallbackType: 'image/jpeg',
+          );
+          blocks.add({
+            'type': 'image',
+            'source': {
+              'type': 'base64',
+              'media_type': fitted.mediaType,
+              'data': base64Encode(fitted.bytes),
+            },
+          });
+        } on ImageFitException catch (error) {
+          blocks.add({
+            'type': 'text',
+            'text':
+                '[Page ${_pageOf(image.path)} could not be processed as '
+                'an image: ${error.message}]',
+          });
+        }
+      }
+      return ToolOutput(
+        blocks,
+        result: {
+          'type': 'parts',
+          'file': {
+            'filePath': file.path,
+            'originalSize': file.lengthSync(),
+            'count': images.length,
+            'outputDir': folder.path,
+          },
+        },
+      );
+    } finally {
+      try {
+        folder.deleteSync(recursive: true);
+      } on FileSystemException {
+        // Left to the system's own clearing of its temporary files.
+      }
+    }
+  }
+
+  /// The page number in a name `pdftoppm` gave (`page-07.jpg`).
+  static int _pageOf(String path) =>
+      int.tryParse(
+        RegExp(r'(\d+)\.\w+$').firstMatch(p.basename(path))?[1] ?? '',
+      ) ??
+      0;
+
+  /// The text of pages [first] to [last] of the PDF at [path], by
+  /// `pdftotext`, where `pdftoppm` is not installed.
+  static Future<ToolOutput> _pdfText(
+    String path,
+    int first,
+    int last,
+    String size,
+  ) async {
+    final ProcessResult result;
+    try {
+      result = await _run('pdftotext', [
         '-f',
         '$first',
         '-l',
@@ -364,12 +561,63 @@ class ReadTool extends Tool {
         path,
         '-',
       ]);
-      if (result.exitCode != 0) return null;
-      return '${result.stdout}';
     } on ProcessException {
-      return null;
+      return ToolOutput.error(
+        'pdftoppm is not installed. Install poppler-utils (e.g. `brew install '
+        'poppler` or `apt-get install poppler-utils`) to enable PDF page '
+        'rendering.',
+      );
     }
+    final error = '${result.stderr}'.trim();
+    if (result.exitCode != 0) {
+      if (error.toLowerCase().contains('password')) {
+        return ToolOutput.error(
+          'PDF is password-protected. Please provide an unprotected version '
+          'of the file.',
+        );
+      }
+      return ToolOutput.error(
+        'The pages could not be read: '
+        '${error.isEmpty ? 'pdftotext exited ${result.exitCode}' : error}',
+      );
+    }
+    final text = '${result.stdout}';
+    final body = text.trim().isEmpty
+        ? '<system-reminder>These pages have no text to extract (they may '
+              'be scans); install poppler-utils for pdftoppm to see them as '
+              'pictures.</system-reminder>'
+        : text;
+    return ToolOutput(
+      'Text of pages $first-$last of $path ($size):\n\n$body',
+      result: {
+        'type': 'text',
+        'file': {'filePath': path, 'content': text, 'pages': '$first-$last'},
+      },
+    );
   }
+
+  /// [executable] with [arguments], stopped after two minutes.
+  static Future<ProcessResult> _run(
+    String executable,
+    List<String> arguments,
+  ) async {
+    final process = await Process.start(executable, arguments);
+    final out = process.stdout.transform(utf8.decoder).join();
+    final err = process.stderr
+        .transform(const Utf8Decoder(allowMalformed: true))
+        .join();
+    final code = await process.exitCode.timeout(
+      const Duration(seconds: 120),
+      onTimeout: () {
+        process.kill(ProcessSignal.sigkill);
+        return -1;
+      },
+    );
+    return ProcessResult(process.pid, code, await out, await err);
+  }
+
+  static String _mb(int bytes) =>
+      '${(bytes / 1024 / 1024).toStringAsFixed(1)}MB';
 
   ToolOutput _notebook(File file, ToolContext context) {
     final text = readText(file).text;
@@ -382,6 +630,7 @@ class ReadTool extends Tool {
     context.run.readFiles[file.path] = FileRecord(
       content: text,
       modified: file.lastModifiedSync(),
+      shownBy: context.toolUseId,
     );
     final language =
         asString(asMap(asMap(notebook['metadata'])['language_info'])['name']) ??

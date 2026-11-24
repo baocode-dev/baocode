@@ -10,6 +10,7 @@ class FileRecord {
     required this.modified,
     this.offset,
     this.limit,
+    this.shownBy,
   });
 
   final String content;
@@ -20,6 +21,20 @@ class FileRecord {
   final int? limit;
 
   bool get partial => offset != null || limit != null;
+
+  /// The Read call whose result showed it to the model, while that result
+  /// is still in the conversation: a read the same again is not repeated.
+  final String? shownBy;
+
+  /// This record, no longer in the conversation the model sees.
+  FileRecord get unshown => shownBy == null
+      ? this
+      : FileRecord(
+          content: content,
+          modified: modified,
+          offset: offset,
+          limit: limit,
+        );
 }
 
 /// The files an agent has read, by path.
@@ -38,7 +53,19 @@ class ReadFileState {
 
   /// A state of its own that starts with what this one has read (a
   /// subagent's, which may change what its caller read).
-  ReadFileState copy() => ReadFileState().._records.addAll(_records);
+  /// What it was shown is not in that agent's conversation.
+  ReadFileState copy() => ReadFileState()
+    .._records.addAll({
+      for (final MapEntry(:key, :value) in _records.entries) key: value.unshown,
+    });
+
+  /// What was read is no longer in the conversation (compacted, rewound):
+  /// the next read of it is given in full.
+  void forgetShown() {
+    for (final MapEntry(:key, :value) in _records.entries.toList()) {
+      _records[key] = value.unshown;
+    }
+  }
 
   /// What is wrong with changing [path] now: not read, or changed since.
   /// Null when it may be changed.
