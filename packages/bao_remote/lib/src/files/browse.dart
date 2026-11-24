@@ -150,6 +150,28 @@ const _driveFixed = 3;
 const _driveRemote = 4;
 const _driveCdrom = 5;
 
+/// Whether Windows recognizes [path] as an application execution alias.
+/// Unlike an ordinary link, it is resolved when Windows launches it.
+bool windowsAppExecutionAliasExists(String path) {
+  if (!Platform.isWindows ||
+      path.contains('\u0000') ||
+      path.contains('*') ||
+      path.contains('?')) {
+    return false;
+  }
+  final heap = _Heap();
+  try {
+    final data = heap<Uint32>(_findDataSize);
+    final find = _findFirstFile(heap.utf16(path), data.cast());
+    if (find == _invalidHandle) return false;
+    _findClose(find);
+    // WIN32_FIND_DATAW.dwReserved0 carries the reparse tag.
+    return data[0] & 0x400 != 0 && data[9] == 0x8000001B;
+  } finally {
+    heap.free();
+  }
+}
+
 /// [path]'s attributes; null when they cannot be read. One the system
 /// holds open (`pagefile.sys`) has them read from its folder's listing.
 int? _windowsAttributes(String path) {
