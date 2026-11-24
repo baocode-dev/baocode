@@ -11,7 +11,7 @@ export 'src/api/model_catalog.dart' show ModelCatalog, ModelInfo;
 export 'src/api/model_client.dart'
     show ApiError, ModelClient, ModelRequest, RetryInfo, requestHints;
 export 'src/cli/agent_cli.dart' show AgentCommandLine, runAgentCommandLine;
-export 'src/config/foreign_brief.dart' show foreignAgentBrief;
+export 'src/config/foreign_brief.dart' show ForeignBrief, foreignAgentBrief;
 export 'src/config/paths.dart' show AgentPaths;
 export 'src/engine/engine.dart'
     show AgentEngine, BuiltInCommand, builtInCommands, engineVersion;

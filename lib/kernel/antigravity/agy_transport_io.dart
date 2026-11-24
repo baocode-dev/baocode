@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:bao_agent/bao_agent.dart'
-    show AgentPaths, SessionStore, foreignAgentBrief, newUuid;
+    show AgentPaths, ForeignBrief, SessionStore, newUuid;
 
 import '../acp/acp_connection.dart';
 import '../acp/mcp_endpoint.dart';
@@ -12,6 +12,7 @@ import '../claude_code/claude_code_transport.dart';
 import '../claude_code/claude_environment.dart';
 import '../claude_code/control_channel.dart';
 import 'acp_to_claude.dart';
+import 'agy_context.dart';
 import 'agy_runtime.dart';
 import 'handoff.dart';
 
@@ -35,6 +36,7 @@ class AgyTransport implements ClaudeCodeTransport {
     if (_syncLine case final line?) {
       _agySession = line.session;
       _synced = line.synced;
+      _handedOff = line.handedOff;
     }
     _running[_store.sessionId] = this;
   }
@@ -240,19 +242,16 @@ class AgyTransport implements ClaudeCodeTransport {
           'title': title,
         });
       case 'get_context_usage':
-        final used = _used ?? 0;
-        final size = _size ?? launch.autocompact ?? 0;
-        _respond(id, {
-          'categories': [
-            {'name': 'Messages', 'tokens': used, 'kind': 'used'},
-            if (size > used)
-              {'name': 'Free space', 'tokens': size - used, 'kind': 'free'},
-          ],
-          'totalTokens': used,
-          'maxTokens': size,
-          'rawMaxTokens': size,
-          'percentage': size == 0 ? 0 : (used * 100 / size).round(),
-        });
+        _respond(
+          id,
+          agyContextUsage(
+            used: _used ?? 0,
+            size: _size ?? launch.autocompact ?? 0,
+            brief: _toldBrief ??= _brief(),
+            chain: _store.chain,
+            handedOff: _handedOff,
+          ),
+        );
       case 'rewind_conversation':
         _respond(id, await _rewind(request));
       case 'mcp_status':
@@ -342,6 +341,7 @@ class AgyTransport implements ClaudeCodeTransport {
     try {
       final session = await _session();
       final handoff = handoffReminder(before, syncedUuid: _synced);
+      if (handoff != null) _handedOff += agyTokens(handoff);
       final response = await _connection!.request('session/prompt', {
         'sessionId': session,
         'prompt': [
@@ -377,6 +377,7 @@ class AgyTransport implements ClaudeCodeTransport {
         'type': syncType,
         'agySessionId': _agySession,
         'syncedUuid': _synced,
+        'handedOff': _handedOff,
       });
     }
     _turn = null;
@@ -478,6 +479,7 @@ class AgyTransport implements ClaudeCodeTransport {
     if (_synced != null && !_onChain(_synced!)) {
       _synced = null;
       _agySession = null;
+      _handedOff = 0;
     }
     return {'rewound': true};
   }
@@ -490,10 +492,14 @@ class AgyTransport implements ClaudeCodeTransport {
   static const syncType = 'antigravity-session';
 
   /// The last note of agy's session in the conversation's file.
-  ({String session, String? synced})? get _syncLine {
+  ({String session, String? synced, int handedOff})? get _syncLine {
     for (final entry in _store.extras.reversed) {
       if (entry case {'type': syncType, 'agySessionId': final String id}) {
-        return (session: id, synced: entry['syncedUuid'] as String?);
+        return (
+          session: id,
+          synced: entry['syncedUuid'] as String?,
+          handedOff: (entry['handedOff'] as num?)?.toInt() ?? 0,
+        );
       }
     }
     return null;
@@ -505,6 +511,14 @@ class AgyTransport implements ClaudeCodeTransport {
   /// agy's session; the last message of the conversation it saw.
   String? _agySession;
   String? _synced;
+
+  /// What its session was told of turns on other models, in tokens as
+  /// estimated ([agyTokens]): for what fills its context to be told.
+  int _handedOff = 0;
+
+  /// The instructions and skills its session was told as it started; the
+  /// user's as they are now, for one resumed.
+  ForeignBrief? _toldBrief;
 
   /// Whether [_agySession] is open on [_connection].
   bool _open = false;
@@ -561,6 +575,7 @@ class AgyTransport implements ClaudeCodeTransport {
       });
       _agySession = started['sessionId'] as String?;
       _synced = null;
+      _handedOff = 0;
       _commandsOf(started);
       if (_agySession == null) {
         throw const AcpError(-32603, 'Antigravity started no session');
@@ -578,16 +593,16 @@ class AgyTransport implements ClaudeCodeTransport {
   String _appendedPrompt() => [
     ClaudeLaunch.appendedSystemPrompt,
     if (launch.instructions case final text? when text.isNotEmpty) text,
-    ?_brief(),
+    ?(_toldBrief = _brief()).text,
     'Notes from BaoCode, the app you run in, come in <system-reminder> '
         'tags in the user\'s messages: take them in, without mentioning '
         'them to the user. One may tell you what was said and done in this '
         'conversation with another model while you were not in it.',
   ].join('\n\n');
 
-  String? _brief() {
+  ForeignBrief _brief() {
     try {
-      return foreignAgentBrief(
+      return ForeignBrief.of(
         environment: _environment,
         cwd: launch.cwd,
         additional: launch.directories,
@@ -595,7 +610,7 @@ class AgyTransport implements ClaudeCodeTransport {
         flagSettings: launch.settings,
       );
     } on Object {
-      return null;
+      return const ForeignBrief();
     }
   }
 
