@@ -17,6 +17,7 @@ dependencies:
     path: ../bao_websearch
   crypto: ^3.0.6
   html: ^0.15.0
+  image: ^4.13.1
   path: ^1.9.1
   yaml: ^3.1.3
 

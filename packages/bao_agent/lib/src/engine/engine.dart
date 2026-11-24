@@ -14,6 +14,8 @@ import '../hooks/hooks.dart';
 import '../prompts/system_prompt.dart';
 import '../prompts/task_prompts.dart';
 import '../tools/file_state.dart';
+import '../tools/pdf_info.dart';
+import '../tools/read_tool.dart';
 import '../tools/skill_tool.dart';
 import '../util/cancel.dart';
 import '../util/ids.dart';
@@ -1116,9 +1118,27 @@ class AgentEngine {
         '(`ls ${_quote(path)}`):\n${entries.map((e) => '- $e').join('\n')}';
   }
 
+  /// A PDF the user mentioned: how to read it, by its pages where it has
+  /// many.
+  String _pdfMention(File file) {
+    final pages = pdfPageCount(file.readAsBytesSync(), path: file.path);
+    if (pages != null && pages <= ReadTool.pdfPagesWhole) {
+      return 'The user mentioned the PDF ${file.path} ($pages pages): read '
+          'it with the Read tool.';
+    }
+    return 'The user mentioned the PDF ${file.path}'
+        '${pages == null ? '' : ' ($pages pages)'}. This PDF is too large to '
+        'read all at once. You MUST use the Read tool with the pages '
+        'parameter to read specific page ranges (e.g., pages: "1-5"). Do NOT '
+        'call Read without the pages parameter or it will fail. Start by '
+        'reading the first few pages to understand the structure, then read '
+        'more as needed. Maximum ${ReadTool.pdfPagesAtOnce} pages per request.';
+  }
+
   String? _fileMention(String path, int? from, int? to) {
     try {
       final file = File(path);
+      if (p.extension(path).toLowerCase() == '.pdf') return _pdfMention(file);
       if (file.lengthSync() > 256 * 1024) {
         return 'The user mentioned $path. It is too large to include: read it '
             'with the Read tool (offset and limit) as needed.';
@@ -1135,6 +1155,7 @@ class AgentEngine {
         modified: file.lastModifiedSync(),
         offset: from == null ? null : start,
         limit: from == null && end == all.length ? null : end - start + 1,
+        shownBy: ReadTool.mentioned,
       );
       final input = {
         'file_path': path,
@@ -1999,6 +2020,7 @@ class AgentEngine {
     // Kept as the conversation's branch from here: the next message
     // follows the one before the target.
     session.lastUsage = null;
+    session.mainRun.readFiles.forgetShown();
     return {'rewound': true};
   }
 
