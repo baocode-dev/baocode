@@ -122,18 +122,27 @@ Future<String> _windowsCertificates() async {
 }
 
 /// The system's bundle on Linux (Debian's and Red Hat's places for it,
-/// then the BSDs'), where the CAs a machine added of its own are.
+/// then the BSDs'), where the CAs a machine added of its own are; the one
+/// `SSL_CERT_FILE` names first, as OpenSSL reads it.
 Future<String> _linuxCertificates() async {
-  for (final path in const [
+  for (final path in [
+    ?Platform.environment['SSL_CERT_FILE'],
     '/etc/ssl/certs/ca-certificates.crt',
     '/etc/pki/tls/certs/ca-bundle.crt',
     '/etc/ssl/cert.pem',
   ]) {
-    final file = File(path);
-    if (file.existsSync()) return file.readAsString();
+    if (File(path).existsSync()) return readCertificateFile(path);
   }
   return '';
 }
+
+/// What the bundle at [path] says, whatever else is in it: PEM is ASCII,
+/// and bytes that are not (a certificate appended as DER, by a gateway's
+/// or a VPN's installer) are left out by [pemCertificates], not the whole
+/// file with them (#1116).
+@visibleForTesting
+Future<String> readCertificateFile(String path) async =>
+    latin1.decode(await File(path).readAsBytes());
 
 /// The certificates [pem] holds, each a block of its own.
 List<String> pemCertificates(String pem) => [
