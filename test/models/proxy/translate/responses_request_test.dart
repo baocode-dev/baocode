@@ -364,6 +364,29 @@ void main() {
     expect(content[2].get('text').string, 'after');
   });
 
+  test('a PDF a tool read goes as a file, not as its JSON text', () {
+    final items = inputs(
+      convert(
+        '''{"messages":[
+      {"role":"user","content":"read it"},
+      {"role":"assistant","content":[{"type":"tool_use","id":"call_1","name":"Read","input":{"file_path":"/a.pdf"}}]},
+      {"role":"user","content":[{"type":"tool_result","tool_use_id":"call_1","content":[
+        {"type":"document","source":{"type":"base64","media_type":"application/pdf","data":"JVBERi0xLjQK"}}]}]}]}''',
+      ),
+    );
+    final output = items
+        .firstWhere((i) => i.get('type').string == 'function_call_output')
+        .get('output');
+    expect(output.isArray, isTrue);
+    expect(output.array, hasLength(1));
+    expect(output.get('0.type').string, 'input_file');
+    expect(
+      output.get('0.file_data').string,
+      'data:application/pdf;base64,JVBERi0xLjQK',
+    );
+    expect(output.get('0.filename').string, 'document.pdf');
+  });
+
   test('keeps content order across tool and reasoning items', () {
     final signature = validCodexReasoningSignature();
     final items = inputs(

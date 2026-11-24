@@ -157,7 +157,7 @@ Map<String, Object?> convertClaudeRequestToOpenAI(
             case 'redacted_thinking':
               // Never reasoning_content.
               break;
-            case 'text' || 'image':
+            case 'text' || 'image' || 'document':
               if (_convertClaudeContentPart(part) case final item?) {
                 contentItems.add(item);
               }
@@ -220,7 +220,13 @@ Map<String, Object?> convertClaudeRequestToOpenAI(
         // A tool message holds no images: they follow in a user message.
         if (relayedToolImages.isNotEmpty) {
           final relay = <Map<String, Object?>>[
-            {'type': 'text', 'text': _toolResultImageRelayNotice},
+            {
+              'type': 'text',
+              'text':
+                  relayedToolImages.every((part) => part['type'] == 'image_url')
+                  ? _toolResultImageRelayNotice
+                  : _toolResultFileRelayNotice,
+            },
             ...relayedToolImages,
           ];
           if (role == 'user' && hasContent) {
@@ -408,6 +414,21 @@ Map<String, Object?>? _convertClaudeContentPart(JsonValue part) {
         'type': 'image_url',
         'image_url': {'url': url},
       };
+    case 'document':
+      // A base64 PDF, as OpenAI's file part.
+      final source = part.get('source');
+      if (source.get('type').string != 'base64') return null;
+      final mediaType = source.get('media_type').string.trim();
+      if (mediaType.toLowerCase() != 'application/pdf') return null;
+      final data = source.get('data').string;
+      if (data.isEmpty) return null;
+      return {
+        'type': 'file',
+        'file': {
+          'filename': 'document.pdf',
+          'file_data': 'data:$mediaType;base64,$data',
+        },
+      };
     default:
       return null;
   }
@@ -417,9 +438,17 @@ Map<String, Object?>? _convertClaudeContentPart(JsonValue part) {
 const toolResultImagePlaceholder =
     '[Tool returned image content; the images follow in the next user message.]';
 
+/// As [toolResultImagePlaceholder], for a result with files (a PDF).
+const _toolResultFilePlaceholder =
+    '[Tool returned file content; it follows in the next user message.]';
+
 /// Heads the user message that carries a tool's images.
 const _toolResultImageRelayNotice =
     'Images returned by the preceding tool call(s):';
+
+/// Heads the user message that carries a tool's files, images too.
+const _toolResultFileRelayNotice =
+    'Files returned by the preceding tool call(s):';
 
 /// A tool result's content as a tool message's text, and the images in it.
 (String, List<Map<String, Object?>>) _convertToolResultContent(
@@ -436,7 +465,8 @@ const _toolResultImageRelayNotice =
         parts.add(item.string);
       } else if (item.isObject && type == 'text') {
         parts.add(item.get('text').string);
-      } else if (item.isObject && type == 'image') {
+      } else if (item.isObject && (type == 'image' || type == 'document')) {
+        // A file goes on with the images, not as its JSON text.
         if (_convertClaudeContentPart(item) case final image?) {
           images.add(image);
         } else {
@@ -450,9 +480,13 @@ const _toolResultImageRelayNotice =
     }
     final joined = parts.join('\n\n');
     if (joined.trim().isEmpty) {
-      return images.isNotEmpty
-          ? (toolResultImagePlaceholder, images)
-          : (content.raw, const []);
+      if (images.isEmpty) return (content.raw, const []);
+      return (
+        images.every((part) => part['type'] == 'image_url')
+            ? toolResultImagePlaceholder
+            : _toolResultFilePlaceholder,
+        images,
+      );
     }
     return (joined, images);
   }

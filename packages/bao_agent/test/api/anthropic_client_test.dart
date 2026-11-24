@@ -301,6 +301,21 @@ void main() {
       const ApiError('context window exceeded', status: 400).promptTooLong,
       isTrue,
     );
+    // In the stream, as a Responses upstream's response.failed comes.
+    expect(
+      const ApiError(
+        'Your input exceeds the context window of this model.',
+        type: 'invalid_request_error',
+      ).promptTooLong,
+      isTrue,
+    );
+    expect(
+      const ApiError(
+        'context window exceeded',
+        type: 'overloaded_error',
+      ).promptTooLong,
+      isFalse,
+    );
     expect(
       jsonEncode(
         const ModelRequest({'model': 'm'}).copyWith(betas: ['b']).betas,

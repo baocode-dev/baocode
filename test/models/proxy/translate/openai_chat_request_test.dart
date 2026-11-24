@@ -387,6 +387,30 @@ void main() {
     );
   });
 
+  test('tool result PDF goes on as a file, not as its JSON text', () {
+    final out = convert(
+      '''{"model":"claude-3-opus","messages":[
+      {"role":"assistant","content":[{"type":"tool_use","id":"call_1","name":"Read","input":{"file_path":"/a.pdf"}}]},
+      {"role":"user","content":[{"type":"tool_result","tool_use_id":"call_1","content":[
+        {"type":"document","source":{"type":"base64","media_type":"application/pdf","data":"JVBERi0xLjQK"}}]}]}]}''',
+    );
+    final messages = out.get('messages').array;
+    expect(messages, hasLength(3));
+    expect(messages[1].get('role').string, 'tool');
+    expect(messages[1].get('content').string, isNot(contains('JVBERi0')));
+    final relay = messages[2];
+    expect(relay.get('role').string, 'user');
+    expect(
+      relay.get('content.0.text').string,
+      'Files returned by the preceding tool call(s):',
+    );
+    expect(relay.get('content.1.type').string, 'file');
+    expect(
+      relay.get('content.1.file.file_data').string,
+      'data:application/pdf;base64,JVBERi0xLjQK',
+    );
+  });
+
   test('tool result URL image only', () {
     final out = convert(
       '''{"model":"claude-3-opus","messages":[

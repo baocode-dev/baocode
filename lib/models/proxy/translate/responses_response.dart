@@ -79,6 +79,9 @@ class ResponsesResponseTranslator {
     switch (type) {
       case 'error':
         output.write(_streamError(root));
+      case 'response.failed':
+        // Its error is the response's (context_length_exceeded, …).
+        output.write(_streamError(root.get('response')));
       case 'response.created':
         output.write(
           sseEvent('message_start', {
@@ -258,6 +261,7 @@ class ResponsesResponseTranslator {
 
   static bool _shouldDefer(String type, JsonValue root) => switch (type) {
     'error' ||
+    'response.failed' ||
     'response.completed' ||
     'response.incomplete' ||
     'response.function_call_arguments.delta' ||
