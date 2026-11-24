@@ -1218,12 +1218,36 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
       now: now,
       notes: [
         ...notes,
+        ?_imageFilesNote(message.images),
         ..._placeNotes(from),
         if (editor != null) ..._editorNotes(editor()),
         if (from != null) ..._suggestionNotes(),
       ],
     );
     _kernel.send(turn);
+  }
+
+  /// Where the agent finds [images] as files: they reach it as pictures
+  /// alone, and a tool that wants a file (an upload, an attachment) had it
+  /// look for one on the disk (#1129). None for a remote project's, which
+  /// cannot read this machine's files.
+  String? _imageFilesNote(List<ImageAttachment> images) {
+    if (images.isEmpty || RemoteLocation.isRemote(kernelContext.cwd ?? '')) {
+      return null;
+    }
+    final lines = [
+      for (final (i, image) in images.indexed)
+        if (PasteStore.saveImage(image.bytes, image.mediaType) case final path?)
+          '${switch (image.number) {
+            final number? => imageReference(number),
+            null => 'Image ${i + 1}',
+          }}: $path',
+    ];
+    if (lines.isEmpty) return null;
+    return '<system-reminder>The images attached to this message are also '
+        'saved as files, for when a file is needed rather than what you see '
+        '(to upload or attach it, say):\n${lines.join('\n')}\n'
+        '</system-reminder>';
   }
 
   static final _random = math.Random.secure();
