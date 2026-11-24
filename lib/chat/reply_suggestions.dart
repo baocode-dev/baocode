@@ -13,21 +13,42 @@ abstract final class ReplySuggestions {
 
   /// What the agent is told, with the user's message, when they turn them
   /// on (or with the first message, on).
+  ///
+  /// Shown what is right and what is not: told only in words, some models
+  /// wrote them as a tool call's parameters, in a list or in code, and the
+  /// app showed them as text (#1276).
   static const on =
       '<system-reminder>Reply suggestions are on: the user turned them on '
       'in BaoCode. When you finish your turn and hand back to them, end your '
-      'last message with two or three things they might send you next, each '
-      'in its own <$tag>…</$tag> on a line of its own, after all else: in '
+      'last message with two or three things they might send you next: in '
       'their voice and their language, short (about 20 Chinese characters, '
       'or 10 words, at most), each a different way on (go ahead, change '
       'course, ask). They pick one to edit and send. The app shows them apart '
       'from your message: do not speak of them. None while you are still '
-      'working.</system-reminder>';
+      'working.\n'
+      '\n'
+      'Write them as plain text in your reply, not as a tool call: each on a '
+      'line of its own, between exactly <$tag> and </$tag>, with nothing '
+      'after the last one.\n'
+      '\n'
+      'Right:\n'
+      '<$tag>Run the tests first</$tag>\n'
+      '<$tag>Why did the filter not apply?</$tag>\n'
+      '\n'
+      'Wrong:\n'
+      '- <parameter name="suggestion">Run the tests</parameter> (a tool '
+      "call's tags: only <$tag>)\n"
+      '- <$tag name="1">Run the tests</$tag> (no attributes)\n'
+      '- a list marker, a number or a code block around them\n'
+      '- <$tag>Want me to run the tests?</$tag> (your voice: write what the '
+      'user would say)\n'
+      '- more text after them</system-reminder>';
 
   /// With each message after, a word.
   static const stillOn =
       '<system-reminder>Reply suggestions still on: end your turn with two '
-      'or three short <$tag>…</$tag>.</system-reminder>';
+      'or three short ones, as plain text, each on its own line: '
+      '<$tag>…</$tag>.</system-reminder>';
 
   /// Once, when they turn them off.
   static const off =
@@ -77,13 +98,18 @@ abstract final class ReplySuggestions {
 
   static const _open = '<$tag>';
 
-  static final _whole = RegExp('<$tag>([^<`]*)</$tag>');
+  /// What one says: any text but a tag, code in it too (`npm test`).
+  static final _whole = RegExp('<$tag>([^<]*)</$tag>');
 
-  /// Whole ones; then perhaps one under way, its end tag not yet whole;
-  /// or the start of its tag.
+  /// Before each, a list's marker some models put there.
+  static const _marker = r'(?:(?:[-*•]|\d+[.)])[ \t]*)?';
+
+  /// Whole ones; then perhaps one under way, its end tag not yet whole
+  /// (not one in code, its tag the last of it: `` `<tag>` ``); or the start
+  /// of its tag.
   static final _tail = RegExp(
-    '(?:\\s*<$tag>[^<`]*</$tag>)*\\s*'
-    '(?:<$tag>[^<`]*(?:</?[a-z_]*)?|(<[a-z_]*))?\$',
+    '(?:\\s*$_marker<$tag>[^<]*</$tag>)*\\s*'
+    '(?:$_marker<$tag>(?:[^<`][^<]*)?(?:</?[a-z_]*)?|(<[a-z_]*))?\$',
   );
 
   /// Where the suggestions at the end of [text] start (the space before
