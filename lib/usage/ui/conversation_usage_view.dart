@@ -433,40 +433,42 @@ class _ConversationUsageViewState extends State<ConversationUsageView> {
             Expanded(
               child: ScrollEdgeFade(
                 fadeLength: hasCalls || trajectory ? 28 : 40,
-                child: ListView(
-                  controller: controller,
-                  padding: EdgeInsets.fromLTRB(
-                    16,
-                    hasCalls || trajectory ? 12 : 14,
-                    16,
-                    32,
-                  ),
-                  children: [
-                    if (trajectory)
-                      UsageTrajectoryView(
+                child: trajectory
+                    ? UsageTrajectoryView(
                         session: widget.session,
                         calls: _calls,
                         ledger: _ledger,
+                        scrollController: controller,
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
                       )
-                    // Its first call, under way.
-                    else if (!hasCalls && !_loading && _anyUnderway)
-                      _callsCard(const [])
-                    else if (!hasCalls)
-                      _loading ? const SizedBox(height: 120) : _empty()
-                    else if (summary.calls.isEmpty)
-                      UsageEmpty(
-                        icon: Codicons.filter,
-                        title: l10n.ustatEmptyFiltered,
-                      )
-                    else
-                      for (final (i, section) in _sections(
-                        summary,
-                      ).indexed) ...[
-                        if (i > 0) const SizedBox(height: 12),
-                        section,
-                      ],
-                  ],
-                ),
+                    : ListView(
+                        controller: controller,
+                        padding: EdgeInsets.fromLTRB(
+                          16,
+                          hasCalls ? 12 : 14,
+                          16,
+                          32,
+                        ),
+                        children: [
+                          // Its first call, under way.
+                          if (!hasCalls && !_loading && _anyUnderway)
+                            _callsCard(const [])
+                          else if (!hasCalls)
+                            _loading ? const SizedBox(height: 120) : _empty()
+                          else if (summary.calls.isEmpty)
+                            UsageEmpty(
+                              icon: Codicons.filter,
+                              title: l10n.ustatEmptyFiltered,
+                            )
+                          else
+                            for (final (i, section) in _sections(
+                              summary,
+                            ).indexed) ...[
+                              if (i > 0) const SizedBox(height: 12),
+                              section,
+                            ],
+                        ],
+                      ),
               ),
             ),
           ],

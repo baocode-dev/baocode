@@ -147,10 +147,13 @@ final imageReferencePattern = RegExp(r'\[Image #(\d+)\]');
 
 /// Plain assistant prose. Supports `inline code` and `- ` bullet lines.
 class AssistantTextItem extends ChatItem {
-  const AssistantTextItem(this.raw);
+  const AssistantTextItem(this.raw, {this.sentAt});
 
   /// All of it, as the agent wrote it.
   final String raw;
+
+  /// When this reply block was emitted, where known.
+  final DateTime? sentAt;
 
   /// What it said: without what it suggests the user send next, at its end
   /// ([suggestions]).
@@ -240,6 +243,8 @@ class ToolCallItem extends ChatItem {
     this.input = const {},
     this.images = const [],
     this.imageFiles = const [],
+    this.startedAt,
+    this.duration,
   });
 
   final ToolKind kind;
@@ -277,6 +282,29 @@ class ToolCallItem extends ChatItem {
   /// Where they were saved (absolute, on the project's host), as the CLI
   /// told the agent: files of the session, which its text may link to.
   final List<String> imageFiles;
+
+  /// When this tool call started and how long it ran, where known.
+  final DateTime? startedAt;
+  final Duration? duration;
+
+  ToolCallItem withTiming({DateTime? startedAt, Duration? duration}) =>
+      ToolCallItem(
+        kind: kind,
+        target: target,
+        detail: detail,
+        path: path,
+        results: results,
+        label: label,
+        status: status,
+        output: output,
+        tool: tool,
+        callId: callId,
+        input: input,
+        images: images,
+        imageFiles: imageFiles,
+        startedAt: startedAt ?? this.startedAt,
+        duration: duration ?? this.duration,
+      );
 }
 
 /// A subagent at work: its own conversation, one card in the history that
@@ -485,7 +513,7 @@ class PlanItem extends ChatItem {
 
 /// A line from the runtime, not the agent: shown apart from its messages.
 class NoticeItem extends ChatItem {
-  const NoticeItem(this.kind, this.text, {this.compaction});
+  const NoticeItem(this.kind, this.text, {this.compaction, this.at});
 
   final NoticeKind kind;
 
@@ -494,6 +522,9 @@ class NoticeItem extends ChatItem {
 
   /// What a compaction divider tells, to be said in the app's language.
   final CompactionNote? compaction;
+
+  /// When this notice occurred, where known.
+  final DateTime? at;
 }
 
 /// A compaction: why, and how far the context came down.
@@ -531,6 +562,7 @@ class TerminalItem extends ChatItem {
     this.status = CommandStatus.succeeded,
     this.background = false,
     this.startedAt,
+    this.duration,
   });
 
   final String command;
@@ -544,6 +576,7 @@ class TerminalItem extends ChatItem {
   /// Left running after its turn: shown as a background task too.
   final bool background;
   final DateTime? startedAt;
+  final Duration? duration;
 
   bool get succeeded => status != CommandStatus.failed;
 }
@@ -565,10 +598,14 @@ class CodeDiffItem extends ChatItem {
     required this.lines,
     this._added,
     this._removed,
+    this.startedAt,
+    this.duration,
   });
 
   final String fileName;
   final String directory;
+  final DateTime? startedAt;
+  final Duration? duration;
 
   /// The file's path, as the agent gave it.
   String get path => directory.isEmpty ? fileName : '$directory/$fileName';

@@ -409,12 +409,24 @@ class CodexKernel
           ItemCompleted(
             nextSeq,
             id,
-            item: AssistantTextItem(item['text'] as String),
+            item: AssistantTextItem(
+              item['text'] as String,
+              sentAt: DateTime.now(),
+            ),
           ),
         );
       case 'commandExecution':
-        emit(ItemUpserted(nextSeq, id, _commandItem(item)));
-        _startedAt.remove(id);
+        final started = _startedAt.remove(id);
+        final elapsed = started == null
+            ? null
+            : DateTime.now().difference(started);
+        emit(
+          ItemUpserted(
+            nextSeq,
+            id,
+            _commandItem(item, startedAt: started, duration: elapsed),
+          ),
+        );
         _commands.remove(id);
       case 'fileChange':
         final changes = item['changes'] as List<Object?>;
@@ -432,19 +444,26 @@ class CodexKernel
 
   /// A command as the history shows it: reads and searches as tool rows,
   /// anything else as a terminal.
-  ChatItem _commandItem(Map<String, Object?> item) {
+  ChatItem _commandItem(
+    Map<String, Object?> item, {
+    DateTime? startedAt,
+    Duration? duration,
+  }) {
     final actions = [
       for (final action in item['commandActions'] as List<Object?>? ?? const [])
         (action as Map).cast<String, Object?>(),
     ];
     final output = item['aggregatedOutput'] as String?;
     final done = item['status'] == 'completed' || item['status'] == 'failed';
+    final started = startedAt ?? _startedAt[item['id']];
     if (actions.isNotEmpty && actions.every((a) => a['type'] == 'read')) {
       final path = actions.first['path'] as String;
       return ToolCallItem(
         kind: ToolKind.read,
         target: path.split(RegExp(r'[/\\]')).last,
         path: path,
+        startedAt: started,
+        duration: duration,
       );
     }
     if (actions.isNotEmpty && actions.every((a) => a['type'] == 'search')) {
@@ -457,6 +476,8 @@ class CodexKernel
         target: actions.first['query'] as String,
         detail: done ? '${matches.length} results' : null,
         results: matches,
+        startedAt: started,
+        duration: duration,
       );
     }
     return TerminalItem(
@@ -467,7 +488,8 @@ class CodexKernel
           : item['exitCode'] == 0
           ? CommandStatus.succeeded
           : CommandStatus.failed,
-      startedAt: _startedAt[item['id']],
+      startedAt: started,
+      duration: duration,
     );
   }
 
@@ -509,6 +531,7 @@ class CodexKernel
           fileName: path.substring(slash + 1),
           directory: slash < 0 ? '' : path.substring(0, slash),
           lines: lines,
+          startedAt: DateTime.now(),
         ),
       ),
     );

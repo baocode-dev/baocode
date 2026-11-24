@@ -14561,4 +14561,57 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get ustatTrajEmpty => 'No steps recorded';
+
+  @override
+  String get ustatTrajThinking => 'Thinking';
+
+  @override
+  String get ustatTrajAssistant => 'Assistant';
+
+  @override
+  String get ustatTrajCommand => 'Command';
+
+  @override
+  String get ustatTrajDiff => 'Edit';
+
+  @override
+  String get ustatTrajPlan => 'Plan';
+
+  @override
+  String get ustatTrajNotice => 'Notice';
+
+  @override
+  String get ustatTrajQueued => 'Queued';
+
+  @override
+  String get ustatTrajRunning => 'Running';
+
+  @override
+  String get ustatTrajDenied => 'Denied';
+
+  @override
+  String ustatTrajSteps(int count) {
+    return '$count steps';
+  }
+
+  @override
+  String get ustatTrajNoMatches => 'No matching steps';
+
+  @override
+  String get ustatTrajCollapseAll => 'Collapse';
+
+  @override
+  String get ustatTrajExpandAll => 'Expand';
+
+  @override
+  String get ustatTrajFoldTurns => 'Turns';
+
+  @override
+  String get ustatTrajFoldFlow => 'Flow';
+
+  @override
+  String get ustatTrajFoldDetails => 'Details';
+
+  @override
+  String get ustatTrajShowFull => 'Show full';
 }

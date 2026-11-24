@@ -13743,4 +13743,57 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get ustatTrajEmpty => '暂无轨迹步骤';
+
+  @override
+  String get ustatTrajThinking => '思考';
+
+  @override
+  String get ustatTrajAssistant => '回复';
+
+  @override
+  String get ustatTrajCommand => '命令';
+
+  @override
+  String get ustatTrajDiff => '修改';
+
+  @override
+  String get ustatTrajPlan => '计划';
+
+  @override
+  String get ustatTrajNotice => '通知';
+
+  @override
+  String get ustatTrajQueued => '排队';
+
+  @override
+  String get ustatTrajRunning => '运行中';
+
+  @override
+  String get ustatTrajDenied => '已拒绝';
+
+  @override
+  String ustatTrajSteps(int count) {
+    return '$count 步';
+  }
+
+  @override
+  String get ustatTrajNoMatches => '无匹配步骤';
+
+  @override
+  String get ustatTrajCollapseAll => '收起';
+
+  @override
+  String get ustatTrajExpandAll => '展开';
+
+  @override
+  String get ustatTrajFoldTurns => '仅轮次';
+
+  @override
+  String get ustatTrajFoldFlow => '流程图';
+
+  @override
+  String get ustatTrajFoldDetails => '全展开';
+
+  @override
+  String get ustatTrajShowFull => '显示完整';
 }

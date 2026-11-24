@@ -771,6 +771,48 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     });
   }
 
+  /// One-shot jump request from the side panel (e.g. Usage → Trajectory).
+  final ValueNotifier<int?> _flashItem = ValueNotifier(null);
+  Timer? _flashTimer;
+  int _revealSeen = 0;
+
+  void _handleReveal() {
+    final req = _session?.revealTarget.value;
+    if (req == null || req.seq == _revealSeen) return;
+    _revealSeen = req.seq;
+    final index = req.index;
+    if (index < 0 || index >= _feed.itemCount) return;
+    _setAnchored(false);
+    _flashTimer?.cancel();
+    _flashItem.value = index;
+    _flashTimer = Timer(const Duration(milliseconds: 1200), () {
+      if (mounted) _flashItem.value = null;
+    });
+    if (_isHidden(index)) {
+      final folds = [?_folds.workAt(index), ?_folds.stepsAt(index)];
+      setState(() {
+        for (final fold in folds) {
+          _foldOpen[fold.key] = true;
+        }
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _jumpToItemIndex(index);
+      });
+    } else {
+      _jumpToItemIndex(index);
+    }
+  }
+
+  void _jumpToItemIndex(int index) {
+    if (!_scrollController.hasClients || !_listController.isAttached) return;
+    if (index < 0 || index >= _feed.itemCount || _rows.isEmpty) return;
+    _listController.jumpToItem(
+      index: _rowOf(index),
+      scrollController: _scrollController,
+      alignment: 0.15,
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -782,6 +824,8 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       ..addListener(_findChanged);
     _scrollController.addListener(_handleScroll);
     _feed.addListener(_handleSessionChanged);
+    _session?.revealTarget.addListener(_handleReveal);
+    _revealSeen = _session?.revealTarget.value?.seq ?? 0;
     _statusIndex = _lastStatusIndex();
     UserMessageStyle.current.addListener(_handleStyleChanged);
     ChatMinimap.side.addListener(_handleStyleChanged);
@@ -894,7 +938,14 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       _noteLeft(oldWidget.feed);
       _shownFirst = null;
       oldWidget.feed.removeListener(_handleSessionChanged);
+      if (oldWidget.feed case final ChatSession prev) {
+        prev.revealTarget.removeListener(_handleReveal);
+      }
       widget.feed.addListener(_handleSessionChanged);
+      _session?.revealTarget.addListener(_handleReveal);
+      _revealSeen = _session?.revealTarget.value?.seq ?? 0;
+      _flashTimer?.cancel();
+      _flashItem.value = null;
       _statusIndex = _lastStatusIndex();
       _find.feed = widget.feed;
       // Another conversation: what was selected was in the one before.
@@ -983,6 +1034,9 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     _steady.dispose();
     _wordsCooldown?.cancel();
     _feed.removeListener(_handleSessionChanged);
+    _session?.revealTarget.removeListener(_handleReveal);
+    _flashTimer?.cancel();
+    _flashItem.dispose();
     _find
       ..removeListener(_findChanged)
       ..dispose();
@@ -3037,7 +3091,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
         ),
       };
     }
-    return _selectable(
+    final content = _selectable(
       index,
       folds.isEmpty && footer == null
           ? shown!
@@ -3074,6 +3128,24 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                 ],
               ),
             ),
+    );
+    return ValueListenableBuilder<int?>(
+      valueListenable: _flashItem,
+      child: content,
+      builder: (_, flashed, child) {
+        final lit = flashed == index;
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOut,
+          decoration: BoxDecoration(
+            color: lit
+                ? AppColors.accent.withValues(alpha: 0.14)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: child,
+        );
+      },
     );
   }
 

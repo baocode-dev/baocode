@@ -23562,6 +23562,108 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No steps recorded'**
   String get ustatTrajEmpty;
+
+  /// No description provided for @ustatTrajThinking.
+  ///
+  /// In en, this message translates to:
+  /// **'Thinking'**
+  String get ustatTrajThinking;
+
+  /// No description provided for @ustatTrajAssistant.
+  ///
+  /// In en, this message translates to:
+  /// **'Assistant'**
+  String get ustatTrajAssistant;
+
+  /// No description provided for @ustatTrajCommand.
+  ///
+  /// In en, this message translates to:
+  /// **'Command'**
+  String get ustatTrajCommand;
+
+  /// No description provided for @ustatTrajDiff.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit'**
+  String get ustatTrajDiff;
+
+  /// No description provided for @ustatTrajPlan.
+  ///
+  /// In en, this message translates to:
+  /// **'Plan'**
+  String get ustatTrajPlan;
+
+  /// No description provided for @ustatTrajNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'Notice'**
+  String get ustatTrajNotice;
+
+  /// No description provided for @ustatTrajQueued.
+  ///
+  /// In en, this message translates to:
+  /// **'Queued'**
+  String get ustatTrajQueued;
+
+  /// No description provided for @ustatTrajRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'Running'**
+  String get ustatTrajRunning;
+
+  /// No description provided for @ustatTrajDenied.
+  ///
+  /// In en, this message translates to:
+  /// **'Denied'**
+  String get ustatTrajDenied;
+
+  /// No description provided for @ustatTrajSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} steps'**
+  String ustatTrajSteps(int count);
+
+  /// No description provided for @ustatTrajNoMatches.
+  ///
+  /// In en, this message translates to:
+  /// **'No matching steps'**
+  String get ustatTrajNoMatches;
+
+  /// No description provided for @ustatTrajCollapseAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Collapse'**
+  String get ustatTrajCollapseAll;
+
+  /// No description provided for @ustatTrajExpandAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Expand'**
+  String get ustatTrajExpandAll;
+
+  /// No description provided for @ustatTrajFoldTurns.
+  ///
+  /// In en, this message translates to:
+  /// **'Turns'**
+  String get ustatTrajFoldTurns;
+
+  /// No description provided for @ustatTrajFoldFlow.
+  ///
+  /// In en, this message translates to:
+  /// **'Flow'**
+  String get ustatTrajFoldFlow;
+
+  /// No description provided for @ustatTrajFoldDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Details'**
+  String get ustatTrajFoldDetails;
+
+  /// No description provided for @ustatTrajShowFull.
+  ///
+  /// In en, this message translates to:
+  /// **'Show full'**
+  String get ustatTrajShowFull;
 }
 
 class _AppLocalizationsDelegate

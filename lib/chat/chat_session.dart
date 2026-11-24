@@ -1378,6 +1378,20 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
     return renamed;
   }
 
+  /// One-shot scroll/highlight request for [ChatHistoryView], kept off the
+  /// main [ChangeNotifier] so jumping from the side panel never rebuilds other
+  /// session listeners.
+  final ValueNotifier<({int seq, int index})?> revealTarget = ValueNotifier(
+    null,
+  );
+  int _revealSeq = 0;
+
+  /// Asks the conversation history view to jump to and highlight item [index].
+  void revealItem(int index) {
+    if (_disposed || index < 0 || index >= itemCount) return;
+    revealTarget.value = (seq: ++_revealSeq, index: index);
+  }
+
   /// The conversation is deleted: what its review kept goes too.
   void discardChanges() => unawaited(_review?.discard());
 
@@ -1387,6 +1401,7 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
   void dispose() {
     _disposed = true;
     _quietTimer?.cancel();
+    revealTarget.dispose();
     _review
       ?..removeListener(_reviewChanged)
       ..dispose();

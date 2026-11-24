@@ -759,7 +759,7 @@ class ClaudeTranslator {
           tokensPerSecond: _meter.averageSpeed,
         );
 
-  void _completeThought(String id, String? whole) {
+  void _completeThought(String id, String? whole, {DateTime? at}) {
     final streamed = _thoughts.remove(id)?.toString() ?? '';
     final started = _thinkingStarted.remove(id);
     final text = (whole == null || whole.isEmpty) ? streamed : whole;
@@ -771,6 +771,7 @@ class ClaudeTranslator {
         item: ThinkingItem(
           text: text,
           tokens: tokens,
+          startedAt: started ?? at,
           seconds: math.max(
             1,
             started == null
@@ -790,6 +791,7 @@ class ClaudeTranslator {
     final messageId = body['id'] as String? ?? '${message['uuid']}';
     final eventId = message['uuid'] as String? ?? messageId;
     final synthetic = body['model'] == '<synthetic>';
+    final at = _sentAt(message);
     // A subagent's: the model it runs on, as the upstream answered.
     if (_agents[parent] case final agent? when !synthetic) {
       if (_string(body['model']) case final answered?
@@ -815,22 +817,37 @@ class ClaudeTranslator {
           if (synthetic) {
             if (parent == null && _goalReply(text)) continue;
             if (text.isNotEmpty) {
-              _put(id, NoticeItem(NoticeKind.command, text), parent: parent);
+              _put(
+                id,
+                NoticeItem(NoticeKind.command, text, at: at),
+                parent: parent,
+              );
             }
           } else if (_textLength.remove(id) != null &&
               _blankText.remove(id) == null) {
-            emit(ItemCompleted(nextSeq(), id, item: AssistantTextItem(text)));
+            emit(
+              ItemCompleted(
+                nextSeq(),
+                id,
+                item: AssistantTextItem(text, sentAt: at),
+              ),
+            );
           } else if (text.trim().isNotEmpty) {
-            _put(id, AssistantTextItem(text), parent: parent);
+            _put(id, AssistantTextItem(text, sentAt: at), parent: parent);
           }
         case 'thinking' || 'redacted_thinking':
           final text = block['thinking'] as String? ?? '';
           if (_thoughts.containsKey(id)) {
-            _completeThought(id, text);
+            _completeThought(id, text, at: at);
           } else if (parent == null && text.trim().isNotEmpty) {
             _put(
               id,
-              ThinkingItem(text: text, tokens: text.length ~/ 4, seconds: 1),
+              ThinkingItem(
+                text: text,
+                tokens: text.length ~/ 4,
+                seconds: 1,
+                startedAt: at,
+              ),
             );
           }
         case 'tool_use':
@@ -840,6 +857,7 @@ class ClaudeTranslator {
             block['name'] as String,
             _map(block['input']),
             parent,
+            at: at,
           );
       }
     }
@@ -921,10 +939,11 @@ class ClaudeTranslator {
     int? label;
     var pictures = 0;
     var startsPlan = false;
+    final at = _sentAt(message);
     for (final (index, block) in blocks.indexed) {
       switch (block['type']) {
         case 'tool_result':
-          _toolResult(block, result);
+          _toolResult(block, result, at: at);
         case 'text':
           final text = block['text'] as String? ?? '';
           // A note for the model sent along (e.g. by the host), not typed.
@@ -1071,8 +1090,9 @@ class ClaudeTranslator {
     String id,
     String name,
     Map<String, Object?> input,
-    String? parent,
-  ) {
+    String? parent, {
+    DateTime? at,
+  }) {
     final known = _tools[id];
     // The streamed start has no input yet; the whole message fills it in.
     final tool = _Tool(
@@ -1080,7 +1100,7 @@ class ClaudeTranslator {
       name,
       input,
       known?.parent ?? parent,
-      known?.startedAt,
+      known?.startedAt ?? at ?? (replaying ? null : DateTime.now()),
     );
     _tools[id] = tool;
     if (tool.parent == null && _isPlanCall(name, input)) {
@@ -1096,7 +1116,7 @@ class ClaudeTranslator {
             agentType: _string(input['subagent_type']),
             prompt: _string(input['prompt']),
             status: replaying ? CommandStatus.succeeded : CommandStatus.running,
-            startedAt: replaying ? null : tool.startedAt,
+            startedAt: tool.startedAt,
             background: input['run_in_background'] == true,
           ),
         );
@@ -1120,7 +1140,7 @@ class ClaudeTranslator {
             id: id,
             agentType: workflowAgentType,
             status: replaying ? CommandStatus.succeeded : CommandStatus.running,
-            startedAt: replaying ? null : tool.startedAt,
+            startedAt: tool.startedAt,
             background: true,
           ),
         );
@@ -1151,6 +1171,32 @@ class ClaudeTranslator {
     _Tool tool,
     _Outcome outcome, {
     String? output,
+    Duration? duration,
+    List<ImageAttachment> images = const [],
+    List<String> imageFiles = const [],
+  }) {
+    final item = _toolItemRaw(
+      tool,
+      outcome,
+      output: output,
+      duration: duration,
+      images: images,
+      imageFiles: imageFiles,
+    );
+    return switch (item) {
+      ToolCallItem() => item.withTiming(
+        startedAt: tool.startedAt,
+        duration: duration,
+      ),
+      _ => item,
+    };
+  }
+
+  ChatItem _toolItemRaw(
+    _Tool tool,
+    _Outcome outcome, {
+    String? output,
+    Duration? duration,
     List<ImageAttachment> images = const [],
     List<String> imageFiles = const [],
   }) {
@@ -1262,6 +1308,7 @@ class ClaudeTranslator {
         },
         background: input['run_in_background'] == true,
         startedAt: tool.startedAt,
+        duration: duration,
       ),
       'BashOutput' || 'TaskOutput' => ToolCallItem(
         kind: ToolKind.command,
@@ -1406,11 +1453,17 @@ class ClaudeTranslator {
     };
   }
 
-  void _toolResult(Map<String, Object?> block, Object? result) {
+  void _toolResult(Map<String, Object?> block, Object? result, {DateTime? at}) {
     final id = block['tool_use_id'] as String?;
     final tool = id == null ? null : _tools[id];
     if (id == null || tool == null) return;
     _unanswered.remove(id);
+    final elapsed = switch ((tool.startedAt, at)) {
+      (final start?, final end?) when !end.isBefore(start) => end.difference(
+        start,
+      ),
+      _ => null,
+    };
     final error = block['is_error'] == true;
     final text = _resultText(block['content']);
     final structured = result is Map ? result.cast<String, Object?>() : null;
@@ -1455,7 +1508,7 @@ class ClaudeTranslator {
           toolUses: claudeInt(structured?['totalToolUseCount']),
           duration: switch (claudeInt(structured?['totalDurationMs'])) {
             final ms? => Duration(milliseconds: ms),
-            _ => null,
+            _ => elapsed,
           },
           model: agent.item.model == null
               ? _ownModelOf(_string(structured?['resolvedModel']))
@@ -1496,7 +1549,7 @@ class ClaudeTranslator {
         return;
       case 'Edit' || 'MultiEdit' || 'Write' || 'NotebookEdit'
           when outcome == _Outcome.done && structured != null:
-        if (_diff(id, tool, structured)) return;
+        if (_diff(id, tool, structured, duration: elapsed)) return;
       // A subagent's: its result has no patch, the input says what it did.
       case 'Edit' || 'MultiEdit' || 'Write' || 'NotebookEdit'
           when outcome == _Outcome.done && !replaying:
@@ -1512,7 +1565,8 @@ class ClaudeTranslator {
         }
       case 'Grep' || 'Glob' when outcome == _Outcome.done:
         final matches = _matches(tool.name, structured, text);
-        final item = _toolItem(tool, outcome) as ToolCallItem;
+        final item =
+            _toolItem(tool, outcome, duration: elapsed) as ToolCallItem;
         _put(
           id,
           ToolCallItem(
@@ -1523,6 +1577,8 @@ class ClaudeTranslator {
                 '${matches.length} ${tool.name == 'Glob' ? 'files' : 'results'}',
             results: matches,
             status: item.status,
+            startedAt: item.startedAt,
+            duration: item.duration,
           ),
           parent: tool.parent,
         );
@@ -1568,6 +1624,7 @@ class ClaudeTranslator {
             tool,
             interrupted ? _Outcome.failed : outcome,
             output: _tail(output),
+            duration: elapsed,
           ),
           parent: tool.parent,
         );
@@ -1594,6 +1651,7 @@ class ClaudeTranslator {
             : tool.name == 'WebSearch'
             ? _searchOutput(text)
             : _short(text),
+        duration: elapsed,
         images: _resultImages(block['content']),
         imageFiles: _savedImages(block['content']),
       ),
@@ -1652,7 +1710,12 @@ class ClaudeTranslator {
 
   /// An edit's result as a diff card and a pending change; false when it
   /// carries no patch to show.
-  bool _diff(String id, _Tool tool, Map<String, Object?> result) {
+  bool _diff(
+    String id,
+    _Tool tool,
+    Map<String, Object?> result, {
+    Duration? duration,
+  }) {
     final path =
         _string(result['filePath']) ??
         _string(tool.input['file_path']) ??
@@ -1729,6 +1792,8 @@ class ClaudeTranslator {
         lines: lines,
         added: added,
         removed: removed,
+        startedAt: tool.startedAt,
+        duration: duration,
       ),
       parent: tool.parent,
     );
@@ -2443,8 +2508,7 @@ class ClaudeTranslator {
 enum _Outcome { running, done, failed, denied }
 
 class _Tool {
-  _Tool(this.id, this.name, this.input, this.parent, DateTime? startedAt)
-    : startedAt = startedAt ?? DateTime.now();
+  _Tool(this.id, this.name, this.input, this.parent, this.startedAt);
 
   /// Its tool use's.
   final String id;
@@ -2453,7 +2517,7 @@ class _Tool {
 
   /// The subagent's tool use id, for a subagent's tool.
   final String? parent;
-  final DateTime startedAt;
+  final DateTime? startedAt;
 }
 
 class _Agent {
