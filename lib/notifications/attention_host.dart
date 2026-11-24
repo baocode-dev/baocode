@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../platform/app_platform.dart';
+import '../platform/event_log.dart';
 import '../workspace/window_controls.dart';
 import 'system_sounds_stub.dart'
     if (dart.library.io) 'system_sounds_io.dart'
@@ -110,7 +111,13 @@ class ChannelAttentionHost implements AttentionHost {
   set onOpen(void Function(String? id)? handler) => _onOpen = handler;
 
   Future<Object?> _handle(MethodCall call) async {
-    if (call.method == 'open') _onOpen?.call(call.arguments as String?);
+    switch (call.method) {
+      case 'open':
+        _onOpen?.call(call.arguments as String?);
+      // Windows: the tray icon could not go up (Shell_NotifyIcon's error).
+      case 'trayFailed':
+        appEvent('tray', 'icon not added: error ${call.arguments}');
+    }
     return null;
   }
 
