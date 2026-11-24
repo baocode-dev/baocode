@@ -1611,6 +1611,7 @@
     "description": "Hint of the button at the end of a finished turn that copies its answer."
   },
   "turnFork": "Fork from here",
+  "turnRetry": "Run this turn again",
   "@turnFork": {
     "description": "Hint of the button at the end of a finished turn that copies the conversation up to there into a new one."
   },

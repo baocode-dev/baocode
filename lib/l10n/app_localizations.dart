@@ -4742,6 +4742,12 @@ abstract class AppLocalizations {
   /// **'Fork from here'**
   String get turnFork;
 
+  /// No description provided for @turnRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Run this turn again'**
+  String get turnRetry;
+
   /// No description provided for @turnCopied.
   ///
   /// In en, this message translates to:

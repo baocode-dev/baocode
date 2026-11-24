@@ -2740,6 +2740,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get turnFork => 'Fork from here';
 
   @override
+  String get turnRetry => 'Run this turn again';
+
+  @override
   String get turnCopied => 'Copied';
 
   @override
