@@ -122,6 +122,9 @@ class Attention {
   // Whether the tray icon is up, and whether Flutter asked for it (it is up
   // without, for a notification's sake, until the notification goes).
   bool icon_added_ = false;
+  // Whether Flutter was told the icon could not go up: once, until it does
+  // (the 15-second check tries again).
+  bool told_tray_failed_ = false;
   std::optional<TrayState> tray_;
   HICON icon_ = nullptr;
 

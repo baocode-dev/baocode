@@ -426,7 +426,13 @@ std::optional<LRESULT> Attention::HandleMessage(HWND window, UINT message,
       return std::nullopt;
     }
     if (tray_) {
-      ::ShowWindow(window, SW_HIDE);
+      // Hidden only with the icon up to bring it back: with none (it could
+      // not go up), minimized, its taskbar button left (#1107).
+      if (!icon_added_ || !IconThere()) {
+        icon_added_ = false;
+        ShowIcon();
+      }
+      ::ShowWindow(window, icon_added_ ? SW_HIDE : SW_MINIMIZE);
       return 0;
     }
     return std::nullopt;
@@ -557,8 +563,19 @@ void Attention::ShowIcon() {
       data.uVersion = NOTIFYICON_VERSION_4;
       ::Shell_NotifyIconW(NIM_SETVERSION, &data);
     } else {
+      const DWORD error = ::GetLastError();
       shown = ::Shell_NotifyIconW(NIM_MODIFY, &data) != FALSE;
+      if (!shown && tray_ && !told_tray_failed_) {
+        // In events.log, to find why (#1107).
+        told_tray_failed_ = true;
+        channel_->InvokeMethod(
+            "trayFailed", std::make_unique<flutter::EncodableValue>(
+                              static_cast<int64_t>(error)));
+      }
     }
+  }
+  if (shown) {
+    told_tray_failed_ = false;
   }
   icon_added_ = shown;
   if (tray_) {
