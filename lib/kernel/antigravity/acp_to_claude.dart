@@ -123,6 +123,16 @@ String claudeToolId(String acpId) =>
       );
     }
   }
+  // A search of the web is of kind `search` too.
+  if (name == 'search_web') {
+    return (
+      name: 'WebSearch',
+      input: {
+        'query':
+            _string(input['query']) ?? _string(input['Query']) ?? call.title,
+      },
+    );
+  }
   switch (call.kind) {
     case 'execute':
       return (
@@ -211,6 +221,9 @@ claudeToolResult(AcpToolCall call, String name, {String? fileText}) {
   final output = call.output ?? '';
   final content = _cut(output.isEmpty ? '(no output)' : output);
   switch (name) {
+    // agy keeps a search's results to itself: nothing to show.
+    case 'WebSearch' when output.isEmpty && !call.failed:
+      return (content: '', isError: false, structured: null);
     case 'Bash':
       final text = _commandOutput(output);
       final exit = switch (call.rawOutput) {
