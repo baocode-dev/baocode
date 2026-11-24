@@ -354,6 +354,32 @@ void main() {
       expect(bridge.browsers, isEmpty);
       expect(bridge.mismatched, isEmpty);
     });
+
+    test(
+      'creates a missing folder before writing the lock and port files',
+      () async {
+        final nested = p.join(BrowserBridge.socketFolder!, 'nested', 'BaoCode');
+        BrowserBridge.socketFolder = nested;
+        await bridge.start();
+        expect(Directory(nested).existsSync(), isTrue);
+        expect(
+          File(BrowserBridge.portPath).readAsStringSync(),
+          matches(RegExp(r'^\d+ [0-9a-f]{64}$')),
+        );
+      },
+    );
+
+    test('default Windows portPath uses LocalAppData\\BaoCode, not TEMP', () {
+      final previous = BrowserBridge.socketFolder;
+      BrowserBridge.socketFolder = null;
+      addTearDown(() => BrowserBridge.socketFolder = previous);
+      final path = BrowserBridge.portPath;
+      expect(path.toLowerCase(), endsWith(r'\baocode\baocode-browser.port'));
+      expect(
+        p.dirname(path).toLowerCase(),
+        isNot(equals(Directory.systemTemp.path.toLowerCase())),
+      );
+    }, skip: !Platform.isWindows);
   });
 
   test('the Windows manifest names the host beside it, for the extension '

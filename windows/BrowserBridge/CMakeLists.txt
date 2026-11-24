@@ -10,4 +10,5 @@ apply_standard_settings(baocode-browser-host)
 target_compile_options(baocode-browser-host PRIVATE /utf-8)
 target_compile_definitions(baocode-browser-host PRIVATE
   "NOMINMAX" "WIN32_LEAN_AND_MEAN" "_WIN32_WINNT=0x0600")
-target_link_libraries(baocode-browser-host PRIVATE "ws2_32.lib")
+target_link_libraries(baocode-browser-host PRIVATE
+  "ws2_32.lib" "shell32.lib" "ole32.lib")
