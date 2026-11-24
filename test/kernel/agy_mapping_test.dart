@@ -138,6 +138,16 @@ void main() {
       expect(result.content, 'Exit code 2\nboom');
     });
 
+    test('a failed command with no output still says something: the API '
+        'refuses an error with empty content (400)', () {
+      final result = claudeToolResult(
+        call({'kind': 'execute', 'status': 'failed'}),
+        'Bash',
+      );
+      expect(result.isError, isTrue);
+      expect(result.content, '(no output)');
+    });
+
     test('ids as the API takes them', () {
       expect(claudeToolId('a b/c'), 'toolu_agy_a_b_c');
     });

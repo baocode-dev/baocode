@@ -126,6 +126,9 @@ flutter:
     # Models' and their makers' logos, in one color (lib/icons/brand_logos.dart;
     # each says where it is from).
     - assets/model_icons/
+    # Antigravity's own logo, in its colors (antigravity.google's
+    # assets/image/antigravity-logo.png; lib/models/model_icons.dart).
+    - assets/provider_logos/
     # The app's icon (macos/Runner/Assets.xcassets' 128 px one), for About.
     - assets/branding/
     # Built-in keymaps: VS Code keymap extensions' keybindings (lib/keybindings/keymap.dart).
