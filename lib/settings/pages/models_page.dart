@@ -134,7 +134,7 @@ class ModelsSettingsPage extends StatefulWidget {
       ProviderProtocol.openaiResponses => 'OpenAI Responses',
       ProviderProtocol.codex => 'ChatGPT (Codex)',
       ProviderProtocol.antigravity => 'Antigravity',
-      ProviderProtocol.agy => 'Antigravity CLI',
+      ProviderProtocol.agy => 'Antigravity ACP',
     };
   }
 
@@ -1514,7 +1514,9 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
     return [
       SettingsRow(
         label: l10n.modelsProtocol,
-        description: l10n.modelsProtocolDescription,
+        description: provider.protocol == ProviderProtocol.agy
+            ? l10n.agyProtocolDescription
+            : l10n.modelsProtocolDescription,
         trailing: SettingsDropdown(
           current: protocol,
           semanticLabel: l10n.modelsChoiceLabel(l10n.modelsProtocol, protocol),

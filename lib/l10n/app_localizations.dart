@@ -11481,6 +11481,12 @@ abstract class AppLocalizations {
   /// **'Antigravity CLI'**
   String get agyCli;
 
+  /// No description provided for @agyProtocolDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'BaoCode drives the Antigravity CLI on this machine over ACP, the Agent Client Protocol: not through the local proxy.'**
+  String get agyProtocolDescription;
+
   /// No description provided for @agyCliDescription.
   ///
   /// In en, this message translates to:

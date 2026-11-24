@@ -392,10 +392,13 @@ class AgyTransport implements ClaudeCodeTransport {
       'usage': {
         'input_tokens': turn.inputTokens ?? _used ?? 0,
         'output_tokens': turn.outputTokens ?? 0,
+        'cache_read_input_tokens': turn.cacheRead,
+        'cache_creation_input_tokens': turn.cacheWrite,
+        'reasoning_tokens': turn.thought,
       },
-      if (_model case final model? when size != null)
+      if (_model case final model?)
         'modelUsage': {
-          model: {'contextWindow': size},
+          model: {'contextWindow': ?size},
         },
     });
     _emit({
@@ -901,6 +904,15 @@ class AgyTransport implements ClaudeCodeTransport {
     if (usage['outputTokens'] case final num output) {
       turn.outputTokens = output.toInt();
     }
+    if (usage['cachedReadTokens'] case final num read) {
+      turn.cacheRead = read.toInt();
+    }
+    if (usage['cachedWriteTokens'] case final num written) {
+      turn.cacheWrite = written.toInt();
+    }
+    if (usage['thoughtTokens'] case final num thought) {
+      turn.thought = thought.toInt();
+    }
   }
 
   List<Map<String, Object?>> _commands = const [];
@@ -1206,6 +1218,9 @@ class _Turn {
   bool stalled = false;
   int? inputTokens;
   int? outputTokens;
+  int cacheRead = 0;
+  int cacheWrite = 0;
+  int thought = 0;
 }
 
 enum _BlockKind { text, thinking }

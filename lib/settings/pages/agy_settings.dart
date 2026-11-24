@@ -42,6 +42,9 @@ class _AgySettingsGroupState extends State<AgySettingsGroup> {
   bool _busy = false;
   String? _error;
 
+  /// Completed to give up signing in, while signing in.
+  Completer<void>? _cancelSignIn;
+
   @override
   void initState() {
     super.initState();
@@ -118,23 +121,41 @@ class _AgySettingsGroupState extends State<AgySettingsGroup> {
   }
 
   Future<void> _sign(bool inside) async {
+    final cancel = inside ? Completer<void>() : null;
     setState(() {
       _busy = true;
       _error = null;
+      _cancelSignIn = cancel;
     });
     try {
-      if (inside) {
-        await _runtime.signIn();
+      if (cancel != null) {
+        await _runtime.signIn(cancel: cancel.future);
         await _list();
       } else {
         await _runtime.signOut();
         if (mounted) setState(() => _signedIn = false);
       }
     } on Object catch (error) {
-      if (mounted) setState(() => _error = '$error');
+      // Given up: nothing went wrong.
+      if (mounted && !(cancel?.isCompleted ?? false)) {
+        setState(() => _error = '$error');
+      }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _cancelSignIn = null;
+        });
+      }
     }
+  }
+
+  @override
+  void dispose() {
+    if (_cancelSignIn case final cancel? when !cancel.isCompleted) {
+      cancel.complete();
+    }
+    super.dispose();
   }
 
   @override
@@ -200,15 +221,26 @@ class _AgySettingsGroupState extends State<AgySettingsGroup> {
                   ),
                 ),
             ],
-            trailing: IdeButton(
-              label: _signedIn == true ? l10n.agySignOut : l10n.agySignIn,
-              icon: _signedIn == true ? Codicons.signOut : Codicons.account,
-              secondary: _signedIn == true,
-              spinning: _busy,
-              onPressed: _busy
-                  ? null
-                  : () => unawaited(_sign(_signedIn != true)),
-            ),
+            trailing: switch (_cancelSignIn) {
+              // Signing in, in the browser: given up here.
+              final cancel? => IdeButton(
+                label: l10n.commonCancel,
+                icon: Codicons.close,
+                secondary: true,
+                onPressed: cancel.isCompleted
+                    ? null
+                    : () => setState(cancel.complete),
+              ),
+              null => IdeButton(
+                label: _signedIn == true ? l10n.agySignOut : l10n.agySignIn,
+                icon: _signedIn == true ? Codicons.signOut : Codicons.account,
+                secondary: _signedIn == true,
+                spinning: _busy,
+                onPressed: _busy
+                    ? null
+                    : () => unawaited(_sign(_signedIn != true)),
+              ),
+            },
           )
         else if (error != null)
           SettingsRow(

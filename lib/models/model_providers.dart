@@ -103,11 +103,17 @@ class ModelProviders extends ChangeNotifier {
   ModelProvider? provider(String? id) =>
       providers.where((provider) => provider.id == id).firstOrNull;
 
+  /// Whether [ref] is a model of an Antigravity CLI upstream.
+  bool _onAgy(String? ref) =>
+      provider(parseModelRef(ref)?.provider)?.protocol == ProviderProtocol.agy;
+
   /// Qualified names the CLI can use through the local model proxy.
-  /// Antigravity is only supported by BaoCode's own core.
+  /// Antigravity is only supported by BaoCode's own core; the Antigravity
+  /// CLI is no API, not through the proxy at all.
   List<String> get proxyModelRefs => [
     for (final provider in enabled)
-      if (provider.protocol != ProviderProtocol.antigravity)
+      if (provider.protocol != ProviderProtocol.antigravity &&
+          provider.protocol != ProviderProtocol.agy)
         for (final model in provider.enabledModels)
           if (provider.connected || provider.endpointOf(model) != null)
             modelRef(provider.id, model.id),
@@ -192,11 +198,15 @@ class ModelProviders extends ChangeNotifier {
   /// ([exact]); automatic, [model] (the session's, or new sessions'
   /// default), by its provider's Haiku tier. A null model is Claude
   /// Code's own Haiku; picked while it is not [builtinAvailable], it is
-  /// automatic.
+  /// automatic. The Antigravity CLI's models are not asked (it is no API):
+  /// automatic on one is Claude Code's own.
   ({String? model, bool exact}) auxiliary(String? model) =>
       switch (auxiliaryModel) {
         builtinProviderId when builtinAvailable => (model: null, exact: true),
-        null || builtinProviderId => (model: model, exact: false),
+        null || builtinProviderId => (
+          model: _onAgy(model) ? null : model,
+          exact: false,
+        ),
         final String picked => (model: picked, exact: true),
       };
 

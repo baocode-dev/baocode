@@ -7129,6 +7129,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get agyCli => 'Antigravity CLI';
 
   @override
+  String get agyProtocolDescription =>
+      'BaoCode drives the Antigravity CLI on this machine over ACP, the Agent Client Protocol: not through the local proxy.';
+
+  @override
   String get agyCliDescription =>
       'Google\'s own Antigravity CLI, which BaoCode installs and keeps up to date. Its conversations are kept apart from the terminal\'s agy.';
 
