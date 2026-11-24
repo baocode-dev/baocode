@@ -30,28 +30,6 @@
   <h1>Changelog</h1>
   <p class="subtitle">What changed in each version of BaoCode.</p>
 
-  <section class="release" id="v2.0.6">
-    <h2 class="plain"><a href="#v2.0.6">2.0.6</a></h2>
-    <p>This release adds the Antigravity ACP upstream, so one conversation can move between its models and other upstreams&#x27;, opens files picked in the search palette or a terminal in the chat&#x27;s side panel, and fixes PDFs failing on OpenAI upstreams.</p>
-    <p>New</p>
-    <ul>
-    <li>Antigravity ACP upstream: BaoCode installs and updates Google&#x27;s official Antigravity CLI and drives it over ACP. Sign in with a Google account to use its Gemini, Claude and GPT models, and switch between them and other upstreams&#x27; models in the same conversation.</li>
-    <li>The context panel of an Antigravity conversation estimates what fills the context (system prompt, rules, skills, messages) and shows the account&#x27;s weekly limits and when they reset.</li>
-    <li>Antigravity&#x27;s commands, edits, reads and web searches show as Claude Code&#x27;s do; in full access its commands no longer ask one by one; its turns appear in the usage records.</li>
-    </ul>
-    <p>Improved</p>
-    <ul>
-    <li>In the chat layout, a file picked in the search palette (Ctrl+P) or clicked in a terminal opens in the agent&#x27;s side panel instead of switching to the IDE.</li>
-    <li>Claude Code&#x27;s own models always offer 200K / 400K / 1M context.</li>
-    <li>The built-in core reads images and PDFs as Claude Code does: large images are resized, long PDFs are read by pages, and re-reading an unchanged file is pointed out.</li>
-    </ul>
-    <p>Fixed</p>
-    <ul>
-    <li>A PDF read by the built-in core is no longer sent to OpenAI upstreams as text and failing; an upstream&#x27;s failure is shown instead of retried silently.</li>
-    <li>Antigravity: a failed command with no output no longer causes a 400 error; finished turns show the output speed; a 1M context shows as 1M.</li>
-    </ul>
-  </section>
-
   <section class="release" id="v2.0.5">
     <h2 class="plain"><a href="#v2.0.5">2.0.5</a></h2>
     <p>This release brings web search to models without native web search, lets the phone relay setting list several relays as fallbacks, and keeps a new chat's draft when you switch its project.</p>
