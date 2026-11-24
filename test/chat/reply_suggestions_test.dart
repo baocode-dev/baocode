@@ -53,6 +53,34 @@ void main() {
       expect(ReplySuggestions.strip('no tags'), 'no tags');
     });
 
+    test('code and punctuation in one, a list marker before it (#1276)', () {
+      final raw = [
+        '改好了。',
+        '',
+        '- ${_said('跑一下 `npm test`，再提交')}',
+        '2. ${_said('Why? It "worked" before!')}',
+        '* ${_said('先别动（等我看看）…')}',
+      ].join('\n');
+      expect(ReplySuggestions.strip(raw), '改好了。');
+      expect(ReplySuggestions.of(raw), [
+        '跑一下 `npm test`，再提交',
+        'Why? It "worked" before!',
+        '先别动（等我看看）…',
+      ]);
+    });
+
+    test('one written as something else leaves all as text', () {
+      final raw = [
+        '好了',
+        _said('帮我启动开发服务器'),
+        '<｜DSML｜parameter name="description" string="true">确认启动方式'
+            '</｜DSML｜parameter>',
+        '</｜DSML｜invoke>',
+      ].join('\n');
+      expect(ReplySuggestions.strip(raw), raw);
+      expect(ReplySuggestions.of(raw), isEmpty);
+    });
+
     test('at most three, none too long', () {
       final raw = [
         'ok',
