@@ -105,6 +105,20 @@ void main() {
       expect(own.input, {'a': 1});
     });
 
+    test('a search of the web: WebSearch, its results not told', () {
+      final search = call({
+        'name': 'search_web',
+        'kind': 'search',
+        'status': 'completed',
+        'title': '"ai papers" on Web',
+        'rawInput': {'query': 'ai papers'},
+      });
+      final use = claudeToolUse(search);
+      expect(use.name, 'WebSearch');
+      expect(use.input, {'query': 'ai papers'});
+      expect(claudeToolResult(search, use.name).content, '');
+    });
+
     test('a failed command says its exit code', () {
       final result = claudeToolResult(
         call({
