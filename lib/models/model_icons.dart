@@ -40,6 +40,12 @@ Uri? providerSite(ModelProvider provider) => switch (provider.protocol) {
   _ => UpstreamUrls.parse(provider.baseUrl),
 };
 
+/// The logo bundled for [site], in its colors, if there is one: Antigravity's
+/// (the ACP and the legacy upstream alike). Null otherwise.
+String? bundledSiteLogo(Uri? site) => site?.host == 'antigravity.google'
+    ? 'assets/provider_logos/antigravity.png'
+    : null;
+
 /// Fetches, in the background, the icons of [providers]' sites that show
 /// no other: now, and as one is added or its base URL changes, so that
 /// each is there by the time it shows.
@@ -106,6 +112,10 @@ class ProviderIconView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => switch (icon) {
+    // Its own maker's logo, unless an icon is picked for it.
+    null when bundledSiteLogo(site) != null => _spilling(
+      Image.asset(bundledSiteLogo(site)!, width: size + 2, height: size + 2),
+    ),
     null => ListenableBuilder(
       listenable: Listenable.merge([SiteIcons.current, FeaturedUpstream.known]),
       builder: (context, _) {

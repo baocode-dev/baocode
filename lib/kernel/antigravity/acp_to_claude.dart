@@ -231,13 +231,13 @@ claudeToolResult(AcpToolCall call, String name, {String? fileText}) {
         _ => null,
       };
       final failed = call.failed || (exit != null && exit != 0);
+      final shown = [
+        if (exit != null && exit != 0) 'Exit code $exit',
+        text,
+      ].where((part) => part.isNotEmpty).join('\n');
       return (
-        content: _cut(
-          [
-            if (exit != null && exit != 0) 'Exit code $exit',
-            text,
-          ].where((part) => part.isNotEmpty).join('\n'),
-        ),
+        // A failed result must say something: the API refuses an empty one.
+        content: _cut(shown.isEmpty && failed ? '(no output)' : shown),
         isError: failed,
         structured: {'stdout': _cut(text), 'stderr': '', 'interrupted': false},
       );
