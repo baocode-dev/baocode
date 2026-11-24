@@ -51,6 +51,23 @@ void main() {
     expect(pemCertificates('not a certificate'), isEmpty);
   });
 
+  test('a bundle with bytes that are not text still gives its PEM', () async {
+    final dir = await Directory.systemTemp.createTemp('baocode-certs');
+    addTearDown(() => dir.delete(recursive: true));
+    final ca = File(_ca).readAsStringSync().trim();
+    // A certificate appended as DER between two in PEM (#1116).
+    final bundle = File('${dir.path}/ca-certificates.crt')
+      ..writeAsBytesSync([
+        ...ca.codeUnits,
+        10,
+        0x30, 0x82, 0x01, 0xb4, 0x82, 0x01, 0x59, 0x02, 0x01, 0x01, 0xff, //
+        10,
+        ...ca.codeUnits,
+        10,
+      ]);
+    expect(pemCertificates(await readCertificateFile(bundle.path)), [ca, ca]);
+  });
+
   test('what a failed handshake was is told, not only that it failed', () {
     final error = HandshakeException(
       'Handshake error in client',
