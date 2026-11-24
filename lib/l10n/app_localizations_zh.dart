@@ -6844,6 +6844,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get modelsTestModelFailed => '失败';
 
   @override
+  String get modelsCopyTestError => '复制错误信息';
+
+  @override
   String modelsTestFirstText(String seconds) {
     return '首字 ${seconds}s';
   }

@@ -5179,6 +5179,7 @@
   "modelsTestModel": "Test",
   "modelsTestModels": "Test All",
   "modelsTestModelFailed": "Failed",
+  "modelsCopyTestError": "Copy Error",
   "modelsTestFirstText": "First token {seconds}s",
   "@modelsTestFirstText": {
     "placeholders": {

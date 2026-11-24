@@ -1937,6 +1937,7 @@
   "modelsTestModel": "测试",
   "modelsTestModels": "批量测试",
   "modelsTestModelFailed": "失败",
+  "modelsCopyTestError": "复制错误信息",
   "modelsTestFirstText": "首字 {seconds}s",
   "modelsTestTotal": "总耗时 {seconds}s",
   "modelsEnableModel": "启用 {name}",

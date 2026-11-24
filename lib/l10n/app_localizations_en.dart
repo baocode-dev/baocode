@@ -7277,6 +7277,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get modelsTestModelFailed => 'Failed';
 
   @override
+  String get modelsCopyTestError => 'Copy Error';
+
+  @override
   String modelsTestFirstText(String seconds) {
     return 'First token ${seconds}s';
   }
