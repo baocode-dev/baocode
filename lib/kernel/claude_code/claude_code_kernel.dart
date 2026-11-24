@@ -492,9 +492,6 @@ class ClaudeCodeKernel
     final detail => detail,
   };
 
-  /// The models' own windows, by the model the CLI resolved them to, as
-  /// reported while they were in use.
-  static final Map<String, int> _modelWindows = {};
   double? _cost;
 
   /// The conversation's requests to the model, by their message's id, and
@@ -2271,18 +2268,6 @@ class ClaudeCodeKernel
       turnCost = _cost! >= before ? _cost! - before : _cost;
       _reportStats();
     }
-    // The models' own windows: the conversation's may be less (see
-    // _window), as get_context_usage reports next.
-    if (message['modelUsage'] case final Map<Object?, Object?> usage) {
-      for (final MapEntry(:key, :value) in usage.entries) {
-        if ((key, value) case (
-          final String model,
-          {'contextWindow': final int window},
-        )) {
-          _modelWindows[model] = window;
-        }
-      }
-    }
     if (message['is_error'] == true && message['result'] is String) {
       final error = message['result'] as String;
       if (_limitResetsAt == null) _limitSaid(error);
@@ -2811,13 +2796,6 @@ class ClaudeCodeKernel
       final max = usage['maxTokens'] as int? ?? _contextWindow;
       _contextWindow = max;
       _contextReported = true;
-      // No more than the window it compacts at (the CLI reports that as
-      // raw too): the model holds at least that.
-      if ((usage['rawMaxTokens'], _reportedModel)
-          case (final int raw, final model?)
-          when raw > (_modelWindows[model] ?? 0)) {
-        _modelWindows[model] = raw;
-      }
       emitInfoChanged();
       _contextDetail = ContextDetail.parse(usage);
       _counted = (
@@ -3633,19 +3611,6 @@ class ClaudeCodeKernel
   /// The contexts offered, by option id.
   static const _windows = {'200k': 200000, '400k': 400000, _long: 1000000};
 
-  /// The most context [model] (a model as picked) holds: 1M with a 1M
-  /// variant, else as reported while in use; 1M while not known.
-  int _modelWindowOf(String model) {
-    final variants = _models[model] ?? const <_ModelInfo>[];
-    if (variants.any((v) => v.long)) return _windows[_long]!;
-    for (final variant in variants) {
-      if (_modelWindows[variant.resolved ?? variant.value] case final w?) {
-        return w;
-      }
-    }
-    return _windows[_long]!;
-  }
-
   /// The context the conversation fills before it is compacted: up to the
   /// model's own window. A model with a 1M variant uses it past 200K.
   @override
@@ -3664,13 +3629,12 @@ class ClaudeCodeKernel
         ];
       }
       if (parseModelRef(model) != null) return const [];
-      final most = _modelWindowOf(model);
-      final options = [
-        for (final MapEntry(key: id, value: tokens) in _windows.entries)
-          if (tokens <= most)
-            KernelOption(id, id.toUpperCase(), Icons.notes_rounded, ''),
+      // Claude Code's own: each holds 1M, its window as `--autocompact`
+      // has it (the window it reports is the one it was started with).
+      return [
+        for (final id in _windows.keys)
+          KernelOption(id, id.toUpperCase(), Icons.notes_rounded, ''),
       ];
-      return options.length > 1 ? options : const [];
     },
     selected: () {
       if (_custom case (_, final info)) return '${_windowFor(info)}';
