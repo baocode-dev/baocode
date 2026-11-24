@@ -26,6 +26,11 @@ class _ScriptedSession extends ChatSession {
 
   @override
   ChatItem itemAt(int index) => _items[index];
+
+  void append(ChatItem item) {
+    _items.add(item);
+    notifyListeners();
+  }
 }
 
 Widget _app(Widget child) => MaterialApp(
@@ -123,6 +128,42 @@ void main() {
       final jsonTurns = exported['turns'] as List;
       expect(jsonTurns, hasLength(2));
       expect((jsonTurns[0] as Map)['inputTokens'], 100);
+    });
+
+    test('matches unsorted calls and searches raw tool input lazily', () {
+      final t1 = DateTime(2026, 11, 24, 9, 0, 0);
+      final t2 = DateTime(2026, 11, 24, 9, 1, 0);
+      final session = _ScriptedSession([
+        UserMessageItem(text: 'First', sentAt: t1),
+        const ToolCallItem(
+          kind: ToolKind.read,
+          target: 'a.dart',
+          input: {'secretKey': 'needle_value'},
+        ),
+        UserMessageItem(text: 'Second', sentAt: t2),
+      ]);
+      final calls = [
+        UsageCall(
+          at: t2.add(const Duration(seconds: 2)),
+          duration: const Duration(milliseconds: 100),
+          status: 200,
+          provider: 'gw',
+          model: 'm2',
+        ),
+        UsageCall(
+          at: t1.add(const Duration(seconds: 2)),
+          duration: const Duration(milliseconds: 100),
+          status: 200,
+          provider: 'gw',
+          model: 'm1',
+        ),
+      ];
+      final turns = TrajectoryBuilder.build(session, calls: calls);
+      expect(turns[0].calls.single.model, 'm1');
+      expect(turns[1].calls.single.model, 'm2');
+      final step = turns[0].steps.single;
+      expect(step.hasInput, isTrue);
+      expect(step.matchesQuery('needle_value'), isTrue);
     });
   });
 
@@ -230,6 +271,45 @@ void main() {
         expect(find.text('Trajectory'), findsOneWidget);
         expect(find.text('Explain architecture'), findsOneWidget);
         expect(find.text('Assistant'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'paginates long sessions, collapses older turns, and coalesces live updates',
+      (tester) async {
+        final items = <ChatItem>[
+          for (var i = 1; i <= 5; i++) ...[
+            UserMessageItem(text: 'Turn $i prompt'),
+            AssistantTextItem('Reply $i'),
+          ],
+        ];
+        final session = _ScriptedSession(items);
+        addTearDown(session.dispose);
+
+        await tester.pumpWidget(
+          _app(
+            SingleChildScrollView(
+              child: UsageTrajectoryView(session: session, pageSize: 2),
+            ),
+          ),
+        );
+
+        // Tail-first pagination shows 2 turns and a Show all 3 button.
+        expect(find.text('Turn 5 prompt'), findsOneWidget);
+        expect(find.text('Turn 4 prompt'), findsOneWidget);
+        expect(find.text('Turn 1 prompt'), findsNothing);
+        // Latest turn expanded, older turn collapsed by default.
+        expect(find.text('Reply 5'), findsOneWidget);
+        expect(find.text('Reply 4'), findsNothing);
+
+        await tester.tap(find.text('Show all 3'));
+        await tester.pump();
+        expect(find.text('Turn 1 prompt'), findsOneWidget);
+
+        // Coalesced live update renders new step after 250ms settle.
+        session.append(const AssistantTextItem('Streamed tail'));
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(find.text('Streamed tail'), findsOneWidget);
       },
     );
   });

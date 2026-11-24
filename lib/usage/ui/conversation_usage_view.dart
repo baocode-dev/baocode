@@ -75,6 +75,7 @@ class _ConversationUsageViewState extends State<ConversationUsageView> {
     UsagePrices.current.addListener(_repriced);
     widget.session.addListener(_sessionChanged);
     _sessionId = _idOf(widget);
+    _itemCount = widget.session.itemCount;
     unawaited(_load());
   }
 
@@ -90,6 +91,7 @@ class _ConversationUsageViewState extends State<ConversationUsageView> {
       _filter = const UsageFilter();
       _mode = null;
       _sessionId = _idOf(widget);
+      _itemCount = widget.session.itemCount;
       _calls = const [];
       _loading = true;
       unawaited(_load());
@@ -121,6 +123,8 @@ class _ConversationUsageViewState extends State<ConversationUsageView> {
       !hasCalls && !_loading && !_anyUnderway && widget.session.itemCount > 0,
   };
 
+  int _itemCount = 0;
+
   void _sessionChanged() {
     final id = _idOf(widget);
     if (id != _sessionId) {
@@ -128,8 +132,14 @@ class _ConversationUsageViewState extends State<ConversationUsageView> {
       unawaited(_load());
       return;
     }
-    if (_showTrajectory(hasCalls: _all?.calls.isNotEmpty ?? false)) {
+    // Trajectory view listens to session directly with coalescing; only rebuild
+    // here if item presence flips between empty and non-empty.
+    final nowCount = widget.session.itemCount;
+    if ((nowCount > 0) != (_itemCount > 0)) {
+      _itemCount = nowCount;
       setState(() {});
+    } else {
+      _itemCount = nowCount;
     }
   }
 

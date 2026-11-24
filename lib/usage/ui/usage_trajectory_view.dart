@@ -25,11 +25,13 @@ class UsageTrajectoryView extends StatefulWidget {
     required this.session,
     this.calls = const [],
     this.ledger,
+    this.pageSize = 20,
   });
 
   final ChatSession session;
   final List<UsageCall> calls;
   final UsageLedger? ledger;
+  final int pageSize;
 
   @override
   State<UsageTrajectoryView> createState() => _UsageTrajectoryViewState();
@@ -40,15 +42,107 @@ enum _InspectTab { input, output, json }
 class _UsageTrajectoryViewState extends State<UsageTrajectoryView> {
   final _search = TextEditingController();
   final Set<String> _collapsed = {};
+  final Set<String> _seeded = {};
+  final Set<String> _openTraces = {};
   TrajectoryFilter _filter = TrajectoryFilter.all;
   String? _selected;
   _InspectTab _tab = _InspectTab.output;
   bool _copied = false;
+  late int _shown = widget.pageSize;
+
+  Timer? _coalesce;
+  DateTime? _staleSince;
+  List<TrajectoryTurn> _turns = const [];
+  int _maxMs = 1;
+  List<({TrajectoryTurn turn, List<TrajectoryStep> steps})> _visible = const [];
+  String _cachedQuery = '';
+  TrajectoryFilter _cachedFilter = TrajectoryFilter.all;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.session.addListener(_onSession);
+    _rebuildTurns();
+  }
+
+  @override
+  void didUpdateWidget(UsageTrajectoryView old) {
+    super.didUpdateWidget(old);
+    if (old.session != widget.session) {
+      old.session.removeListener(_onSession);
+      widget.session.addListener(_onSession);
+      _collapsed.clear();
+      _seeded.clear();
+      _openTraces.clear();
+      _selected = null;
+      _shown = widget.pageSize;
+      _rebuildTurns();
+    } else if (!identical(old.calls, widget.calls)) {
+      _rebuildTurns();
+    }
+  }
 
   @override
   void dispose() {
+    _coalesce?.cancel();
+    widget.session.removeListener(_onSession);
     _search.dispose();
     super.dispose();
+  }
+
+  /// Coalesces live streaming deltas (max 1 rebuild / 250ms, capped at 1s).
+  void _onSession() {
+    final now = DateTime.now();
+    final since = _staleSince ??= now;
+    _coalesce?.cancel();
+    if (now.difference(since) >= const Duration(seconds: 1)) {
+      _coalesce = null;
+      if (mounted) setState(_rebuildTurns);
+      return;
+    }
+    _coalesce = Timer(const Duration(milliseconds: 250), () {
+      if (mounted) setState(_rebuildTurns);
+    });
+  }
+
+  void _rebuildTurns() {
+    _staleSince = null;
+    _turns = TrajectoryBuilder.build(widget.session, calls: widget.calls);
+    _maxMs = _turns.fold(
+      1,
+      (m, t) => math.max(m, t.worked?.inMilliseconds ?? 0),
+    );
+    // For long sessions, collapse older turns initially so first build stays O(1).
+    if (_turns.length > 3) {
+      for (var i = 0; i < _turns.length - 1; i++) {
+        final id = _turns[i].id;
+        if (_seeded.add(id)) _collapsed.add(id);
+      }
+      _seeded.add(_turns.last.id);
+    }
+    _refilter();
+  }
+
+  void _refilter() {
+    final q = _search.text.trim().toLowerCase();
+    _cachedQuery = q;
+    _cachedFilter = _filter;
+    if (_filter == TrajectoryFilter.all && q.isEmpty) {
+      _visible = [for (final t in _turns.reversed) (turn: t, steps: t.steps)];
+      return;
+    }
+    _visible = [
+      for (final t in _turns.reversed)
+        if ([
+              for (final s in t.steps)
+                if (s.matchesFilter(_filter) && s.matchesQuery(q)) s,
+            ]
+            case final vis
+            when vis.isNotEmpty ||
+                (_filter == TrajectoryFilter.all &&
+                    t.prompt.toLowerCase().contains(q)))
+          (turn: t, steps: vis),
+    ];
   }
 
   Color _color(TrajectoryStatus s) => switch (s) {
@@ -72,12 +166,11 @@ class _UsageTrajectoryViewState extends State<UsageTrajectoryView> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final turns = TrajectoryBuilder.build(widget.session, calls: widget.calls);
-    final q = _search.text.trim();
-    final maxMs = turns.fold(
-      1,
-      (m, t) => math.max(m, t.worked?.inMilliseconds ?? 0),
-    );
+    final q = _search.text.trim().toLowerCase();
+    if (q != _cachedQuery || _filter != _cachedFilter) _refilter();
+    final filtering = q.isNotEmpty || _filter != TrajectoryFilter.all;
+    final shownCount = math.min(_visible.length, _shown);
+    final remaining = _visible.length - shownCount;
     String fLabel(TrajectoryFilter f) => switch (f) {
       TrajectoryFilter.all => l10n.ustatAll,
       TrajectoryFilter.tools => l10n.ustatTrajTools,
@@ -107,7 +200,7 @@ class _UsageTrajectoryViewState extends State<UsageTrajectoryView> {
                   Expanded(
                     child: TextField(
                       controller: _search,
-                      onChanged: (_) => setState(() {}),
+                      onChanged: (_) => setState(_refilter),
                       style: UsageText.body,
                       decoration: InputDecoration.collapsed(
                         hintText: l10n.ustatTrajSearch,
@@ -117,7 +210,10 @@ class _UsageTrajectoryViewState extends State<UsageTrajectoryView> {
                   ),
                   if (_search.text.isNotEmpty)
                     GestureDetector(
-                      onTap: () => setState(() => _search.clear()),
+                      onTap: () => setState(() {
+                        _search.clear();
+                        _refilter();
+                      }),
                       child: Icon(
                         Codicons.close,
                         size: 12,
@@ -129,26 +225,29 @@ class _UsageTrajectoryViewState extends State<UsageTrajectoryView> {
             ),
             UsageSegmented<TrajectoryFilter>(
               value: _filter,
-              onChanged: (f) => setState(() => _filter = f),
+              onChanged: (f) => setState(() {
+                _filter = f;
+                _refilter();
+              }),
               segments: [
                 for (final f in TrajectoryFilter.values)
                   (value: f, label: fLabel(f)),
               ],
             ),
             _chip(
-              _collapsed.length < turns.length
+              _collapsed.length < _turns.length
                   ? Codicons.collapseAll
                   : Codicons.expandAll,
               () => setState(() {
-                _collapsed.length < turns.length
-                    ? _collapsed.addAll(turns.map((t) => t.id))
+                _collapsed.length < _turns.length
+                    ? _collapsed.addAll(_turns.map((t) => t.id))
                     : _collapsed.clear();
               }),
             ),
             _chip(_copied ? Codicons.check : Codicons.export, () {
               unawaited(
                 Clipboard.setData(
-                  ClipboardData(text: TrajectoryBuilder.exportJson(turns)),
+                  ClipboardData(text: TrajectoryBuilder.exportJson(_turns)),
                 ),
               );
               setState(() => _copied = true);
@@ -159,35 +258,36 @@ class _UsageTrajectoryViewState extends State<UsageTrajectoryView> {
           ],
         ),
         const SizedBox(height: 10),
-        if (turns.isEmpty)
+        if (_turns.isEmpty)
           UsageEmpty(icon: Codicons.history, title: l10n.ustatTrajEmpty)
-        else
-          for (final t in turns.reversed)
-            if ([
-                  for (final s in t.steps)
-                    if (s.matchesFilter(_filter) && s.matchesQuery(q)) s,
-                ]
-                case final vis
-                when vis.isNotEmpty ||
-                    (_filter == TrajectoryFilter.all &&
-                        (q.isEmpty ||
-                            t.prompt.toLowerCase().contains(q.toLowerCase()))))
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: _turnCard(t, vis, maxMs, q.isNotEmpty),
+        else ...[
+          for (final entry in _visible.take(shownCount))
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _turnCard(entry.turn, entry.steps, filtering),
+            ),
+          if (remaining > 0)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: _chip(
+                Codicons.chevronDown,
+                () => setState(() => _shown = _visible.length),
+                l10n.ustatShowAll(remaining),
               ),
+            ),
+        ],
       ],
     );
   }
 
-  Widget _turnCard(
-    TrajectoryTurn t,
-    List<TrajectoryStep> vis,
-    int maxMs,
-    bool forceOpen,
-  ) {
+  Widget _turnCard(TrajectoryTurn t, List<TrajectoryStep> vis, bool forceOpen) {
+    final l10n = context.l10n;
     final open = forceOpen || !_collapsed.contains(t.id);
-    final ratio = ((t.worked?.inMilliseconds ?? 0) / maxMs).clamp(0.0, 1.0);
+    final ratio = ((t.worked?.inMilliseconds ?? 0) / _maxMs).clamp(0.0, 1.0);
+    final traced = [
+      for (final c in t.calls)
+        if (c.traceId != null) c,
+    ];
     return UsageCard(
       padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
       child: Column(
@@ -252,8 +352,9 @@ class _UsageTrajectoryViewState extends State<UsageTrajectoryView> {
               Padding(
                 padding: const EdgeInsets.only(top: 6),
                 child: Wrap(
-                  spacing: 6,
+                  spacing: 8,
                   runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     for (final c in t.calls)
                       Text(
@@ -267,14 +368,28 @@ class _UsageTrajectoryViewState extends State<UsageTrajectoryView> {
                         ].join(' · '),
                         style: UsageText.faint,
                       ),
+                    for (final c in traced)
+                      _chip(
+                        _openTraces.contains(c.traceId)
+                            ? Codicons.chevronDown
+                            : Codicons.code,
+                        () => setState(() {
+                          final id = c.traceId!;
+                          _openTraces.contains(id)
+                              ? _openTraces.remove(id)
+                              : _openTraces.add(id);
+                        }),
+                        l10n.ustatTraceTitle,
+                      ),
                   ],
                 ),
               ),
-            for (final c in t.calls.where((c) => c.traceId != null))
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: UsageTraceView(call: c, ledger: widget.ledger),
-              ),
+            for (final c in traced)
+              if (_openTraces.contains(c.traceId))
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: UsageTraceView(call: c, ledger: widget.ledger),
+                ),
           ],
         ],
       ),
@@ -351,18 +466,17 @@ class _UsageTrajectoryViewState extends State<UsageTrajectoryView> {
   Widget _inspector(TrajectoryStep s) {
     final l10n = context.l10n;
     final tabs = [
-      if (s.input != null)
-        (value: _InspectTab.input, label: l10n.ustatTokenInput),
+      if (s.hasInput) (value: _InspectTab.input, label: l10n.ustatTokenInput),
       if (s.output != null)
         (value: _InspectTab.output, label: l10n.ustatTokenOutput),
       (value: _InspectTab.json, label: 'JSON'),
     ];
     final active = tabs.any((t) => t.value == _tab) ? _tab : tabs.first.value;
-    final jsonText = const JsonEncoder.withIndent('  ').convert(s.toJson());
+    String encode() => const JsonEncoder.withIndent('  ').convert(s.toJson());
     final code = switch (active) {
       _InspectTab.input => s.input ?? '',
       _InspectTab.output => s.output ?? '',
-      _InspectTab.json => jsonText,
+      _InspectTab.json => encode(),
     };
     final meta = [
       s.status.name,
@@ -401,7 +515,7 @@ class _UsageTrajectoryViewState extends State<UsageTrajectoryView> {
               _chip(
                 Codicons.copy,
                 () =>
-                    unawaited(Clipboard.setData(ClipboardData(text: jsonText))),
+                    unawaited(Clipboard.setData(ClipboardData(text: encode()))),
                 'JSON',
               ),
             ],

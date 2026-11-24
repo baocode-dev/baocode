@@ -12,7 +12,7 @@ enum TrajectoryFilter { all, tools, agents, errors }
 
 /// One node in an execution trajectory (thought, tool, command, diff, agent).
 class TrajectoryStep {
-  const TrajectoryStep({
+  TrajectoryStep({
     required this.id,
     required this.kind,
     required this.status,
@@ -21,7 +21,8 @@ class TrajectoryStep {
     this.duration,
     this.tokens,
     this.timestamp,
-    this.input,
+    this.rawText,
+    this.rawInput,
     this.output,
     this.children = const [],
   });
@@ -29,11 +30,21 @@ class TrajectoryStep {
   final String id, title;
   final TrajectoryKind kind;
   final TrajectoryStatus status;
-  final String? subtitle, input, output;
+  final String? subtitle, rawText, output;
   final Duration? duration;
   final int? tokens;
   final DateTime? timestamp;
   final List<TrajectoryStep> children;
+  final Map<String, Object?>? rawInput;
+
+  bool get hasInput => rawText != null || (rawInput?.isNotEmpty ?? false);
+
+  /// Pretty-printed input, formatted lazily and cached on first access.
+  late final String? input =
+      rawText ??
+      (rawInput == null || rawInput!.isEmpty
+          ? null
+          : const JsonEncoder.withIndent('  ').convert(rawInput));
 
   bool get isError =>
       status == TrajectoryStatus.error || status == TrajectoryStatus.denied;
@@ -50,15 +61,17 @@ class TrajectoryStep {
       isError || children.any((c) => c.matchesFilter(f)),
   };
 
-  bool matchesQuery(String q) {
-    if (q.isEmpty) return true;
-    final n = q.toLowerCase();
-    bool has(String? s) => s != null && s.toLowerCase().contains(n);
-    return has(title) ||
-        has(subtitle) ||
-        has(input) ||
-        has(output) ||
-        children.any((c) => c.matchesQuery(q));
+  /// Matches [lowerQuery] (expected already lowercased).
+  bool matchesQuery(String lowerQuery) {
+    if (lowerQuery.isEmpty) return true;
+    bool has(String? s) => s != null && s.toLowerCase().contains(lowerQuery);
+    if (has(title) || has(subtitle) || has(rawText) || has(output)) return true;
+    if (rawInput != null &&
+        rawInput!.isNotEmpty &&
+        jsonEncode(rawInput).toLowerCase().contains(lowerQuery)) {
+      return true;
+    }
+    return children.any((c) => c.matchesQuery(lowerQuery));
   }
 
   Map<String, Object?> toJson() => {
@@ -70,7 +83,7 @@ class TrajectoryStep {
     if (duration != null) 'durationMs': duration!.inMilliseconds,
     if (tokens != null) 'tokens': tokens,
     if (timestamp != null) 'at': timestamp!.toIso8601String(),
-    if (input != null) 'input': input,
+    'input': ?input,
     if (output != null) 'output': output,
     if (children.isNotEmpty) 'children': [for (final c in children) c.toJson()],
   };
@@ -78,7 +91,7 @@ class TrajectoryStep {
 
 /// One user-initiated turn with ordered [steps] and matched model [calls].
 class TrajectoryTurn {
-  const TrajectoryTurn({
+  TrajectoryTurn({
     required this.number,
     required this.id,
     required this.prompt,
@@ -100,7 +113,7 @@ class TrajectoryTurn {
   final List<TrajectoryStep> steps;
   final List<UsageCall> calls;
 
-  int get errorCount => _errors(steps);
+  late final int errorCount = _errors(steps);
   TrajectoryStatus get status => live
       ? TrajectoryStatus.running
       : (errorCount > 0 || stopped
@@ -142,17 +155,48 @@ abstract final class TrajectoryBuilder {
         buckets.last.items.add(item);
       }
     }
+    final perTurn = _bucketCalls(buckets, calls);
     return [
       for (var i = 0; i < buckets.length; i++)
         _turn(
           i + 1,
           buckets[i].user,
           buckets[i].items,
-          calls,
-          i + 1 < buckets.length ? buckets[i + 1].user?.sentAt : null,
+          perTurn[i],
           session.isStreaming && i == buckets.length - 1,
         ),
     ];
+  }
+
+  /// Matches [calls] to [buckets] in O(turns + calls) when chronological.
+  static List<List<UsageCall>> _bucketCalls(
+    List<({UserMessageItem? user, List<ChatItem> items})> buckets,
+    List<UsageCall> calls,
+  ) {
+    final out = List.generate(buckets.length, (_) => <UsageCall>[]);
+    if (buckets.isEmpty || calls.isEmpty) return out;
+    final sorted = [for (final c in calls) c]
+      ..sort((a, b) => a.at.compareTo(b.at));
+    var ci = 0;
+    for (var i = 0; i < buckets.length && ci < sorted.length; i++) {
+      final start = buckets[i].user?.sentAt;
+      if (start == null) continue;
+      DateTime? nextAt;
+      for (var k = i + 1; k < buckets.length; k++) {
+        if (buckets[k].user?.sentAt case final next?) {
+          nextAt = next;
+          break;
+        }
+      }
+      while (ci < sorted.length && sorted[ci].at.isBefore(start)) {
+        ci++;
+      }
+      while (ci < sorted.length &&
+          (nextAt == null || sorted[ci].at.isBefore(nextAt))) {
+        out[i].add(sorted[ci++]);
+      }
+    }
+    return out;
   }
 
   static TrajectoryTurn _turn(
@@ -160,16 +204,14 @@ abstract final class TrajectoryBuilder {
     UserMessageItem? u,
     List<ChatItem> items,
     List<UsageCall> calls,
-    DateTime? nextAt,
     bool live,
   ) {
     final id = 't$n';
-    final at = u?.sentAt;
     return TrajectoryTurn(
       number: n,
       id: id,
       prompt: u == null ? 'Session' : oneLineExcerpt(u.text),
-      startedAt: at,
+      startedAt: u?.sentAt,
       worked: u?.worked,
       usage: u?.usage,
       stopped: u?.stopped ?? false,
@@ -177,12 +219,7 @@ abstract final class TrajectoryBuilder {
       steps: [
         for (var j = 0; j < items.length; j++) _step('$id.s${j + 1}', items[j]),
       ],
-      calls: [
-        if (at != null)
-          for (final c in calls)
-            if (!c.at.isBefore(at) && (nextAt == null || c.at.isBefore(nextAt)))
-              c,
-      ],
+      calls: calls,
     );
   }
 
@@ -206,6 +243,7 @@ abstract final class TrajectoryBuilder {
       int? tok,
       DateTime? at,
       String? inp,
+      Map<String, Object?>? rawInp,
       String? out,
       List<TrajectoryStep> kids = const [],
     }) => TrajectoryStep(
@@ -217,7 +255,8 @@ abstract final class TrajectoryBuilder {
       duration: dur,
       tokens: tok,
       timestamp: at,
-      input: inp,
+      rawText: inp,
+      rawInput: rawInp,
       output: out,
       children: kids,
     );
@@ -266,7 +305,7 @@ abstract final class TrajectoryBuilder {
           },
           tool ?? kind.name,
           sub: target.isNotEmpty ? target : detail,
-          inp: input.isEmpty ? null : _pretty.convert(input),
+          rawInp: input.isEmpty ? null : input,
           out: output ?? (results.isEmpty ? null : results.join('\n')),
         ),
       TerminalItem(
