@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'composer_files.dart';
 import 'paste_store_stub.dart'
     if (dart.library.io) 'paste_store_io.dart'
@@ -26,6 +28,17 @@ abstract final class PasteStore {
 
   /// Keeps [text]; where, or null where it could not be.
   static String? save(String text) => platform.savePaste(text);
+
+  /// Keeps a picture sent, [bytes] as the agent was sent them, in
+  /// `images/` beside the pastes (read as they are): for the agent to use
+  /// as a file (#1129). Where, or null where it could not be.
+  static String? saveImage(Uint8List bytes, String mediaType) =>
+      platform.saveImage(bytes, switch (mediaType) {
+        'image/jpeg' => 'jpg',
+        'image/gif' => 'gif',
+        'image/webp' => 'webp',
+        _ => 'png',
+      });
 
   /// What the paste kept at [path] says; null where it is gone. One kept
   /// before the app's data moved is looked for where they are now.

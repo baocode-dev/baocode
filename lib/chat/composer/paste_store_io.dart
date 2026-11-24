@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
@@ -18,6 +19,27 @@ String? savePaste(String text) {
     if (!file.existsSync()) {
       file.parent.createSync(recursive: true);
       file.writeAsStringSync(text, flush: true);
+    }
+    return file.path;
+  } on FileSystemException {
+    return null;
+  }
+}
+
+String? saveImage(Uint8List bytes, String extension) {
+  final hash = sha256.convert(bytes).toString();
+  final file = File(
+    p.join(
+      DataDirectory.current.pastesDir,
+      'images',
+      '${hash.substring(0, 20)}.$extension',
+    ),
+  );
+  try {
+    // Sent again: the one kept.
+    if (!file.existsSync()) {
+      file.parent.createSync(recursive: true);
+      file.writeAsBytesSync(bytes, flush: true);
     }
     return file.path;
   } on FileSystemException {
