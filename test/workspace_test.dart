@@ -1207,8 +1207,8 @@ void main() {
         await tester.pumpWidget(const SizedBox());
         workspace = await pumpLoaded(tester, preferences: store);
         expect(workspace.grid.panes, hasLength(2));
-        expect(workspace.grid.at(0)?.id, isNull);
-        expect(workspace.grid.at(2)?.id, FakeCatalog.kept.id);
+        expect(workspace.grid.panes.first.id, isNull);
+        expect(workspace.grid.panes.last.id, FakeCatalog.kept.id);
         expect(workspace.grid.rowsSplit, isTrue);
         expect(workspace.grid.columnsSplit, isFalse);
         expect(workspace.current?.id, FakeCatalog.kept.id);
@@ -1224,7 +1224,7 @@ void main() {
         (thread) => thread.record?.id == FakeCatalog.kept.id,
       );
       workspace.openBeside(kept, draft, PaneSide.right);
-      workspace.grid.setColumnRatioIn(0, .3);
+      workspace.grid.setRatio((group: null, index: 0), .3);
       workspace.keepGridLines();
 
       // The next run.
@@ -1236,10 +1236,10 @@ void main() {
       expect(panes.first.id, isNull);
       expect(panes.first.project.path, '/tmp/project');
       expect(panes.last.record?.id, FakeCatalog.kept.id);
-      expect(workspace.grid.at(0), same(panes.first));
-      expect(workspace.grid.at(1), same(panes.last));
+      expect(workspace.grid.topLeft, same(panes.first));
+      expect(workspace.grid.topRight, same(panes.last));
       expect(workspace.selected, same(panes.last));
-      expect(workspace.grid.columnRatios, [.3, .3]);
+      expect(workspace.grid.ratioOf((group: null, index: 0)), .3);
     });
 
     testWidgets("each pane's tabs, and the one shown, survive a restart", (
@@ -1267,19 +1267,19 @@ void main() {
         ..openInPlaceOf(byId('tab-a'), byId('tab-b'))
         ..raiseCovered(byId('tab-b'), byId('tab-a'));
       List<String?> tabs() => [
-        for (final tab in workspace.grid.tabs(workspace.grid.at(1)!)) tab.id,
+        for (final tab in workspace.grid.tabs(workspace.grid.topRight!)) tab.id,
       ];
       expect(tabs(), [FakeCatalog.kept.id, 'tab-a', 'tab-b']);
-      expect(workspace.grid.at(1)?.id, 'tab-a');
+      expect(workspace.grid.topRight?.id, 'tab-a');
 
       await tester.pumpWidget(const SizedBox());
       workspace = await pumpLoaded(tester, preferences: store);
       expect(workspace.grid.panes, hasLength(2));
       expect(tabs(), [FakeCatalog.kept.id, 'tab-a', 'tab-b']);
-      expect(workspace.grid.at(1)?.id, 'tab-a');
-      expect(workspace.grid.tabs(workspace.grid.at(0)!), hasLength(1));
+      expect(workspace.grid.topRight?.id, 'tab-a');
+      expect(workspace.grid.tabs(workspace.grid.topLeft!), hasLength(1));
       // The one covered last shows when the shown one closes.
-      expect(workspace.grid.uncover(workspace.grid.at(1)!)?.id, 'tab-b');
+      expect(workspace.grid.uncover(workspace.grid.topRight!)?.id, 'tab-b');
     });
 
     testWidgets("an agent that is no more leaves its pane to the others", (
@@ -1295,7 +1295,9 @@ void main() {
       });
       final workspace = await pumpLoaded(tester, preferences: store);
       expect(workspace.grid.panes.single.record?.id, FakeCatalog.kept.id);
-      expect(workspace.grid.at(3), same(workspace.grid.panes.single));
+      expect(workspace.grid.groups, [
+        [workspace.grid.panes.single],
+      ]);
       expect(workspace.selected, same(workspace.grid.panes.single));
     });
   });
