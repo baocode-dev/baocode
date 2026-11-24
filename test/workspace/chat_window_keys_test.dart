@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/chat/chat_screen.dart';
+import 'package:baocode/chat/side_panel/side_panel_controller.dart';
+import 'package:baocode/chat/side_panel/side_panel_view.dart';
 import 'package:baocode/ide/ide_quick_input.dart';
 import 'package:baocode/keybindings/chat_keybindings.dart';
 import 'package:bao_editor/monaco/flutter/keybinding_entry.dart';
@@ -210,6 +212,27 @@ void main() {
     expect(palette, findsNothing);
     await press(tester, LogicalKeyboardKey.keyL, control: true);
     expect(inputFocused(tester, workspace.selected), isTrue);
+  });
+
+  testWidgets('a file picked in the palette (Ctrl+P) opens in the agent\'s '
+      'side panel, not the IDE', (tester) async {
+    final workspace = await pumpApp(tester);
+    await press(tester, LogicalKeyboardKey.keyP, control: true);
+    await tester.pumpAndSettle();
+    final palette = find.byType(SearchPalette);
+    const path = '/tmp/baocode-palette/lib/main.dart';
+    tester.widget<SearchPalette>(palette).onOpenFile(path);
+    await press(tester, LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+
+    expect(workspace.layout, WorkspaceLayout.chat);
+    final view = tester.widget<AgentSidePanelView>(
+      find.byType(AgentSidePanelView),
+    );
+    expect(view.session, same(workspace.current!.session));
+    final tabs = view.panel.tabsOf(view.session);
+    expect(tabs.section, SidePanelSection.files);
+    expect(tabs.active?.path, path);
   });
 
   testWidgets('Ctrl+K Ctrl+T picks the color theme over the chat, as the '

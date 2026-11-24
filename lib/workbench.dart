@@ -1191,10 +1191,16 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     }
   }
 
-  /// Opens a link from a terminal: a URL in the browser, a file in the IDE
-  /// at its line and column, a folder in the system's file manager.
+  /// Opens a link from a terminal: a URL in the browser, a file in the
+  /// agent's side panel at its line (in the IDE at its line and column,
+  /// with the IDE shown), a folder in the system's file manager.
   void _openTerminalLink(TerminalLink link) {
     final thread = _agentThread ?? _workspace.current;
+    if (link.type == TerminalLinkType.localFile) {
+      final line = link.line;
+      final range = line == null ? null : FileLineRange(line, line);
+      if (_openInSidePanel(FileOpenRequest(link.path!, range: range))) return;
+    }
     switch (link.type) {
       case TerminalLinkType.url:
         unawaited(openExternal(link.text));
@@ -1478,8 +1484,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       _workspace.sidebarProjects.firstOrNull;
 
   /// Opens the search palette over the chat layout, on [filter]; in an
-  /// agent's window, an agent picked shows in its place, and a file opens
-  /// in the IDE's window.
+  /// agent's window, an agent picked shows in its place. A file opens in
+  /// the side panel of the agent shown; with none, in the IDE.
   Future<void> _openPalette([SearchFilter filter = SearchFilter.all]) async {
     if (_paletteOpen || !mounted) return;
     _paletteOpen = true;
@@ -1508,6 +1514,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
           _findInChat(thread, query);
         },
         onOpenFile: (path) {
+          if (_openInSidePanel(FileOpenRequest(path))) return;
           if (_windows case final windows? when _multi || _agentWindow) {
             unawaited(
               windows.showFolder(project?.path, files: [CodeTarget(path)]),
@@ -4578,6 +4585,17 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       openOnHost: (host, path, range) =>
           unawaited(_openOnHost(thread, embedded, host, path, range)),
     );
+  }
+
+  /// Opens [request] in the side panel of the agent shown, as a file its
+  /// conversation names does (Customize or the stashes give way to it);
+  /// false where the IDE shows or no agent does.
+  bool _openInSidePanel(FileOpenRequest request) {
+    final thread = _agentThread ?? _workspace.current;
+    if (_showsIde || thread == null) return false;
+    _closeCustomize();
+    _sidePanel.open(thread.session, request, listAway: true);
+    return true;
   }
 
   /// Whether a file of this machine's is at [path].
