@@ -133,4 +133,4 @@ BaoCode 使用 [GNU General Public License v3.0](LICENSE)（GPL-3.0-only）许�
 
 BaoCode 是独立项目，与 Anthropic 无隶属关系，也未获得其背书。
 
-<img width="720" height="1094" alt="image" src="https://github.com/user-attachments/assets/317028c7-4baa-4009-9ca4-6a900ba200a8" />
+<img width="720" alt="扫码加入 BaoCode 微信交流群" src="site/readme/wechat-group.jpg" />
