@@ -5695,8 +5695,9 @@ void main() {
         for (final option in options) option.label,
       ];
 
-      // Shown as picked before it starts.
+      // Shown as picked before it starts, the context too.
       expect(kernel.contextSize.selected, '400k');
+      expect(kernel.contextWindow, 400000);
       kernel.prepare();
       await pumpEventQueue();
       expect(launches.single.model, 'opus');

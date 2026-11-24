@@ -6697,7 +6697,7 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get agyCli => 'Antigravity CLI';
+  String get agyCli => 'Antigravity ACP';
 
   @override
   String get agyProtocolDescription =>

@@ -474,7 +474,7 @@ class _ModelsSettingsPageState extends State<ModelsSettingsPage> {
                   else if (provider.protocol.usesAccounts)
                     l10n.modelsAccountCount(provider.accounts.length)
                   else if (provider.protocol == ProviderProtocol.agy)
-                    l10n.agyCli
+                    'ACP'
                   else if (provider.host.isEmpty)
                     l10n.modelsProviderNoUrl
                   else
@@ -1091,6 +1091,22 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
     await _providers.remove(_provider.id);
   }
 
+  /// Deletes this upstream, once confirmed. Shown in its advanced section,
+  /// or at its foot for Antigravity, which has none.
+  Widget _deleteRow(BuildContext context) {
+    final l10n = context.l10n;
+    return SettingsRow(
+      label: l10n.modelsDelete,
+      description: l10n.modelsDeleteDescription,
+      trailing: IdeButton(
+        label: l10n.modelsDelete,
+        icon: Codicons.trash,
+        secondary: true,
+        onPressed: () => unawaited(_delete()),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => MouseNavigation(
     // The mouse's back button: back to the models, as the arrow.
@@ -1168,6 +1184,9 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
             onToggle: () => setState(() => _advancedOpen = !_advancedOpen),
             children: _advanced(context),
           ),
+        ] else ...[
+          const SizedBox(height: 16),
+          _deleteRow(context),
         ],
       ],
     );
@@ -2043,16 +2062,7 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
             onPressed: () => unawaited(_duplicate()),
           ),
         ),
-      SettingsRow(
-        label: l10n.modelsDelete,
-        description: l10n.modelsDeleteDescription,
-        trailing: IdeButton(
-          label: l10n.modelsDelete,
-          icon: Codicons.trash,
-          secondary: true,
-          onPressed: () => unawaited(_delete()),
-        ),
-      ),
+      _deleteRow(context),
     ];
   }
 }

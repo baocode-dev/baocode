@@ -31,10 +31,12 @@ ProjectIcon? providerIconOf(ModelProvider provider) =>
     };
 
 /// The site [provider] is of, whose icon it shows without another:
-/// ChatGPT's for Codex, Antigravity's for it, else its base URL's.
+/// ChatGPT's for Codex, Antigravity's for it (the legacy one and the ACP
+/// one alike), else its base URL's.
 Uri? providerSite(ModelProvider provider) => switch (provider.protocol) {
   ProviderProtocol.codex => Uri.https('chatgpt.com'),
-  ProviderProtocol.antigravity => Uri.https('antigravity.google'),
+  ProviderProtocol.antigravity ||
+  ProviderProtocol.agy => Uri.https('antigravity.google'),
   _ => UpstreamUrls.parse(provider.baseUrl),
 };
 

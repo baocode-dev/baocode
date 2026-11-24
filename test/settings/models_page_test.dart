@@ -1088,6 +1088,29 @@ void main() {
     expect(find.text('Add Upstream'), findsWidgets);
   });
 
+  testWidgets('an Antigravity upstream is deleted at its foot, no advanced', (
+    tester,
+  ) async {
+    await providers.save(
+      const ModelProvider(
+        id: 'agy',
+        name: 'Antigravity',
+        protocol: ProviderProtocol.agy,
+      ),
+    );
+    await pump(tester);
+    await tester.tap(find.text('Antigravity'));
+    await tester.pumpAndSettle();
+    expect(find.text('Advanced'), findsNothing);
+    await tester.ensureVisible(find.text('Delete Upstream').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete Upstream').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+    expect(providers.providers, isEmpty);
+  });
+
   testWidgets('an upstream duplicated: its models, settings and key, '
       'opened in its place (#177)', (tester) async {
     await providers.save(
