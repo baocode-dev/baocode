@@ -2186,6 +2186,51 @@ void main() {
     );
   });
 
+  testWidgets(
+    'the files\' Open in Terminal starts one in the file\'s folder, on '
+    'the terminal page (#1262)',
+    (tester) async {
+      final started = <FakePty>[];
+      final terminals = TerminalService(
+        root: '/p',
+        backend: fakeTerminalBackend(started),
+      );
+      addTearDown(terminals.dispose);
+      final (:panel, :session, files: _) = await _pumpChat(
+        tester,
+        texts: {'/p/a.dart': 'alpha'},
+        terminals: terminals,
+      );
+      panel.showSection(session, SidePanelSection.files);
+      await tester.pumpAndSettle();
+
+      await tester.tapAt(
+        tester.getCenter(
+          find.descendant(
+            of: find.byType(IdeExplorer),
+            matching: find.text('a.dart'),
+          ),
+        ),
+        buttons: kSecondaryMouseButton,
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Open in Terminal'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump();
+
+      final shell = terminals.instances.single;
+      expect(started.single.launch!.workingDirectory, '/p');
+      expect(panel.tabsOf(session).section, SidePanelSection.terminal);
+      expect(panel.tabsOf(session).terminal, shell);
+      expect(
+        tester.widget<TerminalView>(find.byType(TerminalView)).instance,
+        shell,
+      );
+    },
+  );
+
   testWidgets('section keys open the right page and the IDE has no rail', (
     tester,
   ) async {
