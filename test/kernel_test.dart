@@ -5724,6 +5724,13 @@ void main() {
         '400K',
         '1M',
       ]);
+      // One with no 1M variant listed holds 1M too (the CLI no longer
+      // lists them).
+      expect(labels(kernel.contextSize.optionsFor('haiku')), [
+        '200K',
+        '400K',
+        '1M',
+      ]);
       // Where it compacts, as the CLI reports it.
       expect(kernel.contextSize.selected, '400k');
       expect(labels(kernel.effort.optionsFor('fable')), ['Low', 'Max']);
