@@ -23526,6 +23526,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'“{name}” already exists. Replace it?'**
   String remoteBrowserReplace(String name);
+
+  /// No description provided for @ustatViewOverview.
+  ///
+  /// In en, this message translates to:
+  /// **'Overview'**
+  String get ustatViewOverview;
+
+  /// No description provided for @ustatViewTrajectory.
+  ///
+  /// In en, this message translates to:
+  /// **'Trajectory'**
+  String get ustatViewTrajectory;
+
+  /// No description provided for @ustatTrajSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'Filter steps…'**
+  String get ustatTrajSearch;
+
+  /// No description provided for @ustatTrajTools.
+  ///
+  /// In en, this message translates to:
+  /// **'Tools'**
+  String get ustatTrajTools;
+
+  /// No description provided for @ustatTrajExport.
+  ///
+  /// In en, this message translates to:
+  /// **'Export JSON'**
+  String get ustatTrajExport;
+
+  /// No description provided for @ustatTrajEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No steps recorded'**
+  String get ustatTrajEmpty;
 }
 
 class _AppLocalizationsDelegate

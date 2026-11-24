@@ -3911,5 +3911,11 @@
   "remoteBrowserSaveAction": "另存为",
   "remoteBrowserSaveName": "保存为：",
   "remoteBrowserSave": "保存",
-  "remoteBrowserReplace": "“{name}”已存在，要替换它吗？"
+  "remoteBrowserReplace": "“{name}”已存在，要替换它吗？",
+  "ustatViewOverview": "总览",
+  "ustatViewTrajectory": "轨迹",
+  "ustatTrajSearch": "筛选步骤…",
+  "ustatTrajTools": "工具",
+  "ustatTrajExport": "导出 JSON",
+  "ustatTrajEmpty": "暂无轨迹步骤"
 }

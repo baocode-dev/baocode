@@ -14543,4 +14543,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String remoteBrowserReplace(String name) {
     return '“$name” already exists. Replace it?';
   }
+
+  @override
+  String get ustatViewOverview => 'Overview';
+
+  @override
+  String get ustatViewTrajectory => 'Trajectory';
+
+  @override
+  String get ustatTrajSearch => 'Filter steps…';
+
+  @override
+  String get ustatTrajTools => 'Tools';
+
+  @override
+  String get ustatTrajExport => 'Export JSON';
+
+  @override
+  String get ustatTrajEmpty => 'No steps recorded';
 }

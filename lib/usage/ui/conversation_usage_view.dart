@@ -19,6 +19,7 @@ import 'usage_context.dart';
 import 'usage_filters.dart';
 import 'usage_sections.dart';
 import 'usage_style.dart';
+import 'usage_trajectory_view.dart';
 import '../../theme/svg_icons.dart';
 
 /// The side panel's Usage page: what [session]'s conversation took of
@@ -45,6 +46,8 @@ class ConversationUsageView extends StatefulWidget {
   State<ConversationUsageView> createState() => _ConversationUsageViewState();
 }
 
+enum _UsageMode { overview, trajectory }
+
 class _ConversationUsageViewState extends State<ConversationUsageView> {
   UsageLedger get _ledger => widget.ledger ?? UsageLedger.current;
 
@@ -53,6 +56,7 @@ class _ConversationUsageViewState extends State<ConversationUsageView> {
   bool _loading = true;
   int _loadedVersion = -1;
   Timer? _reload;
+  _UsageMode? _mode;
 
   /// Since when the calls shown are out of date, a reload put off.
   DateTime? _staleSince;
@@ -84,6 +88,7 @@ class _ConversationUsageViewState extends State<ConversationUsageView> {
       old.session.removeListener(_sessionChanged);
       widget.session.addListener(_sessionChanged);
       _filter = const UsageFilter();
+      _mode = null;
       _sessionId = _idOf(widget);
       _calls = const [];
       _loading = true;
@@ -110,11 +115,22 @@ class _ConversationUsageViewState extends State<ConversationUsageView> {
   /// The costs, at the prices as they are now.
   void _repriced() => setState(_summarize);
 
+  bool _showTrajectory({required bool hasCalls}) => switch (_mode) {
+    final m? => m == _UsageMode.trajectory,
+    null =>
+      !hasCalls && !_loading && !_anyUnderway && widget.session.itemCount > 0,
+  };
+
   void _sessionChanged() {
     final id = _idOf(widget);
-    if (id == _sessionId) return;
-    _sessionId = id;
-    unawaited(_load());
+    if (id != _sessionId) {
+      _sessionId = id;
+      unawaited(_load());
+      return;
+    }
+    if (_showTrajectory(hasCalls: _all?.calls.isNotEmpty ?? false)) {
+      setState(() {});
+    }
   }
 
   /// The ledger told of something: only what it concerns is done. With
@@ -365,6 +381,8 @@ class _ConversationUsageViewState extends State<ConversationUsageView> {
     final all = _all;
     final summary = _summary;
     final hasCalls = all != null && all.calls.isNotEmpty && summary != null;
+    final hasItems = widget.session.itemCount > 0;
+    final trajectory = _showTrajectory(hasCalls: hasCalls);
     // Its filters stay at the top, what scrolls fading out under them.
     return ColoredBox(
       color: AppColors.code,
@@ -372,21 +390,56 @@ class _ConversationUsageViewState extends State<ConversationUsageView> {
         builder: (context, controller) => Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (hasCalls)
+            if (hasCalls || hasItems)
               Padding(
                 // The cards under them a row's gap away, at rest.
                 padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-                child: _filters(all),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    UsageSegmented<_UsageMode>(
+                      value: trajectory
+                          ? _UsageMode.trajectory
+                          : _UsageMode.overview,
+                      onChanged: (m) => setState(() => _mode = m),
+                      segments: [
+                        (
+                          value: _UsageMode.overview,
+                          label: l10n.ustatViewOverview,
+                        ),
+                        (
+                          value: _UsageMode.trajectory,
+                          label: l10n.ustatViewTrajectory,
+                        ),
+                      ],
+                    ),
+                    if (!trajectory && hasCalls) ...[
+                      const SizedBox(height: 8),
+                      _filters(all),
+                    ],
+                  ],
+                ),
               ),
             Expanded(
               child: ScrollEdgeFade(
-                fadeLength: hasCalls ? 28 : 40,
+                fadeLength: hasCalls || trajectory ? 28 : 40,
                 child: ListView(
                   controller: controller,
-                  padding: EdgeInsets.fromLTRB(16, hasCalls ? 12 : 14, 16, 32),
+                  padding: EdgeInsets.fromLTRB(
+                    16,
+                    hasCalls || trajectory ? 12 : 14,
+                    16,
+                    32,
+                  ),
                   children: [
+                    if (trajectory)
+                      UsageTrajectoryView(
+                        session: widget.session,
+                        calls: _calls,
+                        ledger: _ledger,
+                      )
                     // Its first call, under way.
-                    if (!hasCalls && !_loading && _anyUnderway)
+                    else if (!hasCalls && !_loading && _anyUnderway)
                       _callsCard(const [])
                     else if (!hasCalls)
                       _loading ? const SizedBox(height: 120) : _empty()

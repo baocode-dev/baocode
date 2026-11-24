@@ -1497,6 +1497,7 @@ String? _portsHost(ChatSession? session) {
 /// or under way, or while it is the page [picked] (by its command, say).
 bool _usageOffered(ChatSession? session, {SidePanelSection? picked}) {
   if (picked == SidePanelSection.usage) return true;
+  if ((session?.itemCount ?? 0) > 0) return true;
   final id = session?.sessionId;
   if (id == null) return false;
   final ledger = UsageLedger.current;

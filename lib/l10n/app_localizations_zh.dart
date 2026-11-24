@@ -13725,4 +13725,22 @@ class AppLocalizationsZh extends AppLocalizations {
   String remoteBrowserReplace(String name) {
     return '“$name”已存在，要替换它吗？';
   }
+
+  @override
+  String get ustatViewOverview => '总览';
+
+  @override
+  String get ustatViewTrajectory => '轨迹';
+
+  @override
+  String get ustatTrajSearch => '筛选步骤…';
+
+  @override
+  String get ustatTrajTools => '工具';
+
+  @override
+  String get ustatTrajExport => '导出 JSON';
+
+  @override
+  String get ustatTrajEmpty => '暂无轨迹步骤';
 }

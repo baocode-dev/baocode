@@ -9178,5 +9178,11 @@
   "remoteBrowserSaveName": "Save As:",
   "remoteBrowserSave": "Save",
   "remoteBrowserReplace": "“{name}” already exists. Replace it?",
-  "@remoteBrowserReplace": {"placeholders": {"name": {"type": "String"}}}
+  "@remoteBrowserReplace": {"placeholders": {"name": {"type": "String"}}},
+  "ustatViewOverview": "Overview",
+  "ustatViewTrajectory": "Trajectory",
+  "ustatTrajSearch": "Filter steps…",
+  "ustatTrajTools": "Tools",
+  "ustatTrajExport": "Export JSON",
+  "ustatTrajEmpty": "No steps recorded"
 }
