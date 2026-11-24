@@ -39,6 +39,7 @@ import 'claude_sdk_tools.dart';
 import 'turn_stats.dart';
 import 'control_channel.dart';
 import 'forked_runs.dart';
+import 'scheduled_jobs.dart';
 import 'local_time_zone.dart';
 import 'tool_result_tally.dart';
 import 'usage_limit.dart';
@@ -288,6 +289,9 @@ class ClaudeCodeKernel
   /// Out of view, but busy when asked to free the process: freed once the
   /// CLI says it is idle.
   bool _releaseWanted = false;
+
+  /// What the session scheduled itself, which only a running process keeps.
+  final _scheduled = ScheduledJobs();
 
   String? _turn;
 
@@ -936,9 +940,12 @@ class ClaudeCodeKernel
 
   /// Frees the process now if idle, else once it has started or the CLI
   /// says it is idle (one that does not say keeps it until asked again).
+  ///
+  /// Not with jobs scheduled (CronCreate, ScheduleWakeup): they live in the
+  /// process, and would not come (#994).
   @override
   void release() {
-    if (_busy) {
+    if (_busy || _scheduled.pending) {
       _releaseWanted = true;
       return;
     }
@@ -2000,6 +2007,7 @@ class ClaudeCodeKernel
         when _results.add(message) && _resultsKnown) {
       _reportContext();
     }
+    if (message['type'] case 'assistant' || 'user') _scheduled.receive(message);
     switch (message['type']) {
       case ClaudeExit.type:
         _exited(
@@ -2052,6 +2060,7 @@ class ClaudeCodeKernel
         // prompt of its own (a background task's notice, a scheduled one).
         // It is at work all the same: shown, and stopped, as any turn.
         if (message['status'] == 'requesting' && _turn == null) {
+          _scheduled.woke();
           _beginTurn('${message['uuid'] ?? 'own:$nextSeq'}', unprompted: true);
         }
         _translator.translate(message);
