@@ -150,18 +150,8 @@ Map<String, Object?> convertClaudeRequestToResponses(
               }
             case 'document':
               flushReminders();
-              final source = content.get('source');
-              if (source.get('type').string != 'base64') continue;
-              final mediaType = source.get('media_type').string.trim();
-              if (mediaType.toLowerCase() != 'application/pdf') continue;
-              var data = source.get('data').string;
-              if (data.isEmpty) data = source.get('base64').string;
-              if (data.isNotEmpty) {
-                contentItems.add({
-                  'type': 'input_file',
-                  'file_data': 'data:$mediaType;base64,$data',
-                  'filename': 'document.pdf',
-                });
+              if (_inputFile(content.get('source')) case final file?) {
+                contentItems.add(file);
               }
             case 'tool_use':
               flushMessage();
@@ -190,6 +180,11 @@ Map<String, Object?> convertClaudeRequestToResponses(
                     case 'image':
                       if (_dataUrl(part.get('source')) case final url?) {
                         parts.add(inputImage(url));
+                      }
+                    case 'document':
+                      // Read's PDF: as a file, not its JSON as text.
+                      if (_inputFile(part.get('source')) case final file?) {
+                        parts.add(file);
                       }
                     case 'text':
                       parts.add({
@@ -351,6 +346,21 @@ String? _dataUrl(JsonValue source) {
   if (mediaType.isEmpty) mediaType = source.get('mime_type').string;
   if (mediaType.isEmpty) mediaType = 'application/octet-stream';
   return 'data:$mediaType;base64,$data';
+}
+
+/// A document's base64 PDF [source] as an `input_file`; null for another.
+Map<String, Object?>? _inputFile(JsonValue source) {
+  if (source.get('type').string != 'base64') return null;
+  final mediaType = source.get('media_type').string.trim();
+  if (mediaType.toLowerCase() != 'application/pdf') return null;
+  var data = source.get('data').string;
+  if (data.isEmpty) data = source.get('base64').string;
+  if (data.isEmpty) return null;
+  return {
+    'type': 'input_file',
+    'file_data': 'data:$mediaType;base64,$data',
+    'filename': 'document.pdf',
+  };
 }
 
 bool _acceptsGrokSignature(String model) =>

@@ -627,10 +627,12 @@ class ModelProxy {
       await for (final line in upstreamLines) {
         if (!line.startsWith('data:')) continue;
         meter?.upstreamLine(line);
-        final message = convertResponsesResponseToClaudeNonStream(
-          body,
-          line.substring(5).trim(),
-        );
+        final data = line.substring(5).trim();
+        if (_responsesFailure(data) case (final status, final message)) {
+          meter?.fail(message);
+          return _fail(response, status, message);
+        }
+        final message = convertResponsesResponseToClaudeNonStream(body, data);
         if (message != null) {
           meter?.message(message);
           if (probe != null &&
@@ -1419,6 +1421,32 @@ class ModelProxy {
       ..headers.contentType = ContentType.json
       ..write(text);
     await response.close();
+  }
+
+  /// The status and message to answer a Responses `response.failed` event
+  /// [data] with; null for another event.
+  static (int, String)? _responsesFailure(String data) {
+    if (!data.contains('"response.failed"')) return null;
+    final Object? event;
+    try {
+      event = jsonDecode(data);
+    } on FormatException {
+      return null;
+    }
+    if (event case {'type': 'response.failed'}) {
+      final error = switch (event) {
+        {'response': {'error': final Map error}} => error,
+        _ => const {},
+      };
+      final message = switch (error) {
+        {'message': final String message} when message.trim().isNotEmpty =>
+          message.trim(),
+        {'code': final String code} when code.trim().isNotEmpty => code.trim(),
+        _ => 'The upstream failed to answer',
+      };
+      return (error['type'] == 'invalid_request_error' ? 400 : 502, message);
+    }
+    return null;
   }
 
   static Future<void> _fail(

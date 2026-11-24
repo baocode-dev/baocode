@@ -86,9 +86,10 @@ class ApiError implements Exception {
   final Duration? retryAfter;
   final String? requestId;
 
-  /// Whether the request is too long for the model's context.
+  /// Whether the request is too long for the model's context: as a 400, or
+  /// in the stream (an OpenAI Responses upstream's `response.failed`).
   bool get promptTooLong =>
-      status == 400 &&
+      (status == 400 || (status == null && type == 'invalid_request_error')) &&
       (message.contains('prompt is too long') ||
           message.contains('too many tokens') ||
           message.contains('context length') ||

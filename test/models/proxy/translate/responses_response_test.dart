@@ -418,6 +418,19 @@ void main() {
       expect(payload.get('error.type').string, 'overloaded_error');
       expect(payload.get('error.message').string, 'overloaded_error');
     });
+
+    test('response.failed is an error, not a silent end', () {
+      final out = translate([
+        'data: {"type":"response.created","response":{"id":"resp_1","model":"m"}}',
+        'data: {"type":"response.failed","response":{"id":"resp_1","status":"failed","error":{"type":"invalid_request_error","param":"input","code":"context_length_exceeded","message":"Your input exceeds the context window of this model."}}}',
+      ]);
+      final payload = firstPayloadForEvent(out.last, 'error')!;
+      expect(payload.get('error.type').string, 'invalid_request_error');
+      expect(
+        payload.get('error.message').string,
+        'Your input exceeds the context window of this model.',
+      );
+    });
   });
 
   group('function calls', () {
