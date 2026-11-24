@@ -12,7 +12,8 @@ String shape(ChatGrid<String> grid) => grid.columnsFirst
 const GridLine first = (group: null, index: 0);
 
 void main() {
-  test('columns side by side, up to four, each up to two panes', () {
+  test('columns side by side, as many as there is room for, each of as '
+      'many panes', () {
     final grid = ChatGrid<String>()
       ..show('A')
       ..split('A', PaneSide.right, 'B')
@@ -27,33 +28,29 @@ void main() {
 
     grid.split('A', PaneSide.left, 'D');
     expect(shape(grid), 'D | A | B | C');
-    for (final pane in grid.panes) {
-      expect(grid.canSplit(pane, PaneSide.left), isFalse);
-      expect(grid.canSplit(pane, PaneSide.right), isFalse);
-      expect(grid.canSplit(pane, PaneSide.bottom), isTrue);
-    }
     for (final (pane, below) in [('D', 'E'), ('A', 'F'), ('B', 'G')]) {
       grid.split(pane, PaneSide.bottom, below);
     }
     grid.split('C', PaneSide.top, 'H');
     expect(shape(grid), 'D/E | A/F | B/G | H/C');
-    expect(grid.length, ChatGrid.maxPanes);
     expect(grid.panes, ['D', 'A', 'B', 'H', 'E', 'F', 'G', 'C']);
-    for (final pane in grid.panes) {
-      for (final side in PaneSide.values) {
-        expect(grid.canSplit(pane, side), isFalse);
-      }
-    }
     rects = grid.layout(const Size(1000, 800), gap: 0);
     expect(rects['C'], const Rect.fromLTRB(750, 400, 1000, 800));
+    // A fifth column, a third in one: the room they need grows with them.
+    expect(grid.least(const Size(300, 200), 4), const Size(4 * 304 - 4, 404));
+    grid
+      ..split('C', PaneSide.right, 'I')
+      ..split('C', PaneSide.bottom, 'J');
+    expect(shape(grid), 'D/E | A/F | B/G | H/C/J | I');
+    expect(grid.panes, ['D', 'A', 'B', 'H', 'I', 'E', 'F', 'G', 'C', 'J']);
+    expect(grid.least(const Size(300, 200), 4), const Size(5 * 304 - 4, 608));
   });
 
-  test('two rows, up to four panes each, their lines apart', () {
+  test('rows, each of as many panes, their lines apart', () {
     final grid = ChatGrid<String>()
       ..show('A')
       ..split('A', PaneSide.bottom, 'D');
     expect(shape(grid), 'A / D');
-    expect(grid.canSplit('A', PaneSide.top), isFalse);
     grid
       ..split('A', PaneSide.right, 'B')
       ..split('B', PaneSide.right, 'C')
@@ -67,6 +64,8 @@ void main() {
     expect(grid.neighbor('A', PaneSide.bottom), 'D');
     expect(grid.neighbor('C', PaneSide.bottom), 'E');
     expect(grid.topRight, 'C');
+    grid.split('D', PaneSide.bottom, 'F');
+    expect(shape(grid), 'A|B|C / D|E / F');
   });
 
   test('four in columns: one more is a column of its own', () {
@@ -76,7 +75,6 @@ void main() {
       ..split('A', PaneSide.bottom, 'C')
       ..split('B', PaneSide.bottom, 'D');
     expect(shape(grid), 'A/C | B/D');
-    expect(grid.canSplit('B', PaneSide.top), isFalse);
     grid.split('B', PaneSide.right, 'E');
     expect(shape(grid), 'A/C | B/D | E');
     expect(grid.touches('E', PaneSide.top), isTrue);
@@ -314,17 +312,21 @@ void main() {
     expect(grid.rowsSplit, isTrue);
   });
 
-  test('an impossible move leaves the whole grid unchanged', () {
+  test('a move nowhere leaves the whole grid unchanged', () {
     final grid = ChatGrid<String>()
       ..show('A')
       ..split('A', PaneSide.bottom, 'B')
       ..split('A', PaneSide.right, 'C')
       ..split('B', PaneSide.right, 'D')
       ..setRatio(first, .7);
-    // A third row there is no room for.
-    expect(grid.rearrange('A', 'D', side: PaneSide.bottom), isFalse);
+    // Onto itself, or a pane gone: nothing.
+    expect(grid.rearrange('A', 'A', side: PaneSide.bottom), isFalse);
+    expect(grid.rearrange('A', 'gone', side: PaneSide.bottom), isFalse);
     expect(shape(grid), 'A|C / B|D');
     expect(grid.ratioOf(first), .7);
+    // A row of its own, the third.
+    expect(grid.rearrange('A', 'D', side: PaneSide.bottom), isTrue);
+    expect(shape(grid), 'C / B|D / A');
     expect(grid.rearrange('A', 'D', side: PaneSide.right), isTrue);
     expect(shape(grid), 'C / B|D|A');
   });
@@ -397,17 +399,31 @@ void main() {
     expect(cells([0, 0, 0, 0])!.groups, [
       [0],
     ]);
-    // Not rectangles; nor too many in a group.
+    // Not rectangles; nor a pane in two places.
     expect(cells([0, 1, 1, 0]), isNull);
     expect(
       ChatGrid.fromJson({
         'columnsFirst': true,
         'groups': [
-          [0, 1, 2],
+          [0, 1],
+          [1],
         ],
       }),
       isNull,
     );
+    // One column of three is three rows.
+    final column = ChatGrid.fromJson({
+      'columnsFirst': true,
+      'groups': [
+        [0, 1, 2],
+      ],
+    })!;
+    expect(column.columnsFirst, isFalse);
+    expect(column.groups, [
+      [0],
+      [1],
+      [2],
+    ]);
   });
 
   test('a pane\'s tabs keep the order they came in, whichever shows', () {

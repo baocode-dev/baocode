@@ -382,10 +382,14 @@ void main() {
     expect(corner.right, left.right);
     expect(top.left, bottom.left);
 
-    // A column full: near its pane's top is the pane's place.
+    // Near a pane's top, a third in its column, above it.
     gesture = await dragAgent(tester, fifth, near(bottom, PaneSide.top));
     await tester.pumpAndSettle();
-    expect(tester.getRect(preview()), bottom.deflate(4));
+    final above = tester.getRect(preview());
+    expect(above.left, bottom.left + 4);
+    expect(above.right, bottom.right - 4);
+    expect(above.top, greaterThan(top.top));
+    expect(above.bottom, lessThan(bottom.bottom));
     // Near its right, a column of its own, the grid's whole height.
     await gesture.moveTo(near(bottom, PaneSide.right));
     await gesture.up();
