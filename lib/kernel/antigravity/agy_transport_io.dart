@@ -749,7 +749,6 @@ class AgyTransport implements ClaudeCodeTransport {
             'tool_name': call.name,
             'input': input,
             'tool_use_id': call.claudeId,
-            'requires_user_interaction': true,
             'permission_suggestions': [
               if (call.name == 'Bash' && command != null)
                 {

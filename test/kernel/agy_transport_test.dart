@@ -293,6 +293,8 @@ void main() {
       final asked = kernel.asked.where((r) => r['subtype'] == 'can_use_tool');
       expect(asked.single['tool_name'], 'Bash');
       expect((asked.single['input'] as Map)['command'], 'ls');
+      // Not a question for the user: full access approves it.
+      expect(asked.single['requires_user_interaction'], isNull);
       expect(kernel.results.single['subtype'], 'success');
 
       final id = (kernel.seen.first['session_id'])! as String;
