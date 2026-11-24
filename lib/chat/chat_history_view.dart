@@ -368,10 +368,63 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     }
     return TurnFooter(
       answer: words.isEmpty ? null : words.join('\n\n'),
+      onRetry: _canRetry(prompt, index)
+          ? () => unawaited(_retryTurn(prompt))
+          : null,
       onFork: widget.forkAfter?.call(index),
       worked: message.worked,
       usage: message.usage,
       cost: _turnCosts[prompt],
+    );
+  }
+
+  /// Whether the turn begun by the message at [prompt] and ending at
+  /// [index] can be run again ([_retryTurn]): the conversation's last, done
+  /// with, stopped or ended on an error (#1251).
+  bool _canRetry(int prompt, int index) {
+    final feed = _feed;
+    if (feed is! ChatSession || !feed.canEditMessages || feed.isStreaming) {
+      return false;
+    }
+    for (var i = index + 1; i < feed.itemCount; i++) {
+      if (feed.itemAt(i) is UserMessageItem) return false;
+    }
+    if (feed.lastTurnInterrupted) return true;
+    for (var i = prompt + 1; i <= index; i++) {
+      if (feed.itemAt(i) case NoticeItem(kind: NoticeKind.error)) return true;
+    }
+    return false;
+  }
+
+  /// Runs the turn begun by the message at [prompt] again, the message as
+  /// sent: as if edited and sent unchanged, without a message to say go on.
+  Future<void> _retryTurn(int prompt) async {
+    final feed = _feed;
+    if (feed is! ChatSession || _askingRewind) return;
+    final message = feed.itemAt(prompt);
+    if (message is! UserMessageItem) return;
+    _askingRewind = true;
+    final bool? revertFiles;
+    try {
+      revertFiles = await askRewindFiles(
+        context,
+        () => feed.rewindPlanAt(prompt),
+      );
+    } finally {
+      _askingRewind = false;
+    }
+    if (revertFiles == null || !mounted || feed.isStreaming) return;
+    setState(() {
+      // Everything after the message is replaced; so are its steps.
+      _expanded.removeWhere((i, _) => i > prompt);
+      _foldOpen.removeWhere((key, _) => key.$2 > prompt);
+      _unfoldedTurns.clear();
+    });
+    feed.editMessage(
+      prompt,
+      ComposerMessage(text: message.text, images: message.images),
+      from: UserPlace.computer,
+      revertFiles: revertFiles,
     );
   }
 

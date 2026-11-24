@@ -2645,6 +2645,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get turnFork => '从这里 Fork';
 
   @override
+  String get turnRetry => '重试本轮';
+
+  @override
   String get turnCopied => '已复制';
 
   @override
