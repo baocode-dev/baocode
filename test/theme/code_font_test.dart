@@ -1,6 +1,8 @@
+import 'package:baocode/ide/terminal/terminal_render_metrics.dart';
 import 'package:baocode/ide/terminal/terminal_render_theme.dart';
 import 'package:baocode/theme/app_theme.dart';
 import 'package:baocode/theme/code_font.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -59,6 +61,8 @@ void main() {
 
   test('the code style: the family, its fallbacks and the size; ligatures '
       'come with it', () {
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
     CodeFont.families.value = ['Iosevka', 'Menlo'];
     CodeFont.size.value = 16;
     final style = AppFonts.codeStyle(13);
@@ -69,6 +73,42 @@ void main() {
     CodeFont.ligatures.value = false;
     expect(AppFonts.codeStyle(13).fontFeatures, isNotNull);
   });
+
+  test(
+    'Linux code and terminal share an explicit monospace fallback stack',
+    () {
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      const systemFamilies = [
+        'DejaVu Sans Mono',
+        'Liberation Mono',
+        'Noto Sans Mono',
+        'monospace',
+      ];
+
+      for (final configured in [
+        CodeFont.defaultFamilies,
+        ['Custom Font', 'Custom Fallback'],
+      ]) {
+        CodeFont.families.value = configured;
+        final style = AppFonts.codeStyle(13);
+        expect(style.fontFamily, configured.first);
+        expect(style.fontFamilyFallback, [
+          ...configured.skip(1),
+          ...systemFamilies,
+        ]);
+        expect(
+          AppFonts.uiCodeStyle(13).fontFamilyFallback,
+          style.fontFamilyFallback,
+        );
+        expect(parseFontFamilies(vscodeTerminalFontFamily()), [
+          ...configured,
+          ...systemFamilies,
+        ]);
+        expect(CodeFont.families.value, configured);
+      }
+    },
+  );
 
   test('ligatures are on unless settings.json says off, and off turns '
       'their features off', () {

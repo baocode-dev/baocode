@@ -256,11 +256,21 @@ abstract final class AppFonts {
   /// [CodeFont.families], which the user may change.
   static String get mono => CodeFont.families.value.first;
 
-  /// What code falls back on, in order: the families after [mono], then on
-  /// Windows [windowsFallbacks]. A family not installed is passed over.
+  /// What code falls back on: the remaining configured families, then the
+  /// platform's fallbacks. A family not installed is passed over.
   static List<String> get monoFallbacks => [
     ...CodeFont.families.value.skip(1),
     if (AppPlatform.isWindows) ...windowsFallbacks,
+    if (AppPlatform.isLinux) ..._linuxMonoFallbacks,
+  ];
+
+  /// The default code families need not be installed on Linux. Use common
+  /// system monospace families before Flutter falls back to its default face.
+  static const _linuxMonoFallbacks = [
+    'DejaVu Sans Mono',
+    'Liberation Mono',
+    'Noto Sans Mono',
+    'monospace',
   ];
 
   /// A style for code drawn at [size], as the code's size is moved (see
