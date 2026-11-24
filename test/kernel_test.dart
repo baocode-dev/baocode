@@ -1109,6 +1109,55 @@ void main() {
         expect(card(transcript).children, hasLength(2));
       });
 
+      test('run from a slash command, read as it goes: its lines in its '
+          'card while it works, not shown again once done (#1131)', () {
+        final transcript = Transcript();
+        var seq = 0;
+        final told = <String>[];
+        final translator =
+            ClaudeTranslator(emit: transcript.apply, nextSeq: () => ++seq)
+              ..turnId = '11111111-1111-4111-8111-111111111111'
+              ..onForkedCommand = ((command) => told.add('start $command'))
+              ..onForkedCommandEnded = ((command) => told.add('end $command'));
+        translator.translate(started('a4'));
+        expect(told, ['start forked-command-count-lines']);
+
+        // As the subagent's transcript has them: no parent of the CLI's.
+        Map<String, Object?> line(String uuid, String text) => {
+          'type': 'assistant',
+          'uuid': uuid,
+          'isSidechain': true,
+          'message': {
+            'id': 'msg-$uuid',
+            'role': 'assistant',
+            'content': [
+              {'type': 'text', 'text': text},
+            ],
+          },
+        };
+        translator.forkedLine(
+          'forked-command-count-lines',
+          line('u1', 'Counting'),
+        );
+        expect(card(transcript).status, CommandStatus.running);
+        expect(card(transcript).children, hasLength(1));
+        translator.forkedLine('forked-command-count-lines', line('u2', '7'));
+        expect(card(transcript).children, hasLength(2));
+
+        translator.translate(ended('a4'));
+        expect(told.last, 'end forked-command-count-lines');
+        translator
+          ..translate(said('forked-command-count-lines', 'Counting'))
+          ..translate(said('forked-command-count-lines', '7'))
+          ..translate(said(null, 'a.py has 7 lines.'));
+        expect(card(transcript).status, CommandStatus.succeeded);
+        expect(card(transcript).children, hasLength(2));
+        expect(shown(transcript), [
+          'agent: /count-lines',
+          'text: a.py has 7 lines.',
+        ]);
+      });
+
       test(
         'a subagent\'s task no call or slash command started gets no card',
         () {

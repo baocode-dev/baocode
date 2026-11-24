@@ -58,6 +58,7 @@ import 'kernel/claude_code/claude_code_kernel.dart';
 import 'kernel/claude_code/claude_core_setting.dart';
 import 'kernel/claude_code/claude_onboarding.dart';
 import 'kernel/claude_code/claude_path_setting.dart';
+import 'kernel/claude_code/forked_runs.dart';
 import 'kernel/claude_code/process_transport.dart';
 import 'kernel/claude_code/turn_stats_stub.dart'
     if (dart.library.io) 'kernel/claude_code/turn_stats_io.dart'
@@ -590,6 +591,9 @@ void followSettingsFiles(SettingsFiles files) {
   ClaudeCodeKernel.turnStats = turnStatsIn(
     p.join(DataDirectory.current.path, 'turn-stats'),
   );
+  // A skill run from a slash command, read as it goes from what the CLI
+  // writes of it (it sends nothing of it until done).
+  ClaudeCodeKernel.forkedRuns = forkedRunsHere();
   // The calls to custom upstreams (Settings → Usage, the side panel's
   // Usage page): in the data folder, a file a day, kept as long as the
   // user says.
