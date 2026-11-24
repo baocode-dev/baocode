@@ -38,6 +38,7 @@ import 'claude_numbers.dart';
 import 'claude_sdk_tools.dart';
 import 'turn_stats.dart';
 import 'control_channel.dart';
+import 'forked_runs.dart';
 import 'local_time_zone.dart';
 import 'tool_result_tally.dart';
 import 'usage_limit.dart';
@@ -139,12 +140,15 @@ class ClaudeCodeKernel
        _usageOffBy = usageOffBy ?? _usageOn,
        _providers = providers ?? ModelProviders.current,
        _providerEnvironment = providerEnvironment ?? providerLaunchEnvironment {
-    _translator = ClaudeTranslator(
-      emit: emit,
-      nextSeq: () => nextSeq,
-      goalSaid: _syncGoal,
-      ownModel: _ownModel,
-    );
+    _translator =
+        ClaudeTranslator(
+            emit: emit,
+            nextSeq: () => nextSeq,
+            goalSaid: _syncGoal,
+            ownModel: _ownModel,
+          )
+          ..onForkedCommand = _followForked
+          ..onForkedCommandEnded = _forkedEnded;
     _providers.addListener(_providersChanged);
     ExtensionSwitches.changes?.addListener(_applySwitches);
     _live.add(this);
@@ -326,6 +330,42 @@ class ClaudeCodeKernel
   /// its footer to show again when the session is opened later; none
   /// kept when null. This machine's sessions only.
   static TurnStats? turnStats;
+
+  /// Where a skill run from a slash command is read as it goes (main.dart
+  /// sets it); not read, shown once done, when null (see [ForkedRuns]).
+  static ForkedRuns? forkedRuns;
+
+  /// The runs read as they go, by their messages' parent.
+  final Map<String, ForkedRun> _followedRuns = {};
+
+  /// The environment the CLI last started with, besides the machine's:
+  /// where it keeps its sessions may be in it.
+  Map<String, String>? _launchEnv;
+
+  /// Reads the run [command] as it goes: this machine's sessions only.
+  void _followForked(String command) {
+    final runs = forkedRuns;
+    final session = _sessionId;
+    if (runs == null || session == null || _remoteHost != null) return;
+    _followedRuns.remove(command)?.cancel();
+    _followedRuns[command] = runs.watch(
+      cwd: _cwd,
+      sessionId: session,
+      env: _launchEnv,
+      onLine: (line) {
+        if (!_disposed) _translator.forkedLine(command, line);
+      },
+    );
+  }
+
+  void _forkedEnded(String command) => _followedRuns.remove(command)?.finish();
+
+  void _stopFollowing() {
+    for (final run in _followedRuns.values) {
+      run.cancel();
+    }
+    _followedRuns.clear();
+  }
 
   /// [turnStats] for this session's history: none for a remote one's.
   TurnStats? get _turnStats => _remoteHost == null ? turnStats : null;
@@ -625,6 +665,7 @@ class ClaudeCodeKernel
       _contextReported = false;
       _appliedSwitches = ExtensionSwitches.current();
       final sdkServers = ClaudeSdkTools.serversFor(_cwd);
+      _launchEnv = env;
       final transport = await _start(
         _launched = ClaudeLaunch(
           cwd: _cwd,
@@ -952,6 +993,7 @@ class ClaudeCodeKernel
     ExtensionSwitches.changes?.removeListener(_applySwitches);
     _live.remove(this);
     _cancelSdkCalls();
+    _stopFollowing();
     _teardown();
     closeEvents();
   }

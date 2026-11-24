@@ -147,6 +147,16 @@ class ClaudeTranslator {
   /// own (`context: fork`), by the id its messages give as their parent
   /// (`forked-command-<name>`): no call started it (see [_forkedSkill]).
   final Map<String, String> _forkedCommands = {};
+
+  /// Told of a skill run from a slash command as it starts, and as it ends,
+  /// by its messages' parent (`forked-command-<name>`): its messages may be
+  /// read as it goes ([forkedLine]), the CLI sending them only once done.
+  void Function(String command)? onForkedCommand;
+  void Function(String command)? onForkedCommandEnded;
+
+  /// Those whose messages came as they went ([forkedLine]): the same, sent
+  /// all at once at the end, are not shown again.
+  final Set<String> _followed = {};
   final Set<String> _denied = {};
 
   /// Calls made and not answered yet: those of a stopped turn never are.
@@ -364,6 +374,10 @@ class ClaudeTranslator {
 
   void translate(Map<String, Object?> message) {
     final given = message['parent_tool_use_id'] as String?;
+    if (_followed.contains(given) &&
+        (message['type'] == 'assistant' || message['type'] == 'user')) {
+      return;
+    }
     final parent = _forkedCommands[given] ?? given;
     switch (message['type']) {
       case 'stream_event' when parent == null:
@@ -2056,7 +2070,9 @@ class ClaudeTranslator {
     if (call == null) {
       if (description == null || !description.startsWith('/')) return null;
       id = taskId;
-      _forkedCommands['forked-command-${description.substring(1)}'] = id;
+      final command = 'forked-command-${description.substring(1)}';
+      _forkedCommands[command] = id;
+      if (!replaying) onForkedCommand?.call(command);
     } else if (skill?.name == 'Skill') {
       id = call;
     } else {
@@ -2073,6 +2089,21 @@ class ClaudeTranslator {
     );
     _putAgent(id);
     return id;
+  }
+
+  /// A line the subagent of the skill run from a slash command [command]
+  /// wrote, as it went (see [onForkedCommand]): into its card.
+  void forkedLine(String command, Map<String, Object?> line) {
+    final card = _forkedCommands[command];
+    if (card == null) return;
+    switch (line['type']) {
+      case 'assistant':
+        _followed.add(command);
+        _assistant(line, card);
+      case 'user':
+        _followed.add(command);
+        _user(line, card);
+    }
   }
 
   /// The subagent [toolUseId] started, if one did, now runs on its own.
@@ -2110,6 +2141,9 @@ class ClaudeTranslator {
     String? outputFile,
     Map<String, Object?> usage = const {},
   }) {
+    for (final MapEntry(key: command, value: card) in _forkedCommands.entries) {
+      if (card == taskId) onForkedCommandEnded?.call(command);
+    }
     if (_tasks[taskId] case final task?) {
       _tasks[taskId] = task.copyWith(
         status: status,
