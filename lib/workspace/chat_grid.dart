@@ -18,8 +18,8 @@ extension on PaneSide {
 /// them, the first the top or left one.
 typedef GridLine = ({int? group, int index});
 
-/// The conversations shown at once: up to four columns, of up to two panes
-/// each; or up to two rows, of up to four. The lines one way run straight
+/// The conversations shown at once: columns of panes, or rows of them, as
+/// many as the window has room for (see [least]). The lines one way run straight
 /// through the grid ([columnsFirst]: the column lines), between the groups
 /// (the columns, or the rows); the panes of each group are sized apart from
 /// the other groups', so a line never stops against the middle of a pane.
@@ -32,10 +32,6 @@ class ChatGrid<T extends Object> {
 
   /// Whether the groups are columns.
   bool _columnsFirst = true;
-
-  static const maxColumns = 4;
-  static const maxRows = 2;
-  static const maxPanes = maxColumns * maxRows;
 
   /// Where each line between the groups is, as a share of the grid's width
   /// (or, the groups rows, its height), the first the left (or top) one.
@@ -167,10 +163,14 @@ class ChatGrid<T extends Object> {
   /// The panes, row by row: in columns, the top ones left to right first.
   List<T> get panes => _columnsFirst
       ? [
-          for (var row = 0; row < maxRows; row++)
+          for (var row = 0; row < _deepest; row++)
             for (final group in _groups) ?group.elementAtOrNull(row),
         ]
       : [for (final group in _groups) ...group];
+
+  /// The most panes a group has.
+  int get _deepest =>
+      _groups.fold(0, (most, group) => math.max(most, group.length));
 
   int get length => _groups.fold(0, (sum, group) => sum + group.length);
 
@@ -233,17 +233,10 @@ class ChatGrid<T extends Object> {
     _under = {};
   }
 
-  /// Whether another can go beside [pane] on [side]: across the groups, the
-  /// grid has room for another group (a column, or a row); along its group,
-  /// the group room for another pane.
-  bool canSplit(T pane, PaneSide side) {
-    final (group, _) = _find(pane);
-    if (group < 0 || length >= maxPanes) return false;
-    if (_outer(side)) {
-      return _groups.length < (_columnsFirst ? maxColumns : maxRows);
-    }
-    return _groups[group].length < (_columnsFirst ? maxRows : maxColumns);
-  }
+  /// Whether another can go beside [pane] on [side]: any shown can, each
+  /// way; whether the window has the room for it is the view's to tell
+  /// (see [least]).
+  bool canSplit(T pane, PaneSide side) => contains(pane);
 
   /// Gives [added] a place beside [target] on its [side] (see [canSplit]):
   /// along its group, half of [target]; across, a group of its own, half of
@@ -284,8 +277,7 @@ class ChatGrid<T extends Object> {
   }
 
   /// Moves [pane] beside [target] on [side], or swaps their places when
-  /// [side] is null. Nothing changes where the grid has no room for it
-  /// there once [pane] is gone from its place, or either pane is gone.
+  /// [side] is null. Nothing changes where they are one, or either is gone.
   bool rearrange(T pane, T target, {PaneSide? side}) {
     if (pane == target || !contains(pane) || !contains(target)) return false;
     if (side == null) {
@@ -514,9 +506,8 @@ class ChatGrid<T extends Object> {
     return [.5, .5];
   }
 
-  /// A grid of [groups], where they make one: each pane in one place, no
-  /// more groups or panes in a group than there is room for. Lines not
-  /// given, or out of order, evenly apart.
+  /// A grid of [groups], where they make one: each pane in one place. Lines
+  /// not given, or out of order, evenly apart.
   static ChatGrid<int>? _restored(
     List<List<int>> groups, {
     required bool columnsFirst,
@@ -526,11 +517,7 @@ class ChatGrid<T extends Object> {
     final all = [for (final group in groups) ...group];
     if (groups.isEmpty ||
         groups.any((group) => group.isEmpty) ||
-        all.toSet().length != all.length ||
-        groups.length > (columnsFirst ? maxColumns : maxRows) ||
-        groups.any(
-          (group) => group.length > (columnsFirst ? maxRows : maxColumns),
-        )) {
+        all.toSet().length != all.length) {
       return null;
     }
     return ChatGrid<int>()

@@ -25,6 +25,8 @@ import 'package:baocode/workspace/editor_launcher.dart';
 import 'package:baocode/workspace/preference_store.dart';
 import 'package:baocode/workspace/workspace.dart';
 
+import 'kernel_test.dart' show FakeCli;
+
 /// Sessions as Claude Code keeps them: one recorded, in one project, and
 /// any [started] since (e.g. in a terminal).
 class _CountingPreferenceStore extends MemoryPreferenceStore {
@@ -397,6 +399,59 @@ void main() {
     expect((await drafts.read()).keys, {'new:/tmp/project'});
   });
 
+  testWidgets('messages queued as the app quits are back in the composer '
+      'the next run, after what was typed', (tester) async {
+    final drafts = MemoryPreferenceStore();
+    // A CLI that keeps at its turn: the messages after it wait.
+    final cli = FakeCli();
+    late final KernelDescriptor busy;
+    busy = KernelDescriptor(
+      id: 'claude-code',
+      label: 'Claude Code',
+      icon: Icons.auto_awesome_rounded,
+      description: '',
+      catalog: FakeCatalog(),
+      create: (context) => ClaudeCodeKernel(
+        busy,
+        context,
+        start: (_) async => cli,
+        readHistory: _readHistory,
+      ),
+    );
+    var workspace = await pumpLoaded(tester, drafts: drafts, kernel: busy);
+    AgentThread keptThread() => workspace.threads.firstWhere(
+      (thread) => thread.id == FakeCatalog.kept.id,
+    );
+    workspace.select(keptThread());
+    await tester.pump();
+    final session = keptThread().session;
+    session.send(const ComposerMessage(text: 'Fix the build'));
+    await tester.pump(const Duration(milliseconds: 10));
+    expect(session.isStreaming, isTrue);
+    session
+      ..send(const ComposerMessage(text: 'and lint'))
+      ..send(const ComposerMessage(text: 'then commit'));
+    await tester.pump(const Duration(milliseconds: 10));
+    expect(
+      [for (final (_, item) in session.queued) item.text],
+      ['and lint', 'then commit'],
+    );
+    session.draft.save(
+      'Half typed',
+      const TextSelection.collapsed(offset: 4),
+      const [],
+    );
+
+    await tester.runAsync(workspace.keepQueued);
+    await tester.pumpWidget(const SizedBox());
+    workspace = await pumpLoaded(tester, drafts: drafts);
+    expect(
+      keptThread().session.draft.content,
+      'Half typed\n\nand lint\n\nthen commit',
+    );
+    await tester.pump(const Duration(seconds: 1));
+  });
+
   testWidgets('a draft kept by a version before, as the old editor\'s '
       'operations, comes back as text, its tags tags', (tester) async {
     final tag = ComposerTokenEmbed.file('/tmp/project/lib/main.dart');
@@ -725,10 +780,7 @@ void main() {
       isNot(contains(modelSettingKey(KernelChoiceKind.context, '@gw/m'))),
     );
     expect(settings[modelSettingKey(KernelChoiceKind.context, 'opus')], '1m');
-    expect(
-      settings[modelSettingKey(KernelChoiceKind.effort, '@gw/m')],
-      'high',
-    );
+    expect(settings[modelSettingKey(KernelChoiceKind.effort, '@gw/m')], 'high');
 
     // Once: one picked since stays.
     (store.preferences['settings'] as Map)[modelSettingKey(

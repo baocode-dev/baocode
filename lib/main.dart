@@ -915,6 +915,8 @@ class _BaoCodeAppState extends State<BaoCodeApp>
         appEvent('app', 'quit cancelled: the update would not start');
         return AppExitResponse.cancel;
       }
+      // What is queued behind the turns stopped, back in the composers.
+      await _workspace.keepQueued();
       await Future.wait([
         stopClaudeProcesses(),
         RemoteClaudeTransport.stopAll(),

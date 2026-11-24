@@ -2627,6 +2627,42 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     _saveDrafts();
   }
 
+  /// As the app quits: the messages queued in each conversation would go
+  /// with the turn the quit stops. Each goes back in its composer instead,
+  /// after what is typed there, to be sent again; kept before this returns.
+  Future<void> keepQueued() async {
+    var kept = false;
+    for (final thread in _threads) {
+      if (!thread.isOpen) continue;
+      final queued = [
+        for (final (_, message) in thread.session.queued)
+          // Typed by the user; not a report another agent sent.
+          if (message.fromAgent == null && message.fromSession == null) message,
+      ];
+      if (queued.isEmpty) continue;
+      final draft = thread.session.draft;
+      final typed = draft.content ?? '';
+      final text = [
+        if (typed.trim().isNotEmpty) typed,
+        for (final message in queued) message.text,
+      ].join('\n\n');
+      draft
+        ..content = text
+        ..selection = TextSelection.collapsed(offset: text.length)
+        ..images = [
+          ...draft.images,
+          for (final message in queued) ...message.images,
+        ];
+      _draftChanged(thread);
+      kept = true;
+    }
+    if (!kept) return;
+    _draftTimer?.cancel();
+    await _draftStore?.write({..._drafts}).catchError((Object error) {
+      debugPrint('Workspace drafts not kept: $error');
+    });
+  }
+
   void _forgetDraft(String id) {
     if (_drafts.remove(id) != null) _saveDrafts();
   }
