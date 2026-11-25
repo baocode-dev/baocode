@@ -30,6 +30,7 @@ void main() {
             family: switch (family) {
               'Unavailable Font' => <String>[],
               'Installed Font' ||
+              'Courier New' ||
               'DejaVu Sans Mono' => ['assets/codicons/codicon.ttf'],
               _ => <String>[],
             },
@@ -43,8 +44,20 @@ void main() {
       expect(fallback, startsWith('BaoCodeCodeFont'));
       expect(AppFonts.monoFallbacks, isEmpty);
       expect(requests.single.first, 'Unavailable Font');
+      expect(requests.single, containsAll(CodeFont.familyPresets));
 
       final changed = LinuxCodeFonts.resolved;
+      final preset = Completer<void>();
+      void onPreset() => preset.complete();
+      changed.addListener(onPreset);
+      CodeFont.families.value = ['Courier New'];
+      try {
+        await preset.future.timeout(const Duration(seconds: 5));
+      } finally {
+        changed.removeListener(onPreset);
+      }
+      expect(requests, hasLength(1));
+      expect(changed.value, [isNot(fallback), fallback]);
       final next = Completer<void>();
       void onChange() => next.complete();
       changed.addListener(onChange);

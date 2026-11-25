@@ -110,17 +110,6 @@ class AppearanceSettingsPage extends StatelessWidget {
     }),
   );
 
-  /// The families the dropdown offers: each is put first, then the defaults.
-  static const _codeFontPresets = <String>[
-    'JetBrains Mono',
-    'Fira Code',
-    'Cascadia Code',
-    'Consolas',
-    'Menlo',
-    'Monaco',
-    'Courier New',
-  ];
-
   /// The step of [steps] nearest [value]: the slider's position.
   static int _nearest<T extends num>(List<T> steps, num value) {
     var nearest = 0;
@@ -701,7 +690,7 @@ class AppearanceSettingsPage extends StatelessWidget {
                           onSelected: () =>
                               _selectFamilies(CodeFont.defaultFamilies),
                         ),
-                        for (final name in _codeFontPresets)
+                        for (final name in CodeFont.familyPresets)
                           IdeMenuAction(
                             name,
                             checked: listEquals(families, _presetOf(name)),

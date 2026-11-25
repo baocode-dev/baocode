@@ -30,6 +30,17 @@ abstract final class CodeFont {
     'Cascadia Mono',
   ];
 
+  /// The families offered by the Appearance picker, in display order.
+  static const familyPresets = <String>[
+    'JetBrains Mono',
+    'Fira Code',
+    'Cascadia Code',
+    'Consolas',
+    'Menlo',
+    'Monaco',
+    'Courier New',
+  ];
+
   /// The size the editor draws code at on macOS. Code is drawn from it:
   /// every other code size is moved by the same amount the user moves this
   /// one (see [sized]).

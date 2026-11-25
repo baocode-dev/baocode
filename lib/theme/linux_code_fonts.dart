@@ -25,14 +25,21 @@ abstract final class LinuxCodeFonts {
   static Future<void> start() async {
     if (!AppPlatform.isLinux) return;
     CodeFont.families.addListener(_refresh);
-    await _refresh();
+    await _refresh(preloadPresets: true);
   }
 
-  static Future<void> _refresh() async {
+  static Future<void> _refresh({bool preloadPresets = false}) async {
     final configured = CodeFont.families.value;
     final families = {...configured, ...fallbacks};
+    // Register the picker fonts before the first frame. Loading font bytes
+    // clears Flutter's font caches, including those for unrelated UI text.
+    final requested = {
+      ...families,
+      if (preloadPresets) ...CodeFont.defaultFamilies,
+      if (preloadPresets) ...CodeFont.familyPresets,
+    };
     try {
-      final uncached = families.where((name) => !_loaded.containsKey(name));
+      final uncached = requested.where((name) => !_loaded.containsKey(name));
       final paths = uncached.isEmpty
           ? null
           : await _channel.invokeMapMethod<String, Object?>(
@@ -45,6 +52,9 @@ abstract final class LinuxCodeFonts {
           key,
           () => _register((value as List).cast<String>()),
         );
+      }
+      if (preloadPresets) {
+        await Future.wait(_loaded.values);
       }
       final aliases = [
         for (final name in families)
