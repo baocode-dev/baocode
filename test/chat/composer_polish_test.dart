@@ -9,7 +9,9 @@ import 'package:baocode/chat/composer/composer_polish.dart';
 import 'package:baocode/ide/ide_hover.dart';
 import 'package:baocode/l10n/l10n.dart';
 import 'package:baocode/theme/app_theme.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -251,7 +253,49 @@ void main() {
       controller.undo();
       await tester.pump();
       expect(controller.text, before);
+
+      controller.redo();
+      await tester.pump();
+      expect(controller.text, 'Please fix the bug in ${file.atom}.');
     });
+
+    testWidgets('Undo and Redo keys take the polish back and put it in '
+        'again', (tester) async {
+      composerPolishAsker = (system, asked, {model, exact = false, location}) =>
+          Future.value('Please fix the bug.');
+      final controller = await pumpComposer(tester);
+      await tester.tap(find.byType(MarkdownEditor));
+      await tester.pump();
+      controller.replace(0, 0, 'fix teh bug');
+      await tester.pump();
+      final before = controller.text;
+
+      await tester.tap(polishButton());
+      await tester.pumpAndSettle();
+      expect(controller.text, 'Please fix the bug.');
+
+      final mac = defaultTargetPlatform == TargetPlatform.macOS;
+      Future<void> press(LogicalKeyboardKey key, {bool shift = false}) async {
+        final mod = mac ? LogicalKeyboardKey.meta : LogicalKeyboardKey.control;
+        await tester.sendKeyDownEvent(mod);
+        if (shift) await tester.sendKeyDownEvent(LogicalKeyboardKey.shift);
+        await tester.sendKeyEvent(key);
+        if (shift) await tester.sendKeyUpEvent(LogicalKeyboardKey.shift);
+        await tester.sendKeyUpEvent(mod);
+        await tester.pump();
+      }
+
+      await press(LogicalKeyboardKey.keyZ);
+      expect(controller.text, before);
+      await press(LogicalKeyboardKey.keyZ, shift: true);
+      expect(controller.text, 'Please fix the bug.');
+      if (mac) return;
+      // Ctrl+Y as well, as the Edit menu has it.
+      await press(LogicalKeyboardKey.keyZ);
+      expect(controller.text, before);
+      await press(LogicalKeyboardKey.keyY);
+      expect(controller.text, 'Please fix the bug.');
+    }, variant: TargetPlatformVariant.desktop());
 
     testWidgets('typed on meanwhile, the reply is not taken', (tester) async {
       final reply = Completer<String>();
