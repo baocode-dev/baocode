@@ -458,4 +458,89 @@ void main() {
     expect(runtime.deleted, ['agy-1']);
     expect(runtime.started.single.exited, completes);
   });
+
+  test(
+    'an automatic title names an untitled session, not a named one',
+    () async {
+      Future<Object?> agentWithTitle(
+        FakeAgent agent,
+        String method,
+        Map params,
+      ) async {
+        if (method == 'session/prompt') {
+          final session = params['sessionId'] as String;
+          agent.say(session, {
+            'sessionUpdate': 'session_info_update',
+            'title': 'Uninstall MCP Servers',
+          });
+        }
+        return agentSaying('Done.')(agent, method, params);
+      }
+
+      final runtime = FakeRuntime(() => FakeAgent(agentWithTitle));
+      final first = await AgyTransport.start(
+        ClaudeLaunch(cwd: cwd, model: 'gemini-3.8-flash'),
+        runtime: runtime,
+      );
+      final kernel = Kernel(first);
+      await kernel.send('remove mcp');
+      final id = kernel.seen.first['session_id']! as String;
+
+      // Untitled session takes agy's generated title once.
+      final initialTitleEvents = [
+        for (final message in kernel.seen)
+          if (message['type'] == 'system' &&
+              message['subtype'] == 'session_title_changed')
+            message['title'],
+      ];
+      expect(initialTitleEvents, ['Uninstall MCP Servers']);
+      expect(
+        lines(id)
+            .where((l) => l['type'] == 'ai-title')
+            .map((l) => l['aiTitle']),
+        ['Uninstall MCP Servers'],
+      );
+
+      // User renames the session.
+      first.write({
+        'type': 'control_request',
+        'request_id': 'rename-1',
+        'request': {
+          'subtype': 'rename_session',
+          'title': '3.杂活',
+          'source': 'host',
+        },
+      });
+      while (!lines(
+        id,
+      ).any((l) => l['type'] == 'custom-title' && l['customTitle'] == '3.杂活')) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      first.close();
+
+      // Resuming and sending another message: agy pushes its stale title again,
+      // which must neither emit session_title_changed nor append ai-title.
+      final second = await AgyTransport.start(
+        ClaudeLaunch(cwd: cwd, model: 'gemini-3.8-flash', resume: id),
+        runtime: runtime,
+      );
+      final resumed = Kernel(second);
+      await resumed.send('follow up');
+
+      final resumedTitleEvents = [
+        for (final message in resumed.seen)
+          if (message['type'] == 'system' &&
+              message['subtype'] == 'session_title_changed')
+            message['title'],
+      ];
+      expect(resumedTitleEvents, isEmpty);
+      final kept = lines(id);
+      expect(kept.where((l) => l['type'] == 'ai-title').length, 1);
+      expect(
+        kept.lastWhere((l) => l['type'] == 'custom-title')['customTitle'],
+        '3.杂活',
+      );
+      second.close();
+    },
+  );
 }
