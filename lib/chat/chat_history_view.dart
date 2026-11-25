@@ -734,6 +734,11 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   /// The press went to the bar over the selection (see [_placeBubbleBy]).
   bool _pressOnBubble = false;
 
+  /// The last press in the history, which [_handlePointerDown] saw (and,
+  /// selecting, gave a bar of its own): not one outside the bar's to take
+  /// that away again (see [_buildBubble]).
+  int? _historyPress;
+
   // --- Scrubbing ---------------------------------------------------------------
   //
   // The minimap's glass or the bar's thumb dragged: each frame a jump to rows
@@ -1758,6 +1763,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
 
   void _handlePointerDown(PointerDownEvent event) {
     _pressedDevices.add(event.device);
+    _historyPress = event.pointer;
     final onBubble = _pressOnBubble;
     _pressOnBubble = false;
     if (!onBubble) _hideBubble();
@@ -2303,7 +2309,13 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
           key: ValueKey(_bubbleShows),
           child: shown != 0
               ? TapRegion(
-                  onTapOutside: (_) => _hideBubble(),
+                  // A press elsewhere in the app. One in the history was
+                  // seen there first (it hears it first, being deeper): it
+                  // took the bar away and, starting a selection, may have
+                  // had it come back, which this would undo.
+                  onTapOutside: (event) {
+                    if (event.pointer != _historyPress) _hideBubble();
+                  },
                   child: PopIn(
                     // As the user's messages are: their fill and line.
                     child: SelectionBubble(
