@@ -64,6 +64,31 @@ class ComposerDraft extends ChangeNotifier {
     return code;
   }
 
+  /// The command that asks a message beside the conversation, in one of
+  /// its own (see ChatScreen.onSideQuestion).
+  static const asideCommand = 'btw';
+
+  /// Text quoted from the conversation (its selection's Quote), to put in
+  /// as tags of it after what is typed, [aside] with the message made a
+  /// `/btw` (By the Way), taken by the composer that shows the draft, or by
+  /// the next to.
+  List<({String text, bool aside})> get pendingQuotes =>
+      List.unmodifiable(_pendingQuotes);
+  final List<({String text, bool aside})> _pendingQuotes = [];
+
+  void insertQuote(String text, {bool aside = false}) {
+    if (text.trim().isEmpty) return;
+    _pendingQuotes.add((text: text, aside: aside));
+    notifyListeners();
+  }
+
+  /// [pendingQuotes], no longer pending.
+  List<({String text, bool aside})> takeQuotes() {
+    final quotes = [..._pendingQuotes];
+    _pendingQuotes.clear();
+    return quotes;
+  }
+
   /// A message to put back in, to be edited (a queued one taken back),
   /// taken by the composer that shows the draft, or by the next to.
   ({String text, List<ImageAttachment> images})? get pendingMessage =>

@@ -124,6 +124,10 @@ sealed class AppendedText {
   /// How the message's text refers to it, in brackets.
   String get reference;
 
+  /// The line over its [content] after the message's text: its
+  /// [reference], and what it is where that does not say.
+  String get header => reference;
+
   /// What goes after the message's text.
   String get content;
 }
@@ -192,6 +196,11 @@ class CodeReference extends AppendedText {
 /// `[Pasted text #1 +120 lines]`, as Claude Code's own input does, and
 /// carries it after its text (see [codeAppendix]); or, longer still, where
 /// it is kept ([file], see PasteStore).
+///
+/// Or text [quoted] from the conversation (its selection's Quote), which
+/// goes as a paste does, whatever its length: `[Quote #1]`, numbered apart
+/// from the pastes, and said to be the user's quote where it goes after the
+/// message's text.
 @immutable
 class PastedText extends AppendedText {
   const PastedText({
@@ -199,10 +208,14 @@ class PastedText extends AppendedText {
     required this.text,
     this.file,
     this.lines,
+    this.quoted = false,
   });
 
-  /// Of the pastes in the message, from 1.
+  /// Of the pastes in the message (or of its quotes), from 1.
   final int number;
+
+  /// Quoted from the conversation, not pasted.
+  final bool quoted;
 
   /// What was pasted; empty for one kept in a [file], until read.
   final String text;
@@ -215,12 +228,22 @@ class PastedText extends AppendedText {
   final int? lines;
 
   /// This, kept at [path].
-  PastedText storedAt(String path) =>
-      PastedText(number: number, text: '', file: path, lines: extraLines);
+  PastedText storedAt(String path) => PastedText(
+    number: number,
+    text: '',
+    file: path,
+    lines: extraLines,
+    quoted: quoted,
+  );
 
-  /// This, as the message's paste [number].
-  PastedText numbered(int number) =>
-      PastedText(number: number, text: text, file: file, lines: lines);
+  /// This, as the message's paste (or quote) [number].
+  PastedText numbered(int number) => PastedText(
+    number: number,
+    text: text,
+    file: file,
+    lines: lines,
+    quoted: quoted,
+  );
 
   /// Pasted as a tag past this many characters…
   static const maxLength = 1000;
@@ -241,13 +264,24 @@ class PastedText extends AppendedText {
     return '\n'.allMatches(trimmed).length;
   }
 
-  /// `[Pasted text #1 +120 lines]`, or `[Pasted text #1]` for one line.
+  /// `[Pasted text #1 +120 lines]`, or `[Pasted text #1]` for one line; a
+  /// quote's, `[Quote #1]`.
   @override
   String get reference => switch (extraLines) {
+    _ when quoted => '[Quote #$number]',
     0 => '[Pasted text #$number]',
     1 => '[Pasted text #$number +1 line]',
     final lines => '[Pasted text #$number +$lines lines]',
   };
+
+  /// A quote's says whose it is and where from, for the agent to take it
+  /// as the user's pointing at those words, not as text to work on.
+  @override
+  String get header => quoted ? '$reference $quoteNote' : reference;
+
+  static const quoteNote =
+      '(text the user selected and quoted from the '
+      'conversation)';
 
   /// The text, or where it is kept (see [keptNote]).
   @override
@@ -271,6 +305,7 @@ class PastedText extends AppendedText {
     'text': text,
     'file': ?file,
     'lines': ?lines,
+    if (quoted) 'quoted': true,
   };
 
   static PastedText fromJson(Map<String, Object?> json) => PastedText(
@@ -278,6 +313,7 @@ class PastedText extends AppendedText {
     text: json['text'] as String,
     file: json['file'] as String?,
     lines: json['lines'] as int?,
+    quoted: json['quoted'] == true,
   );
 
   @override
@@ -286,10 +322,11 @@ class PastedText extends AppendedText {
       other.number == number &&
       other.text == text &&
       other.file == file &&
-      other.lines == lines;
+      other.lines == lines &&
+      other.quoted == quoted;
 
   @override
-  int get hashCode => Object.hash(number, text, file, lines);
+  int get hashCode => Object.hash(number, text, file, lines, quoted);
 }
 
 /// A stash (see lib/stash/), put in the composer by `@` or dragged there:
@@ -368,15 +405,16 @@ abstract final class CopiedCode {
 
 /// The code (and long pastes) a message refers to, as it is sent after the
 /// message's text: after an empty line, each reference in brackets on a
-/// line of its own, then its lines between fences of backticks; a paste
-/// kept in a file, where it is (see [PastedText.keptNote]).
+/// line of its own (its [AppendedText.header]), then its lines between
+/// fences of backticks; a paste kept in a file, where it is (see
+/// [PastedText.keptNote]).
 String codeAppendix(Iterable<AppendedText> references) {
   final buffer = StringBuffer();
   for (final reference in references) {
     if (reference case PastedText(file: _?)) {
       buffer
         ..write('\n\n')
-        ..write(reference.reference)
+        ..write(reference.header)
         ..write('\n')
         ..write(reference.content);
       continue;
@@ -386,7 +424,7 @@ String codeAppendix(Iterable<AppendedText> references) {
     if (code.endsWith('\n')) code = code.substring(0, code.length - 1);
     buffer
       ..write('\n\n')
-      ..write(reference.reference)
+      ..write(reference.header)
       ..write('\n')
       ..write(fence)
       ..write('\n')
@@ -428,6 +466,9 @@ String _fenceFor(String code) {
 
 final _referenceLine = RegExp(r'^\[(.+):(\d+)(?:-(\d+))?\]$');
 final _pastedLine = RegExp(r'^\[Pasted text #(\d+)(?: \+(\d+) lines?)?\]$');
+final _quoteLine = RegExp(
+  '^\\[Quote #(\\d+)\\] ${RegExp.escape(PastedText.quoteNote)}\$',
+);
 final _stashLine = RegExp(r'^\[Stash #(\d+)\]$');
 
 /// The last block of a [codeAppendix] at the end of [text], and the text
@@ -437,7 +478,9 @@ final _stashLine = RegExp(r'^\[Stash #(\d+)\]$');
   // A paste kept in a file: an empty line, its reference, where it is.
   if (PastedText._keptNote.firstMatch(lines.last) case final kept?
       when lines.length >= 3 && lines[lines.length - 3].isEmpty) {
-    final match = _pastedLine.firstMatch(lines[lines.length - 2]);
+    final header = lines[lines.length - 2];
+    final quote = _quoteLine.firstMatch(header);
+    final match = quote ?? _pastedLine.firstMatch(header);
     if (match == null) return null;
     return (
       body: lines.sublist(0, lines.length - 3).join('\n'),
@@ -445,7 +488,8 @@ final _stashLine = RegExp(r'^\[Stash #(\d+)\]$');
         number: int.parse(match[1]!),
         text: '',
         file: kept[1],
-        lines: int.parse(match[2] ?? '0'),
+        lines: quote == null ? int.parse(match[2] ?? '0') : null,
+        quoted: quote != null,
       ),
     );
   }
@@ -462,6 +506,12 @@ final _stashLine = RegExp(r'^\[Stash #(\d+)\]$');
     reference = PastedText(number: int.parse(match[1]!), text: content);
     // Its count of lines is the text's own.
     if (reference.reference != header) return null;
+  } else if (_quoteLine.firstMatch(header) case final match?) {
+    reference = PastedText(
+      number: int.parse(match[1]!),
+      text: content,
+      quoted: true,
+    );
   } else if (_stashLine.firstMatch(header) case final match?) {
     reference = StashReference(id: int.parse(match[1]!), text: content);
   } else if (_referenceLine.firstMatch(header) case final match?) {

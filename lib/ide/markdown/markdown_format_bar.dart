@@ -4,15 +4,12 @@
 // preview alike.
 
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:bao_markdown/bao_markdown.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
-import '../../chat/widgets/hover_builder.dart';
 import '../../l10n/l10n.dart';
 import '../../models/auxiliary_model_menu.dart';
 import '../../models/model_providers.dart';
@@ -23,10 +20,10 @@ import '../../theme/codicons.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../ide_commands.dart' show IdeKeybinding;
 import '../ide_dialog.dart';
-import '../ide_hover.dart';
 import '../ide_input.dart';
 import '../ide_menu.dart';
 import '../ide_motion.dart';
+import '../selection_bubble.dart';
 
 /// [markdown] (the selection's) as a model is given it, and a reply to it
 /// as markdown again.
@@ -91,9 +88,17 @@ class MarkdownFormatBar extends StatefulWidget {
 class MarkdownFormatBarState extends State<MarkdownFormatBar> {
   final GlobalKey _stackKey = GlobalKey();
 
-  /// The selection's bounds, in the stack's box, for the bar over (or
-  /// under) it; none without one.
+  /// The selection's bounds, in the stack's box, as last read, for the bar
+  /// over (or under) it; none without one. Where the bar goes is read
+  /// again as it is painted (see [_barAt]).
   Rect? _barAround;
+
+  /// Told that what the bar is by may have moved (the selection, the text
+  /// scrolled): it is placed anew as it is painted, in that frame.
+  final ValueNotifier<int> _barMoved = ValueNotifier(0);
+
+  /// What the bar was by as it was painted last: where it fades out.
+  Rect? _barPainted;
   bool _polishing = false;
 
   /// A menu opened from the bar (the model picker, the marks under "…") is
@@ -165,13 +170,16 @@ class MarkdownFormatBarState extends State<MarkdownFormatBar> {
     _cellsOf?.tableCellChanges.removeListener(_barSoon);
     _linkFocus.dispose();
     _linkText.dispose();
+    _barMoved.dispose();
     super.dispose();
   }
 
   bool _barScheduled = false;
 
-  /// The bar (and the link's) where the selection is, once it is laid out.
+  /// The bar (and the link's) where the selection is, painted anew; what
+  /// it has (and whether it shows) once the selection is laid out.
   void _barSoon() {
+    _barMoved.value++;
     if (_barScheduled) return;
     _barScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -199,15 +207,20 @@ class MarkdownFormatBarState extends State<MarkdownFormatBar> {
       around = _selectionBounds(selection);
     }
     final link = around == null ? _linkAtCaret() : null;
-    if (around == _barAround &&
+    if ((around == null) == (_barAround == null) &&
+        selection == _barSelection &&
         link?.href == _caretLink?.href &&
         link?.range == _caretLink?.range &&
-        link?.around == _caretLink?.around &&
         link?.cell == _caretLink?.cell &&
         _barVersion == _controller.textVersion) {
+      // Only moved (the text scrolled): it is where it went already (see
+      // [_barAt]).
+      _barAround = around;
+      _caretLink = link;
       return;
     }
     setState(() {
+      _barSelection = selection;
       _barAround = around;
       _caretLink = link;
       _barVersion = _controller.textVersion;
@@ -216,6 +229,9 @@ class MarkdownFormatBarState extends State<MarkdownFormatBar> {
 
   /// The text the bar's marks were read from.
   int _barVersion = -1;
+
+  /// The selection they were read for (and whether it is in code).
+  TextSelection? _barSelection;
 
   /// Shows the bar while a menu opened from it shows, and keeps it once
   /// one closes: the editor's focus comes back with the menu.
@@ -292,30 +308,8 @@ class MarkdownFormatBarState extends State<MarkdownFormatBar> {
     );
   }
 
-  /// The text scrolled: the bar goes with the selection at once (by as
-  /// much as it was scrolled), where it is laid out then once it is.
+  /// The text scrolled: the bar goes with the selection in that frame.
   bool _scrolled(ScrollUpdateNotification notification) {
-    final delta = notification.scrollDelta;
-    if (notification.metrics.axis == Axis.vertical &&
-        delta != null &&
-        delta != 0 &&
-        (_barAround != null || _caretLink != null) &&
-        // Not while laying out (the text scrolled to its caret).
-        SchedulerBinding.instance.schedulerPhase !=
-            SchedulerPhase.persistentCallbacks) {
-      final by = Offset(0, -delta);
-      setState(() {
-        _barAround = _barAround?.shift(by);
-        if (_caretLink case final link?) {
-          _caretLink = (
-            href: link.href,
-            range: link.range,
-            around: link.around.shift(by),
-            cell: link.cell,
-          );
-        }
-      });
-    }
     _barSoon();
     return false;
   }
@@ -512,7 +506,7 @@ class MarkdownFormatBarState extends State<MarkdownFormatBar> {
         ),
       ),
       const SizedBox(width: 2),
-      _BarButton(
+      SelectionBubbleButton(
         icon: Codicons.check,
         tooltip: context.l10n.commonOk,
         onTap: () => _endLink(apply: true),
@@ -529,24 +523,24 @@ class MarkdownFormatBarState extends State<MarkdownFormatBar> {
     return _SelectionBar(
       around: link.around,
       children: [
-        _BarButton(
+        SelectionBubbleButton(
           icon: _linkIcon(link.href),
           label: _shortUrl(link.href),
           tooltip: l10n.stashLinkOpen,
           onTap: () => widget.onOpenLink(link.href),
         ),
-        const _BarDivider(),
-        _BarButton(
+        const SelectionBubbleDivider(),
+        SelectionBubbleButton(
           icon: Codicons.copy,
           tooltip: l10n.stashLinkCopy,
           onTap: () => _copyLink(link.href, cell: link.cell),
         ),
-        _BarButton(
+        SelectionBubbleButton(
           icon: Codicons.edit,
           tooltip: l10n.stashLinkEdit,
           onTap: () => editLink(link.href, link.range, cell: link.cell),
         ),
-        _BarButton(
+        SelectionBubbleButton(
           icon: Codicons.close,
           tooltip: l10n.stashLinkRemove,
           onTap: () => _removeLink(link.range, cell: link.cell),
@@ -851,7 +845,12 @@ class MarkdownFormatBarState extends State<MarkdownFormatBar> {
       String tip,
       VoidCallback onTap, {
       bool active = false,
-    }) => _BarButton(icon: icon, tooltip: tip, onTap: onTap, active: active);
+    }) => SelectionBubbleButton(
+      icon: icon,
+      tooltip: tip,
+      onTap: onTap,
+      active: active,
+    );
     final raw = _inRaw(_controller.selection);
     // What is used most; the rest under "…". In code, only proofreading.
     final items = <Widget>[
@@ -890,7 +889,7 @@ class MarkdownFormatBarState extends State<MarkdownFormatBar> {
           tooltip: l10n.stashFormatColor,
           onPick: (key, name) => _color(key, name),
         ),
-        const _BarDivider(),
+        const SelectionBubbleDivider(),
         button(
           Codicons.listUnordered,
           l10n.stashFormatBullets,
@@ -904,7 +903,7 @@ class MarkdownFormatBarState extends State<MarkdownFormatBar> {
           active: format == MdLineFormat.task,
         ),
         Builder(
-          builder: (context) => _BarButton(
+          builder: (context) => SelectionBubbleButton(
             icon: Codicons.ellipsis,
             tooltip: l10n.stashFormatMore,
             active: _moreActive(),
@@ -919,9 +918,9 @@ class MarkdownFormatBarState extends State<MarkdownFormatBar> {
         ),
       ],
       if (widget.onPolish != null) ...[
-        if (!raw) const _BarDivider(),
+        if (!raw) const SelectionBubbleDivider(),
         Builder(
-          builder: (context) => _BarButton(
+          builder: (context) => SelectionBubbleButton(
             icon: Codicons.sparkle,
             label: _polishing ? l10n.stashPolishing : l10n.stashPolish,
             tooltip: l10n.stashPolishHint,
@@ -934,7 +933,7 @@ class MarkdownFormatBarState extends State<MarkdownFormatBar> {
           ),
         ),
         Builder(
-          builder: (context) => _BarButton(
+          builder: (context) => SelectionBubbleButton(
             icon: Codicons.chevronDown,
             tooltip: l10n.aiModelTooltip(
               actionsModelName(l10n, ModelProviders.current) ??
@@ -953,6 +952,37 @@ class MarkdownFormatBarState extends State<MarkdownFormatBar> {
       around: around,
       children: _linking ? [_linkField(context)] : items,
     );
+  }
+
+  /// Where the bar goes in [layer] (the stack's box), [size] as it is, by
+  /// what it is for as it is laid out now (see [SelectionBubble.placeBy]):
+  /// the selection, or the link the caret is in. Going, where it was;
+  /// none of what it is for in view, nowhere.
+  Offset? _barAt(RenderBox layer, Size size) {
+    if (size.isEmpty || !layer.hasSize) return null;
+    TextSelection? range;
+    MarkdownEditorState? cell;
+    if (_barAround != null) {
+      if (_linkCell case final linked? when _linking) {
+        cell = linked;
+        range = linked.mounted ? linked.controller.selection : null;
+      } else {
+        range = _controller.selection;
+      }
+      if (range != null && (!range.isValid || range.isCollapsed)) range = null;
+    } else if (_caretLink case final link?) {
+      cell = link.cell;
+      range = link.range;
+    }
+    final Rect? around;
+    if (range == null || (cell != null && !cell.mounted)) {
+      around = _barPainted;
+    } else {
+      around = _selectionBounds(range, cell);
+      _barPainted = around;
+    }
+    if (around == null) return null;
+    return SelectionBubble.placeBy(around, Offset.zero & layer.size, size);
   }
 
   /// The bar, told when a menu opened from it shows and hides: while one
@@ -1042,11 +1072,29 @@ class MarkdownFormatBarState extends State<MarkdownFormatBar> {
             ),
           ),
         ),
-        // Its menus grow in from a little, as the stash's do.
-        if (_barAround case final around?)
-          IdeMotion(lively: true, child: _barWithMenus(context, around))
-        else if (_caretLink != null)
-          IdeMotion(lively: true, child: _linkBar(context)),
+        // Coming in where the selection is, going out fading; its menus
+        // grow in from a little, as the stash's do.
+        Positioned.fill(
+          child: SelectionBubbleFollower(
+            place: _barAt,
+            repaint: _barMoved,
+            child: FadeAway(
+              child: switch ((_barAround, _caretLink)) {
+                (final around?, _) => IdeMotion(
+                  key: const ValueKey('selection'),
+                  lively: true,
+                  child: _barWithMenus(context, around),
+                ),
+                (null, _?) => IdeMotion(
+                  key: const ValueKey('link'),
+                  lively: true,
+                  child: _linkBar(context),
+                ),
+                _ => null,
+              },
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -1054,184 +1102,26 @@ class MarkdownFormatBarState extends State<MarkdownFormatBar> {
 
 // --- The bar over the selection ------------------------------------------------
 
-/// Over the selection, or under it where there is no room above (it
-/// never covers what is selected while there is room for it at all).
+/// The bar over [around], the selection (or under it where there is no
+/// room above: it never covers what is selected while there is room for it
+/// at all), placed as it is painted (see [MarkdownFormatBarState._barAt]).
 class _SelectionBar extends StatelessWidget {
   const _SelectionBar({required this.around, required this.children});
 
   final Rect around;
   final List<Widget> children;
 
-  static const _height = 32.0;
-  static const _gap = 8.0;
-
   @override
   Widget build(BuildContext context) {
-    return Positioned.fill(
-      child: LayoutBuilder(
-        builder: (context, box) {
-          final above = around.top - _gap - _height;
-          final below = around.bottom + _gap;
-          final double top;
-          var over = true;
-          if (above >= 0) {
-            top = above;
-          } else if (below + _height <= box.maxHeight) {
-            top = below;
-            over = false;
-          } else {
-            // Selected past both ends: over the end in view.
-            top = math.max(0, box.maxHeight - _height - _gap);
-          }
-          return Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Positioned(
-                left: 0,
-                right: 0,
-                top: top,
-                // The editor's own: a click on it is not one beside the
-                // editor, which would take its focus (and the bar) away
-                // before the button had it.
-                child: TextFieldTapRegion(
-                  // Coming in from the selection's side.
-                  child: PopIn(
-                    alignment: over
-                        ? Alignment.bottomCenter
-                        : Alignment.topCenter,
-                    offset: Offset(0, over ? 4 : -4),
-                    child: _bar(around.center.dx),
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _bar(double x) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final bar = Container(
-          height: _height,
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          decoration: BoxDecoration(
-            color: themeColors['editorWidget.background'],
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: themeColors['editorWidget.border']),
-            boxShadow: [
-              BoxShadow(
-                color: themeColors['widget.shadow'],
-                blurRadius: 10,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(mainAxisSize: MainAxisSize.min, children: children),
-          ),
-        );
-        return Align(
-          alignment: Alignment(
-            ((x / math.max(1, constraints.maxWidth)) * 2 - 1).clamp(-1, 1),
-            0,
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: bar,
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _BarDivider extends StatelessWidget {
-  const _BarDivider();
-
-  @override
-  Widget build(BuildContext context) => Container(
-    width: 1,
-    height: 16,
-    margin: const EdgeInsets.symmetric(horizontal: 4),
-    color: AppColors.border,
-  );
-}
-
-class _BarButton extends StatelessWidget {
-  const _BarButton({
-    required this.icon,
-    required this.tooltip,
-    required this.onTap,
-    this.label,
-    this.active = false,
-    this.busy = false,
-  });
-
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
-  final String? label;
-  final bool active;
-  final bool busy;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = active ? AppColors.textPrimary : AppColors.textMuted;
-    return IdeHover(
-      message: tooltip,
-      child: HoverBuilder(
-        cursor: SystemMouseCursors.click,
-        builder: (context, hovered) => GestureDetector(
-          // Keeps the editor's focus (and selection).
-          onTapDown: (_) {},
-          onTap: busy ? null : onTap,
-          behavior: HitTestBehavior.opaque,
-          child: Container(
-            height: 24,
-            constraints: const BoxConstraints(minWidth: 24),
-            padding: EdgeInsets.symmetric(horizontal: label == null ? 0 : 6),
-            margin: const EdgeInsets.symmetric(horizontal: 1),
-            decoration: BoxDecoration(
-              color: active
-                  ? themeColors['toolbar.activeBackground']
-                  : hovered
-                  ? themeColors['toolbar.hoverBackground']
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(5),
-            ),
-            alignment: Alignment.center,
-            child: label != null && icon == Icons.title
-                ? Text(
-                    label!,
-                    style: TextStyle(
-                      color: color,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  )
-                : Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        icon,
-                        size: 15,
-                        color: busy ? AppColors.accent : color,
-                      ),
-                      if (label case final label?) ...[
-                        const SizedBox(width: 4),
-                        Text(
-                          label,
-                          style: TextStyle(color: color, fontSize: 12),
-                        ),
-                      ],
-                    ],
-                  ),
-          ),
-        ),
+    final over = around.top - SelectionBubble.gap - SelectionBubble.height >= 0;
+    // The editor's own: a click on it is not one beside the editor, which
+    // would take its focus (and the bar) away before the button had it.
+    return TextFieldTapRegion(
+      // Coming in from the selection's side.
+      child: PopIn(
+        alignment: over ? Alignment.bottomCenter : Alignment.topCenter,
+        offset: Offset(0, over ? 4 : -4),
+        child: SelectionBubble(children: children),
       ),
     );
   }
@@ -1367,7 +1257,7 @@ class _ColorButtonState extends State<_ColorButton> {
   @override
   Widget build(BuildContext context) => KeyedSubtree(
     key: _key,
-    child: _BarButton(
+    child: SelectionBubbleButton(
       icon: Codicons.symbolColor,
       tooltip: widget.tooltip,
       onTap: _open,

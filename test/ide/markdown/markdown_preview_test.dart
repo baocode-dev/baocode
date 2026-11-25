@@ -5,6 +5,7 @@ import 'package:bao_editor/monaco/flutter/editor_document_model.dart';
 import 'package:bao_markdown/bao_markdown.dart';
 import 'package:baocode/chat/widgets/markdown_math.dart';
 import 'package:baocode/ide/ide_find_widget.dart';
+import 'package:baocode/ide/selection_bubble.dart';
 import 'package:baocode/ide/markdown/markdown_preview.dart';
 import 'package:baocode/ide/markdown/markdown_task_box.dart';
 import 'package:baocode/theme/app_theme.dart';
@@ -637,6 +638,51 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.byIcon(Codicons.bold), findsNothing);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+  testWidgets('selected by a drag, the bar comes in at once, over the '
+      'selection\'s middle; goes where the selection goes in that frame, '
+      'and fades out as it goes', (tester) async {
+    // What is selected along the line, the bar not kept off its start.
+    const text = 'Words first: some text here, and more.';
+    final model = EditorDocumentModel(text);
+    await pumpPreview(tester, model);
+    final from = _at(tester, 'some', within: text);
+    final drag = await tester.startGesture(from, kind: PointerDeviceKind.mouse);
+    await tester.pump();
+    await drag.moveTo(_at(tester, 'here', within: text));
+    await tester.pumpAndSettle();
+    final bar = find.byType(SelectionBubble);
+    final bold = find.byIcon(Codicons.bold);
+    expect(bold, findsOneWidget, reason: 'while the drag is held');
+    var rect = tester.getRect(bar);
+    // Under it: no room over the document's first line.
+    expect(rect.top, greaterThanOrEqualTo(from.dy));
+    expect(
+      rect.center.dx,
+      closeTo((from.dx + _at(tester, 'here', within: text).dx) / 2, 16),
+    );
+
+    // Further on: there in the frame the selection is, at once (it only
+    // comes and goes softly).
+    final to = _at(tester, 'more', within: text);
+    await drag.moveTo(to);
+    await tester.pump();
+    rect = tester.getRect(bar);
+    expect(rect.center.dx, closeTo((from.dx + to.dx) / 2, 16));
+    await tester.pumpAndSettle();
+    expect(tester.getRect(bar), rect);
+    await drag.up();
+    await tester.pumpAndSettle();
+    expect(bold, findsOneWidget);
+
+    _controller(tester).selection = const TextSelection.collapsed(offset: 2);
+    await tester.pump();
+    await tester.pump();
+    expect(bold, findsOneWidget, reason: 'fading out');
+    expect(tester.getRect(bar), rect, reason: 'where it was');
+    await tester.pumpAndSettle();
+    expect(bold, findsNothing);
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
   testWidgets('selected in code, the bar only proofreads; ⌘B marks nothing', (

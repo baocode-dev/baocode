@@ -1514,6 +1514,23 @@
       }
     }
   },
+  "quoteChip": "Quote #{number}",
+  "@quoteChip": {
+    "description": "Text quoted from the conversation, as a small tag in a message: the quote's number in the message.",
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "chatQuote": "Quote",
+  "@chatQuote": {
+    "description": "Over text selected in the conversation: puts it in the message being written, as a quote of it."
+  },
+  "chatQuoteAside": "By the Way",
+  "@chatQuoteAside": {
+    "description": "Over text selected in the conversation: quotes it in a /btw message, asked in a conversation of its own beside this one."
+  },
   "pastedTextGone": "This paste is no longer at {path}.",
   "@pastedTextGone": {
     "description": "Shown in place of a long paste kept in a file that has since gone.",

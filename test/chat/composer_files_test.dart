@@ -253,6 +253,63 @@ void main() {
       expect(splitCodeAppendix(text).body, text);
     });
 
+    test('quotes go as the user\'s, numbered apart from the pastes, and read '
+        'back, kept in a file or not', () {
+      const quote = PastedText(
+        number: 1,
+        text: 'line one\nline two',
+        quoted: true,
+      );
+      const paste = PastedText(number: 1, text: 'a\nb');
+      expect(quote.reference, '[Quote #1]');
+      final text =
+          'why ${quote.reference} and ${paste.reference}'
+          '${codeAppendix([quote, paste])}';
+      expect(
+        text,
+        'why [Quote #1] and [Pasted text #1 +1 line]\n'
+        '\n'
+        '[Quote #1] (text the user selected and quoted from the '
+        'conversation)\n'
+        '```\n'
+        'line one\n'
+        'line two\n'
+        '```\n'
+        '\n'
+        '[Pasted text #1 +1 line]\n'
+        '```\n'
+        'a\n'
+        'b\n'
+        '```',
+      );
+      final split = splitCodeAppendix(text);
+      expect(split.body, 'why [Quote #1] and [Pasted text #1 +1 line]');
+      expect(split.references, {
+        quote.reference: quote,
+        paste.reference: paste,
+      });
+      expect(PastedText.fromJson(quote.toJson()), quote);
+
+      final kept = quote.storedAt('/data/pastes/q.txt');
+      final keptText = 'why ${kept.reference}${codeAppendix([kept])}';
+      expect(
+        keptText,
+        'why [Quote #1]\n'
+        '\n'
+        '[Quote #1] (text the user selected and quoted from the '
+        'conversation)\n'
+        'Too long to include here, saved in full to `/data/pastes/q.txt`: '
+        'read it from there.',
+      );
+      final back = splitCodeAppendix(keptText).references['[Quote #1]'];
+      expect(back, isA<PastedText>());
+      back as PastedText;
+      expect(
+        (back.quoted, back.file, back.number),
+        (true, '/data/pastes/q.txt', 1),
+      );
+    });
+
     test('stashes read back by their number, with fences in them', () {
       const stash = StashReference(
         id: 12,
