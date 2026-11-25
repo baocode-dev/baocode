@@ -6673,6 +6673,18 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get modelsMoveToTop => 'Move to Top';
+
+  @override
+  String get modelsMoveUp => 'Move Up';
+
+  @override
+  String get modelsMoveDown => 'Move Down';
+
+  @override
+  String get modelsDragToReorder => 'Drag to reorder';
+
+  @override
   String get modelsFeaturedWhy => 'Why am I seeing this?';
 
   @override

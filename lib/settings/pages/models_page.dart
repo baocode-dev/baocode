@@ -156,6 +156,12 @@ class _ModelsSettingsPageState extends State<ModelsSettingsPage> {
   /// Adding the upstream that follows magpie, while it is under way.
   bool _joining = false;
 
+  /// The upstream being dragged, and where it would drop (above or below
+  /// [_dropTargetId]).
+  String? _draggingId;
+  String? _dropTargetId;
+  bool _dropAfter = false;
+
   /// The sites listed (see [ModelsSettingsPage.featured]).
   late final Future<List<FeaturedUpstream>> _featured =
       widget.featured ?? FeaturedUpstream.load();
@@ -234,6 +240,38 @@ class _ModelsSettingsPageState extends State<ModelsSettingsPage> {
     } finally {
       if (mounted) setState(() => _joining = false);
     }
+  }
+
+  void _clearDrag() {
+    _draggingId = null;
+    _dropTargetId = null;
+    _dropAfter = false;
+  }
+
+  void _moveProvider(List<ModelProvider> ordered, String id, int to) {
+    final ids = [for (final provider in ordered) provider.id];
+    final from = ids.indexOf(id);
+    if (from < 0) return;
+    final target = to.clamp(0, ids.length - 1);
+    if (from == target && _providers.providersOrdered) return;
+    ids
+      ..removeAt(from)
+      ..insert(target, id);
+    unawaited(_providers.reorder(ids));
+  }
+
+  int? _insertSlot(
+    List<ModelProvider> ordered,
+    String draggingId,
+    String targetId, {
+    required bool after,
+  }) {
+    final from = ordered.indexWhere((provider) => provider.id == draggingId);
+    final target = ordered.indexWhere((provider) => provider.id == targetId);
+    if (from < 0 || target < 0 || from == target) return null;
+    final slot = after ? target + 1 : target;
+    final insertAt = from < slot ? slot - 1 : slot;
+    return insertAt == from ? null : insertAt;
   }
 
   @override
@@ -362,6 +400,15 @@ class _ModelsSettingsPageState extends State<ModelsSettingsPage> {
       if (_listedHosts.contains(provider.host.toLowerCase())) pinned = provider;
     }
     final magpie = _magpie.provider;
+    final ordered = _providers.providersOrdered
+        ? providers
+        : [
+            ?magpie,
+            ?pinned,
+            ...providers.where(
+              (provider) => provider != pinned && provider != magpie,
+            ),
+          ];
     // Known not to answer; not before it is asked.
     final magpieDown = _magpie.status?.running == false;
     final current = _providers.defaultModel;
@@ -442,18 +489,11 @@ class _ModelsSettingsPageState extends State<ModelsSettingsPage> {
                     unawaited(_providers.setBuiltinHidden(!value)),
                 trailing: _ClaudeResetsLabel(_claudeResets),
               ),
-            // The one that follows magpie beside Claude Code's, as it too
-            // is set up elsewhere; then the newest at a site BaoCode lists
-            // (one imported later takes the place of one before); the rest
-            // in their order.
-            for (final provider in [
-              ?magpie,
-              ?pinned,
-              ...providers.where(
-                (provider) => provider != pinned && provider != magpie,
-              ),
-            ])
+            // The user's order once reordered; otherwise magpie beside Claude
+            // Code's, then the newest at a listed site, then the rest as added.
+            for (final (index, provider) in ordered.indexed)
               _ProviderRow(
+                key: ValueKey(provider.id),
                 icon: ProviderIconView(
                   icon: providerIconOf(provider),
                   site: providerSite(provider),
@@ -497,6 +537,7 @@ class _ModelsSettingsPageState extends State<ModelsSettingsPage> {
                   _providers.save(provider.copyWith(enabled: value)),
                 ),
                 onOpen: () => setState(() => _open = provider.id),
+                reorder: _reorderFor(ordered, index, provider),
               ),
             SettingsRow(
               label: l10n.modelsAddProvider,
@@ -528,9 +569,77 @@ class _ModelsSettingsPageState extends State<ModelsSettingsPage> {
       ],
     );
   }
+
+  _ProviderReorder? _reorderFor(
+    List<ModelProvider> ordered,
+    int index,
+    ModelProvider provider,
+  ) {
+    if (ordered.length < 2) return null;
+    final dropEdge =
+        _dropTargetId == provider.id &&
+            _draggingId != null &&
+            _insertSlot(
+                  ordered,
+                  _draggingId!,
+                  provider.id,
+                  after: _dropAfter,
+                ) !=
+                null
+        ? (_dropAfter ? _DropEdge.bottom : _DropEdge.top)
+        : null;
+    return (
+      id: provider.id,
+      index: index,
+      count: ordered.length,
+      dragging: _draggingId == provider.id,
+      dropEdge: dropEdge,
+      onMove: (to) => _moveProvider(ordered, provider.id, to),
+      onDragStart: () => setState(() => _draggingId = provider.id),
+      onDragReset: () {
+        if (mounted) setState(_clearDrag);
+      },
+      onDropHover: (after) {
+        if (_dropTargetId != provider.id || _dropAfter != after) {
+          setState(() {
+            _dropTargetId = provider.id;
+            _dropAfter = after;
+          });
+        }
+      },
+      onDropLeave: () {
+        if (_dropTargetId == provider.id) {
+          setState(() => _dropTargetId = null);
+        }
+      },
+      onDrop: (draggedId, after) {
+        setState(_clearDrag);
+        if (_insertSlot(ordered, draggedId, provider.id, after: after)
+            case final insertAt?) {
+          _moveProvider(ordered, draggedId, insertAt);
+        }
+      },
+    );
+  }
 }
 
 enum _Status { ready, incomplete, failed, off }
+
+enum _DropEdge { top, bottom }
+
+typedef _ProviderReorder = ({
+  String id,
+  int index,
+  int count,
+  bool dragging,
+  _DropEdge? dropEdge,
+  void Function(int to) onMove,
+  VoidCallback onDragStart,
+  VoidCallback onDragReset,
+  void Function(bool after) onDropHover,
+  VoidCallback onDropLeave,
+  void Function(String draggedId, bool after) onDrop,
+});
 
 /// Where [provider] is, its port with its host: `127.0.0.1:3425`.
 String _hostAndPort(ModelProvider provider) =>
@@ -544,6 +653,7 @@ String _hostAndPort(ModelProvider provider) =>
 /// and whether the picker offers it; a click opens it.
 class _ProviderRow extends StatelessWidget {
   const _ProviderRow({
+    super.key,
     required this.icon,
     required this.name,
     required this.badge,
@@ -555,6 +665,7 @@ class _ProviderRow extends StatelessWidget {
     this.error,
     this.onOpen,
     this.trailing,
+    this.reorder,
   });
 
   /// What the picker heads its models with.
@@ -571,11 +682,134 @@ class _ProviderRow extends StatelessWidget {
 
   /// Shown before the switch.
   final Widget? trailing;
+  final _ProviderReorder? reorder;
+
+  void _openMenu(
+    BuildContext context,
+    _ProviderReorder reorder, {
+    Rect? anchor,
+    Offset? position,
+  }) {
+    final l10n = context.l10n;
+    final canUp = reorder.index > 0;
+    final canDown = reorder.index < reorder.count - 1;
+    unawaited(
+      showIdeMenu(
+        context,
+        anchor: anchor,
+        position: position,
+        alignRight: anchor != null,
+        entries: [
+          IdeMenuAction(
+            l10n.modelsMoveToTop,
+            enabled: canUp,
+            onSelected: canUp ? () => reorder.onMove(0) : null,
+          ),
+          IdeMenuAction(
+            l10n.modelsMoveUp,
+            enabled: canUp,
+            onSelected: canUp ? () => reorder.onMove(reorder.index - 1) : null,
+          ),
+          IdeMenuAction(
+            l10n.modelsMoveDown,
+            enabled: canDown,
+            onSelected: canDown
+                ? () => reorder.onMove(reorder.index + 1)
+                : null,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _wrapDrag(
+    BuildContext context,
+    _ProviderReorder reorder,
+    Widget child,
+  ) {
+    final feedback = Transform.translate(
+      offset: const Offset(12, 4),
+      child: Material(
+        type: MaterialType.transparency,
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 280),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceRaised,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: SettingsColors.stroke),
+            boxShadow: IdeHoverColors.shadow,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconTheme.merge(
+                data: IconThemeData(color: SettingsColors.textSecondary),
+                child: icon,
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: SettingsText.label,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    final touch = switch (Theme.of(context).platform) {
+      TargetPlatform.iOS ||
+      TargetPlatform.android ||
+      TargetPlatform.fuchsia => true,
+      _ => false,
+    };
+    bool isAfter(BuildContext rowContext, Offset global) {
+      final box = rowContext.findRenderObject() as RenderBox?;
+      if (box == null || !box.hasSize) return false;
+      return box.globalToLocal(global).dy >= box.size.height / 2;
+    }
+
+    return Builder(
+      builder: (rowContext) => DragTarget<String>(
+        onWillAcceptWithDetails: (details) => details.data != reorder.id,
+        onMove: (details) =>
+            reorder.onDropHover(isAfter(rowContext, details.offset)),
+        onLeave: (_) => reorder.onDropLeave(),
+        onAcceptWithDetails: (details) =>
+            reorder.onDrop(details.data, isAfter(rowContext, details.offset)),
+        builder: (context, _, _) => touch
+            ? LongPressDraggable<String>(
+                data: reorder.id,
+                dragAnchorStrategy: pointerDragAnchorStrategy,
+                feedback: feedback,
+                onDragStarted: reorder.onDragStart,
+                onDragEnd: (_) => reorder.onDragReset(),
+                onDraggableCanceled: (_, _) => reorder.onDragReset(),
+                child: child,
+              )
+            : Draggable<String>(
+                data: reorder.id,
+                dragAnchorStrategy: pointerDragAnchorStrategy,
+                feedback: feedback,
+                onDragStarted: reorder.onDragStart,
+                onDragEnd: (_) => reorder.onDragReset(),
+                onDraggableCanceled: (_, _) => reorder.onDragReset(),
+                child: child,
+              ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final colors = themeColors;
     final onOpen = this.onOpen;
+    final reorder = this.reorder;
     final dot = Container(
       width: 8,
       height: 8,
@@ -593,6 +827,22 @@ class _ProviderRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
       child: Row(
         children: [
+          if (reorder != null) ...[
+            IdeHover(
+              message: l10n.modelsDragToReorder,
+              child: HoverBuilder(
+                cursor: SystemMouseCursors.grab,
+                builder: (context, hovered) => Icon(
+                  Codicons.gripper,
+                  size: 14,
+                  color: hovered
+                      ? SettingsColors.textSecondary
+                      : SettingsColors.textQuaternary,
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+          ],
           if (error case final error?)
             IdeHover(message: error, child: dot)
           else
@@ -639,6 +889,23 @@ class _ProviderRow extends StatelessWidget {
             trailing,
             const SizedBox(width: 16),
           ],
+          if (reorder != null) ...[
+            Builder(
+              builder: (context) => IdeActionButton(
+                icon: Codicons.ellipsis,
+                tooltip: l10n.modelsMore,
+                onPressed: () {
+                  final box = context.findRenderObject()! as RenderBox;
+                  _openMenu(
+                    context,
+                    reorder,
+                    anchor: box.localToGlobal(Offset.zero) & box.size,
+                  );
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
           SettingsSwitch(
             value: enabled,
             semanticLabel: switchLabel,
@@ -655,8 +922,27 @@ class _ProviderRow extends StatelessWidget {
         ],
       ),
     );
-    if (onOpen == null) return row;
-    return Semantics(
+    final content =
+        reorder == null || (!reorder.dragging && reorder.dropEdge == null)
+        ? row
+        : Stack(
+            children: [
+              if (reorder.dragging) Opacity(opacity: 0.4, child: row) else row,
+              if (reorder.dropEdge case final edge?)
+                Positioned(
+                  left: 12,
+                  right: 12,
+                  top: edge == _DropEdge.top ? 0 : null,
+                  bottom: edge == _DropEdge.bottom ? 0 : null,
+                  height: 2,
+                  child: IgnorePointer(
+                    child: ColoredBox(color: AppColors.accent),
+                  ),
+                ),
+            ],
+          );
+    if (onOpen == null) return content;
+    final interactive = Semantics(
       button: true,
       label: name,
       child: MouseRegion(
@@ -664,10 +950,20 @@ class _ProviderRow extends StatelessWidget {
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: onOpen,
-          child: row,
+          onSecondaryTapUp: reorder != null
+              ? (details) => _openMenu(
+                  context,
+                  reorder,
+                  position: details.globalPosition,
+                )
+              : null,
+          child: content,
         ),
       ),
     );
+    return reorder == null
+        ? interactive
+        : _wrapDrag(context, reorder, interactive);
   }
 }
 

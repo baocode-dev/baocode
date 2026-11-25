@@ -7,6 +7,8 @@ import 'package:baocode/ide/ide_hover.dart';
 import 'package:baocode/ide/ide_button.dart';
 import 'package:baocode/ide/ide_back_button.dart';
 import 'package:baocode/ide/ide_spinning.dart';
+import 'package:baocode/models/featured_upstreams.dart';
+import 'package:baocode/theme/codicons.dart';
 import 'package:baocode/kernel/claude_code/claude_core_setting.dart';
 import 'package:baocode/kernel/claude_code/claude_haiku.dart';
 import 'package:baocode/models/claude_resets.dart';
@@ -180,6 +182,7 @@ void main() {
     CodexService? codex,
     ModelTester testModel = testModelThroughClaudeCode,
     Workspace? workspace,
+    Future<List<FeaturedUpstream>>? featured,
     MagpieFollow? magpie,
     ClaudeResetsService? claudeResets,
   }) async {
@@ -195,6 +198,7 @@ void main() {
             testModel: testModel,
             codex: codex,
             workspace: workspace,
+            featured: featured,
             magpie: magpie,
             claudeResets: claudeResets,
           ),
@@ -1804,6 +1808,194 @@ void main() {
       await pump(tester, magpie: follow());
       await tester.pumpAndSettle();
       expect(find.textContaining("magpie isn't running"), findsOneWidget);
+    });
+  });
+
+  group('upstream reordering', () {
+    Future<void> saveThree() async {
+      for (final (id, name, url) in const [
+        ('a', 'Alpha', 'https://a.example.com'),
+        ('b', 'Beta', 'https://b.example.com'),
+        ('c', 'Gamma', 'https://c.example.com'),
+      ]) {
+        await providers.save(ModelProvider(id: id, name: name, baseUrl: url));
+      }
+    }
+
+    double top(WidgetTester tester, String name) =>
+        tester.getTopLeft(find.text(name)).dy;
+
+    Finder menuButton(WidgetTester tester, String name) {
+      final row = find.ancestor(
+        of: find.text(name),
+        matching: find.byType(Row),
+      );
+      return find.descendant(
+        of: row.last,
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is IdeActionButton && widget.tooltip == 'More Actions',
+        ),
+      );
+    }
+
+    testWidgets('single upstream shows no drag handle or reorder menu', (
+      tester,
+    ) async {
+      await providers.save(
+        const ModelProvider(
+          id: 'a',
+          name: 'Alpha',
+          baseUrl: 'https://a.example.com',
+        ),
+      );
+      await pump(tester);
+      expect(find.byIcon(Codicons.gripper), findsNothing);
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is IdeActionButton && widget.tooltip == 'More Actions',
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets('menu moves upstreams to top, up, and down with bounds', (
+      tester,
+    ) async {
+      await saveThree();
+      await pump(tester);
+      expect(find.byIcon(Codicons.gripper), findsNWidgets(3));
+      expect(top(tester, 'Alpha'), lessThan(top(tester, 'Beta')));
+      expect(top(tester, 'Beta'), lessThan(top(tester, 'Gamma')));
+
+      // First row: Move to Top and Move Up are disabled; Move Down swaps.
+      await tester.tap(menuButton(tester, 'Alpha'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Move to Top'));
+      await tester.pumpAndSettle();
+      expect(find.text('Move to Top'), findsOneWidget);
+      await tester.tap(find.text('Move Up'));
+      await tester.pumpAndSettle();
+      expect(find.text('Move Up'), findsOneWidget);
+      await tester.tap(find.text('Move Down'));
+      await tester.pumpAndSettle();
+      expect(providers.providers.map((p) => p.id), ['b', 'a', 'c']);
+      expect(top(tester, 'Beta'), lessThan(top(tester, 'Alpha')));
+
+      // Last row: Move Down is disabled; Move to Top puts it first.
+      await tester.tap(menuButton(tester, 'Gamma'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Move Down'));
+      await tester.pumpAndSettle();
+      expect(find.text('Move Down'), findsOneWidget);
+      await tester.tap(find.text('Move to Top'));
+      await tester.pumpAndSettle();
+      expect(providers.providers.map((p) => p.id), ['c', 'b', 'a']);
+      expect(top(tester, 'Gamma'), lessThan(top(tester, 'Beta')));
+
+      // Middle row: Move Up moves it above first.
+      await tester.tap(menuButton(tester, 'Beta'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Move Up'));
+      await tester.pumpAndSettle();
+      expect(providers.providers.map((p) => p.id), ['b', 'c', 'a']);
+      expect(top(tester, 'Beta'), lessThan(top(tester, 'Gamma')));
+    });
+
+    testWidgets('dragging an upstream row over another reorders the list', (
+      tester,
+    ) async {
+      await saveThree();
+      await pump(tester);
+
+      // Drag Gamma onto the upper half of Alpha to move it to the top.
+      final alphaBox = tester.getRect(
+        find.ancestor(of: find.text('Alpha'), matching: find.byType(Row)).last,
+      );
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.text('Gamma')),
+        kind: PointerDeviceKind.mouse,
+      );
+      await gesture.moveBy(const Offset(0, -20));
+      await tester.pump();
+      await gesture.moveTo(Offset(alphaBox.center.dx, alphaBox.top + 4));
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(providers.providers.map((p) => p.id), ['c', 'a', 'b']);
+      expect(top(tester, 'Gamma'), lessThan(top(tester, 'Alpha')));
+
+      // Drag Gamma onto the lower half of Beta to move it to the end.
+      final betaBox = tester.getRect(
+        find.ancestor(of: find.text('Beta'), matching: find.byType(Row)).last,
+      );
+      final gesture2 = await tester.startGesture(
+        tester.getCenter(find.text('Gamma')),
+        kind: PointerDeviceKind.mouse,
+      );
+      await gesture2.moveBy(const Offset(0, 20));
+      await tester.pump();
+      await gesture2.moveTo(Offset(betaBox.center.dx, betaBox.bottom - 4));
+      await tester.pump();
+      await gesture2.up();
+      await tester.pumpAndSettle();
+      expect(providers.providers.map((p) => p.id), ['a', 'b', 'c']);
+      expect(top(tester, 'Beta'), lessThan(top(tester, 'Gamma')));
+
+      // Clicking an upstream still opens its settings page.
+      await tester.tap(find.text('Alpha'));
+      await tester.pumpAndSettle();
+      expect(find.text('Connection'), findsOneWidget);
+    }, variant: TargetPlatformVariant({TargetPlatform.macOS}));
+
+    testWidgets('user order overrides featured site and magpie placement', (
+      tester,
+    ) async {
+      await providers.save(Magpie.provider('magpie'));
+      await providers.save(
+        const ModelProvider(
+          id: 'beta',
+          name: 'Beta',
+          baseUrl: 'https://api.beta.example.com',
+        ),
+      );
+      await providers.save(
+        const ModelProvider(
+          id: 'plain',
+          name: 'Plain',
+          baseUrl: 'https://plain.example.com',
+        ),
+      );
+      final featured = [
+        FeaturedUpstream(
+          id: 'beta',
+          name: 'Beta Relay',
+          url: Uri.parse('https://beta.example.com'),
+          hosts: const ['api.beta.example.com'],
+        ),
+      ];
+      final magpie = MagpieFollow(
+        providers: providers,
+        probe: () async =>
+            const MagpieStatus(installed: true, version: '0.13.0'),
+        list: (_, _) async => const [],
+        claudeSettings: () async => null,
+      );
+      await pump(tester, featured: Future.value(featured), magpie: magpie);
+      await tester.pump();
+      expect(top(tester, 'magpie'), lessThan(top(tester, 'Beta')));
+      expect(top(tester, 'Beta'), lessThan(top(tester, 'Plain')));
+
+      // Move Plain to Top: user order overrides both magpie and featured site.
+      await tester.tap(menuButton(tester, 'Plain'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Move to Top'));
+      await tester.pumpAndSettle();
+      expect(providers.providersOrdered, isTrue);
+      expect(providers.providers.map((p) => p.id), ['plain', 'magpie', 'beta']);
+      expect(top(tester, 'Plain'), lessThan(top(tester, 'magpie')));
+      expect(top(tester, 'magpie'), lessThan(top(tester, 'Beta')));
     });
   });
 }

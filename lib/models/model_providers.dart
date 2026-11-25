@@ -62,6 +62,7 @@ class ModelProviders extends ChangeNotifier {
   static ModelProviders current = ModelProviders.memory();
 
   static const providersKey = 'models.providers';
+  static const providersOrderedKey = 'models.providers.ordered';
   static const builtinHiddenKey = 'models.builtin.hidden';
   static const defaultKey = 'models.default';
   static const auxiliaryKey = 'models.auxiliary';
@@ -79,13 +80,14 @@ class ModelProviders extends ChangeNotifier {
   SecretStore get secrets => _secrets ?? SecretStore.instance;
 
   List<ModelProvider>? _cache;
+  bool? _orderedOverride;
 
   void _changed() {
     _cache = null;
     notifyListeners();
   }
 
-  /// All of them, in the order they were added.
+  /// All of them, in the order they were added (or kept by [reorder]).
   List<ModelProvider> get providers => _cache ??= [
     for (final json in switch (_read(providersKey)) {
       final List list => list,
@@ -93,6 +95,11 @@ class ModelProviders extends ChangeNotifier {
     })
       ?ModelProvider.fromJson(json),
   ];
+
+  /// Whether the user has ordered [providers] themselves: Settings → Models
+  /// then keeps this order instead of leading with magpie or a featured site.
+  bool get providersOrdered =>
+      _orderedOverride ?? (_read(providersOrderedKey) == true);
 
   /// Those offered in the picker.
   List<ModelProvider> get enabled => [
@@ -268,6 +275,40 @@ class ModelProviders extends ChangeNotifier {
       list[index] = provider;
     }
     await _writeProviders(list);
+  }
+
+  /// Puts [providers] in [ids]'s order (any omitted stay after, in theirs),
+  /// and marks the list as ordered by the user ([providersOrdered]).
+  Future<void> reorder(List<String> ids) async {
+    final current = providers;
+    if (current.length < 2) return;
+    final byId = {for (final provider in current) provider.id: provider};
+    final seen = <String>{};
+    final ordered = [
+      for (final id in ids)
+        if (byId[id] case final provider? when seen.add(id)) provider,
+      for (final provider in current)
+        if (seen.add(provider.id)) provider,
+    ];
+    final unchanged =
+        providersOrdered &&
+        ordered.length == current.length &&
+        Iterable<int>.generate(current.length)
+            .every((i) => ordered[i].id == current[i].id);
+    if (unchanged) return;
+    _cache = ordered;
+    _orderedOverride = true;
+    notifyListeners();
+    try {
+      await _write(providersKey, [
+        for (final provider in ordered) provider.toJson(),
+      ]);
+      if (_read(providersOrderedKey) != true) {
+        await _write(providersOrderedKey, true);
+      }
+    } finally {
+      _orderedOverride = null;
+    }
   }
 
   /// Adds a copy of provider [id] named [name], its key with it; not its

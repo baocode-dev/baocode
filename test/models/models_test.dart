@@ -677,6 +677,65 @@ void main() {
       providers.reportError('gw', null);
       expect(providers.error('gw'), isNull);
     });
+
+    test(
+      'reorders upstreams, keeps omitted ones after, and marks them ordered',
+      () async {
+        final settings = <String, Object?>{};
+        final a = _gateway;
+        const b = ModelProvider(
+          id: 'an',
+          name: 'Anthropic',
+          baseUrl: 'https://api.anthropic.com',
+          models: [ProviderModel(id: 'claude-sonnet-4-5')],
+        );
+        const c = ModelProvider(
+          id: 'ds',
+          name: 'DeepSeek',
+          protocol: ProviderProtocol.openaiChat,
+          baseUrl: 'https://api.deepseek.com',
+          models: [ProviderModel(id: 'deepseek-chat')],
+        );
+        final single = ModelProviders.memory(providers: [a]);
+        await single.reorder(['an', 'gw']);
+        expect(single.providersOrdered, isFalse);
+
+        late final ModelProviders store;
+        store = ModelProviders(
+          read: (key) => settings[key],
+          write: (key, value) async {
+            if (value == null) {
+              settings.remove(key);
+            } else {
+              settings[key] = value;
+            }
+          },
+        );
+        await store.save(a);
+        await store.save(b);
+        await store.save(c);
+        expect(store.providersOrdered, isFalse);
+
+        // Unknown or repeated ids are skipped; omitted upstreams stay after.
+        await store.reorder(['ds', 'missing', 'ds', 'gw']);
+        expect(store.providersOrdered, isTrue);
+        expect(store.providers.map((p) => p.id), ['ds', 'gw', 'an']);
+        expect(store.enabled.map((p) => p.id), ['ds', 'gw', 'an']);
+        expect(store.proxyModelRefs, [
+          '@ds/deepseek-chat',
+          '@gw/gpt-5',
+          '@an/claude-sonnet-4-5',
+        ]);
+
+        // Reloaded from settings: order and ordered flag remain.
+        final reloaded = ModelProviders(
+          read: (key) => settings[key],
+          write: (key, value) async => settings[key] = value,
+        );
+        expect(reloaded.providersOrdered, isTrue);
+        expect(reloaded.providers.map((p) => p.id), ['ds', 'gw', 'an']);
+      },
+    );
   });
 
   group('upstream', () {

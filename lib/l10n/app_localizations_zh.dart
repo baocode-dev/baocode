@@ -6271,6 +6271,18 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get modelsMoveToTop => '置顶';
+
+  @override
+  String get modelsMoveUp => '上移';
+
+  @override
+  String get modelsMoveDown => '下移';
+
+  @override
+  String get modelsDragToReorder => '拖动排序';
+
+  @override
   String get modelsFeaturedWhy => '为什么我看到这个？';
 
   @override
