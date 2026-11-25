@@ -699,6 +699,12 @@ void followSettingsFiles(SettingsFiles files) {
   EditorWordWrap.follow(files.settings);
   // Whether the code editors show their minimap.
   EditorMinimap.follow(files.settings);
+  // settings.json's git.autofetchInterval: seconds between background
+  // fetches, 0 (the default) for none. Each repository arms its own timer.
+  GitAutoFetchSetting.current = () => GitAutoFetchSetting.interval(
+    files.settings[GitAutoFetchSetting.settingKey],
+  );
+  GitAutoFetchSetting.changes = files.settings;
 }
 
 /// The app's updates (lib/update/): looked for as settings.json's

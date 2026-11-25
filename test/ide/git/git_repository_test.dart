@@ -139,6 +139,51 @@ void main() {
     });
   });
 
+  group('automatic fetch', () {
+    tearDown(() {
+      GitAutoFetchSetting.current = () => Duration.zero;
+      GitAutoFetchSetting.changes = null;
+    });
+
+    test('fetches a tracking branch on the interval and refreshes behind',
+        () async {
+      GitAutoFetchSetting.current = () => const Duration(milliseconds: 40);
+      git.status = '## main...origin/main\x00';
+      final auto = IdeGitRepository(
+        IdeGitService(
+          git.root,
+          runner: git.run,
+          watcher: (_) => changes.stream,
+        ),
+        refreshDelay: const Duration(milliseconds: 10),
+      );
+      addTearDown(auto.dispose);
+      await auto.refresh();
+      git.calls.clear();
+
+      git.status = '## main...origin/main [behind 1]\x00';
+      await Future<void>.delayed(const Duration(milliseconds: 140));
+
+      expect(git.callsTo('fetch'), isNotEmpty);
+      expect(auto.state!.head.behind, 1);
+    });
+
+    test('a branch with no upstream is not fetched', () async {
+      GitAutoFetchSetting.current = () => const Duration(milliseconds: 40);
+      git.status = '## main\x00';
+      final auto = IdeGitRepository(
+        IdeGitService(git.root, runner: git.run),
+        refreshDelay: const Duration(milliseconds: 10),
+      );
+      addTearDown(auto.dispose);
+      await auto.refresh();
+      git.calls.clear();
+
+      await Future<void>.delayed(const Duration(milliseconds: 140));
+      expect(git.callsTo('fetch'), isEmpty);
+    });
+  });
+
   group('past the status limit', () {
     String huge() => [
       '## main\x00',

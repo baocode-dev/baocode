@@ -34,6 +34,24 @@ bool isGitPushRejected(Object error) {
       message.contains('更新被拒绝');
 }
 
+/// `git.autofetchInterval`: seconds between background fetches; 0 (the
+/// default) leaves the counters as they are until a manual Fetch. VS Code's
+/// `git.autofetch` behavior, as a plain interval the user turns on.
+abstract final class GitAutoFetchSetting {
+  static const settingKey = 'git.autofetchInterval';
+
+  /// The interval the user set, or zero when off or not a positive number.
+  static Duration interval(Object? setting) => switch (setting) {
+    final int seconds when seconds > 0 => Duration(seconds: seconds),
+    _ => Duration.zero,
+  };
+
+  /// Read each time a fetch timer is armed (main.dart points these at
+  /// settings.json).
+  static Duration Function() current = () => Duration.zero;
+  static Listenable? changes;
+}
+
 /// [IdeGitRepository.graphBranch] for the current branch and its upstream.
 const ideGraphCurrentBranch = 'HEAD';
 
@@ -58,6 +76,8 @@ class IdeGitRepository extends ChangeNotifier {
     this.refreshDelay = const Duration(milliseconds: 500),
   }) {
     unawaited(refresh());
+    _armAutoFetch();
+    GitAutoFetchSetting.changes?.addListener(_onAutoFetchSettingChanged);
   }
 
   final IdeGitService service;
@@ -70,6 +90,7 @@ class IdeGitRepository extends ChangeNotifier {
   bool _loaded = false;
   bool _disposed = false;
   Timer? _refreshTimer;
+  Timer? _autoFetchTimer;
   StreamSubscription<void>? _watcher;
   Future<void> _queue = Future.value();
   Future<void>? _pendingRefresh;
@@ -150,6 +171,24 @@ class IdeGitRepository extends ChangeNotifier {
   void scheduleRefresh() {
     if (_disposed || (_refreshTimer?.isActive ?? false)) return;
     _refreshTimer = Timer(refreshDelay, () => unawaited(refresh()));
+  }
+
+  void _onAutoFetchSettingChanged() {
+    _armAutoFetch();
+  }
+
+  /// Arms a periodic background fetch when the user set a positive
+  /// interval. Only a branch with an upstream is fetched: without one
+  /// there is nothing to be behind, and `git fetch --all` would still
+  /// touch every remote on every tick.
+  void _armAutoFetch() {
+    _autoFetchTimer?.cancel();
+    _autoFetchTimer = null;
+    final interval = GitAutoFetchSetting.current();
+    if (_disposed || interval <= Duration.zero) return;
+    _autoFetchTimer = Timer.periodic(interval, (_) {
+      if (_state?.head.upstream != null) unawaited(fetch());
+    });
   }
 
   void _watch(String root) {
@@ -922,6 +961,8 @@ class IdeGitRepository extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _refreshTimer?.cancel();
+    _autoFetchTimer?.cancel();
+    GitAutoFetchSetting.changes?.removeListener(_onAutoFetchSettingChanged);
     unawaited(_watcher?.cancel());
     super.dispose();
   }
