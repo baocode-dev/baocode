@@ -109,9 +109,9 @@
           ["logos:claude-icon", "Claude"], ["simple-icons:openai", "ChatGPT"], ["logos:deepseek-icon", "DeepSeek"],
           ["simple-icons:kimi", "Kimi"], ["devicon:gemini", "Gemini"], ["devicon:qwen", "Qwen"],
           ["thesvg-color:zhipu", "GLM"], ["logos:minimax-icon", "MiniMax"], ["simple-icons:openrouter", "OpenRouter"],
-          ["thesvg-color:doubao", "Doubao"], ["selfhst:grok-light", "Grok"], ["simple-icons:ollama", "Ollama"],
+          ["thesvg-color:doubao", "Doubao"], ["selfhst:grok-light", "Grok", "selfhst:grok"], ["simple-icons:ollama", "Ollama"],
           ["logos:mistral-ai-icon", "Mistral"], ["logos:meta-icon", "Llama"], ["thesvg-color:siliconcloud-siliconflow", "SiliconFlow"],
-          ["selfhst:perplexity-ai-light", "Perplexity"], ["devicon:huggingface", "Hugging Face"], ["thesvg-color:microsoft-copilot", "Copilot"],
+          ["selfhst:perplexity-ai-light", "Perplexity", "selfhst:perplexity-ai"], ["devicon:huggingface", "Hugging Face"], ["thesvg-color:microsoft-copilot", "Copilot"],
           ["thesvg-color:stepfun", "StepFun"], ["thesvg-color:baichuan", "Baichuan"], ["thesvg-color:wenxin", "ERNIE"],
           ["logos:cohere-icon", "Cohere"], ["logos:google-cloud", "Vertex AI"], ["devicon:azure", "Azure"],
           ["thesvg-color:iflytekcloud", "Spark"], ["simple-icons:nvidia", "NVIDIA"],
@@ -125,11 +125,14 @@
         });
         const reach = (p) => Math.hypot(p.x / 190, p.y / 120);
         slots.sort((p, q) => reach(p) - reach(q));
+        // A model's third name is its mark on a light page, where the first is white.
+        const markOf = ([icon, , onLight]) => (window.baoTheme?.light && onLight) || icon;
         orbit.innerHTML = slots.map((_, i) => {
-          const [icon, name] = models[i % models.length];
-          return `<i class="v-orb" title="${name}"><iconify-icon icon="${icon}"></iconify-icon></i>`;
+          const model = models[i % models.length];
+          return `<i class="v-orb" title="${model[1]}"><iconify-icon icon="${markOf(model)}"></iconify-icon></i>`;
         }).join("");
         const orbs = [...orbit.children];
+        window.baoTheme?.onChange(() => orbs.forEach((el, i) => el.firstChild.setAttribute("icon", markOf(models[i % models.length]))));
         const place = (now) => {
           const t = now / 1000, ox = 22 * Math.sin(t * 0.23), oy = 14 * Math.sin(t * 0.37 + 1);
           orbs.forEach((el, i) => {
@@ -204,6 +207,10 @@
         js.onload = resolve; js.onerror = reject;
         document.head.appendChild(js);
       }));
+      // Their colors are the page's (--chart-*, light or dark); each is
+      // drawn again when that changes.
+      const chartColor = (name) => getComputedStyle(document.documentElement).getPropertyValue(`--chart-${name}`).trim();
+      const onScheme = (f) => window.baoTheme?.onChange(f);
 
       /* The 360 FPS card: frame rate as a performance monitor plots it, with
          uPlot (loaded once the card comes near). BaoCode holds near 360;
@@ -231,6 +238,8 @@
 
         const build = () => {
           const mono = '10px "JetBrains Mono", ui-monospace, monospace';
+          const gold = chartColor("gold"), fill = chartColor("gold-fill"), clear = chartColor("gold-clear");
+          const guide = chartColor("guide");
           plot = new uPlot({
             width: fpsBox.clientWidth, height: fpsBox.clientHeight,
             padding: [8, 0, 0, 0],
@@ -240,21 +249,21 @@
             axes: [
               { show: false },
               {
-                side: 1, size: 30, gap: 4, font: mono, stroke: "#6f6e69",
+                side: 1, size: 30, gap: 4, font: mono, stroke: chartColor("axis"),
                 splits: () => [60, 180, 360],
                 ticks: { show: false },
-                grid: { stroke: "rgba(255,255,255,0.05)", width: 1 },
+                grid: { stroke: chartColor("grid"), width: 1 },
               },
             ],
             series: [
               {},
-              { stroke: "rgba(255,255,255,0.32)", width: 1.2, points: { show: false } },
+              { stroke: chartColor("other"), width: 1.2, points: { show: false } },
               {
-                stroke: "#e5ba7d", width: 1.8, points: { show: false },
+                stroke: gold, width: 1.8, points: { show: false },
                 fill: (u) => {
                   const g = u.ctx.createLinearGradient(0, u.bbox.top, 0, u.bbox.top + u.bbox.height);
-                  g.addColorStop(0, "rgba(229,186,125,0.2)");
-                  g.addColorStop(1, "rgba(229,186,125,0)");
+                  g.addColorStop(0, fill);
+                  g.addColorStop(1, clear);
                   return g;
                 },
               },
@@ -266,15 +275,16 @@
                 const c = u.ctx;
                 c.save();
                 c.setLineDash([3 * devicePixelRatio, 3 * devicePixelRatio]);
-                c.strokeStyle = "rgba(255,255,255,0.16)";
+                c.strokeStyle = guide;
                 c.lineWidth = devicePixelRatio;
                 c.beginPath(); c.moveTo(u.bbox.left, y); c.lineTo(u.bbox.left + u.bbox.width, y); c.stroke();
                 c.restore();
               }],
             },
           }, [xs, elYs, baoYs], fpsBox);
-          addEventListener("resize", () => plot.setSize({ width: fpsBox.clientWidth, height: fpsBox.clientHeight }));
         };
+        addEventListener("resize", () => plot?.setSize({ width: fpsBox.clientWidth, height: fpsBox.clientHeight }));
+        onScheme(() => { if (plot) { plot.destroy(); build(); } });
 
         const baoEl = document.getElementById("fpsBao"), elEl = document.getElementById("fpsEl");
         const avg = (a) => Math.round(a.slice(-30).reduce((s, v) => s + v, 0) / 30);
@@ -375,6 +385,7 @@
           const bars = uPlot.paths.bars({ size: [0.62, 12] });
           const capped = uPlot.paths.bars({ size: [0.62, 12], radius: 0.3 });
           const bar = (color, paths = bars) => ({ paths, fill: color, stroke: color, width: 0, points: { show: false } });
+          const mark = chartColor("mark");
           plot = new uPlot({
             width: ctxBox.clientWidth, height: ctxBox.clientHeight,
             padding: [12, 0, 0, 0],
@@ -384,11 +395,11 @@
             axes: [
               { show: false },
               {
-                side: 1, size: 34, gap: 4, font: mono, stroke: "#6f6e69",
+                side: 1, size: 34, gap: 4, font: mono, stroke: chartColor("axis"),
                 splits: () => [200000, 400000],
                 values: (u, v) => v.map((x) => `${x / 1000}K`),
                 ticks: { show: false },
-                grid: { stroke: "rgba(255,255,255,0.05)", width: 1 },
+                grid: { stroke: chartColor("grid"), width: 1 },
               },
             ],
             series: [{}, bar("#bd8128", capped), bar("#b0679e"), bar("#3f86d8"), bar("#2e9e72")],
@@ -397,7 +408,7 @@
               draw: [(u) => {
                 const c = u.ctx, d = 3 * devicePixelRatio, y = u.bbox.top - 6 * devicePixelRatio;
                 c.save();
-                c.fillStyle = "rgba(255,255,255,0.55)";
+                c.fillStyle = mark;
                 reqs.forEach((r, i) => {
                   if (!r.compacted) return;
                   const x = u.valToPos(i, "x", true);
@@ -407,8 +418,9 @@
               }],
             },
           }, stacks(), ctxBox);
-          addEventListener("resize", () => plot.setSize({ width: ctxBox.clientWidth, height: ctxBox.clientHeight }));
         };
+        addEventListener("resize", () => plot?.setSize({ width: ctxBox.clientWidth, height: ctxBox.clientHeight }));
+        onScheme(() => { if (plot) { plot.destroy(); build(); } });
         const tick = () => {
           if (!onScreen || document.hidden || !plot) { running = false; return false; }
           if (++beat % 48) return;

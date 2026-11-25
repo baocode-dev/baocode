@@ -1,22 +1,43 @@
 /* The site's pages but the home page (which carries its own): download,
    changelog, upstreams, push, import, activate and the privacy notes, in
-   the home page's look: dark, one column of text under the same header. */
+   the home page's look: dark, or light (the system's or picked, head.js),
+   one column of text under the same header. */
 :root {
   --bg: #111110; --card: #161615; --card-hi: #1b1b19;
-  --ink: #f5f5f3; --body: #c2c0b9; --muted: #989792; --faint: #63625d;
-  --rule: rgba(255, 255, 255, .08); --rule-hi: rgba(255, 255, 255, .14);
-  --gold: #e5ba7d; --tint: rgba(255, 255, 255, .05);
+  --ink: #f5f5f3; --head: #ffffff; --body: #c2c0b9; --muted: #989792; --faint: #63625d;
+  --rule: rgba(255, 255, 255, .08); --rule-hi: rgba(255, 255, 255, .14); --rule-hover: rgba(255, 255, 255, .28);
+  --underline: rgba(152, 151, 146, .45);
+  --gold: #e5ba7d; --gold-ink: #e5ba7d; --tint: rgba(255, 255, 255, .05);
+  --ok: #9dc08b; --err: #e0866a; --selection-ink: #ffffff;
+  --bar: rgba(17, 17, 16, .97);
+  /* The primary button: white on the dark page. */
+  --cta: #ffffff; --cta-ink: #111110; --cta-hover: #f2f1ed; --cta-on: #2a2a28; --cta-on-ink: #ffffff;
+  --backdrop: rgba(0, 0, 0, .55); --shadow-dialog: 0 32px 80px -24px rgba(0, 0, 0, .85);
   --sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI Variable Text", "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
   --mono: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, Consolas, monospace;
   --text: 720px;
   --wide: 1136px;
   color-scheme: dark;
 }
+:root[data-theme="light"] {
+  --bg: #f8f8f6; --card: #ffffff; --card-hi: #f6f6f3;
+  --ink: #1d1c1a; --head: #121110; --body: #3f3e3a; --muted: #64625d; --faint: #98968f;
+  --rule: rgba(0, 0, 0, .08); --rule-hi: rgba(0, 0, 0, .13); --rule-hover: rgba(0, 0, 0, .3);
+  --underline: rgba(100, 98, 93, .4);
+  --gold-ink: #96682a; --tint: rgba(0, 0, 0, .05);
+  --ok: #4d8a3a; --err: #c4503a; --selection-ink: #121110;
+  --bar: rgba(248, 248, 246, .97);
+  --cta: #1b1a17; --cta-ink: #ffffff; --cta-hover: #34322e; --cta-on: #e6e5e1; --cta-on-ink: #121110;
+  --backdrop: rgba(20, 18, 14, .3); --shadow-dialog: 0 30px 70px -24px rgba(40, 32, 20, .3);
+  color-scheme: light;
+}
+/* A switch shows at once, nothing easing over to it. */
+.theme-switching, .theme-switching *, .theme-switching *::before, .theme-switching *::after { transition: none !important; }
 * { box-sizing: border-box; }
 html { background: var(--bg); color: var(--body); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; scroll-padding-top: 88px; }
 body { margin: 0; font: 16px/1.75 var(--sans); }
-::selection { background: rgba(229, 186, 125, .32); color: #ffffff; }
-a { color: var(--ink); text-decoration: underline; text-decoration-color: rgba(152, 151, 146, .45); text-decoration-thickness: 1px; text-underline-offset: 3px; transition: text-decoration-color .14s ease, color .14s ease; }
+::selection { background: rgba(229, 186, 125, .32); color: var(--selection-ink); }
+a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--underline); text-decoration-thickness: 1px; text-underline-offset: 3px; transition: text-decoration-color .14s ease, color .14s ease; }
 a:hover { text-decoration-color: var(--ink); }
 
 /* The old pages' background grid: not in this look. */
@@ -26,7 +47,7 @@ a:hover { text-decoration-color: var(--ink); }
 /* The header: the home page's bar, the mark and wordmark at the left, the
    pages and the language at the right, Download as its white pill. */
 .top { position: sticky; top: 0; z-index: 40; display: flex; align-items: center; gap: 22px; height: 64px;
-  padding: 0 max(24px, calc((100% - var(--wide)) / 2)); background: rgba(17, 17, 16, .97); border-bottom: 1px solid var(--rule);
+  padding: 0 max(24px, calc((100% - var(--wide)) / 2)); background: var(--bar); border-bottom: 1px solid var(--rule);
   font: 13.5px var(--sans); }
 .top a { display: inline-flex; align-items: center; text-decoration: none; color: var(--muted); white-space: nowrap; }
 .top a:hover { color: var(--ink); }
@@ -35,13 +56,29 @@ a:hover { text-decoration-color: var(--ink); }
 .top .brand img { display: none; }
 .top .brand::before { content: ""; width: 20px; height: 15px; margin-top: -1px; background: currentColor;
   -webkit-mask: url(/assets/logo.svg) center / contain no-repeat; mask: url(/assets/logo.svg) center / contain no-repeat; }
-/* As on the home page: the language, then Download last. */
-.top .lang { order: 1; }
-.top a[href$="/download"]:not(.lang) { order: 2; height: 34px; padding: 0 16px; border-radius: 999px; background: #ffffff; color: #111110; font-weight: 600; }
-.top a[href$="/download"]:not(.lang):hover { opacity: .9; color: #111110; }
-.top a[href$="/download"]:not(.lang)[aria-current="page"] { background: #2a2a28; color: #ffffff; }
+/* As on the home page: light or dark, the language, then Download last. */
+.top .lang, .top .theme { order: 1; }
+.top a[href$="/download"]:not(.lang) { order: 2; height: 34px; padding: 0 16px; border-radius: 999px; background: var(--cta); color: var(--cta-ink); font-weight: 600; }
+.top a[href$="/download"]:not(.lang):hover { opacity: .9; color: var(--cta-ink); }
+.top a[href$="/download"]:not(.lang)[aria-current="page"] { background: var(--cta-on); color: var(--cta-on-ink); }
 .top .lang { height: 34px; padding: 0 13px; border: 1px solid var(--rule-hi); border-radius: 999px; }
-.top .lang:hover { border-color: rgba(255, 255, 255, .28); }
+.top .lang:hover { border-color: var(--rule-hover); }
+/* Light or dark (head.js): the mark of the one picked, the system's, light
+   or dark. */
+.top .theme { position: relative; flex: none; display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; padding: 0;
+  border: 1px solid var(--rule-hi); border-radius: 999px; background: none; color: var(--muted); cursor: pointer; transition: color .15s ease, border-color .15s ease; }
+.top .theme:hover { color: var(--ink); border-color: var(--rule-hover); }
+.top .theme::before { content: ""; width: 15px; height: 15px; background: currentColor;
+  -webkit-mask: url(/assets/theme-auto.svg) center / contain no-repeat; mask: url(/assets/theme-auto.svg) center / contain no-repeat; }
+:root[data-theme-pick="light"] .top .theme::before { -webkit-mask-image: url(/assets/theme-light.svg); mask-image: url(/assets/theme-light.svg); }
+:root[data-theme-pick="dark"] .top .theme::before { -webkit-mask-image: url(/assets/theme-dark.svg); mask-image: url(/assets/theme-dark.svg); }
+/* Its name and the one picked, under it, on a screen with a mouse. */
+@media (hover: hover) and (pointer: fine) {
+  .top .theme::after { content: attr(data-tip); position: absolute; top: calc(100% + 8px); left: 50%; z-index: 50; padding: 5px 9px; border-radius: 7px;
+    background: var(--cta); color: var(--cta-ink); font: 500 12px/1.4 var(--sans); letter-spacing: 0; white-space: nowrap; pointer-events: none;
+    opacity: 0; transform: translate(-50%, -3px); transition: opacity .12s ease, transform .12s ease; }
+  .top .theme:is(:hover, :focus-visible)::after { opacity: 1; transform: translate(-50%, 0); transition-delay: .5s; }
+}
 .top svg.ic { width: 15px; height: 15px; margin-right: 6px; }
 /* A channel (channels.json, site.js): its logo and name for the brand. */
 .top .brand:has(.channel-logo)::before { content: none; }
@@ -49,24 +86,28 @@ a:hover { text-decoration-color: var(--ink); }
 .channel-pending .top .brand, .channel-pending [data-channel-title], .channel-pending [data-channel-subtitle] { visibility: hidden; }
 @media (max-width: 560px) {
   .top { gap: 14px; padding: 0 16px; overflow-x: auto; }
-  .top a[href*="changelog"] { display: none; }
+  .top a[href*="changelog"]:not(.lang) { display: none; }
   .top .brand { font-size: 15px; }
+  /* GitHub its mark alone, as on the home page. */
+  .top a[href^="https://github.com"] { font-size: 0; }
+  .top a[href^="https://github.com"] svg.ic { margin-right: 0; }
 }
+@media (max-width: 400px) { .top { gap: 10px; } }
 
 /* Text in a middle column. */
 .page { display: grid; grid-template-columns: 1fr min(var(--text), 100% - 48px) 1fr; padding: 64px 0 112px; counter-reset: h2; }
 .page > * { grid-column: 2; }
-h1 { margin: 0; font: 700 clamp(32px, 4vw, 44px)/1.12 var(--sans); letter-spacing: -.032em; color: #ffffff; }
+h1 { margin: 0; font: 700 clamp(32px, 4vw, 44px)/1.12 var(--sans); letter-spacing: -.032em; color: var(--head); }
 .subtitle { margin: 14px 0 0; font-size: 17px; line-height: 1.6; color: var(--muted); }
 .meta { margin: 16px 0 0; font: 13px/1.6 var(--sans); color: var(--faint); }
 .meta span { display: inline-block; }
 .meta span:not(:last-child)::after { content: "·"; margin: 0 8px; }
-h2 { margin: 64px 0 16px; font: 650 24px/1.3 var(--sans); letter-spacing: -.02em; color: #ffffff; counter-increment: h2; }
+h2 { margin: 64px 0 16px; font: 650 24px/1.3 var(--sans); letter-spacing: -.02em; color: var(--head); counter-increment: h2; }
 h2::before { content: counter(h2); display: inline-block; min-width: 1.5em; color: var(--faint); font-weight: 500; }
 h2.plain { counter-increment: none; }
 h2.plain::before { content: none; }
 h2 svg.ic { margin-right: .4em; color: var(--muted); vertical-align: -.12em; }
-h3 { margin: 32px 0 10px; font: 620 17px/1.4 var(--sans); color: #ffffff; }
+h3 { margin: 32px 0 10px; font: 620 17px/1.4 var(--sans); color: var(--head); }
 p { margin: 0 0 1.1em; }
 ul, ol { margin: 0 0 1.1em; padding-left: 1.3em; }
 li { margin: 0 0 .45em; }
@@ -76,7 +117,7 @@ code { padding: .12em .4em; border-radius: 5px; background: var(--tint); color: 
 kbd { padding: .05em .4em; border: 1px solid var(--rule-hi); border-bottom-width: 2px; border-radius: 5px; color: var(--ink); font: .8em var(--sans); }
 pre { margin: 0 0 1.1em; padding: 14px 16px; overflow-x: auto; border: 1px solid var(--rule); border-radius: 12px; background: var(--card); font: 13px/1.65 var(--mono); }
 pre code { padding: 0; background: none; font: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
-mark.todo { padding: 0 .2em; border-radius: 3px; background: rgba(229, 186, 125, .25); color: var(--gold); }
+mark.todo { padding: 0 .2em; border-radius: 3px; background: rgba(229, 186, 125, .25); color: var(--gold-ink); }
 svg.ic { width: 1em; height: 1em; flex: none; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
 svg.ic.logo { stroke: none; }
 footer { margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--rule); font: 12.5px/1.6 var(--sans); color: var(--faint); }
@@ -87,14 +128,14 @@ footer { margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--rule);
 .button { display: inline-flex; align-items: center; height: 40px; padding: 0 18px; border: 1px solid var(--rule-hi); border-radius: 999px;
   background: transparent; color: var(--ink); font: 600 14px var(--sans); white-space: nowrap; text-decoration: none; cursor: pointer;
   transition: border-color .15s ease, background-color .15s ease, opacity .15s ease; }
-.button:hover { border-color: rgba(255, 255, 255, .3); }
-.button.primary { background: #ffffff; border-color: #ffffff; color: #111110; }
-.button.primary:hover { background: #f2f1ed; }
+.button:hover { border-color: var(--rule-hover); }
+.button.primary { background: var(--cta); border-color: var(--cta); color: var(--cta-ink); }
+.button.primary:hover { background: var(--cta-hover); }
 .button svg.ic { width: 17px; height: 17px; margin-right: 8px; }
 .button:disabled { opacity: .6; cursor: default; }
 [data-shown][hidden] { display: none; }
 .pill-new { display: inline-block; margin-left: 10px; padding: 1px 9px; font: 600 12px/1.5 var(--sans); vertical-align: .3em;
-  color: var(--gold); background: rgba(229, 186, 125, .12); border: 1px solid rgba(229, 186, 125, .35); border-radius: 999px; }
+  color: var(--gold-ink); background: rgba(229, 186, 125, .12); border: 1px solid rgba(229, 186, 125, .35); border-radius: 999px; }
 .beta { display: inline-block; margin-left: 8px; padding: 1px 8px; font: 500 11.5px/1.5 var(--sans); vertical-align: .35em;
   color: var(--muted); border: 1px solid var(--rule-hi); border-radius: 999px; }
 
@@ -102,7 +143,7 @@ footer { margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--rule);
 .table { margin: 28px 0 32px; }
 table { width: 100%; border-collapse: collapse; font: 14px/1.55 var(--sans); font-variant-numeric: tabular-nums; }
 th, td { padding: 10px 14px 10px 0; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; }
-thead th { border-bottom-color: var(--rule-hi); font-weight: 600; color: #ffffff; }
+thead th { border-bottom-color: var(--rule-hi); font-weight: 600; color: var(--head); }
 td { color: var(--body); }
 tbody td:first-child { color: var(--ink); }
 .table .caption { margin-top: 12px; font-size: 13px; color: var(--muted); }
@@ -112,7 +153,7 @@ tbody td:first-child { color: var(--ink); }
 .platform { display: flex; flex-direction: column; padding: 22px 24px 24px; border: 1px solid var(--rule); border-radius: 18px; background: var(--card); transition: border-color .2s ease; }
 .platform:hover { border-color: var(--rule-hi); }
 .platform h2 { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; font-size: 20px; }
-.platform h2 svg.ic { margin: 0; width: 20px; height: 20px; color: #ffffff; }
+.platform h2 svg.ic { margin: 0; width: 20px; height: 20px; color: var(--head); }
 .platform p { flex: 1; margin: 0 0 20px; font-size: 14px; line-height: 1.6; color: var(--muted); }
 .platform .get { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .platform[data-os="linux"] { grid-column: 1 / -1; }
@@ -127,24 +168,24 @@ tbody td:first-child { color: var(--ink); }
 .qr { position: absolute; inset: 0 0 64px; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
   padding: 12px 20px; border-radius: 17px 17px 0 0; background: var(--card); opacity: 0; visibility: hidden; transition: opacity .16s ease, visibility 0s .16s; }
 [data-phones] .platform:hover .qr, [data-phones] .platform.qr-open .qr { opacity: 1; visibility: visible; transition: opacity .16s ease; }
-.qr img { width: 148px; height: 148px; padding: 8px; border-radius: 12px; background: #ffffff; }
+.qr img { width: 148px; height: 148px; padding: 8px; border-radius: 12px; background: #ffffff; box-shadow: 0 0 0 1px var(--rule); }
 @media (prefers-reduced-motion: reduce) { .qr { transition: none; } }
 .hashes code { overflow-wrap: anywhere; }
 
 /* The changelog (tool/build_changelog.dart): a version a section. */
 .release { margin-top: 56px; padding-top: 4px; }
 .release h2 { margin: 0 0 14px; font-size: 24px; }
-.release h2 a { color: #ffffff; text-decoration: none; }
-.release h2 a:hover { color: var(--gold); }
+.release h2 a { color: var(--head); text-decoration: none; }
+.release h2 a:hover { color: var(--gold-ink); }
 .release :is(p, li) { font-size: 15.5px; }
 .release p:has(+ ul) { margin: 22px 0 6px; font: 600 12.5px/1.5 var(--sans); letter-spacing: .02em; color: var(--muted); }
 .release h2 + p:has(+ ul) { margin-top: 0; }
-.release:target h2 a { color: var(--gold); }
+.release:target h2 a { color: var(--gold-ink); }
 
 /* Dialogs: the download's thanks (download.js), saying a word (site.js). */
 dialog.star { width: min(460px, calc(100vw - 40px)); padding: 26px 28px 24px; border: 1px solid var(--rule-hi); border-radius: 16px;
-  background: var(--card); color: var(--body); box-shadow: 0 32px 80px -24px rgba(0, 0, 0, .85); }
-dialog.star::backdrop { background: rgba(0, 0, 0, .55); }
+  background: var(--card); color: var(--body); box-shadow: var(--shadow-dialog); }
+dialog.star::backdrop { background: var(--backdrop); }
 dialog.star h2 { margin: 0 0 8px; font-size: 20px; }
 dialog.star p { margin: 0 0 20px; font-size: 14px; line-height: 1.6; color: var(--muted); }
 dialog.star .get { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -154,7 +195,7 @@ dialog.say .field em { margin-left: 8px; font-style: normal; color: var(--faint)
 dialog.say :is(textarea, input) { display: block; width: 100%; padding: 9px 11px; border: 1px solid var(--rule-hi); border-radius: 9px; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--sans); resize: vertical; }
 dialog.say :is(textarea, input):focus { outline: none; border-color: rgba(229, 186, 125, .55); box-shadow: 0 0 0 3px rgba(229, 186, 125, .14); }
 dialog.say p.hint { margin: -2px 0 20px; font-size: 12.5px; color: var(--faint); }
-dialog.say .say-status { margin: 12px 0 0; font-size: 13px; color: #e0866a; }
+dialog.say .say-status { margin: 12px 0 0; font-size: 13px; color: var(--err); }
 dialog.say .say-status:empty { display: none; }
 dialog.say .done, dialog.say.sent form { display: none; }
 dialog.say.sent .done { display: block; }
@@ -173,7 +214,7 @@ dl.import dd[data-field="url"], dl.import dd[data-field="key"] { font-family: va
 .copyable pre { max-height: 360px; overflow-y: auto; padding-right: 76px; }
 .copyable .copy { position: absolute; top: 8px; right: 8px; height: 28px; padding: 0 11px; border: 1px solid var(--rule-hi); border-radius: 999px;
   background: var(--card-hi); color: var(--muted); font: 500 12.5px var(--sans); cursor: pointer; }
-.copyable .copy:hover { color: var(--ink); border-color: rgba(255, 255, 255, .28); }
+.copyable .copy:hover { color: var(--ink); border-color: var(--rule-hover); }
 
 /* /upstreams: BaoCode's marks for sites' buttons, each on the ground it is for. */
 .assets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 0 0 1.1em; }
@@ -194,17 +235,18 @@ dl.import dd[data-field="url"], dl.import dd[data-field="key"] { font-family: va
 .pick:focus-visible { outline: 2px solid var(--gold); outline-offset: 4px; }
 .pick:target .sample { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--gold); }
 .pick::after { content: attr(data-hint); position: absolute; bottom: calc(100% + 9px); left: 50%; z-index: 1; padding: 4px 9px; border-radius: 6px;
-  background: #ffffff; color: #111110; font: 500 12px/1.4 var(--sans); white-space: nowrap; opacity: 0; pointer-events: none;
+  background: var(--cta); color: var(--cta-ink); font: 500 12px/1.4 var(--sans); white-space: nowrap; opacity: 0; pointer-events: none;
   transform: translate(-50%, 4px); transition: opacity .14s ease, transform .14s ease; }
 .pick:hover::after, .pick:focus-visible::after, .pick.copied::after { opacity: 1; transform: translate(-50%, 0); }
-.pick.copied::after { background: #9dc08b; }
+.pick.copied::after { background: #9dc08b; color: #111110; }
 
 /* /upstreams: BaoCode's Settings → Models drawn in Bao Light, as the app
    shows it to someone on the light theme: a site's card at the top, the
    site just imported below. Its own colors. */
 .mock { --bg: #FDFCF8; --side: #F5F4EE; --card: #F4F2EC; --sel: #E8E5DC; --line: #E9E7DF; --text: #2B2925; --dim: #69655A; --faint: #8E8A7E; --sand: #E2B373; --sand-text: #8F6528; --green: #5C8B4C;
   margin: 34px -32px 8px; font: 13px/1.4 var(--sans); color: var(--text); user-select: none; }
-.mock .win { display: flex; position: relative; overflow: hidden; border: 1px solid rgba(255, 255, 255, .12); border-radius: 14px; background: var(--bg); box-shadow: 0 30px 70px -30px rgba(0, 0, 0, .8); }
+.mock .win { display: flex; position: relative; overflow: hidden; border: 1px solid var(--rule-hi); border-radius: 14px; background: var(--bg); box-shadow: 0 30px 70px -30px rgba(0, 0, 0, .8); }
+:root[data-theme="light"] .mock .win { box-shadow: 0 24px 60px -28px rgba(40, 32, 20, .3); }
 .mock .win { --focus: 39% 30%; }
 .mock .win::after { content: ''; position: absolute; inset: 0; pointer-events: none;
   background: radial-gradient(ellipse 70% 135% at var(--focus), transparent 20%, rgba(253, 252, 248, .4) 50%, rgba(253, 252, 248, .78) 82%, rgba(253, 252, 248, .92) 100%); }
