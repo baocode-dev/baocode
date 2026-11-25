@@ -416,8 +416,10 @@ ITheme vscodeTerminalTheme([TerminalColorTheme? theme]) =>
     (theme ?? terminalColorTheme.value).toXtermTheme();
 
 /// The terminal font, as VS Code's `getFont` resolves it without a
-/// `terminal.integrated.fontFamily`: the same stack as the editor and
-/// `monospace` if it isn't in that stack, followed by AppleBraille on macOS.
+/// `terminal.integrated.fontFamily`: the editor's ([AppFonts.mono] and
+/// [AppFonts.monoFallbacks], as this app's editor draws code: on Windows the
+/// app's fallbacks, ending in `monospace`; on Linux the families as loaded),
+/// then `monospace` where they have not it and, on macOS, AppleBraille.
 String vscodeTerminalFontFamily() {
   final families = [AppFonts.mono, ...AppFonts.monoFallbacks];
   if (!families.contains('monospace')) families.add('monospace');

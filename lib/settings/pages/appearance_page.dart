@@ -679,25 +679,30 @@ class AppearanceSettingsPage extends StatelessWidget {
                     semanticLabel: l10n.appearanceSettingsCodeFontLabel(
                       _familyName(context, families),
                     ),
-                    entries: () => ideMenuGroups([
-                      [
-                        IdeMenuAction(
-                          l10n.appearanceSettingsCodeFontDefault,
-                          checked: listEquals(
-                            families,
-                            CodeFont.defaultFamilies,
-                          ),
-                          onSelected: () =>
-                              _selectFamilies(CodeFont.defaultFamilies),
-                        ),
-                        for (final name in CodeFont.familyPresets)
+                    entries: () {
+                      // On Linux, what it offers loaded ahead of a pick.
+                      unawaited(LinuxCodeFonts.preloadPresets());
+                      return ideMenuGroups([
+                        [
                           IdeMenuAction(
-                            name,
-                            checked: listEquals(families, _presetOf(name)),
-                            onSelected: () => _selectFamilies(_presetOf(name)),
+                            l10n.appearanceSettingsCodeFontDefault,
+                            checked: listEquals(
+                              families,
+                              CodeFont.defaultFamilies,
+                            ),
+                            onSelected: () =>
+                                _selectFamilies(CodeFont.defaultFamilies),
                           ),
-                      ],
-                    ]),
+                          for (final name in CodeFont.familyPresets)
+                            IdeMenuAction(
+                              name,
+                              checked: listEquals(families, _presetOf(name)),
+                              onSelected: () =>
+                                  _selectFamilies(_presetOf(name)),
+                            ),
+                        ],
+                      ]);
+                    },
                   ),
                 ),
                 // Not const: it must redraw as the font, size or ligatures

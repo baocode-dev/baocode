@@ -253,11 +253,16 @@ abstract final class AppMetrics {
 }
 
 abstract final class AppFonts {
-  /// The primary code font, resolved to a registered face on Linux.
+  /// The font code, paths and commands are drawn in: the first of
+  /// [CodeFont.families], which the user may change; on Linux the first
+  /// installed, as loaded ([LinuxCodeFonts.resolved]).
   static String get mono =>
       LinuxCodeFonts.resolved.value?.first ?? CodeFont.families.value.first;
 
-  /// The other code fonts, followed by the platform's fallbacks.
+  /// What code falls back on, in order: the families after [mono], then on
+  /// Windows [windowsFallbacks]. A family not installed is passed over. On
+  /// Linux the rest as loaded, [LinuxCodeFonts.fallbacks] among them, or
+  /// while they are not, by their names.
   static List<String> get monoFallbacks => [
     ...(LinuxCodeFonts.resolved.value?.skip(1) ??
         CodeFont.families.value.skip(1)),

@@ -30,7 +30,8 @@ abstract final class CodeFont {
     'Cascadia Mono',
   ];
 
-  /// The families offered by the Appearance picker, in display order.
+  /// The families the Appearance page's menu offers: each is put first,
+  /// then the defaults.
   static const familyPresets = <String>[
     'JetBrains Mono',
     'Fira Code',

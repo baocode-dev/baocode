@@ -245,9 +245,13 @@ static void reveal_path(const char* path) {
                 nullptr, nullptr);
 }
 
-// Resolve named code fonts before Skia's locale-sensitive family lookup.
-// FcFontMatch also returns substitutes, so verify the family before accepting
-// a file. Flutter's byte loader reads the first face of a collection only.
+// codeFontFiles: for each family named, the files of its regular, bold,
+// italic and bold italic faces as Fontconfig matches them, for the app to
+// load itself (see linux_code_fonts.dart), and whether it is installed at
+// all. FcFontMatch answers with a substitute too, so only a face of the
+// family itself counts (for `monospace`, any monospaced one). A face in a
+// collection but its first is installed without a file: Flutter's loader
+// reads only the first.
 static FlValue* code_font_files(FlValue* args) {
   FlValue* result = fl_value_new_map();
   if (fl_value_get_type(args) != FL_VALUE_TYPE_LIST) return result;
@@ -256,6 +260,7 @@ static FlValue* code_font_files(FlValue* args) {
     if (fl_value_get_type(value) != FL_VALUE_TYPE_STRING) continue;
     const auto* family = reinterpret_cast<const FcChar8*>(fl_value_get_string(value));
     g_autoptr(FlValue) files = fl_value_new_list();
+    bool installed = false;
     for (int weight : {FC_WEIGHT_REGULAR, FC_WEIGHT_BOLD}) {
       for (int slant : {FC_SLANT_ROMAN, FC_SLANT_ITALIC}) {
         FcPattern* query = FcPatternCreate();
@@ -278,6 +283,7 @@ static FlValue* code_font_files(FlValue* args) {
           exact = FcPatternGetInteger(match, FC_SPACING, 0, &spacing) == FcResultMatch &&
                   spacing == FC_MONO;
         }
+        installed = installed || exact;
         FcChar8* path;
         int index;
         if (exact && FcPatternGetInteger(match, FC_INDEX, 0, &index) == FcResultMatch &&
@@ -287,7 +293,10 @@ static FlValue* code_font_files(FlValue* args) {
         FcPatternDestroy(match);
       }
     }
-    fl_value_set_string_take(result, fl_value_get_string(value), g_steal_pointer(&files));
+    FlValue* entry = fl_value_new_map();
+    fl_value_set_string_take(entry, "files", g_steal_pointer(&files));
+    fl_value_set_string_take(entry, "installed", fl_value_new_bool(installed));
+    fl_value_set_string_take(result, fl_value_get_string(value), entry);
   }
   return result;
 }

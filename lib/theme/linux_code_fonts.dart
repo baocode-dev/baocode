@@ -7,74 +7,116 @@ import 'package:flutter/services.dart';
 import '../platform/app_platform.dart';
 import 'code_font.dart';
 
-/// Linux's Skia family lookup can pick a different face under a CJK locale.
-/// Register the exact Fontconfig matches under private names, so the fix
-/// applies only to code and never changes the window's font matching locale.
+/// Code drawn on Linux in the families set ([CodeFont.families]), each
+/// loaded from the files Fontconfig matches for it, under a name of the
+/// app's own.
+///
+/// By their own names, Skia may draw them in another face under a CJK
+/// locale (#1304): its Fontconfig lookup gathers the faces of every family
+/// the configuration puts with the name (a CJK one, first, for `zh`), then
+/// picks among them by style and the locale's language, not by family, and
+/// the CJK face comes out, proportional at times. Skia keeps the family
+/// since a4d18ba482 (flutter/flutter#195102); with a Flutter whose Skia has
+/// it, this can go. `FC_LANG=en` works around it too, but for the whole app
+/// and what it starts, and the language is not the app's to change.
 abstract final class LinuxCodeFonts {
+  /// What code falls back on after the families set: monospaced ones most
+  /// Linux systems have, then whichever Fontconfig calls monospaced.
   static const fallbacks = [
     'DejaVu Sans Mono',
     'Liberation Mono',
     'Noto Sans Mono',
     'monospace',
   ];
+
+  /// The window's channel (WindowControls'), whose Linux host answers
+  /// `codeFontFiles` (see my_application.cc).
   static const _channel = MethodChannel('baocode/window');
-  static final _loaded = <String, Future<String?>>{};
+
+  /// Each family asked for: the name to draw it by (the one it was loaded
+  /// under; its own, installed where it cannot be loaded), or null, not
+  /// installed.
+  static final _faces = <String, Future<String?>>{};
+
+  static int _aliases = 0;
+
   static final _resolved = ValueNotifier<List<String>?>(null);
+
+  /// The families code is drawn in, by the names to draw them by: those set,
+  /// then [fallbacks], the ones not installed left out. Null off Linux, and
+  /// while none is known.
   static ValueListenable<List<String>?> get resolved => _resolved;
 
+  /// Loads the families set, before the first frame, and those set later.
   static Future<void> start() async {
     if (!AppPlatform.isLinux) return;
     CodeFont.families.addListener(_refresh);
-    await _refresh(preloadPresets: true);
+    await _refresh();
   }
 
-  static Future<void> _refresh({bool preloadPresets = false}) async {
+  /// Loads the families the Appearance page's menu offers, as it opens: a
+  /// font loaded has Flutter lay all its text out again, which picked from
+  /// the menu left the old glyphs on screen a long while.
+  static Future<void> preloadPresets() async {
+    if (!AppPlatform.isLinux) return;
+    await _load({...CodeFont.defaultFamilies, ...CodeFont.familyPresets});
+  }
+
+  static Future<void> _refresh() async {
     final configured = CodeFont.families.value;
     final families = {...configured, ...fallbacks};
-    // Register the picker fonts before the first frame. Loading font bytes
-    // clears Flutter's font caches, including those for unrelated UI text.
-    final requested = {
-      ...families,
-      if (preloadPresets) ...CodeFont.defaultFamilies,
-      if (preloadPresets) ...CodeFont.familyPresets,
-    };
-    try {
-      final uncached = requested.where((name) => !_loaded.containsKey(name));
-      final paths = uncached.isEmpty
-          ? null
-          : await _channel.invokeMapMethod<String, Object?>(
-              'codeFontFiles',
-              uncached.toList(),
-            );
-      for (final MapEntry(:key, :value)
-          in paths?.entries ?? const <MapEntry<String, Object?>>[]) {
-        _loaded.putIfAbsent(
-          key,
-          () => _register((value as List).cast<String>()),
-        );
-      }
-      if (preloadPresets) {
-        await Future.wait(_loaded.values);
-      }
-      final aliases = [
-        for (final name in families)
-          if (await _loaded[name] case final String alias) alias,
-      ];
-      if (identical(configured, CodeFont.families.value)) {
-        final next = aliases.isEmpty ? null : aliases;
-        if (!listEquals(_resolved.value, next)) _resolved.value = next;
-      }
-    } on PlatformException catch (error) {
-      debugPrint('Code fonts could not be resolved: $error');
-    } on MissingPluginException {
-      // Non-desktop Flutter hosts have no Linux runner.
-    }
+    await _load(families);
+    final faces = [for (final name in families) ?await _faces[name]];
+    // Set again meanwhile: that one's to tell.
+    if (!identical(configured, CodeFont.families.value)) return;
+    final next = faces.isEmpty ? null : faces;
+    if (!listEquals(_resolved.value, next)) _resolved.value = next;
   }
 
-  static int _nextAlias = 0;
+  /// Asks for the files of those of [families] not asked for yet, and loads
+  /// them. Asked again later where the host could not answer.
+  static Future<void> _load(Set<String> families) async {
+    final asking = [
+      for (final name in families)
+        if (!_faces.containsKey(name)) name,
+    ];
+    if (asking.isNotEmpty) {
+      final Map<String, Object?>? answer;
+      try {
+        answer = await _channel.invokeMapMethod<String, Object?>(
+          'codeFontFiles',
+          asking,
+        );
+      } on PlatformException catch (error) {
+        debugPrint('Code fonts could not be resolved: $error');
+        return;
+      } on MissingPluginException {
+        // A host without the Linux runner's channel.
+        return;
+      }
+      for (final name in asking) {
+        final entry = answer?[name];
+        final (files, installed) = entry is Map
+            ? (
+                [...?(entry['files'] as List?)?.cast<String>()],
+                entry['installed'] == true,
+              )
+            : (const <String>[], false);
+        _faces.putIfAbsent(name, () => _register(name, files, installed));
+      }
+    }
+    await Future.wait([for (final name in families) ?_faces[name]]);
+  }
 
-  static Future<String?> _register(List<String> files) async {
-    final alias = 'BaoCodeCodeFont${_nextAlias++}';
+  /// The name to draw [family] by: its [files] loaded under one of the
+  /// app's own; where none could be and it is [installed] (in a font
+  /// collection but its first face), its own name, Skia's to find as before.
+  static Future<String?> _register(
+    String family,
+    List<String> files,
+    bool installed,
+  ) async {
+    final alias = 'BaoCodeCodeFont${_aliases++}';
     var loaded = false;
     for (final path in files.toSet()) {
       try {
@@ -84,9 +126,10 @@ abstract final class LinuxCodeFonts {
         );
         loaded = true;
       } on FileSystemException {
-        // The font was removed or is no longer readable.
+        // Removed since, or not readable.
       }
     }
-    return loaded ? alias : null;
+    if (loaded) return alias;
+    return installed ? family : null;
   }
 }
