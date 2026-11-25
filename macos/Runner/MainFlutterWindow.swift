@@ -710,6 +710,8 @@ class MainFlutterWindow: BaoWindow {
     HangWatchdog.shared.start(messenger: messenger)
     // Who takes the front when it goes oddly (see FocusWatch.swift).
     FocusWatch.shared.start(window: self)
+    // The keyboard back from another app's panel (see FocusWatch.swift).
+    KeyReturn.shared.start()
 
     // Notifications, the Dock's badge and the menu bar icon (see
     // lib/notifications/).

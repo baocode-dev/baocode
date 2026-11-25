@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show ViewFocusEvent, ViewFocusState;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
@@ -48,6 +49,10 @@ abstract final class HeldKeys {
       if (event is PointerDownEvent && _anyHeld) unawaited(sync('a press'));
     });
     AppLifecycleListener(onResume: () => unawaited(sync('back in front')));
+    // A window key again with the app in front all along: the keyboard
+    // back from another app's panel (macos/Runner/FocusWatch.swift), its
+    // modifier's key up gone to the panel.
+    WidgetsBinding.instance.addObserver(_KeyAgain());
   }
 
   /// Whether ⌘ or Ctrl is held, either on any platform, for a click now:
@@ -126,5 +131,14 @@ abstract final class HeldKeys {
         keyboard.isControlPressed ||
         keyboard.isAltPressed ||
         keyboard.isMetaPressed;
+  }
+}
+
+class _KeyAgain with WidgetsBindingObserver {
+  @override
+  void didChangeViewFocus(ViewFocusEvent event) {
+    if (event.state == ViewFocusState.focused) {
+      unawaited(HeldKeys.sync('the window key again'));
+    }
   }
 }

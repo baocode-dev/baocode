@@ -181,11 +181,157 @@ final class FocusWatch {
     return over.count > 8 ? "\(shown), \(over.count - 8) more" : shown
   }
 
-  private static func bounds(_ info: [String: Any]) -> CGRect? {
+  fileprivate static func bounds(_ info: [String: Any]) -> CGRect? {
     guard let dictionary = info[kCGWindowBounds as String] as? NSDictionary,
           let rect = CGRect(dictionaryRepresentation: dictionary),
           rect.width > 0, rect.height > 0
     else { return nil }
     return rect
+  }
+}
+
+/// Gives the keyboard back to the app's window that lent it to another
+/// app's panel, once the panel is gone.
+///
+/// A panel that takes the keyboard without bringing its app in front (the
+/// Launchpad's, Spotlight's, Bob's to translate a selection or a screenshot)
+/// leaves this app the active one, its traffic lights lit; the window only
+/// resigns key. Gone, it gives the keyboard back to no window: nothing told
+/// this app it was back (it never left), and keys typed went nowhere till a
+/// click on the window. Its modifier going up, lost with it, kept held for
+/// the app (see lib/platform/held_keys.dart).
+///
+/// So, the app active with no window key after one of its windows resigned
+/// it: the windows of other apps over it are looked at till none shows
+/// that was not already there as it was last key (the Dock, the menu bar's,
+/// Spotlight's hidden one), then the window is made key again. Written to
+/// the event log (`[focus]`).
+final class KeyReturn {
+  static let shared = KeyReturn()
+
+  /// How often the windows over it are looked at while it is lent.
+  static let interval: TimeInterval = 0.25
+
+  /// How long it is looked after: then a click brings it back, as before.
+  static let patience: TimeInterval = 600
+
+  private var started = false
+
+  /// The windows of other apps over each window as it was last key, by its
+  /// number: what is always there.
+  private var furniture: [Int: Set<CGWindowID>] = [:]
+
+  /// How many looks in a row find the panel gone before the window is key.
+  static let goneTicks = 2
+
+  private weak var lent: NSWindow?
+  private var lentAt: Date?
+  private var timer: Timer?
+  /// Whether a window of another app has been seen over it while lent: one
+  /// never seen is given no keyboard back.
+  private var seen = false
+  private var gone = 0
+
+  /// Watches the app's windows (BaoWindow), once. From the main thread.
+  func start() {
+    if started { return }
+    started = true
+    let center = NotificationCenter.default
+    center.addObserver(
+      forName: NSWindow.didBecomeKeyNotification, object: nil, queue: .main
+    ) { [weak self] notification in
+      guard let window = notification.object as? BaoWindow else { return }
+      self?.becameKey(window)
+    }
+    center.addObserver(
+      forName: NSWindow.didResignKeyNotification, object: nil, queue: .main
+    ) { [weak self] notification in
+      guard let window = notification.object as? BaoWindow else { return }
+      // AppKit has the next key window, or the app inactive, a moment after.
+      DispatchQueue.main.async { self?.resigned(window) }
+    }
+  }
+
+  private func becameKey(_ window: BaoWindow) {
+    stop()
+    if let over = Self.foreignWindowsOver(window) {
+      furniture[window.windowNumber] = over
+    }
+  }
+
+  private func resigned(_ window: BaoWindow) {
+    guard NSApp.isActive, NSApp.keyWindow == nil, window.isVisible, !window.isMiniaturized,
+          furniture[window.windowNumber] != nil
+    else { return }
+    stop()
+    lent = window
+    lentAt = Date()
+    let timer = Timer(timeInterval: Self.interval, repeats: true) { [weak self] _ in
+      self?.look()
+    }
+    RunLoop.main.add(timer, forMode: .common)
+    self.timer = timer
+  }
+
+  private func look() {
+    guard let window = lent, let since = lentAt,
+          NSApp.isActive, NSApp.keyWindow == nil, window.isVisible, !window.isMiniaturized,
+          Date().timeIntervalSince(since) < Self.patience,
+          let always = furniture[window.windowNumber],
+          let over = Self.foreignWindowsOver(window)
+    else {
+      stop()
+      return
+    }
+    // The panel, or the next one it opened, still up.
+    if !over.subtracting(always).isEmpty {
+      seen = true
+      gone = 0
+      return
+    }
+    // Not taken from it before the panel has shown (it would close it), nor
+    // between one panel and the next it opens.
+    gone += 1
+    if !seen || gone < Self.goneTicks { return }
+    stop()
+    window.makeKey()
+    HangWatchdog.shared.appendEvent(
+      "focus",
+      String(
+        format: "key again after %.1f s, lent to another app's panel",
+        Date().timeIntervalSince(since)))
+  }
+
+  private func stop() {
+    timer?.invalidate()
+    timer = nil
+    lent = nil
+    lentAt = nil
+    seen = false
+    gone = 0
+  }
+
+  /// The on-screen windows of other apps over [window] that show (not the
+  /// menu bar's strip): nil when the system cannot say.
+  private static func foreignWindowsOver(_ window: NSWindow) -> Set<CGWindowID>? {
+    guard window.windowNumber > 0,
+          let above = CGWindowListCopyWindowInfo(
+            [.optionOnScreenAboveWindow, .excludeDesktopElements],
+            CGWindowID(window.windowNumber)) as? [[String: Any]]
+    else { return nil }
+    let menuBar = Int(CGWindowLevelForKey(.mainMenuWindow))
+    let status = Int(CGWindowLevelForKey(.statusWindow))
+    var ids = Set<CGWindowID>()
+    for info in above {
+      let pid = info[kCGWindowOwnerPID as String] as? Int ?? 0
+      if pid == Int(getpid()) { continue }
+      let alpha = info[kCGWindowAlpha as String] as? Double ?? 1
+      if alpha <= 0 { continue }
+      guard let rect = FocusWatch.bounds(info) else { continue }
+      let layer = info[kCGWindowLayer as String] as? Int ?? 0
+      if (layer == menuBar || layer == status) && rect.height <= 40 { continue }
+      if let id = info[kCGWindowNumber as String] as? Int { ids.insert(CGWindowID(id)) }
+    }
+    return ids
   }
 }
