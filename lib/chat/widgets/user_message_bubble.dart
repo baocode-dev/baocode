@@ -66,7 +66,11 @@ class UserMessageBubble extends StatefulWidget {
     if (box == null || !box.attached || !box.hasSize) return null;
     final fitted = UserMessageStyle.current.value == UserMessageStyle.bubble;
     return (
-      rect: box.localToGlobal(Offset.zero) & box.size,
+      // On screen, zoomed (see UiZoom) as its place is.
+      rect: MatrixUtils.transformRect(
+        box.getTransformTo(null),
+        Offset.zero & box.size,
+      ),
       radius: fitted ? _MessageShape.radius : radius,
       tail: fitted ? 1.0 : 0.0,
     );
@@ -919,7 +923,10 @@ class _RenderEditMorph extends RenderProxyBox {
       super.paint(context, offset);
       return;
     }
-    final from = _fromHere ??= _from.rect.shift(-localToGlobal(Offset.zero));
+    final from = _fromHere ??= MatrixUtils.inverseTransformRect(
+      getTransformTo(null),
+      _from.rect,
+    );
     final rect = Rect.lerp(from, Offset.zero & size, t)!;
     final radius =
         _from.radius + (UserMessageEditMorph.radius - _from.radius) * t;
