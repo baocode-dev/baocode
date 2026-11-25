@@ -26,6 +26,60 @@
   location.replace(there + location.search + location.hash);
 })();
 
+// Light or dark, as <html data-theme>, before anything is drawn: the
+// system's, or the one picked last with the header's button (kept as
+// baocode.theme). The button goes round from the system's to the other of
+// the two, the same one, and back. window.baoTheme tells the pages' scripts
+// which it is, and calls them back when it changes.
+(() => {
+  const root = document.documentElement;
+  const system = matchMedia('(prefers-color-scheme: light)');
+  const listeners = new Set();
+  let pick = null;
+  try { pick = localStorage.getItem('baocode.theme'); } catch {}
+  if (pick !== 'light' && pick !== 'dark') pick = 'auto';
+  const WORDS = {
+    zh: { auto: '外观：跟随系统', light: '外观：浅色', dark: '外观：深色' },
+    en: { auto: 'Appearance: system', light: 'Appearance: light', dark: 'Appearance: dark' },
+  };
+  function label() {
+    const words = WORDS[root.lang.startsWith('zh') ? 'zh' : 'en'][pick];
+    for (const button of document.querySelectorAll('[data-theme-toggle]')) {
+      button.setAttribute('aria-label', words);
+      button.dataset.tip = words;
+    }
+  }
+  function apply(changed) {
+    const was = root.dataset.theme;
+    root.dataset.theme = pick === 'light' || (pick === 'auto' && system.matches) ? 'light' : 'dark';
+    root.dataset.themePick = pick;
+    label();
+    if (!changed || was === root.dataset.theme) return;
+    // All of it at once, no color easing over at its own pace.
+    root.classList.add('theme-switching');
+    requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('theme-switching')));
+    for (const f of listeners) f();
+  }
+  system.addEventListener('change', () => apply(true));
+  document.addEventListener('click', (event) => {
+    if (!event.target.closest?.('[data-theme-toggle]')) return;
+    const same = system.matches ? 'light' : 'dark';
+    const other = system.matches ? 'dark' : 'light';
+    pick = pick === 'auto' ? other : pick === other ? same : 'auto';
+    try {
+      if (pick === 'auto') localStorage.removeItem('baocode.theme');
+      else localStorage.setItem('baocode.theme', pick);
+    } catch {}
+    apply(true);
+  });
+  document.addEventListener('DOMContentLoaded', label);
+  window.baoTheme = {
+    get light() { return root.dataset.theme === 'light'; },
+    onChange(f) { listeners.add(f); },
+  };
+  apply(false);
+})();
+
 // A visitor who may be a listed channel's has the places a channel changes
 // (the brand, the home page's title and subtitle) hidden until site.js has
 // filled them in, so ours never flash first; and channels.json is asked
