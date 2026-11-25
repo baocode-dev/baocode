@@ -253,7 +253,24 @@ static void window_method_call_cb(FlMethodChannel* channel, FlMethodCall* call,
   FlValue* args = fl_method_call_get_args(call);
   g_autoptr(FlMethodResponse) response = nullptr;
 
-  if (strcmp(name, "pickDirectory") == 0) {
+  if (strcmp(name, "heldModifiers") == 0) {
+    // The modifiers held now, as the system has them: the app's own may
+    // have missed one going up (see held_keys.dart).
+    GdkKeymap* keymap = gdk_keymap_get_for_display(gdk_display_get_default());
+    const guint state = gdk_keymap_get_modifier_state(keymap);
+    g_autoptr(FlValue) result = fl_value_new_map();
+    fl_value_set_string_take(result, "shift",
+                             fl_value_new_bool((state & GDK_SHIFT_MASK) != 0));
+    fl_value_set_string_take(
+        result, "control", fl_value_new_bool((state & GDK_CONTROL_MASK) != 0));
+    fl_value_set_string_take(result, "alt",
+                             fl_value_new_bool((state & GDK_MOD1_MASK) != 0));
+    fl_value_set_string_take(
+        result, "meta",
+        fl_value_new_bool(
+            (state & (GDK_SUPER_MASK | GDK_MOD4_MASK | GDK_META_MASK)) != 0));
+    response = FL_METHOD_RESPONSE(fl_method_success_response_new(result));
+  } else if (strcmp(name, "pickDirectory") == 0) {
     GSList* names = choose_files(self->window, GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER,
                                  "Open Folder", FALSE, nullptr, nullptr, FALSE);
     g_autoptr(FlValue) result = nullptr;

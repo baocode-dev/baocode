@@ -3247,7 +3247,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get queuedRemove => '移出队列';
 
   @override
-  String get replySuggestionHint => '单击放进输入框，双击直接发送';
+  String replySuggestionHint(String key) {
+    return '单击放进输入框，双击直接发送，按住 $key 单击可多选';
+  }
 
   @override
   String get stopConfirmMessage => '要停止 Agent 吗？';
@@ -3673,7 +3675,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get generalSettingsPromptSuggestionsDescription =>
-      '每轮结束后，在输入框上方给出两三句你可能想发的话：单击放进输入框润色，双击直接发送；输入框空着时按 Tab 采用第一句。由 Agent 在回复末尾顺手写出，不额外请求模型。从下一条消息起生效。';
+      '每轮结束后，在输入框上方给出两到四句你可能想发的话：单击放进输入框润色，双击直接发送；按住 ⌘ 或 Ctrl 单击可多选，每句一行；输入框空着时按 Tab 采用第一句。由 Agent 在回复末尾顺手写出，不额外请求模型。从下一条消息起生效。';
 
   @override
   String generalSettingsCommitAttributionLabel(String name) {
