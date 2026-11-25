@@ -6,7 +6,9 @@
 #include "login_window.h"
 #include "flutter/generated_plugin_registrant.h"
 
+#include <fontconfig/fontconfig.h>
 #include <gdk/gdkkeysyms.h>
+#include <initializer_list>
 #include <string.h>
 
 struct _MyApplication {
@@ -243,6 +245,53 @@ static void reveal_path(const char* path) {
                 nullptr, nullptr);
 }
 
+// Resolve named code fonts before Skia's locale-sensitive family lookup.
+// FcFontMatch also returns substitutes, so verify the family before accepting
+// a file. Flutter's byte loader reads the first face of a collection only.
+static FlValue* code_font_files(FlValue* args) {
+  FlValue* result = fl_value_new_map();
+  if (fl_value_get_type(args) != FL_VALUE_TYPE_LIST) return result;
+  for (size_t i = 0; i < fl_value_get_length(args); ++i) {
+    FlValue* value = fl_value_get_list_value(args, i);
+    if (fl_value_get_type(value) != FL_VALUE_TYPE_STRING) continue;
+    const auto* family = reinterpret_cast<const FcChar8*>(fl_value_get_string(value));
+    g_autoptr(FlValue) files = fl_value_new_list();
+    for (int weight : {FC_WEIGHT_REGULAR, FC_WEIGHT_BOLD}) {
+      for (int slant : {FC_SLANT_ROMAN, FC_SLANT_ITALIC}) {
+        FcPattern* query = FcPatternCreate();
+        FcPatternAddString(query, FC_FAMILY, family);
+        FcPatternAddInteger(query, FC_WEIGHT, weight);
+        FcPatternAddInteger(query, FC_SLANT, slant);
+        FcConfigSubstitute(nullptr, query, FcMatchPattern);
+        FcDefaultSubstitute(query);
+        FcResult status;
+        FcPattern* match = FcFontMatch(nullptr, query, &status);
+        FcPatternDestroy(query);
+        if (match == nullptr) continue;
+        FcChar8* name;
+        bool exact = false;
+        for (int j = 0; FcPatternGetString(match, FC_FAMILY, j, &name) == FcResultMatch; ++j) {
+          if (FcStrCmpIgnoreCase(family, name) == 0) exact = true;
+        }
+        int spacing = 0;
+        if (FcStrCmpIgnoreCase(family, reinterpret_cast<const FcChar8*>("monospace")) == 0) {
+          exact = FcPatternGetInteger(match, FC_SPACING, 0, &spacing) == FcResultMatch &&
+                  spacing == FC_MONO;
+        }
+        FcChar8* path;
+        int index;
+        if (exact && FcPatternGetInteger(match, FC_INDEX, 0, &index) == FcResultMatch &&
+            index == 0 && FcPatternGetString(match, FC_FILE, 0, &path) == FcResultMatch) {
+          fl_value_append_take(files, fl_value_new_string(reinterpret_cast<const char*>(path)));
+        }
+        FcPatternDestroy(match);
+      }
+    }
+    fl_value_set_string_take(result, fl_value_get_string(value), g_steal_pointer(&files));
+  }
+  return result;
+}
+
 // baocode/window: the calls WindowControls makes when this host is a desktop.
 // Menus, clipboard images and drag-out stay unimplemented (MissingPlugin);
 // the app already treats those as optional.
@@ -253,7 +302,10 @@ static void window_method_call_cb(FlMethodChannel* channel, FlMethodCall* call,
   FlValue* args = fl_method_call_get_args(call);
   g_autoptr(FlMethodResponse) response = nullptr;
 
-  if (strcmp(name, "heldModifiers") == 0) {
+  if (strcmp(name, "codeFontFiles") == 0) {
+    g_autoptr(FlValue) result = code_font_files(args);
+    response = FL_METHOD_RESPONSE(fl_method_success_response_new(result));
+  } else if (strcmp(name, "heldModifiers") == 0) {
     // The modifiers held now, as the system has them: the app's own may
     // have missed one going up (see held_keys.dart).
     GdkKeymap* keymap = gdk_keymap_get_for_display(gdk_display_get_default());

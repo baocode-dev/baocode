@@ -126,6 +126,7 @@ import 'telemetry/telemetry_service.dart';
 import 'telemetry/telemetry_store.dart';
 import 'theme/app_theme.dart';
 import 'theme/code_font.dart';
+import 'theme/linux_code_fonts.dart';
 import 'theme/pixel_snapped_text_scaler.dart';
 import 'theme/ui_zoom.dart';
 import 'theme/window_blur.dart';
@@ -208,6 +209,7 @@ Future<void> main(List<String> arguments) async {
       (key) => files.settings[key],
     ).timeout(const Duration(seconds: 1), onTimeout: () {});
     followSettingsFiles(files);
+    await LinuxCodeFonts.start();
     // The channel build's first start: set up before anything else shows.
     await _beginChannelSetup(files);
     _openChannelGate(files);
@@ -884,6 +886,7 @@ class _BaoCodeAppState extends State<BaoCodeApp>
   /// windows' blur, which every surface over it is tinted for.
   static final Listenable _codeFont = Listenable.merge([
     CodeFont.families,
+    LinuxCodeFonts.resolved,
     CodeFont.size,
     CodeFont.ligatures,
     WindowBlur.enabled,

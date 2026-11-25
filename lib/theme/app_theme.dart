@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../ide/terminal/terminal_colors.dart';
 import '../platform/app_platform.dart';
 import 'code_font.dart';
+import 'linux_code_fonts.dart';
 import 'window_blur.dart';
 import 'workbench_theme.dart' hide ColorScheme;
 
@@ -252,25 +253,17 @@ abstract final class AppMetrics {
 }
 
 abstract final class AppFonts {
-  /// The font code, paths and commands are drawn in: the first of
-  /// [CodeFont.families], which the user may change.
-  static String get mono => CodeFont.families.value.first;
+  /// The primary code font, resolved to a registered face on Linux.
+  static String get mono =>
+      LinuxCodeFonts.resolved.value?.first ?? CodeFont.families.value.first;
 
-  /// What code falls back on: the remaining configured families, then the
-  /// platform's fallbacks. A family not installed is passed over.
+  /// The other code fonts, followed by the platform's fallbacks.
   static List<String> get monoFallbacks => [
-    ...CodeFont.families.value.skip(1),
+    ...(LinuxCodeFonts.resolved.value?.skip(1) ??
+        CodeFont.families.value.skip(1)),
     if (AppPlatform.isWindows) ...windowsFallbacks,
-    if (AppPlatform.isLinux) ..._linuxMonoFallbacks,
-  ];
-
-  /// The default code families need not be installed on Linux. Use common
-  /// system monospace families before Flutter falls back to its default face.
-  static const _linuxMonoFallbacks = [
-    'DejaVu Sans Mono',
-    'Liberation Mono',
-    'Noto Sans Mono',
-    'monospace',
+    if (AppPlatform.isLinux && LinuxCodeFonts.resolved.value == null)
+      ...LinuxCodeFonts.fallbacks,
   ];
 
   /// A style for code drawn at [size], as the code's size is moved (see

@@ -24,6 +24,8 @@ add_definitions(-DAPPLICATION_ID="${APPLICATION_ID}")
 # Add dependency libraries. Add any application-specific dependencies here.
 target_link_libraries(${BINARY_NAME} PRIVATE flutter)
 target_link_libraries(${BINARY_NAME} PRIVATE PkgConfig::GTK)
+pkg_check_modules(FONTCONFIG REQUIRED IMPORTED_TARGET fontconfig)
+target_link_libraries(${BINARY_NAME} PRIVATE PkgConfig::FONTCONFIG)
 
 # WebKitGTK, for the channel build's login window (login_window.cc): only in
 # the channel build (BAOCODE_CHANNEL=true in the environment, as
