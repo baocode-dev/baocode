@@ -259,7 +259,9 @@ static FlValue* code_font_files(FlValue* args) {
     FlValue* value = fl_value_get_list_value(args, i);
     if (fl_value_get_type(value) != FL_VALUE_TYPE_STRING) continue;
     const auto* family = reinterpret_cast<const FcChar8*>(fl_value_get_string(value));
-    g_autoptr(FlValue) files = fl_value_new_list();
+    // Taken by the entry below: g_steal_pointer gives a gpointer in C++
+    // with the GLib the release builds use.
+    FlValue* files = fl_value_new_list();
     bool installed = false;
     for (int weight : {FC_WEIGHT_REGULAR, FC_WEIGHT_BOLD}) {
       for (int slant : {FC_SLANT_ROMAN, FC_SLANT_ITALIC}) {
@@ -294,7 +296,7 @@ static FlValue* code_font_files(FlValue* args) {
       }
     }
     FlValue* entry = fl_value_new_map();
-    fl_value_set_string_take(entry, "files", g_steal_pointer(&files));
+    fl_value_set_string_take(entry, "files", files);
     fl_value_set_string_take(entry, "installed", fl_value_new_bool(installed));
     fl_value_set_string_take(result, fl_value_get_string(value), entry);
   }
