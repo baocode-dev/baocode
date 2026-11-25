@@ -41,6 +41,7 @@ import 'resume_after_reset.dart';
 import 'chat_width.dart';
 import 'composer/command_details.dart';
 import 'composer/composer.dart';
+import 'composer/composer_draft.dart';
 import 'composer/composer_embeds.dart';
 import 'composer/composer_mock_data.dart';
 import 'composer/file_mentions.dart';
@@ -960,7 +961,16 @@ class _ChatScreenState extends State<ChatScreen>
     return _commands;
   }
 
-  static const _asideCommand = 'btw';
+  static const _asideCommand = ComposerDraft.asideCommand;
+
+  /// Text selected in the conversation, quoted in the message being
+  /// written (see [ChatHistoryView.onQuote]).
+  void _quote(String text) => _session.draft.insertQuote(text);
+
+  /// …or in a `/btw` one, where there are conversations beside this one.
+  ValueChanged<String>? get _quoteAside => widget.onSideQuestion == null
+      ? null
+      : (text) => _session.draft.insertQuote(text, aside: true);
 
   /// Takes `/btw …` for a conversation beside this one: true when it was
   /// one. What follows, on this line or the next, is asked there with the
@@ -1429,6 +1439,8 @@ class _ChatScreenState extends State<ChatScreen>
                         },
                         null => null,
                       },
+                      onQuote: _quote,
+                      onQuoteAside: _quoteAside,
                     ),
                   ),
                   // The start hint, before the first message.
@@ -1613,6 +1625,8 @@ class _ChatScreenState extends State<ChatScreen>
             onOpenAgent: _openAgent,
             onSetGoal: _setGoal,
             onFindClosed: layer.backFocus.requestFocus,
+            onQuote: _quote,
+            onQuoteAside: _quoteAside,
           ),
         ),
       ],

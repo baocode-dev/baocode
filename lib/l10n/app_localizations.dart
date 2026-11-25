@@ -4658,6 +4658,24 @@ abstract class AppLocalizations {
   /// **'Pasted text #{number}'**
   String pastedTextChip(int number);
 
+  /// Text quoted from the conversation, as a small tag in a message: the quote's number in the message.
+  ///
+  /// In en, this message translates to:
+  /// **'Quote #{number}'**
+  String quoteChip(int number);
+
+  /// Over text selected in the conversation: puts it in the message being written, as a quote of it.
+  ///
+  /// In en, this message translates to:
+  /// **'Quote'**
+  String get chatQuote;
+
+  /// Over text selected in the conversation: quotes it in a /btw message, asked in a conversation of its own beside this one.
+  ///
+  /// In en, this message translates to:
+  /// **'By the Way'**
+  String get chatQuoteAside;
+
   /// Shown in place of a long paste kept in a file that has since gone.
   ///
   /// In en, this message translates to:

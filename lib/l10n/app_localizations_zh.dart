@@ -2543,6 +2543,17 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String quoteChip(int number) {
+    return '引用 #$number';
+  }
+
+  @override
+  String get chatQuote => '引用';
+
+  @override
+  String get chatQuoteAside => '顺带一提';
+
+  @override
   String pastedTextGone(String path) {
     return '这段粘贴的内容已不在 $path。';
   }

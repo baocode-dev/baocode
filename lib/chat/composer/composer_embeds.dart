@@ -123,19 +123,25 @@ Iterable<({int start, int end, ComposerEmbed embed})> composerEmbedsIn(
 }
 
 /// [content], a copy of the composer's pasted back into one, its long
-/// pastes numbered on from [from], as pasted anew they would be: their
-/// references, which tell them apart in the message, not the same as
-/// those of the pastes already there.
-String renumberPastes(String content, {required int from}) {
+/// pastes numbered on from [from] (its quotes from [quotesFrom]), as pasted
+/// anew they would be: their references, which tell them apart in the
+/// message, not the same as those of the pastes already there.
+String renumberPastes(
+  String content, {
+  required int from,
+  required int quotesFrom,
+}) {
   var next = from;
+  var nextQuote = quotesFrom;
   final renumbered = StringBuffer();
   var at = 0;
   for (final (:start, :end, :embed) in composerEmbedsIn(content)) {
     if (embed.type != ComposerPastedTextEmbed.type) continue;
     final pasted = ComposerPastedTextEmbed.decode(embed.data);
+    final number = pasted.quoted ? nextQuote++ : next++;
     renumbered
       ..write(content.substring(at, start))
-      ..write(ComposerPastedTextEmbed.of(pasted.numbered(next++)).atom);
+      ..write(ComposerPastedTextEmbed.of(pasted.numbered(number)).atom);
     at = end;
   }
   if (at == 0) return content;
@@ -952,13 +958,13 @@ class _TextPreview extends StatelessWidget {
   );
 }
 
-/// The inline tag for a long paste ([ComposerPastedTextEmbed] data),
-/// centered on text of [textStyle]: its number and its count of lines, its
-/// first lines on hover, all of it on a click (see [showTextPreview]). In
-/// the composer and in sent messages alike.
+/// The inline tag for a long paste ([ComposerPastedTextEmbed] data), or a
+/// quote, centered on text of [textStyle]: its number and its count of
+/// lines, its first lines on hover, all of it on a click (see
+/// [showTextPreview]). In the composer and in sent messages alike.
 ///
 /// Inside a selectable area it copies as its message text
-/// (`[Pasted text #1 +120 lines]`).
+/// (`[Pasted text #1 +120 lines]`, `[Quote #1]`).
 class ComposerPastedTextChip extends StatelessWidget {
   const ComposerPastedTextChip({
     super.key,
@@ -980,7 +986,9 @@ class ComposerPastedTextChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final pasted = ComposerPastedTextEmbed.decode(data);
     final l10n = context.l10n;
-    final name = l10n.pastedTextChip(pasted.number);
+    final name = pasted.quoted
+        ? l10n.quoteChip(pasted.number)
+        : l10n.pastedTextChip(pasted.number);
     final lines = pasted.extraLines;
     final tag = _CenteredOnText(
       textStyle: textStyle,
@@ -1001,7 +1009,11 @@ class ComposerPastedTextChip extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.notes_rounded, size: 13, color: AppColors.textMuted),
+                Icon(
+                  pasted.quoted ? Codicons.quote : Icons.notes_rounded,
+                  size: 13,
+                  color: AppColors.textMuted,
+                ),
                 const SizedBox(width: 4),
                 Text(
                   name,

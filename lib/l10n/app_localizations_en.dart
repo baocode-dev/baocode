@@ -2630,6 +2630,17 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String quoteChip(int number) {
+    return 'Quote #$number';
+  }
+
+  @override
+  String get chatQuote => 'Quote';
+
+  @override
+  String get chatQuoteAside => 'By the Way';
+
+  @override
   String pastedTextGone(String path) {
     return 'This paste is no longer at $path.';
   }
