@@ -1632,6 +1632,79 @@ void main() {
     expect(bar, findsOneWidget, reason: 'left where it is');
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
+  testWidgets('a drag begun while the bar shows has a bar of its own; a press '
+      'outside the history takes it away', (tester) async {
+    const first = 'The parser drops the last token of every line.';
+    const second = 'Then the printer has nothing to close the block with.';
+    final feed = _Feed([
+      const UserMessageItem(text: 'Why does it fail?'),
+      const AssistantTextItem('$first\n\n$second'),
+    ])..streaming = false;
+    addTearDown(feed.dispose);
+    const outside = Key('outside');
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(
+          body: Column(
+            children: [
+              Expanded(
+                child: ChatHistoryView(feed: feed, onQuote: (_) {}),
+              ),
+              const SizedBox(key: outside, height: 60),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    RenderParagraph paragraph(String text) =>
+        tester.renderObject<RenderParagraph>(
+          find.byWidgetPredicate(
+            (widget) => widget is RichText && widget.text.toPlainText() == text,
+          ),
+        );
+    Offset at(RenderParagraph p, double x) =>
+        p.localToGlobal(Offset(x, p.size.height / 2));
+    final bar = find.byType(SelectionBubble);
+    Future<void> select(RenderParagraph p) async {
+      final drag = await tester.startGesture(
+        at(p, 2),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+      await drag.moveTo(at(p, 160));
+      await tester.pumpAndSettle();
+      await drag.up();
+      await tester.pumpAndSettle();
+    }
+
+    await select(paragraph(first));
+    expect(bar, findsOneWidget);
+    // The next, the bar still there: its press in the history is not one
+    // outside the bar's, which would take the new one away (only every
+    // other selection had a bar).
+    final below = paragraph(second);
+    await select(below);
+    expect(bar, findsOneWidget);
+    expect(
+      tester.getRect(bar).bottom,
+      lessThanOrEqualTo(below.localToGlobal(Offset.zero).dy),
+    );
+    expect(
+      tester.getRect(bar).bottom,
+      greaterThan(paragraph(first).localToGlobal(Offset.zero).dy),
+      reason: 'over the second paragraph, not the first',
+    );
+
+    await tester.tapAt(
+      tester.getCenter(find.byKey(outside)),
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pumpAndSettle();
+    expect(bar, findsNothing);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
   testWidgets('dragged from the end of a message down into the reply, the '
       'bar is over the reply\'s text, not over the message the drag began '
       'beside', (tester) async {
