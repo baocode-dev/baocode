@@ -90,6 +90,7 @@ import 'platform/native_md_clipboard.dart';
 import 'platform/app_binding.dart';
 import 'platform/app_platform.dart';
 import 'platform/data_dir.dart';
+import 'platform/held_keys.dart';
 import 'platform/error_log.dart';
 import 'platform/event_log.dart';
 import 'platform/open_requests.dart';
@@ -389,6 +390,9 @@ Future<void> main(List<String> arguments) async {
         .layoutAtLaunch(workspace.layout);
   }
   WindowControls.trackActiveView();
+  // The modifiers held as the system has them, not one the app missed
+  // going up.
+  if (WindowControls.isDesktop) HeldKeys.start();
   // What an editor copies, its tags and all, on the clipboard itself.
   if (WindowControls.isDesktop) {
     MdClipboard.instance = const NativeMdClipboard();

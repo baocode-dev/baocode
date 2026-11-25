@@ -495,6 +495,24 @@ void WindowChannel::HandleMethodCall(
   const std::string& method = call.method_name();
   const flutter::EncodableMap& arguments = Arguments(call.arguments());
 
+  if (method == "heldModifiers") {
+    // The modifiers held now, as the system has them: the app's own may
+    // have missed one going up (see held_keys.dart).
+    const auto held = [](int key) {
+      return flutter::EncodableValue((::GetAsyncKeyState(key) & 0x8000) != 0);
+    };
+    result->Success(flutter::EncodableValue(flutter::EncodableMap{
+        {flutter::EncodableValue("shift"), held(VK_SHIFT)},
+        {flutter::EncodableValue("control"), held(VK_CONTROL)},
+        {flutter::EncodableValue("alt"), held(VK_MENU)},
+        {flutter::EncodableValue("meta"),
+         flutter::EncodableValue(
+             ((::GetAsyncKeyState(VK_LWIN) | ::GetAsyncKeyState(VK_RWIN)) &
+              0x8000) != 0)},
+    }));
+    return;
+  }
+
   if (method == "setAlwaysOnTop") {
     // Pinned: above other apps' windows, as a floating window should be.
     const bool on_top = Boolean(call.arguments(), false);

@@ -288,6 +288,16 @@ class BaoWindow: NSWindow {
   /// The window controls Flutter asks this window for.
   func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
     switch call.method {
+    case "heldModifiers":
+      // The modifiers held now, as the system has them: the app's own may
+      // have missed one going up (see held_keys.dart).
+      let flags = NSEvent.modifierFlags
+      result([
+        "shift": flags.contains(.shift),
+        "control": flags.contains(.control),
+        "alt": flags.contains(.option),
+        "meta": flags.contains(.command),
+      ])
     case "setAlwaysOnTop":
       // Floating: above other apps' windows, as a pinned window should be.
       level = (call.arguments as? Bool ?? false) ? .floating : .normal
