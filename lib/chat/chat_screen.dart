@@ -3,7 +3,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:bao_editor/textmate/textmate_syntax.dart' show TextMateSyntax;
-import 'package:flutter/gestures.dart' show kDoubleTapTimeout;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -336,10 +335,10 @@ class _ChatScreenState extends State<ChatScreen>
   late final ChatSession _session = widget.session ?? ChatSession();
   final GlobalKey<ChatComposerState> _composerKey = GlobalKey();
 
-  /// The suggested reply just put in the composer: its bar stays a double
-  /// click's time more, for a second click to send it.
-  String? _pickedReply;
-  Timer? _pickedReplyFor;
+  /// The suggested replies put in the composer, as put in, each on a line:
+  /// their bar stays while it holds just them, for more to be put in beside
+  /// them, or a second click to send one.
+  List<String> _pickedReplies = const [];
   final GlobalKey _historyKey = GlobalKey();
   bool _contextPanelOpen = false;
   bool _renaming = false;
@@ -527,7 +526,6 @@ class _ChatScreenState extends State<ChatScreen>
 
   @override
   void dispose() {
-    _pickedReplyFor?.cancel();
     _backMinimapRoom.dispose();
     _session.removeListener(_checkStarting);
     _session.removeListener(_followPlan);
@@ -817,35 +815,49 @@ class _ChatScreenState extends State<ChatScreen>
     );
   }
 
-  /// What the agent suggests the user send next, while nothing is typed:
-  /// one picked is put in the composer, to be edited and sent.
+  /// What the agent suggests the user send next, while nothing is typed
+  /// but those picked: each picked is put in the composer, on a line of its
+  /// own, to be edited and sent with the others.
   Widget? _buildReplySuggestions() {
     final suggestions = _session.replySuggestions;
     if (suggestions.isEmpty) return null;
     final draft = _session.draft;
-    final picked = _pickedReply != null && draft.content == _pickedReply;
-    if (!picked &&
+    final picked =
+        _pickedReplies.isNotEmpty &&
+            draft.images.isEmpty &&
+            draft.content == _pickedReplies.join('\n')
+        ? _pickedReplies
+        : const <String>[];
+    if (picked.isEmpty &&
         ((draft.content?.trim().isNotEmpty ?? false) ||
             draft.images.isNotEmpty)) {
       return null;
     }
+    // In place of what the composer holds: only those picked, or nothing.
+    void putIn(List<String> replies) {
+      _composerKey.currentState?.clear();
+      if (replies.isNotEmpty) draft.restore(replies.join('\n'), const []);
+      setState(() => _pickedReplies = replies);
+    }
+
     return ReplySuggestionBar(
       suggestions: suggestions,
+      picked: picked,
       playKey:
           '${identityHashCode(_session)}\u0000${suggestions.join('\u0000')}',
-      onPick: (said) {
-        draft.restore(said, const []);
-        _pickedReplyFor?.cancel();
-        setState(() => _pickedReply = said);
-        _pickedReplyFor = Timer(kDoubleTapTimeout, () {
-          if (mounted) setState(() => _pickedReply = null);
-        });
-      },
+      onPick: (said) => putIn([said]),
+      onToggle: (said) => putIn(
+        picked.contains(said)
+            ? [
+                for (final other in picked)
+                  if (other != said) other,
+              ]
+            : [...picked, said],
+      ),
       onSend: (said) {
-        _pickedReplyFor?.cancel();
         // Put in at the first click: sent now, not left there too.
-        if (_pickedReply == said) _composerKey.currentState?.clear();
-        _pickedReply = null;
+        if (picked.isNotEmpty) _composerKey.currentState?.clear();
+        setState(() => _pickedReplies = const []);
         _session.send(
           ComposerMessage(text: said),
           editor: widget.openEditor,

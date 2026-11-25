@@ -6,7 +6,7 @@ abstract final class ReplySuggestions {
   static const tag = 'reply_suggestion';
 
   /// The most shown.
-  static const max = 3;
+  static const max = 4;
 
   /// The longest shown, in characters: a line to send, not a message.
   static const maxLength = 80;
@@ -20,12 +20,12 @@ abstract final class ReplySuggestions {
   static const on =
       '<system-reminder>Reply suggestions are on: the user turned them on '
       'in BaoCode. When you finish your turn and hand back to them, end your '
-      'last message with two or three things they might send you next: in '
+      'last message with two to four things they might send you next: in '
       'their voice and their language, short (about 20 Chinese characters, '
-      'or 10 words, at most), each a different way on (go ahead, change '
-      'course, ask). They pick one to edit and send. The app shows them apart '
-      'from your message: do not speak of them. None while you are still '
-      'working.\n'
+      'or 10 words, at most), different ways on (go ahead, change course, '
+      'ask); some may go well together. They pick what to send, edit it and '
+      'send it. The app shows them apart from your message: do not speak of '
+      'them. None while you are still working.\n'
       '\n'
       'Write them as plain text in your reply, not as a tool call: each on a '
       'line of its own, between exactly <$tag> and </$tag>, with nothing '
@@ -47,7 +47,7 @@ abstract final class ReplySuggestions {
   /// With each message after, a word.
   static const stillOn =
       '<system-reminder>Reply suggestions still on: end your turn with two '
-      'or three short ones, as plain text, each on its own line: '
+      'to four short ones, as plain text, each on its own line: '
       '<$tag>…</$tag>.</system-reminder>';
 
   /// Once, when they turn them off.

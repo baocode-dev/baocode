@@ -81,7 +81,7 @@ void main() {
       expect(ReplySuggestions.of(raw), isEmpty);
     });
 
-    test('at most three, none too long', () {
+    test('at most four, none too long', () {
       final raw = [
         'ok',
         _said('a'),
@@ -89,8 +89,9 @@ void main() {
         _said('b'),
         _said('c'),
         _said('d'),
+        _said('e'),
       ].join('\n');
-      expect(ReplySuggestions.of(raw), ['a', 'b', 'c']);
+      expect(ReplySuggestions.of(raw), ['a', 'b', 'c', 'd']);
     });
 
     test('all in one tag, a line each: each its own', () {
