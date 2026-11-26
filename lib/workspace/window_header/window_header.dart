@@ -26,6 +26,7 @@ import '../chat_terminal.dart';
 import '../islands.dart';
 import '../open_in_editor_button.dart';
 import '../pin_window_button.dart';
+import '../title_bar_double_click.dart';
 import '../window_controls.dart';
 import '../workspace.dart';
 import 'about_dialog.dart';
@@ -33,16 +34,18 @@ import 'header_menu.dart';
 import 'header_menu_bar.dart';
 import 'window_buttons.dart';
 
-/// The bar the Windows app draws itself, over everything: the menu bar, the
-/// sidebar toggle, the session's tools and the window buttons (see
-/// [WindowControls.drawsHeader]). Over the IDE it is the IDE's title bar, as
-/// the IDE draws its own on macOS: the side bar's toggle after the menus,
-/// and the panel's and the chat's, the pin and the way back to the chat on
-/// the right.
+/// The bar the app draws itself on Windows and Linux, over everything: the
+/// menu bar, the sidebar toggle, the session's tools and the window buttons
+/// (see [WindowControls.drawsHeader]). Over the IDE it is the IDE's title
+/// bar, as the IDE draws its own on macOS: the side bar's toggle after the
+/// menus, and the panel's and the chat's, the pin and the way back to the
+/// chat on the right.
 ///
-/// It tells the window where its controls are; the window leaves those pixels
-/// to Flutter, drags itself by the rest of the strip, and runs the three
-/// window buttons (see [WindowControls.setHitTestAreas]).
+/// On Windows it tells the window where its controls are; the window leaves
+/// those pixels to Flutter, drags itself by the rest of the strip, and runs
+/// the three window buttons (see [WindowControls.setHitTestAreas]). On Linux
+/// the app does all that itself ([WindowControls.movesByHeader]): the rest
+/// of the strip moves the window, a double click there maximizes it.
 class WindowHeader extends StatefulWidget {
   const WindowHeader({
     super.key,
@@ -299,76 +302,79 @@ class _WindowHeaderState extends State<WindowHeader> {
           : AppColors.sidebarSurface,
       // No line under it: in the IDE its tabs' strip is under it, and the
       // conversations' cards are on the window's color, as on macOS.
-      child: SizedBox(
-        height: AppMetrics.headerHeight,
-        child: Row(
-          children: [
-            const SizedBox(width: WindowHeader.settingsToggleLeft),
-            // Room for the settings' toggle, the window's to leave to
-            // Flutter as the sidebar toggle's.
-            if (settings)
-              KeyedSubtree(
-                key: _toggle,
-                child: const SizedBox.square(
-                  dimension: WindowHeader.settingsToggleSize,
-                ),
-              )
-            // Folded, the menus' button comes after the toggle, which is
-            // first as by macOS's traffic lights; else the menu bar is.
-            else if (widget.compact) ...[
-              toggle,
-              const SizedBox(width: 2),
-              menus,
-            ] else ...[
-              menus,
-              const SizedBox(width: 4),
-              toggle,
-            ],
-            if (title != null)
-              // Its own pixels drag the window, as the rest of the strip.
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(left: 8, right: 12),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        maxWidth: _maxTitleWidth,
-                      ),
-                      child: Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        // As the chat's own title row.
-                        style: TextStyle(
-                          color: AppColors.textMuted,
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w500,
+      child: TitleBarDoubleClick(
+        header: true,
+        child: SizedBox(
+          height: AppMetrics.headerHeight,
+          child: Row(
+            children: [
+              const SizedBox(width: WindowHeader.settingsToggleLeft),
+              // Room for the settings' toggle, the window's to leave to
+              // Flutter as the sidebar toggle's.
+              if (settings)
+                KeyedSubtree(
+                  key: _toggle,
+                  child: const SizedBox.square(
+                    dimension: WindowHeader.settingsToggleSize,
+                  ),
+                )
+              // Folded, the menus' button comes after the toggle, which is
+              // first as by macOS's traffic lights; else the menu bar is.
+              else if (widget.compact) ...[
+                toggle,
+                const SizedBox(width: 2),
+                menus,
+              ] else ...[
+                menus,
+                const SizedBox(width: 4),
+                toggle,
+              ],
+              if (title != null)
+                // Its own pixels drag the window, as the rest of the strip.
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 8, right: 12),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(
+                          maxWidth: _maxTitleWidth,
+                        ),
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          // As the chat's own title row.
+                          style: TextStyle(
+                            color: AppColors.textMuted,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-              )
-            else if (_commandCenter(ide && !settings) case final center?)
-              Expanded(
-                child: Center(
-                  child: KeyedSubtree(key: _center, child: center),
-                ),
-              )
-            else
-              const Spacer(),
-            // Under the settings, whose barrier takes their clicks, the
-            // window's buttons alone (#312), as macOS's settings cover the
-            // title bar's.
-            if (!settings) ..._tools(layout, ide),
-            const SizedBox(width: 10),
-            WindowButtons(
-              minimizeKey: _minimize,
-              maximizeKey: _maximize,
-              closeKey: _close,
-            ),
-          ],
+                )
+              else if (_commandCenter(ide && !settings) case final center?)
+                Expanded(
+                  child: Center(
+                    child: KeyedSubtree(key: _center, child: center),
+                  ),
+                )
+              else
+                const Spacer(),
+              // Under the settings, whose barrier takes their clicks, the
+              // window's buttons alone (#312), as macOS's settings cover the
+              // title bar's.
+              if (!settings) ..._tools(layout, ide),
+              const SizedBox(width: 10),
+              WindowButtons(
+                minimizeKey: _minimize,
+                maximizeKey: _maximize,
+                closeKey: _close,
+              ),
+            ],
+          ),
         ),
       ),
     );

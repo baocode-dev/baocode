@@ -62,12 +62,18 @@ abstract final class WindowControls {
   /// GTK ones on `baocode/window`.
   static bool get isDesktop => AppPlatform.isDesktop;
 
-  /// Whether the window is the app's own to draw: Windows, where the header
-  /// carries the menus, the session's tools and the window buttons (see
-  /// workspace/window_header/). Elsewhere the system draws the caption —
-  /// macOS with its traffic lights over a title bar Flutter paints under
-  /// them.
-  static bool get drawsHeader => AppPlatform.isWindows;
+  /// Whether the window is the app's own to draw: Windows and Linux, where
+  /// the header carries the menus, the session's tools and the window
+  /// buttons, at its right on both (see workspace/window_header/). On macOS
+  /// the system draws the caption, its traffic lights over a title bar
+  /// Flutter paints under them.
+  static bool get drawsHeader => AppPlatform.isWindows || AppPlatform.isLinux;
+
+  /// Whether the app itself moves the window by its header and runs its
+  /// buttons: Linux, whose window has no caption of the system's left (see
+  /// linux/runner/my_application.cc). On Windows the system hit-tests the
+  /// header's pixels as its own caption ([setHitTestAreas]).
+  static bool get movesByHeader => AppPlatform.isLinux;
 
   /// How far from the window's top what shows over everything (menus,
   /// popovers, dialogs, quick picks) starts: below the header Windows draws,
@@ -165,11 +171,17 @@ abstract final class WindowControls {
 
   /// Moves the window with the press under way, as a drag on the system's
   /// title bar would: macOS, where the window leaves that to the title bar
-  /// Flutter draws (see title_bar_double_click.dart).
-  static Future<void> dragWindow({int? viewId}) async {
-    if (!handlesTitleDoubleClick) return;
+  /// Flutter draws (see title_bar_double_click.dart), and Linux, by the
+  /// header ([movesByHeader]). There the press is the window manager's
+  /// then, and the view is told of its release [at] the pointer event's
+  /// time.
+  static Future<void> dragWindow({int? viewId, Duration? at}) async {
+    if (!handlesTitleDoubleClick && !movesByHeader) return;
     try {
-      await _of(viewId).invokeMethod<void>('dragWindow');
+      await _of(viewId).invokeMethod<void>(
+        'dragWindow',
+        movesByHeader && at != null ? {'time': at.inMilliseconds} : null,
+      );
     } on MissingPluginException {
       // A host without the channel (e.g. tests).
     }
@@ -183,9 +195,10 @@ abstract final class WindowControls {
 
   /// Does what the system's settings say a double click on the title bar
   /// does: zoom (by default), fill, minimize or nothing (see
-  /// MainFlutterWindow.swift).
+  /// MainFlutterWindow.swift); on Linux, GTK's `gtk-titlebar-double-click`
+  /// (maximize, by default).
   static Future<void> handleTitleDoubleClick({int? viewId}) async {
-    if (!handlesTitleDoubleClick) return;
+    if (!handlesTitleDoubleClick && !movesByHeader) return;
     try {
       await _of(viewId).invokeMethod<void>('handleTitleDoubleClick');
     } on MissingPluginException {
@@ -291,7 +304,7 @@ abstract final class WindowControls {
     required Rect maximize,
     required Rect close,
   }) async {
-    if (!drawsHeader) return;
+    if (!drawsHeader || movesByHeader) return;
     try {
       await _of(viewId).invokeMethod<void>('setHitTestAreas', {
         'height': height,
