@@ -31,6 +31,32 @@
   <h1>Changelog</h1>
   <p class="subtitle">What changed in each version of BaoCode.</p>
 
+  <section class="release" id="v2.0.8">
+    <h2 class="plain"><a href="#v2.0.8">2.0.8</a></h2>
+    <p>This release greets new users with a demo conversation, lets you drag upstreams and their models into your own order, makes deleting undoable, and lifts the size cap on files to and from the phone.</p>
+    <p>New</p>
+    <ul>
+    <li>On first launch with no project yet, a ~/BaoCode project is set up and a demo conversation plays in it: web search, subagents, edits, tests and a picture made, none of it really run. Show the Demo Conversation in Ctrl+P plays it again.</li>
+    <li>Settings → Models: drag upstreams, and the models in each, into your own order; the model picker and every model menu follow it.</li>
+    <li>Deleting agents, removing a project from the list and deleting a workspace no longer ask first: they are hidden at once, with Undo at the bottom left for 5 seconds.</li>
+    <li>Files to and from the phone go in pieces, with no 8 MB cap.</li>
+    <li>The built-in core honors CLAUDE_AUTOCOMPACT_PCT_OVERRIDE to compact earlier.</li>
+    </ul>
+    <p>Improved</p>
+    <ul>
+    <li>File edits show folded to one line by default, opening to the diff; Settings → Appearance switches back to the card.</li>
+    <li>The conversation is 1040 wide by default; 720 is still the narrowest.</li>
+    <li>More than three background tasks are no longer folded by default.</li>
+    <li>With no model set up, the model welcome no longer pops up by itself: the banner and button below the conversation open it.</li>
+    <li>Pictures made in past conversations still show with the image model turned off.</li>
+    <li>In a multi-folder workspace, the commit panel lists only the repository picked in the Git log.</li>
+    </ul>
+    <p>Fixed</p>
+    <ul>
+    <li>Antigravity: session info updates no longer overwrite an existing title.</li>
+    </ul>
+  </section>
+
   <section class="release" id="v2.0.7">
     <h2 class="plain"><a href="#v2.0.7">2.0.7</a></h2>
     <p>This release lets you copy, quote or ask by the way about text selected in the conversation, frees the chat grid from its 2×2, runs a stopped or failed last turn again in one click, and fixes several issues on Linux and Windows.</p>
