@@ -487,9 +487,8 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     select(demo);
   }
 
-  /// Lists the demo conversation, in [folder]: its file written there for
-  /// it, read as Claude Code's are. What is sent in it goes to a new
-  /// conversation there (see [ChatSession.sendInstead]).
+  /// Lists the demo conversation, in [folder]: its note written there for
+  /// it, read as Claude Code's sessions are; played as it opens.
   Future<AgentThread?> _addDemo(
     Welcome welcome,
     String folder,
@@ -514,11 +513,20 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
         cwd: folder,
         path: demo.path,
       ),
+      // Played as it opens, after its note; again to whatever is sent.
       opened: (session) {
-        final player = WelcomePlayer(session, demo.recording.prompts);
-        session
-          ..healthAs = welcomeHealth
-          ..sendInstead = player.replay;
+        session.healthAs = welcomeHealth;
+        void play() {
+          if (session.loadingHistory) return;
+          session.removeListener(play);
+          // Not from within the kernel's own event, as it is told.
+          scheduleMicrotask(
+            () => session.send(ComposerMessage(text: demo.recording.prompt)),
+          );
+        }
+
+        session.addListener(play);
+        play();
       },
     );
     return _threads

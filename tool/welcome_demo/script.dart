@@ -12,15 +12,16 @@ import '../showcase/story.dart';
 
 String t(String en, String zh) => Story.t(en, zh);
 
-String get comparePrompt => t(
-  'Compare the algorithms we could use for our rate-limiting middleware. Which one, and why?',
-  '对比一下限流中间件可以用的几种算法，选哪个，为什么？',
+String get demoPrompt => t(
+  'Move our rate-limiting middleware to a sliding-window counter: compare the algorithms first, then research it with a few subagents in parallel. Make the store swappable (in memory and Workers KV), switch to the standard RateLimit headers, and update the tests.',
+  '限流中间件改成滑动窗口计数：先对比一下几种算法，再派几个子代理并行调研。存储做成可替换的（内存和 Workers KV），响应头换成标准的 RateLimit，测试一起改。',
 );
 
-String get rewritePrompt => t(
-  'Go with the sliding-window counter. Make the store swappable (in memory and Workers KV), switch to the standard RateLimit headers, and update the tests. Research it with a few subagents in parallel first.',
-  '就按滑动窗口计数改吧：存储做成可替换的（内存和 Workers KV 两种），响应头换成 IETF 标准的 RateLimit，测试一起改。先派几个子代理并行调研。',
-);
+/// The whole reply: the algorithms compared, then the rewrite.
+Future<void> demoScript(ShowRun run, String root) async {
+  await compareScript(run);
+  await rewriteScript(run, root);
+}
 
 /// What WebSearch answers: its links, then what they say.
 String _searchResult(String query, List<(String, String)> links, String text) =>
@@ -291,7 +292,7 @@ Future<void> rewriteScript(ShowRun run, String root) async {
       );
       run.raw({
         'type': 'user',
-        'uuid': '00000000-0000-4000-a000-00000000a5c0',
+        'uuid': 'message-${research.task}',
         'message': {
           'role': 'user',
           'content':

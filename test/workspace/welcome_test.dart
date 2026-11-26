@@ -45,12 +45,9 @@ class _Welcome extends Welcome {
     return (
       recording: WelcomeRecording(
         notice: recording.notice,
-        ending: recording.ending,
-        turns: [
-          for (final turn in recording.turns)
-            WelcomeTurn(turn.prompt, [
-              for (final line in turn.messages) (at: 0, message: line.message),
-            ]),
+        prompt: recording.prompt,
+        messages: [
+          for (final line in recording.messages) (at: 0, message: line.message),
         ],
       ),
       path: path,
@@ -112,32 +109,29 @@ void main() {
     expect(demo.id, WelcomeDemo.sessionId);
     expect(demo.title, 'Demo: a rate limiter, compared and rewritten');
 
-    // Before it plays: that it is a demo.
-    var items = await itemsOf(demo);
-    expect(items.single, isA<NoticeItem>());
-    expect(launches, isEmpty);
-
-    // Played once seen.
-    demo.session.seen.value = true;
-    for (var i = 0; i < 200; i++) {
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-      items = await itemsOf(demo);
-      if (items.whereType<UserMessageItem>().length == 3 &&
-          !demo.session.isStreaming &&
-          items.last is NoticeItem) {
-        break;
+    // Played as it opens.
+    Future<List<ChatItem>> played(int prompts) async {
+      var items = <ChatItem>[];
+      for (var i = 0; i < 200; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        items = await itemsOf(demo);
+        if (items.whereType<UserMessageItem>().length == prompts * 2 &&
+            !demo.session.isStreaming &&
+            items.last is NoticeItem) {
+          break;
+        }
       }
+      return items;
     }
+
+    var items = await played(1);
     expect(items.first, isA<NoticeItem>());
     expect(
       items
           .whereType<UserMessageItem>()
           .where((item) => item.fromAgent == null)
           .map((item) => item.text),
-      [
-        startsWith('Compare the algorithms'),
-        startsWith('Go with the sliding-window counter'),
-      ],
+      [startsWith('Move our rate-limiting middleware')],
     );
     expect(items.last, isA<NoticeItem>());
     expect(
@@ -188,24 +182,16 @@ void main() {
     // Ends offering what to send next; what is sent plays it again.
     expect(demo.session.replySuggestions, hasLength(3));
     demo.session.send(const ComposerMessage(text: 'Hello'));
-    for (var i = 0; i < 200; i++) {
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-      items = await itemsOf(demo);
-      if (items.whereType<UserMessageItem>().length == 6 &&
-          !demo.session.isStreaming) {
-        break;
-      }
-    }
-    expect(first.current, demo);
+    items = await played(2);
     expect(first.threads, [demo]);
     expect(
       items
           .whereType<UserMessageItem>()
           .where((item) => item.fromAgent == null)
-          .map((item) => item.text)
-          .skip(2),
-      ['Hello', startsWith('Go with the sliding-window counter')],
+          .map((item) => item.text),
+      [startsWith('Move our rate-limiting middleware'), 'Hello'],
     );
+    expect(items.whereType<AgentItem>(), hasLength(6));
     expect(launches, isEmpty);
   });
 

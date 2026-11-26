@@ -5,7 +5,6 @@ import 'dart:io';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:path/path.dart' as p;
 
-import '../chat/chat_session.dart';
 import '../kernel/agent_kernel.dart';
 import '../kernel/kernel_types.dart';
 import '../kernel/claude_code/claude_code_kernel.dart';
@@ -17,15 +16,14 @@ import '../platform/app_paths.dart';
 import '../platform/data_dir.dart';
 import '../remote/remote_claude.dart';
 
-/// The conversation a new user first sees, played as it shows: the turns
-/// recorded from scripts of the showcase's kind (tool/welcome_demo/), what
-/// Claude Code printed for each, through the app's own Claude Code adapter
-/// over [WelcomeTransport]. Nothing in it runs. In [Welcome.folder], a
-/// project made for them; what they send there starts a conversation of
-/// their own.
+/// The conversation a new user first sees: a reply Claude Code printed
+/// (its stream-json, recorded from a script of the showcase's kind,
+/// tool/welcome_demo/), played again through the app's own Claude Code
+/// adapter over [WelcomeTransport] to whatever is sent there. Nothing in
+/// it runs. In [Welcome.folder], a project made for them.
 abstract final class WelcomeDemo {
-  /// Where its turns were played: put in place of, as it is set up, the
-  /// folder the user has it in.
+  /// Where it was played: put in place of, as it is set up, the folder the
+  /// user has it in.
   static const folder = '/BAOCODE_WELCOME';
 
   /// Its id: not one Claude Code keeps, so never resumed nor deleted there.
@@ -53,60 +51,40 @@ abstract final class WelcomeDemo {
   }
 }
 
-/// What the demo plays: the note it starts with, and its turns, each the
-/// prompt sent and what came back, at what time into the turn.
+/// What the demo plays: the note it starts with, the prompt it is first
+/// sent, and the reply to it, each line at what time into it.
 class WelcomeRecording {
   const WelcomeRecording({
     required this.notice,
-    required this.turns,
-    this.ending,
+    required this.prompt,
+    required this.messages,
   });
 
   /// As exported ([WelcomeDemo.place]d already).
   factory WelcomeRecording.fromJson(Map<String, Object?> json) =>
       WelcomeRecording(
         notice: json['notice'] as String? ?? '',
-        ending: json['ending'] as String?,
-        turns: [
-          for (final turn in (json['turns'] as List?) ?? const [])
-            if (turn case {
-              'prompt': final String prompt,
-              'messages': final List<Object?> messages,
-            })
-              WelcomeTurn(prompt, [
-                for (final entry in messages)
-                  if (entry case [
-                    final int at,
-                    final Map<String, Object?> message,
-                  ])
-                    (at: at, message: message),
-              ]),
+        prompt: json['prompt'] as String? ?? '',
+        messages: [
+          for (final entry in (json['messages'] as List?) ?? const [])
+            if (entry case [final int at, final Map<String, Object?> message])
+              (at: at, message: message),
         ],
       );
 
   /// Shown before anything plays: that it is a demo.
   final String notice;
 
-  /// Shown once it is all played: that what they send starts their own.
-  final String? ending;
+  /// Sent as it opens.
+  final String prompt;
 
-  final List<WelcomeTurn> turns;
-
-  List<String> get prompts => [for (final turn in turns) turn.prompt];
+  /// The lines Claude Code printed, [at] milliseconds into the reply.
+  final List<({int at, Map<String, Object?> message})> messages;
 
   /// The session the demo is read from before it plays: only [notice], as
   /// Claude Code keeps a line (see ClaudeCodeTranslator's informational).
   String keptLines(String cwd) =>
       '${jsonEncode({'type': 'system', 'subtype': 'informational', 'level': 'notice', 'content': notice, 'uuid': '00000000-0000-4000-a000-000000000000', 'parentUuid': null, 'isSidechain': false, 'sessionId': WelcomeDemo.sessionId, 'cwd': cwd, 'timestamp': DateTime.utc(2026, 11, 20, 9).toIso8601String()})}\n';
-}
-
-class WelcomeTurn {
-  const WelcomeTurn(this.prompt, this.messages);
-
-  final String prompt;
-
-  /// The lines Claude Code printed, [at] milliseconds into the turn.
-  final List<({int at, Map<String, Object?> message})> messages;
 }
 
 /// Sets up what a new user first sees: a folder to work in, and the demo.
@@ -213,9 +191,8 @@ KernelHealth welcomeHealth(KernelHealth health) =>
       )
     : health;
 
-/// A Claude Code CLI that answers each of the demo's prompts with what was
-/// recorded for it, at its pace, and anything else with its first turn;
-/// control requests as [MockClaudeCodeTransport] answers them.
+/// A Claude Code CLI that answers whatever is sent with the demo's reply,
+/// at its pace; control requests as [MockClaudeCodeTransport] answers them.
 class WelcomeTransport implements ClaudeCodeTransport {
   WelcomeTransport(this.recording, ClaudeLaunch launch)
     : _control = MockClaudeCodeTransport(launch) {
@@ -227,7 +204,7 @@ class WelcomeTransport implements ClaudeCodeTransport {
   final StreamController<Map<String, Object?>> _out =
       StreamController.broadcast();
 
-  /// The turn playing: stopped by bumping it.
+  /// The reply playing: stopped by bumping it.
   int _playing = 0;
   bool _busy = false;
   final _queued = <Map<String, Object?>>[];
@@ -260,7 +237,7 @@ class WelcomeTransport implements ClaudeCodeTransport {
         if (_busy) {
           _playing++;
           _busy = false;
-          _emit(_result(error: true));
+          _emit(_stopped);
         }
         _control.write(message);
       default:
@@ -268,63 +245,50 @@ class WelcomeTransport implements ClaudeCodeTransport {
     }
   }
 
-  static String _text(Map<String, Object?> message) =>
-      switch ((message['message'] as Map?)?['content']) {
-        final String text => text,
-        final List<Object?> blocks =>
-          blocks
-              .whereType<Map<Object?, Object?>>()
-              .where((block) => block['type'] == 'text')
-              .map((block) => block['text'])
-              .join('\n'),
-        _ => '',
+  /// How many times each recording was played, in any transport.
+  static final _plays = Expando<int>();
+
+  /// The key the showcase's ids were made with (`msg_<key>_1`).
+  late final String? _key = recording.messages
+      .map((line) => (line.message['message'] as Map?)?['id'])
+      .whereType<String>()
+      .map((id) => RegExp(r'^msg_([0-9a-f]{8})_').firstMatch(id)?[1])
+      .nonNulls
+      .firstOrNull;
+
+  /// [message] with ids of its own for each time it is played: not the
+  /// same messages, tools and subagents again, but more.
+  Map<String, Object?> _anew(Map<String, Object?> message, int play) =>
+      switch (_key) {
+        final key? when play > 1 => (jsonDecode(
+          jsonEncode(message).replaceAll(key, '${key}r$play'),
+        ) as Map).cast<String, Object?>(),
+        _ => message,
       };
 
   Future<void> _play(Map<String, Object?> sent) async {
-    final prompt = _text(sent).trim();
-    // Anything else the user sends there plays it again from the start.
-    final turn =
-        recording.turns
-            .where((turn) => turn.prompt.trim() == prompt)
-            .firstOrNull ??
-        recording.turns.firstOrNull;
     final playing = ++_playing;
+    final play = _plays[recording] = (_plays[recording] ?? 0) + 1;
     _busy = true;
-    if (turn == null) {
-      _emit({...sent, 'isReplay': true});
-      _emit(_result());
-    } else {
-      final clock = Stopwatch()..start();
-      for (final (:at, :message) in turn.messages) {
-        final wait = at - clock.elapsedMilliseconds;
-        if (wait > 0) await Future<void>.delayed(Duration(milliseconds: wait));
-        if (playing != _playing || _out.isClosed) return;
-        _emit(
-          message['type'] == 'user' && message['isReplay'] == true
-              // The prompt as the kernel sent it, its id with it.
-              ? {...sent, 'isReplay': true}
-              : message,
-        );
-      }
-      if (identical(turn, recording.turns.last)) {
-        if (recording.ending case final ending?) {
-          _emit({
-            'type': 'system',
-            'subtype': 'informational',
-            'level': 'notice',
-            'content': ending,
-          });
-        }
-      }
+    final clock = Stopwatch()..start();
+    for (final (:at, :message) in recording.messages) {
+      final wait = at - clock.elapsedMilliseconds;
+      if (wait > 0) await Future<void>.delayed(Duration(milliseconds: wait));
+      if (playing != _playing || _out.isClosed) return;
+      _emit(
+        message['type'] == 'user' && message['isReplay'] == true
+            // What was sent, as the kernel sent it, its id with it.
+            ? {...sent, 'isReplay': true}
+            : _anew(message, play),
+      );
     }
-    if (playing != _playing) return;
     _busy = false;
     if (_queued.isNotEmpty) unawaited(_play(_queued.removeAt(0)));
   }
 
-  static Map<String, Object?> _result({bool error = false}) => {
+  static const _stopped = {
     'type': 'result',
-    'subtype': error ? 'error_during_execution' : 'success',
+    'subtype': 'error_during_execution',
     'is_error': false,
     'total_cost_usd': 0,
     'duration_ms': 0,
@@ -338,87 +302,5 @@ class WelcomeTransport implements ClaudeCodeTransport {
   void close() {
     _playing++;
     _control.close();
-  }
-}
-
-/// Plays the demo in [session] once the user sees it, nothing over it
-/// ([ChatSession.seen]): its prompts sent one after the other, each once
-/// the turn before is over and the demo shows again. What the user sends
-/// there ([replay]) plays it again, in place of its first prompt.
-class WelcomePlayer {
-  WelcomePlayer(this.session, this.prompts)
-    : _pending = [for (final prompt in prompts) ComposerMessage(text: prompt)] {
-    session.seen.addListener(_go);
-    session.addListener(_changed);
-    _go();
-  }
-
-  final ChatSession session;
-  final List<String> prompts;
-
-  /// How long it shows before it first plays: a dialog that opens with it
-  /// comes over it first.
-  static const settle = Duration(milliseconds: 800);
-
-  /// Between one turn's end and the next prompt: time to look at what it
-  /// drew.
-  static const between = Duration(seconds: 4);
-
-  /// What is still to be sent, in order.
-  List<ComposerMessage> _pending;
-  var _sent = false;
-  var _streaming = false;
-  Timer? _timer;
-  bool _stopped = false;
-
-  /// Whether all it had to send was sent.
-  bool get done => _pending.isEmpty;
-
-  /// Plays it again, [message] (what the user sent there) in place of its
-  /// first prompt: once the turn at work, if any, is over.
-  void replay(ComposerMessage message) {
-    _pending = [
-      message,
-      for (final prompt in prompts.skip(1)) ComposerMessage(text: prompt),
-    ];
-    _go();
-  }
-
-  bool get _ready =>
-      !_stopped &&
-      !done &&
-      !session.disposed &&
-      session.seen.value &&
-      !session.isStreaming;
-
-  void _go() {
-    _timer?.cancel();
-    if (_ready) _timer = Timer(_sent ? between : settle, _send);
-  }
-
-  void _changed() {
-    if (session.disposed) return;
-    final streaming = session.isStreaming;
-    if (streaming == _streaming) return;
-    _streaming = streaming;
-    if (!streaming) _go();
-  }
-
-  void _send() {
-    if (!_ready) return;
-    _sent = true;
-    final message = _pending.removeAt(0);
-    // Its own, sent as is: not the user's, which [replay] it.
-    final instead = session.sendInstead;
-    session.sendInstead = null;
-    session.send(message);
-    session.sendInstead = instead;
-  }
-
-  void stop() {
-    _stopped = true;
-    _timer?.cancel();
-    session.seen.removeListener(_go);
-    session.removeListener(_changed);
   }
 }
