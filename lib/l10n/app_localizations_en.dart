@@ -6658,6 +6658,9 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get modelsDragToReorder => 'Drag to reorder';
+
+  @override
   String get modelsFeaturedWhy => 'Why am I seeing this?';
 
   @override

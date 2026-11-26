@@ -6270,6 +6270,9 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get modelsDragToReorder => '拖动排序';
+
+  @override
   String get modelsFeaturedWhy => '为什么我看到这个？';
 
   @override

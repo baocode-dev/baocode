@@ -4790,6 +4790,7 @@
       }
     }
   },
+  "modelsDragToReorder": "Drag to reorder",
   "modelsFeaturedWhy": "Why am I seeing this?",
   "modelsFeaturedNote": "These sites are officially listed by BaoCode",
   "modelsFeaturedNoteHow": "Add the one-click import to be listed too, for free",

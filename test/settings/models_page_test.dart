@@ -7,6 +7,8 @@ import 'package:baocode/ide/ide_hover.dart';
 import 'package:baocode/ide/ide_button.dart';
 import 'package:baocode/ide/ide_back_button.dart';
 import 'package:baocode/ide/ide_spinning.dart';
+import 'package:baocode/models/featured_upstreams.dart';
+import 'package:baocode/theme/codicons.dart';
 import 'package:baocode/kernel/claude_code/claude_core_setting.dart';
 import 'package:baocode/kernel/claude_code/claude_haiku.dart';
 import 'package:baocode/models/claude_resets.dart';
@@ -180,6 +182,7 @@ void main() {
     CodexService? codex,
     ModelTester testModel = testModelThroughClaudeCode,
     Workspace? workspace,
+    Future<List<FeaturedUpstream>>? featured,
     MagpieFollow? magpie,
     ClaudeResetsService? claudeResets,
   }) async {
@@ -195,6 +198,7 @@ void main() {
             testModel: testModel,
             codex: codex,
             workspace: workspace,
+            featured: featured,
             magpie: magpie,
             claudeResets: claudeResets,
           ),
@@ -1805,5 +1809,165 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.textContaining("magpie isn't running"), findsOneWidget);
     });
+  });
+
+  group('upstream reordering', () {
+    Future<void> saveThree() async {
+      for (final (id, name, url) in const [
+        ('a', 'Alpha', 'https://a.example.com'),
+        ('b', 'Beta', 'https://b.example.com'),
+        ('c', 'Gamma', 'https://c.example.com'),
+      ]) {
+        await providers.save(ModelProvider(id: id, name: name, baseUrl: url));
+      }
+    }
+
+    double top(WidgetTester tester, String name) =>
+        tester.getTopLeft(find.text(name)).dy;
+
+    /// Drags [name]'s row onto [onto]'s, over its upper or lower half.
+    Future<void> drag(
+      WidgetTester tester,
+      String name,
+      String onto, {
+      required bool after,
+    }) async {
+      final box = tester.getRect(
+        find.ancestor(of: find.text(onto), matching: find.byType(Row)).last,
+      );
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.text(name)),
+        kind: PointerDeviceKind.mouse,
+      );
+      await gesture.moveBy(Offset(0, after ? 20 : -20));
+      await tester.pump();
+      await gesture.moveTo(
+        Offset(box.center.dx, after ? box.bottom - 4 : box.top + 4),
+      );
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('a single upstream shows no drag handle', (tester) async {
+      await providers.save(
+        const ModelProvider(
+          id: 'a',
+          name: 'Alpha',
+          baseUrl: 'https://a.example.com',
+        ),
+      );
+      await pump(tester);
+      expect(find.byIcon(Codicons.gripper), findsNothing);
+    });
+
+    testWidgets('dragging an upstream row over another reorders the list', (
+      tester,
+    ) async {
+      await saveThree();
+      await pump(tester);
+      // Claude Code's own row is not among them.
+      expect(find.byIcon(Codicons.gripper), findsNWidgets(3));
+
+      await drag(tester, 'Gamma', 'Alpha', after: false);
+      expect(providers.providers.map((p) => p.id), ['c', 'a', 'b']);
+      expect(top(tester, 'Gamma'), lessThan(top(tester, 'Alpha')));
+
+      await drag(tester, 'Gamma', 'Beta', after: true);
+      expect(providers.providers.map((p) => p.id), ['a', 'b', 'c']);
+      expect(top(tester, 'Beta'), lessThan(top(tester, 'Gamma')));
+
+      // Clicking an upstream still opens its settings page.
+      await tester.tap(find.text('Alpha'));
+      await tester.pumpAndSettle();
+      expect(find.text('Connection'), findsOneWidget);
+    }, variant: TargetPlatformVariant({TargetPlatform.macOS}));
+
+    testWidgets('user order overrides featured site and magpie placement', (
+      tester,
+    ) async {
+      await providers.save(Magpie.provider('magpie'));
+      await providers.save(
+        const ModelProvider(
+          id: 'beta',
+          name: 'Beta',
+          baseUrl: 'https://api.beta.example.com',
+        ),
+      );
+      await providers.save(
+        const ModelProvider(
+          id: 'plain',
+          name: 'Plain',
+          baseUrl: 'https://plain.example.com',
+        ),
+      );
+      final featured = [
+        FeaturedUpstream(
+          id: 'beta',
+          name: 'Beta Relay',
+          url: Uri.parse('https://beta.example.com'),
+          hosts: const ['api.beta.example.com'],
+        ),
+      ];
+      final magpie = MagpieFollow(
+        providers: providers,
+        probe: () async =>
+            const MagpieStatus(installed: true, version: '0.13.0'),
+        list: (_, _) async => const [],
+        claudeSettings: () async => null,
+      );
+      await pump(tester, featured: Future.value(featured), magpie: magpie);
+      await tester.pump();
+      expect(top(tester, 'magpie'), lessThan(top(tester, 'Beta')));
+      expect(top(tester, 'Beta'), lessThan(top(tester, 'Plain')));
+
+      await drag(tester, 'Plain', 'magpie', after: false);
+      expect(providers.providersOrdered, isTrue);
+      expect(providers.providers.map((p) => p.id), ['plain', 'magpie', 'beta']);
+      expect(top(tester, 'Plain'), lessThan(top(tester, 'magpie')));
+      expect(top(tester, 'magpie'), lessThan(top(tester, 'Beta')));
+    }, variant: TargetPlatformVariant({TargetPlatform.macOS}));
+
+    testWidgets('an upstream\'s models dragged into an order of the user\'s', (
+      tester,
+    ) async {
+      await providers.save(
+        const ModelProvider(
+          id: 'gw',
+          name: 'Gateway',
+          baseUrl: 'https://gw.example.com',
+          models: [
+            ProviderModel(id: 'beta'),
+            ProviderModel(id: 'alpha'),
+            ProviderModel(id: 'off', enabled: false),
+            ProviderModel(id: 'gamma'),
+          ],
+        ),
+      );
+      await pump(tester);
+      await tester.tap(find.text('Gateway'));
+      await tester.pumpAndSettle();
+      // By name until dragged; the unchecked one not shown.
+      expect(top(tester, 'alpha'), lessThan(top(tester, 'beta')));
+      expect(top(tester, 'beta'), lessThan(top(tester, 'gamma')));
+      expect(find.byIcon(Codicons.gripper), findsNWidgets(3));
+
+      await drag(tester, 'gamma', 'alpha', after: false);
+      final provider = providers.provider('gw')!;
+      expect(provider.modelsOrdered, isTrue);
+      // The unchecked one keeps its place among them.
+      expect(provider.sortedModels.map((m) => m.id), [
+        'gamma',
+        'alpha',
+        'beta',
+        'off',
+      ]);
+      expect(provider.enabledModels.map((m) => m.id), [
+        'gamma',
+        'alpha',
+        'beta',
+      ]);
+      expect(top(tester, 'gamma'), lessThan(top(tester, 'alpha')));
+    }, variant: TargetPlatformVariant({TargetPlatform.macOS}));
   });
 }
