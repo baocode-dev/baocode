@@ -1922,27 +1922,6 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get sidebarDeleteAgentTitle => '删除智能体？';
-
-  @override
-  String sidebarDeleteAgentMessage(String title) {
-    return '“$title”及其对话将被移除。';
-  }
-
-  @override
-  String get sidebarDeleteAgentsTitle => '删除智能体？';
-
-  @override
-  String sidebarDeleteAgentsMessage(int count) {
-    return '$count 个智能体及其对话将被删除，内核中的记录也会一并删除。此操作无法撤销。';
-  }
-
-  @override
-  String sidebarDeleteAgentMessageKernel(String title, String kernel) {
-    return '“$title”及其对话将被删除，$kernel 中的记录也会一并删除。此操作无法撤销。';
-  }
-
-  @override
   String get sidebarSearchAgents => '搜索智能体…';
 
   @override
@@ -2013,7 +1992,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String sidebarDeleteCount(int count) {
-    return '删除 $count 个智能体…';
+    return '删除 $count 个智能体';
   }
 
   @override
@@ -2029,11 +2008,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get sidebarDetachAside => '从主对话分离';
-
-  @override
-  String sidebarDeleteAsidesToo(int count) {
-    return '它的 $count 个 /btw 子对话也会一并删除。';
-  }
 
   @override
   String get btwCommandDetail => '在旁边另开一个对话提问';
@@ -2078,18 +2052,30 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sidebarUnarchiveAll => '全部取消归档';
 
   @override
-  String get sidebarDeleteArchived => '删除全部已归档…';
-
-  @override
-  String get sidebarDeleteArchivedTitle => '删除已归档的智能体？';
-
-  @override
-  String sidebarDeleteArchivedMessage(int count) {
-    return '$count 个已归档的智能体及其对话将被删除，内核中的记录也会一并删除。此操作无法撤销。';
-  }
+  String get sidebarDeleteArchived => '删除全部已归档';
 
   @override
   String get sidebarRemoveFromList => '从列表移除';
+
+  @override
+  String sidebarAgentDeleted(String title) {
+    return '已删除「$title」';
+  }
+
+  @override
+  String sidebarAgentsDeleted(int count) {
+    return '已删除 $count 个智能体';
+  }
+
+  @override
+  String sidebarProjectRemoved(String name) {
+    return '已从列表移除「$name」';
+  }
+
+  @override
+  String sidebarWorkspaceDeleted(String name) {
+    return '已删除工作区「$name」';
+  }
 
   @override
   String get sidebarDropToPin => '拖到这里置顶';

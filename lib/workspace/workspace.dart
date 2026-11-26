@@ -329,7 +329,12 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   List<Project> get projects => List.unmodifiable(_projects);
   final List<Project> _projects;
 
-  List<AgentThread> get threads => List.unmodifiable(_threads);
+  /// The agents, but those about to be deleted ([deleteLater]).
+  List<AgentThread> get threads => List.unmodifiable(
+    _deleting.isEmpty
+        ? _threads
+        : _threads.where((t) => !_deleting.contains(t)),
+  );
   final List<AgentThread> _threads = [];
 
   /// The open agent, the one focused where several show; null only while
@@ -1532,6 +1537,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
 
   bool isHidden(Project project) =>
       _hiddenProjects.containsKey(project.path) ||
+      _hiding.contains(project.path) ||
       isAppFolder(project.path) ||
       _isUnopenedTemp(project.path);
 
@@ -1965,6 +1971,77 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     _asides.removeWhere((id, _) => !ids.contains(id));
     _save();
     notifyListeners();
+  }
+
+  // --- Deleting a moment later ----------------------------------------------
+
+  /// How long a deletion waits to be done ([deleteLater],
+  /// [hideProjectLater], [deleteWorkspaceLater]), shown done meanwhile: as
+  /// long as it can be called off.
+  static const deleteDelay = Duration(seconds: 5);
+
+  /// What waits to be done ([_later]).
+  final Set<Timer> _waiting = {};
+
+  /// Does [act] once [deleteDelay] is over. What calls it off is given
+  /// back, [calledOff] then putting things as they were.
+  VoidCallback _later(VoidCallback act, VoidCallback calledOff) {
+    late final Timer timer;
+    timer = Timer(deleteDelay, () {
+      _waiting.remove(timer);
+      act();
+    });
+    _waiting.add(timer);
+    return () {
+      if (!_waiting.remove(timer) || _disposed) return;
+      timer.cancel();
+      calledOff();
+      notifyListeners();
+    };
+  }
+
+  /// The agents to be deleted once [deleteDelay] is over ([deleteLater]).
+  final Set<AgentThread> _deleting = {};
+
+  /// Deletes [threads] (their asides with them) as [deleteAll] does, once
+  /// [deleteDelay] is over; what calls it off is given back. Meanwhile
+  /// nothing of them changes (nor if the app quits first), but they are
+  /// not in [threads], so not on the sidebar nor the phone, nor in a pane.
+  VoidCallback deleteLater(Iterable<AgentThread> threads) {
+    final selected = {...threads, for (final t in threads) ...asidesOf(t)}
+      ..removeWhere((t) => !_threads.contains(t) || _deleting.contains(t));
+    if (selected.isEmpty) return () {};
+    _deleting.addAll(selected);
+    _leaveMany(selected);
+    notifyListeners();
+    return _later(() {
+      _deleting.removeAll(selected);
+      deleteAll(selected.where(_threads.contains));
+    }, () => _deleting.removeAll(selected));
+  }
+
+  /// The projects to be taken off the sidebar once [deleteDelay] is over,
+  /// by path ([hideProjectLater], [deleteWorkspaceLater]): hidden
+  /// meanwhile, nothing kept of it.
+  final Set<String> _hiding = {};
+
+  /// [hideProject] once [deleteDelay] is over; what calls it off is given
+  /// back.
+  VoidCallback hideProjectLater(Project project) =>
+      _hideLater(project.path, () => hideProject(project));
+
+  /// [deleteWorkspace] once [deleteDelay] is over; what calls it off is
+  /// given back.
+  VoidCallback deleteWorkspaceLater(ProjectWorkspace workspace) =>
+      _hideLater(workspace.path, () => deleteWorkspace(workspace));
+
+  VoidCallback _hideLater(String path, VoidCallback act) {
+    if (!_hiding.add(path)) return () {};
+    notifyListeners();
+    return _later(() {
+      _hiding.remove(path);
+      act();
+    }, () => _hiding.remove(path));
   }
 
   /// Archives [project]'s agents (not a new one nothing was sent to): the
@@ -4229,6 +4306,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       final candidates = [
         for (final thread in _threads)
           if (!thread.archived &&
+              !_deleting.contains(thread) &&
               _projects.contains(thread.project) &&
               !isAppFolder(thread.project.path))
             thread,
@@ -4270,6 +4348,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       for (final thread in _threads)
         if (!thread.archived &&
             !identical(thread, gone) &&
+            !_deleting.contains(thread) &&
             _projects.contains(thread.project) &&
             !isAppFolder(thread.project.path))
           thread,
@@ -4288,6 +4367,10 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   @override
   void dispose() {
     _disposed = true;
+    // Not done, then: nothing of them changed (see [_later]).
+    for (final timer in _waiting) {
+      timer.cancel();
+    }
     if (resumes.resume == _resumeAfterReset) resumes.resume = null;
     icons.removeListener(notifyListeners);
     for (final MapEntry(key: path, value: listener) in _unreached.entries) {

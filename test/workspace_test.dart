@@ -327,8 +327,10 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await tester.tap(find.text('Delete'));
     await tester.pump(const Duration(milliseconds: 300));
-    expect(find.textContaining('from Claude Code too'), findsOneWidget);
-    await tester.tap(find.text('Delete').last);
+    // Not yet: a moment later, unless called off.
+    expect(inSidebar(find.text('Write a.txt and read it back')), findsNothing);
+    expect(FakeCatalog.deleted, isEmpty);
+    await tester.pump(Workspace.deleteDelay);
     await tester.pump(const Duration(milliseconds: 300));
     await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     expect(FakeCatalog.deleted, ['eafc328b']);
