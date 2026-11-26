@@ -83,6 +83,44 @@ const _loginKeychain = '/Users/me/Library/Keychains/login.keychain-db';
 
 void main() {
   group('ModelProvider', () {
+    test('models listed by name, or in the order the user put them', () {
+      const byName = ModelProvider(
+        id: 'gw',
+        name: 'Gateway',
+        baseUrl: 'https://gw.example.com',
+        models: [
+          ProviderModel(id: 'b'),
+          ProviderModel(id: 'a'),
+          ProviderModel(id: 'c', enabled: false),
+        ],
+      );
+      expect(byName.sortedModels.map((m) => m.id), ['a', 'b', 'c']);
+      final ordered = byName.copyWith(modelsOrdered: true);
+      expect(ordered.sortedModels.map((m) => m.id), ['b', 'a', 'c']);
+      expect(ordered.enabledModels.map((m) => m.id), ['b', 'a']);
+      final kept = ModelProvider.fromJson(ordered.toJson())!;
+      expect(kept.modelsOrdered, isTrue);
+      expect(kept.sortedModels.map((m) => m.id), ['b', 'a', 'c']);
+      expect(byName.toJson().containsKey('modelsOrdered'), isFalse);
+    });
+
+    test('models put in another order start no session anew', () {
+      const provider = ModelProvider(
+        id: 'gw',
+        name: 'Gateway',
+        baseUrl: 'https://gw.example.com',
+        models: [
+          ProviderModel(id: 'a', protocol: ProviderProtocol.openaiChat),
+          ProviderModel(id: 'b', endpointUrl: 'https://b.example.com/v1'),
+        ],
+      );
+      final moved = provider.copyWith(
+        models: provider.models.reversed.toList(),
+        modelsOrdered: true,
+      );
+      expect(moved.launchFingerprint, provider.launchFingerprint);
+    });
+
     test('labelOf tells apart the models going by one name', () {
       const terra = 'GPT-6.1 Terra';
       const provider = ModelProvider(

@@ -4790,9 +4790,6 @@
       }
     }
   },
-  "modelsMoveToTop": "Move to Top",
-  "modelsMoveUp": "Move Up",
-  "modelsMoveDown": "Move Down",
   "modelsDragToReorder": "Drag to reorder",
   "modelsFeaturedWhy": "Why am I seeing this?",
   "modelsFeaturedNote": "These sites are officially listed by BaoCode",

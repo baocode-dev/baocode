@@ -1825,23 +1825,31 @@ void main() {
     double top(WidgetTester tester, String name) =>
         tester.getTopLeft(find.text(name)).dy;
 
-    Finder menuButton(WidgetTester tester, String name) {
-      final row = find.ancestor(
-        of: find.text(name),
-        matching: find.byType(Row),
+    /// Drags [name]'s row onto [onto]'s, over its upper or lower half.
+    Future<void> drag(
+      WidgetTester tester,
+      String name,
+      String onto, {
+      required bool after,
+    }) async {
+      final box = tester.getRect(
+        find.ancestor(of: find.text(onto), matching: find.byType(Row)).last,
       );
-      return find.descendant(
-        of: row.last,
-        matching: find.byWidgetPredicate(
-          (widget) =>
-              widget is IdeActionButton && widget.tooltip == 'More Actions',
-        ),
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.text(name)),
+        kind: PointerDeviceKind.mouse,
       );
+      await gesture.moveBy(Offset(0, after ? 20 : -20));
+      await tester.pump();
+      await gesture.moveTo(
+        Offset(box.center.dx, after ? box.bottom - 4 : box.top + 4),
+      );
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
     }
 
-    testWidgets('single upstream shows no drag handle or reorder menu', (
-      tester,
-    ) async {
+    testWidgets('a single upstream shows no drag handle', (tester) async {
       await providers.save(
         const ModelProvider(
           id: 'a',
@@ -1851,56 +1859,6 @@ void main() {
       );
       await pump(tester);
       expect(find.byIcon(Codicons.gripper), findsNothing);
-      expect(
-        find.byWidgetPredicate(
-          (widget) =>
-              widget is IdeActionButton && widget.tooltip == 'More Actions',
-        ),
-        findsNothing,
-      );
-    });
-
-    testWidgets('menu moves upstreams to top, up, and down with bounds', (
-      tester,
-    ) async {
-      await saveThree();
-      await pump(tester);
-      expect(find.byIcon(Codicons.gripper), findsNWidgets(3));
-      expect(top(tester, 'Alpha'), lessThan(top(tester, 'Beta')));
-      expect(top(tester, 'Beta'), lessThan(top(tester, 'Gamma')));
-
-      // First row: Move to Top and Move Up are disabled; Move Down swaps.
-      await tester.tap(menuButton(tester, 'Alpha'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Move to Top'));
-      await tester.pumpAndSettle();
-      expect(find.text('Move to Top'), findsOneWidget);
-      await tester.tap(find.text('Move Up'));
-      await tester.pumpAndSettle();
-      expect(find.text('Move Up'), findsOneWidget);
-      await tester.tap(find.text('Move Down'));
-      await tester.pumpAndSettle();
-      expect(providers.providers.map((p) => p.id), ['b', 'a', 'c']);
-      expect(top(tester, 'Beta'), lessThan(top(tester, 'Alpha')));
-
-      // Last row: Move Down is disabled; Move to Top puts it first.
-      await tester.tap(menuButton(tester, 'Gamma'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Move Down'));
-      await tester.pumpAndSettle();
-      expect(find.text('Move Down'), findsOneWidget);
-      await tester.tap(find.text('Move to Top'));
-      await tester.pumpAndSettle();
-      expect(providers.providers.map((p) => p.id), ['c', 'b', 'a']);
-      expect(top(tester, 'Gamma'), lessThan(top(tester, 'Beta')));
-
-      // Middle row: Move Up moves it above first.
-      await tester.tap(menuButton(tester, 'Beta'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Move Up'));
-      await tester.pumpAndSettle();
-      expect(providers.providers.map((p) => p.id), ['b', 'c', 'a']);
-      expect(top(tester, 'Beta'), lessThan(top(tester, 'Gamma')));
     });
 
     testWidgets('dragging an upstream row over another reorders the list', (
@@ -1908,38 +1866,14 @@ void main() {
     ) async {
       await saveThree();
       await pump(tester);
+      // Claude Code's own row is not among them.
+      expect(find.byIcon(Codicons.gripper), findsNWidgets(3));
 
-      // Drag Gamma onto the upper half of Alpha to move it to the top.
-      final alphaBox = tester.getRect(
-        find.ancestor(of: find.text('Alpha'), matching: find.byType(Row)).last,
-      );
-      final gesture = await tester.startGesture(
-        tester.getCenter(find.text('Gamma')),
-        kind: PointerDeviceKind.mouse,
-      );
-      await gesture.moveBy(const Offset(0, -20));
-      await tester.pump();
-      await gesture.moveTo(Offset(alphaBox.center.dx, alphaBox.top + 4));
-      await tester.pump();
-      await gesture.up();
-      await tester.pumpAndSettle();
+      await drag(tester, 'Gamma', 'Alpha', after: false);
       expect(providers.providers.map((p) => p.id), ['c', 'a', 'b']);
       expect(top(tester, 'Gamma'), lessThan(top(tester, 'Alpha')));
 
-      // Drag Gamma onto the lower half of Beta to move it to the end.
-      final betaBox = tester.getRect(
-        find.ancestor(of: find.text('Beta'), matching: find.byType(Row)).last,
-      );
-      final gesture2 = await tester.startGesture(
-        tester.getCenter(find.text('Gamma')),
-        kind: PointerDeviceKind.mouse,
-      );
-      await gesture2.moveBy(const Offset(0, 20));
-      await tester.pump();
-      await gesture2.moveTo(Offset(betaBox.center.dx, betaBox.bottom - 4));
-      await tester.pump();
-      await gesture2.up();
-      await tester.pumpAndSettle();
+      await drag(tester, 'Gamma', 'Beta', after: true);
       expect(providers.providers.map((p) => p.id), ['a', 'b', 'c']);
       expect(top(tester, 'Beta'), lessThan(top(tester, 'Gamma')));
 
@@ -1987,15 +1921,53 @@ void main() {
       expect(top(tester, 'magpie'), lessThan(top(tester, 'Beta')));
       expect(top(tester, 'Beta'), lessThan(top(tester, 'Plain')));
 
-      // Move Plain to Top: user order overrides both magpie and featured site.
-      await tester.tap(menuButton(tester, 'Plain'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Move to Top'));
-      await tester.pumpAndSettle();
+      await drag(tester, 'Plain', 'magpie', after: false);
       expect(providers.providersOrdered, isTrue);
       expect(providers.providers.map((p) => p.id), ['plain', 'magpie', 'beta']);
       expect(top(tester, 'Plain'), lessThan(top(tester, 'magpie')));
       expect(top(tester, 'magpie'), lessThan(top(tester, 'Beta')));
-    });
+    }, variant: TargetPlatformVariant({TargetPlatform.macOS}));
+
+    testWidgets('an upstream\'s models dragged into an order of the user\'s', (
+      tester,
+    ) async {
+      await providers.save(
+        const ModelProvider(
+          id: 'gw',
+          name: 'Gateway',
+          baseUrl: 'https://gw.example.com',
+          models: [
+            ProviderModel(id: 'beta'),
+            ProviderModel(id: 'alpha'),
+            ProviderModel(id: 'off', enabled: false),
+            ProviderModel(id: 'gamma'),
+          ],
+        ),
+      );
+      await pump(tester);
+      await tester.tap(find.text('Gateway'));
+      await tester.pumpAndSettle();
+      // By name until dragged; the unchecked one not shown.
+      expect(top(tester, 'alpha'), lessThan(top(tester, 'beta')));
+      expect(top(tester, 'beta'), lessThan(top(tester, 'gamma')));
+      expect(find.byIcon(Codicons.gripper), findsNWidgets(3));
+
+      await drag(tester, 'gamma', 'alpha', after: false);
+      final provider = providers.provider('gw')!;
+      expect(provider.modelsOrdered, isTrue);
+      // The unchecked one keeps its place among them.
+      expect(provider.sortedModels.map((m) => m.id), [
+        'gamma',
+        'alpha',
+        'beta',
+        'off',
+      ]);
+      expect(provider.enabledModels.map((m) => m.id), [
+        'gamma',
+        'alpha',
+        'beta',
+      ]);
+      expect(top(tester, 'gamma'), lessThan(top(tester, 'alpha')));
+    }, variant: TargetPlatformVariant({TargetPlatform.macOS}));
   });
 }

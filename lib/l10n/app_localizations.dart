@@ -10761,24 +10761,6 @@ abstract class AppLocalizations {
   /// **'Offer {name} in the model picker'**
   String modelsEnableProvider(String name);
 
-  /// No description provided for @modelsMoveToTop.
-  ///
-  /// In en, this message translates to:
-  /// **'Move to Top'**
-  String get modelsMoveToTop;
-
-  /// No description provided for @modelsMoveUp.
-  ///
-  /// In en, this message translates to:
-  /// **'Move Up'**
-  String get modelsMoveUp;
-
-  /// No description provided for @modelsMoveDown.
-  ///
-  /// In en, this message translates to:
-  /// **'Move Down'**
-  String get modelsMoveDown;
-
   /// No description provided for @modelsDragToReorder.
   ///
   /// In en, this message translates to:
