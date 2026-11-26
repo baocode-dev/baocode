@@ -615,6 +615,25 @@ void main() {
       expect(find.textContaining('</details>'), findsNothing);
     });
 
+    testWidgets('<details> to its </details> on one line', (tester) async {
+      await pumpMarkdown(
+        tester,
+        '<details><summary>One</summary>on **one** line</details>\n'
+        '<details><summary>Two</summary>first\n\nlast</details>\n\nafter',
+      );
+      expect(find.text('One'), findsOneWidget);
+      expect(find.text('Two'), findsOneWidget);
+      expect(find.textContaining('line'), findsNothing);
+      expect(find.textContaining('after'), findsOneWidget);
+      await tester.tap(find.text('One'));
+      await tester.tap(find.text('Two'));
+      await tester.pump();
+      expect(find.textContaining('on one line'), findsOneWidget);
+      expect(find.textContaining('first'), findsOneWidget);
+      expect(find.textContaining('last'), findsOneWidget);
+      expect(find.textContaining('details>'), findsNothing);
+    });
+
     testWidgets('HTML\'s other tags stay as they were', (tester) async {
       await pumpMarkdown(tester, '<div>\nhi\n</div>\n\n<br>');
       expect(find.textContaining('<div>'), findsOneWidget);
@@ -673,6 +692,9 @@ void main() {
         '```dart\nvoid main() {\n\n  print(1);\n}\n\nnot code yet\n```\n',
         '\$\$\na^2\n\nb^2\n\$\$\n',
         '<analysis>\nWhy\n\nnot cut\n</analysis>\n',
+        '<details><summary>Links</summary>\n\n- one\n\nnot cut\n</details>\n',
+        '<details><summary>All</summary>on one line</details>\n',
+        '<details>\n\nnot cut\n\nthe last</details>\n',
         '<!-- a comment\n\nacross lines -->\n',
         '<pre>\nraw\n\nraw\n</pre>\n',
         '| a | b |\n|---|---|\n| 1 | 2 |\n',
@@ -726,6 +748,19 @@ void main() {
         before = segments;
       }
       expect(before.length, greaterThan(8));
+    });
+
+    test('a <details> with more on its line is not cut', () {
+      final words = 'Words of a paragraph within it.\n\n' * 200;
+      for (final text in [
+        '<details><summary>Links</summary>\n\n$words</details>\n\n$words',
+        '<details><summary>Links</summary>$words last</details>\n\n$words',
+      ]) {
+        final segments = markdownSegments(text);
+        expect(segments, hasLength(greaterThan(1)));
+        expect(segments.first, contains('</details>'));
+        expect(segments.map(html).join(), html(text));
+      }
     });
 
     test('a text changed before its end is cut anew', () {

@@ -21,45 +21,62 @@ class TagBlockSyntax extends md.BlockSyntax {
   @override
   RegExp get pattern => _opening;
 
-  /// A tag on a line of its own; a `<details>`'s may have its `<summary>`
-  /// after it there.
+  /// A tag on a line of its own; a `<details>`'s may have its `<summary>`,
+  /// and more, after it there, to its `</details>` even.
   static final _opening = RegExp(
-    r'^ {0,3}<([A-Za-z][\w-]*)(\s[^<>]*)?>(?:\s*' + _summarySource + r')?\s*$',
+    r'^ {0,3}<([A-Za-z][\w-]*)(\s[^<>]*)?>'
+    r'(?:\s*<summary(?:\s[^<>]*)?>(.*?)</summary>)?(.*)$',
     caseSensitive: false,
   );
-  static const _summarySource = r'<summary(?:\s[^<>]*)?>(.*)</summary>';
   static final _fence = RegExp(r'^ {0,3}(`{3,}|~{3,})');
   static final _summary = RegExp(
-    r'^\s*' + _summarySource + r'\s*$',
+    r'^\s*<summary(?:\s[^<>]*)?>(.*)</summary>\s*$',
     caseSensitive: false,
   );
   static final _markup = RegExp(r'<[^<>]*>');
 
-  @override
-  bool canParse(md.BlockParser parser) {
-    final match = _opening.firstMatch(parser.current.content);
-    if (match == null) return false;
+  /// [line]'s opening tag, if it opens a block.
+  static RegExpMatch? _openingOf(String line) {
+    final match = _opening.firstMatch(line);
+    if (match == null) return null;
     final lower = match[1]!.toLowerCase();
-    if (match[3] != null) return lower == 'details';
-    return lower == 'details' || lower == 'summary' || !_html.contains(lower);
+    if (lower == 'details') return match;
+    if (match[3] != null || match[4]!.trim().isNotEmpty) return null;
+    return lower == 'summary' || !_html.contains(lower) ? match : null;
   }
 
   @override
+  bool canParse(md.BlockParser parser) =>
+      _openingOf(parser.current.content) != null;
+
+  @override
   md.Node parse(md.BlockParser parser) {
-    final match = _opening.firstMatch(parser.current.content)!;
+    final match = _openingOf(parser.current.content)!;
     final name = match[1]!;
+    final lower = name.toLowerCase();
     final escaped = RegExp.escape(name);
-    final opens = RegExp(
-      '^ {0,3}<$escaped(?:\\s[^<>]*)?>(?:\\s*$_summarySource)?\\s*\$',
+    final closes = RegExp('^ {0,3}</$escaped\\s*>\\s*\$', caseSensitive: false);
+    // Its closing tag after its last line, on that line.
+    final ends = RegExp(
+      '^(.*?)\\s*</$escaped\\s*>\\s*\$',
       caseSensitive: false,
     );
-    final closes = RegExp('^ {0,3}</$escaped\\s*>\\s*\$', caseSensitive: false);
     parser.advance();
     final lines = <String>[];
+    final rest = match[4]!.trim();
+    var closed = false;
+    if (rest.isNotEmpty) {
+      if (ends.firstMatch(rest) case final end?) {
+        closed = true;
+        if (end[1]!.isNotEmpty) lines.add(end[1]!);
+      } else {
+        lines.add(rest);
+      }
+    }
     // The same tag within it, and code, whose lines are not tags.
     var depth = 0;
     String? fence;
-    while (!parser.isDone) {
+    while (!closed && !parser.isDone) {
       final line = parser.current.content;
       parser.advance();
       if (fence != null) {
@@ -72,8 +89,14 @@ class TagBlockSyntax extends md.BlockSyntax {
         fence = opening[1];
       } else if (closes.hasMatch(line)) {
         if (depth-- == 0) break;
-      } else if (opens.hasMatch(line)) {
-        depth++;
+      } else if (_openingOf(line) case final inner?
+          when inner[1]!.toLowerCase() == lower) {
+        if (!ends.hasMatch(inner[4]!)) depth++;
+      } else if (ends.firstMatch(line) case final end?) {
+        if (depth-- == 0) {
+          lines.add(end[1]!);
+          break;
+        }
       }
       lines.add(line);
     }
