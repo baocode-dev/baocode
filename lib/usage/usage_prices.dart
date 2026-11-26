@@ -1055,6 +1055,7 @@ abstract final class ClaudePrices {
 
   /// By the model's name as Anthropic gives it, without a date.
   static final Map<String, ModelPrice> prices = {
+    'claude-fable-5-2': _price(8, 40, 0.2),
     'claude-fable-5-1': _price(10, 50, 0.25),
     'claude-mythos-5-1': _price(10, 50, 0.25),
     'claude-fable-5': _price(10, 50, 1),

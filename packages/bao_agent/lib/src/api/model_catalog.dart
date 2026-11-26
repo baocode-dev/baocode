@@ -102,6 +102,21 @@ class ModelCatalog {
 
   static const known = <ModelInfo>[
     ModelInfo(
+      id: 'claude-fable-5-2',
+      name: 'Fable 5.2',
+      family: 'fable',
+      contextWindow: 1000000,
+      maxOutput: 128000,
+      defaultMaxTokens: 64000,
+      thinking: ThinkingStyle.adaptive,
+      effortLevels: _all5,
+      defaultEffort: 'high',
+      canDisableThinking: false,
+      inputPrice: 8,
+      outputPrice: 40,
+      cacheReadFactor: 0.025,
+    ),
+    ModelInfo(
       id: 'claude-fable-5-1',
       name: 'Fable 5.1',
       family: 'fable',
@@ -289,7 +304,7 @@ class ModelCatalog {
     'opus': 'claude-opus-5-5',
     'sonnet': 'claude-sonnet-5-5',
     'haiku': 'claude-haiku-5-5',
-    'fable': 'claude-fable-5-1',
+    'fable': 'claude-fable-5-2',
   };
 
   static const defaultAlias = 'default';

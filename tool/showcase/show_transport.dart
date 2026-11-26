@@ -103,9 +103,9 @@ const showModels = [
   },
   {
     'value': 'fable',
-    'resolvedModel': 'claude-fable-5-1',
+    'resolvedModel': 'claude-fable-5-2',
     'displayName': 'Fable',
-    'description': 'Fable 5.1 · Most capable for your hardest work',
+    'description': 'Fable 5.2 · Most capable for your hardest work',
     'supportsEffort': true,
     'supportedEffortLevels': ['low', 'medium', 'high', 'xhigh', 'max'],
     'supportsAutoMode': true,

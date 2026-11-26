@@ -417,7 +417,7 @@ const _claudeApi = r'''# Building on the Claude API
 
 ## Models
 The newest models, with their API IDs and prices per million tokens (input / output):
-- Fable 5.1, `claude-fable-5-1`: the most capable, for the hardest and longest work. $10 / $50.
+- Fable 5.2, `claude-fable-5-2`: the most capable, for the hardest and longest work. $8 / $40.
 - Opus 5.5, `claude-opus-5-5`: the best fit for most complex work. $4 / $20.
 - Sonnet 5.5, `claude-sonnet-5-5`: fast and capable for everyday work. $2 / $10.
 - Haiku 5.5, `claude-haiku-5-5`: the fastest and cheapest. $0.10 / $0.50 ($0.50 / $2.50 for prompts over 100k tokens).
