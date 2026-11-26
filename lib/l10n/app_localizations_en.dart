@@ -1977,33 +1977,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get sidebarDeleteAgentTitle => 'Delete agent?';
-
-  @override
-  String sidebarDeleteAgentMessage(String title) {
-    return '“$title” and its conversation will be removed.';
-  }
-
-  @override
-  String get sidebarDeleteAgentsTitle => 'Delete agents?';
-
-  @override
-  String sidebarDeleteAgentsMessage(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: 'The $count agents and their conversations will be deleted',
-      one: 'The agent and its conversation will be deleted',
-    );
-    return '$_temp0, from their kernels too. This cannot be undone.';
-  }
-
-  @override
-  String sidebarDeleteAgentMessageKernel(String title, String kernel) {
-    return '“$title” and its conversation will be deleted, from $kernel too. This cannot be undone.';
-  }
-
-  @override
   String get sidebarSearchAgents => 'Search agents…';
 
   @override
@@ -2074,7 +2047,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String sidebarDeleteCount(int count) {
-    return 'Delete $count Agents…';
+    return 'Delete $count Agents';
   }
 
   @override
@@ -2090,17 +2063,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sidebarDetachAside => 'Detach from Conversation';
-
-  @override
-  String sidebarDeleteAsidesToo(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: 'Its $count /btw conversations are deleted with it.',
-      one: 'Its /btw conversation is deleted with it.',
-    );
-    return '$_temp0';
-  }
 
   @override
   String get btwCommandDetail =>
@@ -2153,25 +2115,36 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sidebarUnarchiveAll => 'Unarchive All';
 
   @override
-  String get sidebarDeleteArchived => 'Delete All Archived…';
-
-  @override
-  String get sidebarDeleteArchivedTitle => 'Delete archived agents?';
-
-  @override
-  String sidebarDeleteArchivedMessage(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other:
-          'The $count archived agents and their conversations will be deleted',
-      one: 'The archived agent and its conversation will be deleted',
-    );
-    return '$_temp0, from their kernels too. This cannot be undone.';
-  }
+  String get sidebarDeleteArchived => 'Delete All Archived';
 
   @override
   String get sidebarRemoveFromList => 'Remove from List';
+
+  @override
+  String sidebarAgentDeleted(String title) {
+    return 'Deleted “$title”';
+  }
+
+  @override
+  String sidebarAgentsDeleted(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Deleted $count agents',
+      one: 'Deleted 1 agent',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String sidebarProjectRemoved(String name) {
+    return 'Removed “$name” from the list';
+  }
+
+  @override
+  String sidebarWorkspaceDeleted(String name) {
+    return 'Deleted workspace “$name”';
+  }
 
   @override
   String get sidebarDropToPin => 'Drop here to pin';

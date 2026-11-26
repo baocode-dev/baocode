@@ -3560,36 +3560,6 @@ abstract class AppLocalizations {
   /// **'Archived · {count}'**
   String sidebarArchivedCount(int count);
 
-  /// No description provided for @sidebarDeleteAgentTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Delete agent?'**
-  String get sidebarDeleteAgentTitle;
-
-  /// No description provided for @sidebarDeleteAgentMessage.
-  ///
-  /// In en, this message translates to:
-  /// **'“{title}” and its conversation will be removed.'**
-  String sidebarDeleteAgentMessage(String title);
-
-  /// No description provided for @sidebarDeleteAgentsTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Delete agents?'**
-  String get sidebarDeleteAgentsTitle;
-
-  /// No description provided for @sidebarDeleteAgentsMessage.
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =1{The agent and its conversation will be deleted} other{The {count} agents and their conversations will be deleted}}, from their kernels too. This cannot be undone.'**
-  String sidebarDeleteAgentsMessage(int count);
-
-  /// No description provided for @sidebarDeleteAgentMessageKernel.
-  ///
-  /// In en, this message translates to:
-  /// **'“{title}” and its conversation will be deleted, from {kernel} too. This cannot be undone.'**
-  String sidebarDeleteAgentMessageKernel(String title, String kernel);
-
   /// No description provided for @sidebarSearchAgents.
   ///
   /// In en, this message translates to:
@@ -3707,7 +3677,7 @@ abstract class AppLocalizations {
   /// No description provided for @sidebarDeleteCount.
   ///
   /// In en, this message translates to:
-  /// **'Delete {count} Agents…'**
+  /// **'Delete {count} Agents'**
   String sidebarDeleteCount(int count);
 
   /// An agent's menu in the sidebar: copies the id of its session, which Claude Code finds the conversation by.
@@ -3733,12 +3703,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Detach from Conversation'**
   String get sidebarDetachAside;
-
-  /// After the message asking to delete an agent that has conversations asked beside it with /btw.
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =1{Its /btw conversation is deleted with it.} other{Its {count} /btw conversations are deleted with it.}}'**
-  String sidebarDeleteAsidesToo(int count);
 
   /// The /btw command in the composer's command list: what follows is asked in a new conversation copied from this one, listed under it.
   ///
@@ -3815,26 +3779,38 @@ abstract class AppLocalizations {
   /// No description provided for @sidebarDeleteArchived.
   ///
   /// In en, this message translates to:
-  /// **'Delete All Archived…'**
+  /// **'Delete All Archived'**
   String get sidebarDeleteArchived;
-
-  /// No description provided for @sidebarDeleteArchivedTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Delete archived agents?'**
-  String get sidebarDeleteArchivedTitle;
-
-  /// No description provided for @sidebarDeleteArchivedMessage.
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =1{The archived agent and its conversation will be deleted} other{The {count} archived agents and their conversations will be deleted}}, from their kernels too. This cannot be undone.'**
-  String sidebarDeleteArchivedMessage(int count);
 
   /// No description provided for @sidebarRemoveFromList.
   ///
   /// In en, this message translates to:
   /// **'Remove from List'**
   String get sidebarRemoveFromList;
+
+  /// The note at the bottom of the window, Undo beside it, once an agent is deleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleted “{title}”'**
+  String sidebarAgentDeleted(String title);
+
+  /// No description provided for @sidebarAgentsDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Deleted 1 agent} other{Deleted {count} agents}}'**
+  String sidebarAgentsDeleted(int count);
+
+  /// No description provided for @sidebarProjectRemoved.
+  ///
+  /// In en, this message translates to:
+  /// **'Removed “{name}” from the list'**
+  String sidebarProjectRemoved(String name);
+
+  /// No description provided for @sidebarWorkspaceDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleted workspace “{name}”'**
+  String sidebarWorkspaceDeleted(String name);
 
   /// No description provided for @sidebarDropToPin.
   ///

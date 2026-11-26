@@ -478,15 +478,30 @@ void main() {
     await tester.pump();
     expect(row(), findsOneWidget);
 
+    // Gone at once, deleted a moment later: called off meanwhile, nothing
+    // of it changed.
     await menu('Delete');
-    await tester.tap(find.widgetWithText(GestureDetector, 'Delete').last);
+    expect(workspace.threads, isNot(contains(thread)));
+    expect(row(), findsNothing);
+    expect(find.text('Deleted “Throttle”'), findsOneWidget);
+    await tester.tap(find.text('Undo'));
     await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Undo'), findsNothing);
+    expect(workspace.threads, contains(thread));
+    expect(thread.archived, isTrue);
+    expect(row(), findsOneWidget);
+
+    // Left be: deleted for good.
+    await menu('Delete');
+    await tester.pump(Workspace.deleteDelay);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Undo'), findsNothing);
     expect(workspace.threads, isNot(contains(thread)));
     expect(row(), findsNothing);
   });
 
   testWidgets('the archived button\'s menu unarchives them all, or deletes '
-      'them all once confirmed', (tester) async {
+      'them all a moment later', (tester) async {
     final workspace = await pumpApp(tester);
     final archived = workspace.threads.skip(1).take(2).toList();
     void archive() {
@@ -513,15 +528,23 @@ void main() {
 
     archive();
     await tester.pump();
-    await menu('Delete All Archived…');
-    expect(find.text('Delete archived agents?'), findsOneWidget);
-    await tester.tap(find.widgetWithText(GestureDetector, 'Delete').last);
-    await tester.pump(const Duration(milliseconds: 300));
+    await menu('Delete All Archived');
     for (final thread in archived) {
       expect(workspace.threads, isNot(contains(thread)));
     }
     expect(workspace.threads, isNotEmpty);
     expect(inSidebar(find.textContaining('Archived')), findsNothing);
+    expect(find.text('Deleted 2 agents'), findsOneWidget);
+    await tester.tap(find.text('Undo'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(archived.every((thread) => thread.archived), isTrue);
+    expect(inSidebar(find.text('Archived · 2')), findsOneWidget);
+    await menu('Delete All Archived');
+    await tester.pump(Workspace.deleteDelay);
+    await tester.pump(const Duration(milliseconds: 300));
+    for (final thread in archived) {
+      expect(workspace.threads, isNot(contains(thread)));
+    }
   });
 
   testWidgets('shown, the archived agents\' heading has the same menu, on a '
@@ -544,7 +567,7 @@ void main() {
     await archiveAndShow();
     await tester.tap(heading, buttons: kSecondaryButton);
     await tester.pump(const Duration(milliseconds: 200));
-    expect(find.text('Delete All Archived…'), findsOneWidget);
+    expect(find.text('Delete All Archived'), findsOneWidget);
     await tester.tap(find.text('Unarchive All'));
     await tester.pump(const Duration(milliseconds: 300));
     expect(archived.where((thread) => thread.archived), isEmpty);
@@ -557,10 +580,8 @@ void main() {
     await tester.pump();
     await tester.tap(inSidebar(find.byIcon(Icons.more_horiz_rounded)));
     await tester.pump(const Duration(milliseconds: 200));
-    await tester.tap(find.text('Delete All Archived…'));
-    await tester.pump(const Duration(milliseconds: 300));
-    expect(find.text('Delete archived agents?'), findsOneWidget);
-    await tester.tap(find.widgetWithText(GestureDetector, 'Delete').last);
+    await tester.tap(find.text('Delete All Archived'));
+    await tester.pump(Workspace.deleteDelay);
     await tester.pump(const Duration(milliseconds: 300));
     for (final thread in archived) {
       expect(workspace.threads, isNot(contains(thread)));
@@ -1661,8 +1682,18 @@ void main() {
     expect(inSidebar(find.text('a')), findsNothing);
     expect(workspace.isHidden(keptThread(workspace, 'a1').project), isTrue);
 
-    // Off the list until it is opened again...
+    // Off the list at once, done a moment later: called off meanwhile...
     await pickFromMenu(tester, 'b', 'Remove from List');
+    expect(inSidebar(find.text('b')), findsNothing);
+    expect(find.text('Removed “b” from the list'), findsOneWidget);
+    await tester.tap(find.text('Undo'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(inSidebar(find.text('b')), findsOneWidget);
+
+    // ...else, a moment later, until it is opened again...
+    await pickFromMenu(tester, 'b', 'Remove from List');
+    await tester.pump(Workspace.deleteDelay);
+    await tester.pump(const Duration(milliseconds: 300));
     expect(inSidebar(find.text('b')), findsNothing);
     expect(inSidebar(find.text('Chat b1')), findsNothing);
     await tester.runAsync(() => workspace.openFolder('/tmp/b'));
@@ -1672,6 +1703,8 @@ void main() {
 
     // ...or a session there is new.
     await pickFromMenu(tester, 'b', 'Remove from List');
+    await tester.pump(Workspace.deleteDelay);
+    await tester.pump(const Duration(milliseconds: 300));
     workspace.select(keptThread(workspace, 'a1'));
     await tester.runAsync(workspace.refresh);
     await tester.pump();
@@ -2590,7 +2623,7 @@ void main() {
   );
 
   testWidgets(
-    'a batch deletion confirms once and removes only selected chats',
+    'a batch deletion asks nothing, and deletes only the chats selected',
     (tester) async {
       final workspace = await pumpKept(
         tester,
@@ -2607,15 +2640,11 @@ void main() {
         buttons: kSecondaryButton,
       );
       await tester.pump();
-      await tester.tap(find.text('Delete 2 Agents…'));
+      await tester.tap(find.text('Delete 2 Agents'));
       await tester.pump();
-      expect(find.text('Delete agents?'), findsOneWidget);
-      expect(
-        find.textContaining('2 agents and their conversations'),
-        findsOneWidget,
-      );
-      await tester.tap(find.widgetWithText(GestureDetector, 'Delete').last);
-      await tester.pump();
+      expect(find.text('Deleted 2 agents'), findsOneWidget);
+      await tester.pump(Workspace.deleteDelay);
+      await tester.pump(const Duration(milliseconds: 300));
       expect(
         workspace.threads.map((thread) => thread.record?.id),
         contains('a1'),

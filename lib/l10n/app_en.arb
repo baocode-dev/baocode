@@ -988,35 +988,6 @@
       }
     }
   },
-  "sidebarDeleteAgentTitle": "Delete agent?",
-  "sidebarDeleteAgentMessage": "“{title}” and its conversation will be removed.",
-  "@sidebarDeleteAgentMessage": {
-    "placeholders": {
-      "title": {
-        "type": "String"
-      }
-    }
-  },
-  "sidebarDeleteAgentsTitle": "Delete agents?",
-  "sidebarDeleteAgentsMessage": "{count, plural, =1{The agent and its conversation will be deleted} other{The {count} agents and their conversations will be deleted}}, from their kernels too. This cannot be undone.",
-  "@sidebarDeleteAgentsMessage": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "sidebarDeleteAgentMessageKernel": "“{title}” and its conversation will be deleted, from {kernel} too. This cannot be undone.",
-  "@sidebarDeleteAgentMessageKernel": {
-    "placeholders": {
-      "title": {
-        "type": "String"
-      },
-      "kernel": {
-        "type": "String"
-      }
-    }
-  },
   "sidebarSearchAgents": "Search agents…",
   "ideChatHistory": "Agent History",
   "@ideChatHistory": {
@@ -1092,7 +1063,7 @@
       }
     }
   },
-  "sidebarDeleteCount": "Delete {count} Agents…",
+  "sidebarDeleteCount": "Delete {count} Agents",
   "@sidebarDeleteCount": {
     "placeholders": {
       "count": {
@@ -1119,15 +1090,6 @@
   "sidebarDetachAside": "Detach from Conversation",
   "@sidebarDetachAside": {
     "description": "The menu of a conversation asked beside another with /btw, listed under it in the sidebar: makes it a conversation of its own."
-  },
-  "sidebarDeleteAsidesToo": "{count, plural, =1{Its /btw conversation is deleted with it.} other{Its {count} /btw conversations are deleted with it.}}",
-  "@sidebarDeleteAsidesToo": {
-    "description": "After the message asking to delete an agent that has conversations asked beside it with /btw.",
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
   },
   "btwCommandDetail": "Ask in a conversation of its own, beside this one",
   "@btwCommandDetail": {
@@ -1175,17 +1137,41 @@
   "sidebarSortByTime": "Sort by Time",
   "sidebarArchiveAll": "Archive All",
   "sidebarUnarchiveAll": "Unarchive All",
-  "sidebarDeleteArchived": "Delete All Archived…",
-  "sidebarDeleteArchivedTitle": "Delete archived agents?",
-  "sidebarDeleteArchivedMessage": "{count, plural, =1{The archived agent and its conversation will be deleted} other{The {count} archived agents and their conversations will be deleted}}, from their kernels too. This cannot be undone.",
-  "@sidebarDeleteArchivedMessage": {
+  "sidebarDeleteArchived": "Delete All Archived",
+  "sidebarRemoveFromList": "Remove from List",
+  "sidebarAgentDeleted": "Deleted “{title}”",
+  "@sidebarAgentDeleted": {
+    "description": "The note at the bottom of the window, Undo beside it, once an agent is deleted.",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "sidebarAgentsDeleted": "{count, plural, =1{Deleted 1 agent} other{Deleted {count} agents}}",
+  "@sidebarAgentsDeleted": {
     "placeholders": {
       "count": {
         "type": "int"
       }
     }
   },
-  "sidebarRemoveFromList": "Remove from List",
+  "sidebarProjectRemoved": "Removed “{name}” from the list",
+  "@sidebarProjectRemoved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "sidebarWorkspaceDeleted": "Deleted workspace “{name}”",
+  "@sidebarWorkspaceDeleted": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "sidebarDropToPin": "Drop here to pin",
   "sidebarMoreActions": "More Actions…",
   "sidebarChangeIcon": "Change Icon…",
