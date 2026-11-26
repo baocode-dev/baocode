@@ -1795,6 +1795,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get welcomeDemoTitle => '演示：对比并重写一个限流中间件';
 
   @override
+  String get welcomeDemoNoModel => '这是演示。要开始真正的对话，请先配置你自己的模型。';
+
+  @override
   String get chatTitleSummarize => '总结新标题';
 
   @override

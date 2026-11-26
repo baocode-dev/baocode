@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:baocode/chat/chat_models.dart';
 import 'package:baocode/chat/chat_session.dart';
+import 'package:baocode/images/image_tools.dart';
 import 'package:baocode/kernel/agent_kernel.dart';
 import 'package:baocode/kernel/claude_code/claude_code_kernel.dart';
 import 'package:baocode/kernel/claude_code/claude_code_transport.dart';
@@ -61,6 +62,8 @@ void main() {
   late KernelDescriptor claude;
 
   setUp(() {
+    // Its calls shown as pictures, with no image model, as the app has it.
+    ImageTools.start();
     root = Directory.systemTemp.createTempSync('welcome');
     launches = [];
     claude = KernelDescriptor(
@@ -157,6 +160,12 @@ void main() {
       ),
       hasLength(1),
     );
+    // A picture made, though there is no image model here.
+    final picture = items.whereType<ToolCallItem>().singleWhere(
+      (item) => item.kind == ToolKind.image,
+    );
+    expect(picture.images, hasLength(1));
+    expect(picture.imageFiles, [p.join(folder, 'store', 'boss-fight.webp')]);
     final agents = items.whereType<AgentItem>().toList();
     expect(agents, hasLength(3));
     expect(agents.every((agent) => agent.children.isNotEmpty), isTrue);
@@ -176,6 +185,7 @@ void main() {
     addTearDown(() => ClaudeCore.current = core);
     ClaudeCore.current = () => ClaudeCore.builtin;
     expect(demo.session.health.noModel, isTrue);
+    expect(demo.session.health.noModelNote, startsWith('This is a demo.'));
     ClaudeCore.current = () => ClaudeCore.cli;
     expect(demo.session.health.noModel, isFalse);
 

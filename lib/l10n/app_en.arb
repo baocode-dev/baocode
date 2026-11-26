@@ -870,6 +870,10 @@
   "@welcomeDemoTitle": {
     "description": "The title of the demo conversation a new user first sees: nothing in it ran; what they send starts a conversation of their own."
   },
+  "welcomeDemoNoModel": "This is a demo. To start a real conversation, set up a model of your own.",
+  "@welcomeDemoNoModel": {
+    "description": "Above the composer of the demo conversation, beside the Set Up a Model button, while no model is set up."
+  },
   "chatTitleSummarize": "Summarize into a new title",
   "@chatTitleSummarize": {
     "description": "In the list under a chat's title being renamed: has a model title the conversation from what the user asked."

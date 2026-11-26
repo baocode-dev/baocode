@@ -515,7 +515,8 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       ),
       // Played as it opens, after its note; again to whatever is sent.
       opened: (session) {
-        session.healthAs = welcomeHealth;
+        session.healthAs = (health) =>
+            welcomeHealth(health, note: l10n().welcomeDemoNoModel);
         void play() {
           if (session.loadingHistory) return;
           session.removeListener(play);

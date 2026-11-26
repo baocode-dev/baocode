@@ -2,9 +2,11 @@
 // showcase's rate limiter (tool/showcase/code.dart), told in plain words,
 // with what the app draws best: the web searched, a table, a formula, a
 // diagram and code; subagents at work beside a background task, each
-// step of theirs under its card; edits, and the tests run.
+// step of theirs under its card; edits, the tests run, and a picture made
+// (the site's, boss-fight.webp).
 
 import 'dart:convert';
+import 'dart:io';
 
 import '../showcase/code.dart';
 import '../showcase/show_transport.dart';
@@ -13,8 +15,8 @@ import '../showcase/story.dart';
 String t(String en, String zh) => Story.t(en, zh);
 
 String get demoPrompt => t(
-  'Move our rate-limiting middleware to a sliding-window counter: compare the algorithms first, then research it with a few subagents in parallel. Make the store swappable (in memory and Workers KV), switch to the standard RateLimit headers, and update the tests.',
-  '限流中间件改成滑动窗口计数：先对比一下几种算法，再派几个子代理并行调研。存储做成可替换的（内存和 Workers KV），响应头换成标准的 RateLimit，测试一起改。',
+  'Move our rate-limiting middleware to a sliding-window counter: compare the algorithms first, then research it with a few subagents in parallel. Make the store swappable (in memory and Workers KV), switch to the standard RateLimit headers, and update the tests. Then make a store screenshot for the game demo: the boss fight on the sky islands, HUD on.',
+  '限流中间件改成滑动窗口计数：先对比一下几种算法，再派几个子代理并行调研。存储做成可替换的（内存和 Workers KV），响应头换成标准的 RateLimit，测试一起改。最后给游戏 demo 做一张商店截图：空岛上的 boss 战，带 HUD。',
 );
 
 /// The whole reply: the algorithms compared, then the rewrite.
@@ -410,6 +412,8 @@ Future<void> rewriteScript(ShowRun run, String root) async {
     took: 1400,
   );
   tsc.done(t('Found 0 errors. Watching for file changes.', '0 个错误，继续监听。'));
+  await run.say(t('Tests pass. Now the store screenshot.', '测试通过。接着做商店截图。'));
+  await _picture(run, root);
   await run.say(
     t(
       '''Done. The rate limiter now counts in a sliding window:
@@ -418,6 +422,7 @@ Future<void> rewriteScript(ShowRun run, String root) async {
 |---|---|
 | index.ts | the store is swappable: in memory by default, Workers KV as the other (eventually consistent, noted in the docs); the previous window is weighted |
 | index.test.ts | the new headers asserted, and the next-window case checks the weighting. 4 tests, all passing |
+| store/boss-fight.webp | the store screenshot: the boss fight on the sky islands, HUD on |
 
 The old X-RateLimit headers gave way to the standard RateLimit ones, which an option turns off; a 429 still comes with Retry-After.
 
@@ -430,6 +435,7 @@ The old X-RateLimit headers gave way to the standard RateLimit ones, which an op
 |---|---|
 | index.ts | 存储可以替换：默认存在内存里，也可以用 Workers KV（最终一致，文档里有说明）；上一窗口的请求按比例加权 |
 | index.test.ts | 断言改成新的响应头，“下一窗口”的用例改成检查加权。4 个测试全部通过 |
+| store/boss-fight.webp | 商店截图：空岛上的 boss 战，带 HUD |
 
 旧的 X-RateLimit 响应头换成了标准的 RateLimit，可以用选项关掉；429 时照旧带 Retry-After。
 
@@ -439,6 +445,58 @@ The old X-RateLimit headers gave way to the standard RateLimit ones, which an op
     ),
     charsPerSecond: Story.zh ? 90 : 200,
   );
+}
+
+/// A picture made with the app's own tool, as it answers: where it was
+/// saved, and the picture.
+Future<void> _picture(ShowRun run, String root) async {
+  const model = 'GPT Image 2 (@openai/gpt-image-2)';
+  final path = '$root/store/boss-fight.webp';
+  final id = run.call('mcp__baocode__generate_image', {
+    'prompt': 'In-game screenshot of a stylized 3D action RPG: a swordswoman in a crimson cloak faces a bronze mechanical dragon over floating sky islands at sunset, boss bar, minimap and ability HUD',
+    'aspect_ratio': '16:9',
+    'path': 'store/boss-fight.webp',
+    'model': '@openai/gpt-image-2',
+    'description': t(
+      'Store screenshot: the sky-island boss fight',
+      '商店截图：空岛 boss 战',
+    ),
+  });
+  await run.pause(5200);
+  final picture = File('tool/welcome_demo/boss-fight.webp').readAsBytesSync();
+  run.raw({
+    'type': 'user',
+    'message': {
+      'role': 'user',
+      'content': [
+        {
+          'type': 'tool_result',
+          'tool_use_id': id,
+          'content': [
+            {
+              'type': 'text',
+              'text':
+                  'Generated an image with $model, saved to:\n'
+                  '- $path (1360×768)\n'
+                  'The user sees it in the conversation already: do not '
+                  'show it again in your reply.',
+            },
+            {
+              'type': 'image',
+              'source': {
+                'type': 'base64',
+                'media_type': 'image/webp',
+                'data': base64Encode(picture),
+              },
+            },
+          ],
+          'is_error': false,
+        },
+      ],
+    },
+    'parent_tool_use_id': null,
+  });
+  await run.pause(600);
 }
 
 const _bunTestOutput = '''bun test v1.2.22

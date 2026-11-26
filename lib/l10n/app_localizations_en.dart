@@ -1835,6 +1835,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get welcomeDemoTitle => 'Demo: a rate limiter, compared and rewritten';
 
   @override
+  String get welcomeDemoNoModel =>
+      'This is a demo. To start a real conversation, set up a model of your own.';
+
+  @override
   String get chatTitleSummarize => 'Summarize into a new title';
 
   @override

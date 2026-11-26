@@ -138,9 +138,17 @@ abstract final class ClaudeSdkTools {
   /// session counts its own): to cancel them.
   static final Map<(String?, Object), Completer<void>> _calls = {};
 
-  static void register(ClaudeSdkTool tool) => _tools[tool.name] = tool;
+  /// The tools whose calls show as theirs though not offered now (or ever,
+  /// here): an image model turned off, the pictures made stay pictures.
+  static final Map<String, ClaudeSdkTool> _shown = {};
+
+  static void register(ClaudeSdkTool tool) =>
+      _tools[tool.name] = _shown[tool.name] = tool;
 
   static void unregister(String name) => _tools.remove(name);
+
+  /// Has calls of [tool] show as its own, offered or not.
+  static void show(ClaudeSdkTool tool) => _shown[tool.name] = tool;
 
   /// What each feature tells the agent of its tools, by feature, for the
   /// folder it works in: the server's instructions, in the agent's system
@@ -175,12 +183,12 @@ abstract final class ClaudeSdkTools {
   static bool asksUser(String cwd) => gate?.asksUser(cwd) ?? true;
 
   /// The tool an agent calls [name] (`mcp__baocode__<name>`), if one of
-  /// this server's.
+  /// this server's: offered, else [show]n.
   static ClaudeSdkTool? called(String name) {
     const prefix = 'mcp__${server}__';
-    return name.startsWith(prefix)
-        ? _tools[name.substring(prefix.length)]
-        : null;
+    if (!name.startsWith(prefix)) return null;
+    final tool = name.substring(prefix.length);
+    return _tools[tool] ?? _shown[tool];
   }
 
   /// Whether there is any tool: the server is only given then.

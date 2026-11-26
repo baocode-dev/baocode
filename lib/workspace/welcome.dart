@@ -179,15 +179,17 @@ KernelDescriptor welcomeKernel(
 
 /// [health] as the demo shows it: with no model to run on, as a new
 /// conversation would have (BaoCode's own core, no upstream turned on), so
-/// that the user is offered setting one up; the demo plays all the same.
-KernelHealth welcomeHealth(KernelHealth health) =>
+/// that the user is offered setting one up, with [note] (that it is a
+/// demo); the demo plays all the same.
+KernelHealth welcomeHealth(KernelHealth health, {String? note}) =>
     health.status != KernelHealthStatus.failed &&
         ClaudeCore.current() == ClaudeCore.builtin &&
         ModelProviders.current.firstModel == null
-    ? const KernelHealth(
+    ? KernelHealth(
         KernelHealthStatus.failed,
         message: ClaudeCore.noModel,
         noModel: true,
+        noModelNote: note,
       )
     : health;
 

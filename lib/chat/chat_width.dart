@@ -11,16 +11,22 @@ abstract final class ChatWidth {
   /// The setting's value for as wide as the window.
   static const full = 'full';
 
-  static const fallback = 720.0;
+  static const fallback = 1040.0;
+
+  /// The narrowest it may be.
+  static const narrowest = 720.0;
 
   /// The slider's, narrowest first; the last as wide as the window.
-  static const steps = [fallback, 880.0, 1040.0, 1200.0, double.infinity];
+  static const steps = [narrowest, 880.0, fallback, 1200.0, double.infinity];
 
-  /// [value] as settings.json has it; a width under [fallback] is
-  /// [fallback].
+  /// [value] as settings.json has it; a width under [narrowest] is
+  /// [narrowest].
   static double parse(Object? value) => switch (value) {
     full => double.infinity,
-    final num width when width.isFinite => math.max(fallback, width.toDouble()),
+    final num width when width.isFinite => math.max(
+      narrowest,
+      width.toDouble(),
+    ),
     _ => fallback,
   };
 

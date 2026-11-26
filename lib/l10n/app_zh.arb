@@ -540,6 +540,7 @@
   "agentImageTitle": "图片：{name}",
   "agentImageUntitled": "图片",
   "welcomeDemoTitle": "演示：对比并重写一个限流中间件",
+  "welcomeDemoNoModel": "这是演示。要开始真正的对话，请先配置你自己的模型。",
   "chatTitleSummarize": "总结新标题",
   "chatTitleSummarizing": "正在总结…",
   "chatTitleSummarizeFailed": "未能生成标题，再试一次",
