@@ -242,6 +242,76 @@ Future<Uint8List> readBytesThrough(IdeFileService files, String path) async {
   return utf8.encode(await files.read(path, force: true));
 }
 
+/// [path]'s bytes through [files], a stretch of at most [length] at a time
+/// as they are listened for, and how many there are: a file of any size,
+/// not held whole (but from a host that reads none in stretches).
+Future<({int size, Stream<Uint8List> bytes})> readPiecesThrough(
+  IdeFileService files,
+  String path, {
+  int length = 1024 * 1024,
+}) async {
+  if (files is platform.LocalIdeFileService) {
+    return platform.readFilePieces(path, length);
+  }
+  if (files is IdeRangeFiles) {
+    final ranges = files as IdeRangeFiles;
+    final first = await ranges.readRange(path, 0, length);
+    final size = first.size;
+    Stream<Uint8List> bytes() async* {
+      var offset = first.bytes.length;
+      yield first.bytes;
+      while (offset < size) {
+        final want = size - offset < length ? size - offset : length;
+        final (:bytes, size: _) = await ranges.readRange(path, offset, want);
+        if (bytes.isEmpty) break;
+        offset += bytes.length;
+        yield bytes;
+      }
+    }
+
+    return (size: size, bytes: bytes());
+  }
+  final bytes = await readBytesThrough(files, path);
+  return (size: bytes.length, bytes: Stream.value(bytes));
+}
+
+/// [bytes] written to [path] through [files] as they come: here straight
+/// to disk, on a host a stretch at a time where it can be; nothing left of
+/// it when they fail.
+Future<void> writePiecesThrough(
+  IdeFileService files,
+  String path,
+  Stream<Uint8List> bytes,
+) async {
+  if (files is platform.LocalIdeFileService) {
+    return platform.writeFilePieces(path, bytes);
+  }
+  if (files is IdeRangeFiles) {
+    final ranges = files as IdeRangeFiles;
+    var offset = 0;
+    var made = false;
+    try {
+      await for (final piece in bytes) {
+        if (!made) {
+          await files.writeBytes(path, piece);
+          made = true;
+        } else {
+          await ranges.appendBytes(path, offset, piece);
+        }
+        offset += piece.length;
+      }
+      if (!made) await files.writeBytes(path, Uint8List(0));
+    } on Object {
+      if (made) await files.delete(path).catchError((Object _) {});
+      rethrow;
+    }
+    return;
+  }
+  final all = BytesBuilder(copy: false);
+  await bytes.forEach(all.add);
+  await files.writeBytes(path, all.takeBytes());
+}
+
 /// Whether [files] are this machine's: [listLocalProjectFiles] lists them.
 bool isLocalFileService(IdeFileService files) =>
     files is platform.LocalIdeFileService;

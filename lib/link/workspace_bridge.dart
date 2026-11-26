@@ -774,9 +774,12 @@ class WorkspaceBridge {
         return _download(
           _filesProject(params),
           params['path'] as String? ?? '',
+          pieces: params['pieces'] == true,
         );
       case LinkMethods.upload:
         return _upload(_filesProject(params), params);
+      case LinkMethods.uploadPieces:
+        return _uploadPieces(_filesProject(params), params);
       case LinkMethods.extensions:
         return {
           'items': [for (final item in await _extensions()) item.toJson()],
@@ -1040,11 +1043,25 @@ class WorkspaceBridge {
   }
 
   /// A file of [project], or any of its machine, as it is: for the phone
-  /// to open in an app of its own.
-  Future<Map<String, Object?>> _download(Project project, String path) async {
+  /// to open in an app of its own. In [pieces], of any size; else whole,
+  /// for a phone before them.
+  Future<Object?> _download(
+    Project project,
+    String path, {
+    bool pieces = false,
+  }) async {
     await _reach(project);
     final (:files, paths: _) = _filesOf(project);
     for (final full in _candidates(project, path)) {
+      if (pieces) {
+        final ({int size, Stream<Uint8List> bytes}) read;
+        try {
+          read = await readPiecesThrough(files, full, length: LinkLimits.piece);
+        } on Object {
+          continue; // Not there: the next place it may be.
+        }
+        return LinkPieces(read.size, read.bytes);
+      }
       final Uint8List bytes;
       try {
         bytes = await readBytesThrough(files, full);
@@ -1075,6 +1092,31 @@ class WorkspaceBridge {
     if (bytes.length > LinkLimits.upload) {
       return {'tooLarge': true, 'size': bytes.length};
     }
+    final (:files, :path) = await _uploadPath(project, params['name']);
+    await files.writeBytes(path, bytes);
+    return {'path': path};
+  }
+
+  /// [_upload], the file's bytes in pieces after the request
+  /// ([LinkMethods.uploadPieces]): of any size, written as they come.
+  Future<Map<String, Object?>> _uploadPieces(
+    Project project,
+    Map<String, Object?> params,
+  ) async {
+    final pieces =
+        LinkPeer.piecesOf(params) ??
+        (throw const LinkRemoteException('bad', 'No pieces'));
+    final (:files, :path) = await _uploadPath(project, params['name']);
+    await writePiecesThrough(files, path, pieces.bytes);
+    return {'path': path};
+  }
+
+  /// Where a file the phone sends, [name], goes for [project]'s agent
+  /// ([uploadsOf]): in a folder of its own, so that it keeps its name.
+  Future<({IdeFileService files, String path})> _uploadPath(
+    Project project,
+    Object? name,
+  ) async {
     await _reach(project);
     final (:files, :paths) = _filesOf(project);
     final folder = uploadsOf(project, files);
@@ -1092,9 +1134,7 @@ class WorkspaceBridge {
         // Made before.
       }
     }
-    final path = paths.join(into, uploadName(params['name']));
-    await files.writeBytes(path, bytes);
-    return {'path': path};
+    return (files: files, path: paths.join(into, uploadName(name)));
   }
 
   /// [name], the phone's for a file it sends, as one to keep it by on any

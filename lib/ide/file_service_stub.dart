@@ -45,6 +45,14 @@ Future<Uint8List> readFileBytes(String path) =>
 Future<int> fileByteSize(String path) =>
     Future.error(UnsupportedError('Local editing requires the desktop app'));
 
+Future<({int size, Stream<Uint8List> bytes})> readFilePieces(
+  String path,
+  int length,
+) => Future.error(UnsupportedError('Local editing requires the desktop app'));
+
+Future<void> writeFilePieces(String path, Stream<Uint8List> bytes) =>
+    Future.error(UnsupportedError('Local editing requires the desktop app'));
+
 Future<void> uploadTo(
   IdeFileService files,
   List<({String from, String to})> items, {
