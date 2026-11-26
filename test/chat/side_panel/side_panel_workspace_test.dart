@@ -272,8 +272,8 @@ void main() {
     expect(added, 1);
   });
 
-  testWidgets('the changes page lists each folder\'s repository with its '
-      'changes, counts them all, and shows the one clicked', (tester) async {
+  testWidgets('the changes page lists the repository picked alone, under '
+      'its header, and counts them all', (tester) async {
     final site = FakeGit(_site)..status = '## main\x00 M index.html\x00';
     final api = FakeGit(_api)..status = '## dev\x00 M main.go\x00?? new.go\x00';
     final repositories = [(_site, site.repository()), (_api, api.repository())];
@@ -285,20 +285,17 @@ void main() {
       section: SidePanelSection.changes,
       repositories: repositories,
     );
-    // Each under its header, with its branch, and all their changes, as
-    // the local changes' details of the Git log.
-    for (final (root, label) in [(_site, 'site  main'), (_api, 'api  dev')]) {
-      expect(
-        find.descendant(
-          of: _header(root),
-          matching: find.text(label, findRichText: true),
-        ),
-        findsOneWidget,
-      );
-    }
-    for (final name in ['index.html', 'main.go', 'new.go']) {
-      expect(_inChanges(name), findsOneWidget, reason: name);
-    }
+    // The first's, under its header with its branch; not the other's.
+    expect(
+      find.descendant(
+        of: _header(_site),
+        matching: find.text('site  main', findRichText: true),
+      ),
+      findsOneWidget,
+    );
+    expect(_header(_api), findsNothing);
+    expect(_inChanges('index.html'), findsOneWidget);
+    expect(_inChanges('main.go'), findsNothing);
     // The page's tab counts every repository's.
     expect(
       find.descendant(
@@ -309,10 +306,14 @@ void main() {
       ),
       findsOneWidget,
     );
-    // A header clicked: its repository the one shown (the log's).
-    await tester.tap(_header(_api));
+    // Another picked (the log's repository menu): its changes alone.
+    panel.selectRepository(session.root!, _api);
     await tester.pumpAndSettle();
-    expect(panel.repositoryOf(session.root!), _api);
+    expect(_header(_site), findsNothing);
+    for (final name in ['main.go', 'new.go']) {
+      expect(_inChanges(name), findsOneWidget, reason: name);
+    }
+    expect(_inChanges('index.html'), findsNothing);
   });
 
   testWidgets('a repository on the changes page has its menu on a right '
@@ -328,6 +329,8 @@ void main() {
       section: SidePanelSection.changes,
       repositories: repositories,
     );
+    panel.selectRepository(session.root!, _api);
+    await tester.pumpAndSettle();
     String? copied;
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
       SystemChannels.platform,
