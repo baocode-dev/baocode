@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:bao_agent/bao_agent.dart'
     show AgentPaths, ForeignBrief, SessionStore, newUuid;
+import 'package:flutter/foundation.dart' show visibleForTesting;
 
 import '../acp/acp_connection.dart';
 import '../acp/mcp_endpoint.dart';
@@ -329,11 +330,17 @@ class AgyTransport implements ClaudeCodeTransport {
     });
     String? error;
     String? stopReason;
-    final watchdog = Timer.periodic(const Duration(minutes: 1), (_) {
-      if (_asked.isNotEmpty ||
-          DateTime.now().difference(turn.heard) < stallAfter) {
+    var checked = DateTime.now();
+    final watchdog = Timer.periodic(checkEvery, (_) {
+      final now = DateTime.now();
+      // Woken from sleep: the time asleep is not agy's silence.
+      final slept = now.difference(checked) > checkEvery + _sleepTolerance;
+      checked = now;
+      if (slept || _waiting(turn)) {
+        turn.heard = now;
         return;
       }
+      if (now.difference(turn.heard) < stallAfter) return;
       turn.stalled = true;
       _interrupt();
       _dropConnection();
@@ -441,11 +448,31 @@ class AgyTransport implements ClaudeCodeTransport {
     _ => message,
   };
 
-  /// How long a turn goes without a word from agy before it is taken to
-  /// hang (a known fault of agy's: no word after a tool is approved, and
-  /// a cancel not heard): Google's models take a minute or two at times,
-  /// retrying when busy, saying nothing meanwhile.
-  static const stallAfter = Duration(minutes: 8);
+  /// How long a turn goes without a word from agy, nothing waited on,
+  /// before it is taken to hang: Google's models take a minute or two at
+  /// times, retrying when busy, saying nothing meanwhile.
+  @visibleForTesting
+  static Duration stallAfter = const Duration(minutes: 15);
+
+  /// How often a turn's silence is checked.
+  @visibleForTesting
+  static Duration checkEvery = const Duration(minutes: 1);
+
+  /// A check this much later than due: the machine slept in between.
+  static const _sleepTolerance = Duration(seconds: 10);
+
+  /// How long agy has to end a turn cancelled, before its process is
+  /// ended (a known fault of agy's: a cancel not heard).
+  @visibleForTesting
+  static Duration cancelGrace = const Duration(seconds: 15);
+
+  /// Whether agy's silence in [turn] is a wait, not a hang: on the user
+  /// (an approval), on a tool running (a long command; with no limit, as
+  /// a build or tests may take long), on one of the app's MCP servers.
+  bool _waiting(_Turn turn) =>
+      _asked.isNotEmpty ||
+      _mcpOpen > 0 ||
+      turn.calls.any((id) => _calls[id]?.acp.running ?? false);
 
   void _interrupt() {
     final turn = _turn;
@@ -458,6 +485,9 @@ class AgyTransport implements ClaudeCodeTransport {
     if (_agySession case final session?) {
       _connection?.notify('session/cancel', {'sessionId': session});
     }
+    Timer(cancelGrace, () {
+      if (identical(_turn, turn)) _dropConnection();
+    });
   }
 
   Future<Map<String, Object?>> _rewind(Map<String, Object?> request) async {
@@ -660,13 +690,21 @@ class AgyTransport implements ClaudeCodeTransport {
     String server,
     Map<String, Object?> message,
   ) async {
-    final response = await _kernel.request('mcp_message', {
-      'server_name': server,
-      'message': message,
-    }, const Duration(hours: 1));
-    if (!message.containsKey('id')) return null;
-    return (response['mcp_response'] as Map?)?.cast<String, Object?>();
+    _mcpOpen++;
+    try {
+      final response = await _kernel.request('mcp_message', {
+        'server_name': server,
+        'message': message,
+      }, const Duration(hours: 1));
+      if (!message.containsKey('id')) return null;
+      return (response['mcp_response'] as Map?)?.cast<String, Object?>();
+    } finally {
+      _mcpOpen--;
+    }
   }
+
+  /// Messages to the app's MCP servers not answered yet.
+  int _mcpOpen = 0;
 
   /// Ends agy's process: the session stays agy's, resumed on the next.
   void _dropConnection() {
@@ -1070,6 +1108,7 @@ class AgyTransport implements ClaudeCodeTransport {
   _Call? _toolCall(Map<String, Object?> update) {
     final id = update['toolCallId'];
     if (id is! String) return null;
+    _turn?.calls.add(id);
     final call = _calls.putIfAbsent(id, () => _Call(AcpToolCall(id)));
     call.acp.merge(update);
     return call;
@@ -1233,6 +1272,9 @@ class _Turn {
   DateTime heard = DateTime.now();
   bool cancelled = false;
   bool stalled = false;
+
+  /// The tool calls agy made in it, by id.
+  final Set<String> calls = {};
   int? inputTokens;
   int? outputTokens;
   int cacheRead = 0;

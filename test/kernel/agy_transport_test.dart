@@ -459,6 +459,110 @@ void main() {
     expect(runtime.started.single.exited, completes);
   });
 
+  group('a turn agy goes silent in', () {
+    setUp(() {
+      AgyTransport.stallAfter = const Duration(milliseconds: 200);
+      AgyTransport.checkEvery = const Duration(milliseconds: 20);
+      AgyTransport.cancelGrace = const Duration(milliseconds: 100);
+    });
+
+    tearDown(() {
+      AgyTransport.stallAfter = const Duration(minutes: 15);
+      AgyTransport.checkEvery = const Duration(minutes: 1);
+      AgyTransport.cancelGrace = const Duration(seconds: 15);
+    });
+
+    /// An agent whose prompt does as [prompt] says.
+    Future<Object?> Function(FakeAgent, String, Map) agentPrompting(
+      Future<Object?> Function(FakeAgent agent, String session) prompt,
+    ) => (agent, method, params) async {
+      if (method == 'session/prompt') {
+        return prompt(agent, params['sessionId'] as String);
+      }
+      return agentSaying('')(agent, method, params);
+    };
+
+    test('saying nothing, nothing waited on: stopped, restarted', () async {
+      final runtime = FakeRuntime(
+        () => FakeAgent(agentPrompting((_, _) => Completer<Object?>().future)),
+      );
+      final transport = await AgyTransport.start(
+        ClaudeLaunch(cwd: cwd, model: 'gemini-3.8-flash'),
+        runtime: runtime,
+      );
+      final kernel = Kernel(transport);
+      await kernel.send('hello');
+      expect(kernel.results.single['is_error'], true);
+      expect(kernel.results.single['result'], contains('stopped answering'));
+      expect(runtime.started.single.exited, completes);
+      transport.close();
+    });
+
+    test('a tool running long is waited for', () async {
+      final runtime = FakeRuntime(
+        () => FakeAgent(
+          agentPrompting((agent, session) async {
+            agent.say(session, {
+              'sessionUpdate': 'tool_call',
+              'toolCallId': 'build',
+              'name': 'run_command',
+              'kind': 'execute',
+              'status': 'in_progress',
+              'rawInput': {'CommandLine': 'make'},
+            });
+            await Future<void>.delayed(const Duration(milliseconds: 500));
+            agent.say(session, {
+              'sessionUpdate': 'tool_call_update',
+              'toolCallId': 'build',
+              'status': 'completed',
+            });
+            return {'stopReason': 'end_turn'};
+          }),
+        ),
+      );
+      final transport = await AgyTransport.start(
+        ClaudeLaunch(cwd: cwd, model: 'gemini-3.8-flash'),
+        runtime: runtime,
+      );
+      final kernel = Kernel(transport);
+      await kernel.send('build it');
+      expect(kernel.results.single['subtype'], 'success');
+      transport.close();
+    });
+
+    test('a cancel not heard: its process ended', () async {
+      AgyTransport.stallAfter = const Duration(minutes: 1);
+      final runtime = FakeRuntime(
+        () => FakeAgent(agentPrompting((_, _) => Completer<Object?>().future)),
+      );
+      final transport = await AgyTransport.start(
+        ClaudeLaunch(cwd: cwd, model: 'gemini-3.8-flash'),
+        runtime: runtime,
+      );
+      final kernel = Kernel(transport);
+      final sent = kernel.send('hello');
+      while (runtime.started.isEmpty ||
+          !runtime.started.single.requests.any(
+            (r) => r.$1 == 'session/prompt',
+          )) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      transport.write({
+        'type': 'control_request',
+        'request_id': 'stop-1',
+        'request': {'subtype': 'interrupt'},
+      });
+      await sent;
+      expect(kernel.results.single['is_error'], false);
+      expect(
+        runtime.started.single.requests.map((r) => r.$1),
+        contains('session/cancel'),
+      );
+      expect(runtime.started.single.exited, completes);
+      transport.close();
+    });
+  });
+
   test(
     'an automatic title names an untitled session, not a named one',
     () async {
