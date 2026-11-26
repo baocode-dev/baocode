@@ -34,6 +34,9 @@ import 'window_controls.dart';
 /// Flutter's double taps are ([kDoubleTapTimeout]), not by the system's
 /// setting.
 ///
+/// The header the app draws on Linux ([header]) is such a bar too: its
+/// window has no caption of the system's (see [WindowControls.movesByHeader]).
+///
 /// Elsewhere (Windows, the web) it is only [child], unless [onDragStart]
 /// lets a pane's title bar drag that pane.
 class TitleBarDoubleClick extends StatefulWidget {
@@ -43,6 +46,7 @@ class TitleBarDoubleClick extends StatefulWidget {
     this.onDragStart,
     this.windowTitleBar = true,
     this.windowStart = 0,
+    this.header = false,
   });
 
   final Widget child;
@@ -61,6 +65,10 @@ class TitleBarDoubleClick extends StatefulWidget {
   /// zooms the system's window.
   final bool windowTitleBar;
 
+  /// The header the app draws over everything ([WindowControls.drawsHeader]):
+  /// the window's title bar where the app moves the window by it.
+  final bool header;
+
   @override
   State<TitleBarDoubleClick> createState() => _TitleBarDoubleClickState();
 }
@@ -69,7 +77,9 @@ class _TitleBarDoubleClickState extends State<TitleBarDoubleClick> {
   /// Whether a press in the empty part is the system's window's: on macOS,
   /// for the bars along the window's top.
   bool get _ownsWindow =>
-      widget.windowTitleBar && WindowControls.handlesTitleDoubleClick;
+      widget.windowTitleBar &&
+      (WindowControls.handlesTitleDoubleClick ||
+          (widget.header && WindowControls.movesByHeader));
 
   /// Where the first click of a pair was pressed, until it is too late for
   /// the second.
@@ -122,7 +132,10 @@ class _TitleBarDoubleClickState extends State<TitleBarDoubleClick> {
           _reset();
           if (_ownsWindow) {
             unawaited(
-              WindowControls.dragWindow(viewId: View.of(context).viewId),
+              WindowControls.dragWindow(
+                viewId: View.of(context).viewId,
+                at: event.timeStamp,
+              ),
             );
           }
         }

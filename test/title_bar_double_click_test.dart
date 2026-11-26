@@ -346,17 +346,25 @@ void main() {
     expect(titleDoubleClicks(calls), 0);
   }, variant: _macOS);
 
-  testWidgets('elsewhere the bar is only what it holds', (tester) async {
-    final calls = recordWindowCalls(tester);
-    await tester.pumpWidget(titleBar());
-    expect(
-      tester.renderObject(find.byType(TitleBarDoubleClick)),
-      same(tester.renderObject(find.byKey(_bar))),
-    );
-    await doubleClickAt(tester, const Offset(100, 15));
-    await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 50));
-    expect(calls, isEmpty);
-  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
+  testWidgets(
+    'elsewhere the bar is only what it holds',
+    (tester) async {
+      final calls = recordWindowCalls(tester);
+      await tester.pumpWidget(titleBar());
+      expect(
+        tester.renderObject(find.byType(TitleBarDoubleClick)),
+        same(tester.renderObject(find.byKey(_bar))),
+      );
+      await doubleClickAt(tester, const Offset(100, 15));
+      await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 50));
+      expect(calls, isEmpty);
+      // Linux's: only the header the app draws moves its window.
+    },
+    variant: TargetPlatformVariant({
+      TargetPlatform.windows,
+      TargetPlatform.linux,
+    }),
+  );
 
   testWidgets('the sidebar\'s and the chat\'s title bars zoom the window '
       'where they are empty', (tester) async {

@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -85,6 +86,54 @@ void main() {
     );
     expect(button.project, other.project);
   }, variant: _windows);
+
+  testWidgets('on Linux the header is drawn too, and the app moves the '
+      'window by it and runs its buttons itself', (tester) async {
+    final (_, calls) = await pumpWindowsApp(tester);
+    expect(find.byType(WindowHeader), findsOneWidget);
+    // No caption of the system's to hit-test.
+    expect(calls.where((call) => call.method == 'setHitTestAreas'), isEmpty);
+    List<Object?> commands() => [
+      for (final call in calls)
+        if (call.method == 'windowCommand') call.arguments,
+    ];
+    await tester.tap(find.byIcon(Codicons.chromeMinimize));
+    await tester.tap(find.byIcon(Codicons.chromeMaximize));
+    await tester.tap(find.byIcon(Codicons.chromeClose));
+    expect(commands(), ['minimize', 'maximize', 'close']);
+
+    // Its empty middle: a drag moves the window, a double click maximizes.
+    final empty = Offset(700, AppMetrics.headerHeight / 2);
+    final drag = await tester.startGesture(
+      empty,
+      kind: PointerDeviceKind.mouse,
+    );
+    await drag.moveBy(const Offset(10, 0));
+    await drag.moveBy(const Offset(50, 20));
+    await drag.up();
+    await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 50));
+    final drags = calls.where((call) => call.method == 'dragWindow');
+    expect(drags, hasLength(1));
+    expect((drags.single.arguments as Map)['time'], isA<int>());
+    await tester.tapAt(empty, kind: PointerDeviceKind.mouse);
+    await tester.pump(const Duration(milliseconds: 80));
+    await tester.tapAt(empty, kind: PointerDeviceKind.mouse);
+    await tester.pump();
+    expect(
+      calls.where((call) => call.method == 'handleTitleDoubleClick'),
+      hasLength(1),
+    );
+
+    // Maximized, as the window says: its button offers the way back.
+    await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
+      _window.name,
+      _window.codec.encodeMethodCall(const MethodCall('maximized', true)),
+      (_) {},
+    );
+    await tester.pump();
+    expect(find.byIcon(Codicons.chromeRestore), findsOneWidget);
+    await tester.pump(kDoubleTapTimeout);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
 
   testWidgets('the window hears where the header\'s controls are whenever '
       'they move, and only then', (tester) async {
