@@ -31,6 +31,26 @@
   <h1>更新日志</h1>
   <p class="subtitle">BaoCode 每个版本的变化。</p>
 
+  <section class="release" id="v2.0.9">
+    <h2 class="plain"><a href="#v2.0.9">2.0.9</a></h2>
+    <p>这一版 Linux 改由应用自己绘制标题栏，Antigravity 可以向你提问、长时间运行的命令不再被误判为卡住，写在一行里的 <code>&lt;details&gt;</code> 也能折叠了。</p>
+    <p>新功能</p>
+    <ul>
+    <li>Linux：窗口顶部改为应用自己绘制的标题栏，和 Windows 一样；拖动空白处移动窗口，双击按系统设置最大化或最小化。</li>
+    <li>Antigravity：它提出的问题会以问答卡片的形式交给你回答，子代理的提问也一样。</li>
+    <li>Antigravity：它的步骤清单显示为任务列表；对话进行中发送的消息会立即交给它，不再等这一轮结束。</li>
+    </ul>
+    <p>改进</p>
+    <ul>
+    <li>Antigravity：调用 BaoCode 自带的 MCP 工具（浏览器、会话等）时显示返回结果，不再是「(no output)」；通过 <code>call_mcp_tool</code> 调用的 MCP 工具按 MCP 工具显示和审批，不再当作 Bash 命令。</li>
+    <li>写在一行里的 <code>&lt;details&gt;&lt;summary&gt;…&lt;/summary&gt;</code> 也能折叠，整段写在一行、连 <code>&lt;/details&gt;</code> 都在同一行的也可以；长回复分段时不会从这样的折叠块中间切开。</li>
+    </ul>
+    <p>修复</p>
+    <ul>
+    <li>Antigravity：运行很久的命令或 MCP 调用不再被当作卡住而重启；它没有响应停止时，15 秒后直接结束进程，停止按钮仍然有效。</li>
+    </ul>
+  </section>
+
   <section class="release" id="v2.0.8">
     <h2 class="plain"><a href="#v2.0.8">2.0.8</a></h2>
     <p>这一版给第一次打开的用户准备了一段演示对话，上游和模型可以拖动排序，删除改为可以撤销，和手机之间传文件不再限制大小。</p>

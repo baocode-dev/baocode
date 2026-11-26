@@ -31,6 +31,26 @@
   <h1>Changelog</h1>
   <p class="subtitle">What changed in each version of BaoCode.</p>
 
+  <section class="release" id="v2.0.9">
+    <h2 class="plain"><a href="#v2.0.9">2.0.9</a></h2>
+    <p>This release draws the app's own header on Linux, lets Antigravity ask you questions and no longer takes its long commands for a hang, and folds a <code>&lt;details&gt;</code> written on one line.</p>
+    <p>New</p>
+    <ul>
+    <li>Linux: the top of the window is the app's own header, as on Windows; drag its empty part to move the window, and a double click maximizes or minimizes as the system is set.</li>
+    <li>Antigravity: its questions come to you as question cards, its subagents' too.</li>
+    <li>Antigravity: its checklist of steps shows as tasks, and a message sent mid-turn goes to it at once instead of waiting for the turn to end.</li>
+    </ul>
+    <p>Improved</p>
+    <ul>
+    <li>Antigravity: calls to BaoCode's own MCP tools (browser, sessions…) show what they returned instead of &quot;(no output)&quot;, and MCP tools it calls through <code>call_mcp_tool</code> are shown and approved as MCP tools, not as Bash commands.</li>
+    <li>A <code>&lt;details&gt;&lt;summary&gt;…&lt;/summary&gt;</code> written on one line folds, as does one written whole on one line, its <code>&lt;/details&gt;</code> too; a long reply is no longer cut inside one.</li>
+    </ul>
+    <p>Fixed</p>
+    <ul>
+    <li>Antigravity: commands and MCP calls that run long are no longer taken for a hang and restarted; if it doesn't honor Stop within 15 seconds, its process is ended, so Stop still works.</li>
+    </ul>
+  </section>
+
   <section class="release" id="v2.0.8">
     <h2 class="plain"><a href="#v2.0.8">2.0.8</a></h2>
     <p>This release greets new users with a demo conversation, lets you drag upstreams and their models into your own order, makes deleting undoable, and lifts the size cap on files to and from the phone.</p>
