@@ -894,7 +894,6 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
                 git,
                 _log,
                 IdeDiffOptions.instance,
-                for (final (_, repo) in widget.host.repositories) repo,
               ]),
               builder: (context, _) {
                 if (_log.takeReveal() case final id?) {
@@ -2183,7 +2182,7 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
               itemBuilder: (context, index) {
                 if (index == 0) {
                   return _workingTreeRow(
-                    _localChanges(git, state),
+                    state.count,
                     selected == ideGitWorkingTreeId,
                     graphWidth: graphWidth,
                     // HEAD right under it: the lane goes on down to it.
@@ -2223,17 +2222,6 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
           },
         ),
       ),
-    );
-  }
-
-  /// The local changes' count: every repository's, where the local
-  /// changes' details list them all.
-  int _localChanges(IdeGitRepository git, IdeGitState state) {
-    final repositories = widget.host.repositories;
-    if (repositories.length < 2) return state.count;
-    return repositories.fold(
-      0,
-      (sum, repository) => sum + (repository.$2.state?.count ?? 0),
     );
   }
 
