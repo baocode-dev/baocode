@@ -10779,6 +10779,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cmdModelWelcome => 'Set Up a Model...';
 
   @override
+  String get cmdWelcomeDemo => 'Show the Demo Conversation';
+
+  @override
   String get modelWelcomeTitle => 'Pick a Model to Start';
 
   @override

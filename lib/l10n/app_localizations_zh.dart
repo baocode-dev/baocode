@@ -10225,6 +10225,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get cmdModelWelcome => '设置模型...';
 
   @override
+  String get cmdWelcomeDemo => '查看演示对话';
+
+  @override
   String get modelWelcomeTitle => '选一个模型开始';
 
   @override

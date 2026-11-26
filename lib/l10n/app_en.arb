@@ -7633,6 +7633,7 @@
   "cmdBrowserWelcome": "Connect Your Browser...",
   "cmdStashWelcome": "Meet Stash...",
   "cmdModelWelcome": "Set Up a Model...",
+  "cmdWelcomeDemo": "Show the Demo Conversation",
   "modelWelcomeTitle": "Pick a Model to Start",
   "modelWelcomeLead": "BaoCode runs your agents on a model of your choosing. Add an upstream, a service with an API key, and its models are ready to use.",
   "modelWelcomeAnyTitle": "Any upstream",

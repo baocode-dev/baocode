@@ -2915,6 +2915,7 @@
   "cmdBrowserWelcome": "连接浏览器...",
   "cmdStashWelcome": "认识 Stash...",
   "cmdModelWelcome": "设置模型...",
+  "cmdWelcomeDemo": "查看演示对话",
   "modelWelcomeTitle": "选一个模型开始",
   "modelWelcomeLead": "BaoCode 用你选的模型来运行 agent。添加一个上游（提供 API Key 的服务），它的模型就能直接用了。",
   "modelWelcomeAnyTitle": "任意上游",

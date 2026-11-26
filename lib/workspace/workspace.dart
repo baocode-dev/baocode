@@ -464,6 +464,26 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     return null;
   }
 
+  /// Opens the demo conversation, listed again if it was deleted: in the
+  /// folder it was in, else [welcome]'s.
+  Future<void> showWelcomeDemo() async {
+    final welcome = this.welcome;
+    if (welcome == null) return;
+    var demo = _threads
+        .where((thread) => thread.record?.id == WelcomeDemo.sessionId)
+        .firstOrNull;
+    if (demo == null) {
+      final folder = _welcomeDemo?.folder ?? await welcome.folder();
+      final at = DateTime.now();
+      _welcomeDemo = (folder: folder, at: at);
+      _removed.remove(WelcomeDemo.sessionId);
+      _openProject(folder);
+      _save();
+      demo = await _addDemo(welcome, folder, at);
+    }
+    if (demo != null && !_disposed) select(demo);
+  }
+
   /// Lists the demo conversation, in [folder]: its file written there for
   /// it, read as Claude Code's are. What is sent in it goes to a new
   /// conversation there (see [ChatSession.sendInstead]).

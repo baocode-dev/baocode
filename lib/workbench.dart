@@ -1069,6 +1069,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         if (BrowserBridge.instance.supported)
           browserWelcomeCommandId: _showBrowserWelcome,
         modelWelcomeCommandId: _showModelWelcome,
+        if (_workspace.welcome != null) welcomeDemoCommandId: _showWelcomeDemo,
         ChatCommandIds.search: () => unawaited(_openPalette()),
         ..._sidePanelCommands(),
         ..._terminalCommands(),
@@ -1094,6 +1095,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       if (StashController.current != null)
         stashWelcomeCommandId: _showStashWelcome,
       modelWelcomeCommandId: _showModelWelcome,
+      if (_workspace.welcome != null) welcomeDemoCommandId: _showWelcomeDemo,
       // As the sidebar's New Agent button: a folder first, without one.
       if (_workspace.sidebarProjects.isNotEmpty)
         ChatCommandIds.newChat: _newAgent
@@ -1569,6 +1571,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       ?action(browserWelcomeCommandId, Codicons.globe),
       ?action(stashWelcomeCommandId, Codicons.note),
       ?action(modelWelcomeCommandId, Codicons.sparkle),
+      ?action(welcomeDemoCommandId, Codicons.commentDiscussion),
       ?action(
         'workbench.action.toggleSidebarVisibility',
         Codicons.layoutSidebarLeft,
@@ -1699,6 +1702,13 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       label: commandCatalog[modelWelcomeCommandId]!.title,
       run: _showModelWelcome,
     ),
+    if (_workspace.welcome != null)
+      IdeCommand(
+        id: welcomeDemoCommandId,
+        category: 'Help',
+        label: commandCatalog[welcomeDemoCommandId]!.title,
+        run: _showWelcomeDemo,
+      ),
   ];
 
   // --- Feature tips ----------------------------------------------------------
@@ -1812,6 +1822,13 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   }
 
   /// Set Up a Model…, the command: what an upstream is, and adding one.
+  /// Opens the demo conversation a new user first sees, in the chat.
+  void _showWelcomeDemo() {
+    if (!mounted) return;
+    _showTipsChat();
+    unawaited(_workspace.showWelcomeDemo());
+  }
+
   void _showModelWelcome() {
     if (!mounted) return;
     unawaited(

@@ -17551,6 +17551,12 @@ abstract class AppLocalizations {
   /// **'Set Up a Model...'**
   String get cmdModelWelcome;
 
+  /// No description provided for @cmdWelcomeDemo.
+  ///
+  /// In en, this message translates to:
+  /// **'Show the Demo Conversation'**
+  String get cmdWelcomeDemo;
+
   /// No description provided for @modelWelcomeTitle.
   ///
   /// In en, this message translates to:

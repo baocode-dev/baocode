@@ -133,6 +133,11 @@ void main() {
     await after.load();
     expect(after.threads.where((t) => t.id == WelcomeDemo.sessionId), isEmpty);
     expect(after.projects, hasLength(1));
+
+    // Asked for again, from the palette.
+    await after.showWelcomeDemo();
+    expect(after.current?.id, WelcomeDemo.sessionId);
+    expect(after.projects, hasLength(1));
   });
 
   test('one with projects already is not shown the demo', () async {
