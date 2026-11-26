@@ -86,12 +86,15 @@ class AgyModel {
 }
 
 /// What this app tells agy of itself as it connects (`initialize`): no
-/// files or terminals of its own to offer (agy reads and runs them itself).
+/// files or terminals of its own to offer (agy reads and runs them itself);
+/// forms to put to the user (`elicitation/create`, its questions: without
+/// them, agy's ask_question is never put to the user, the turn ended).
 const agyHello = {
   'protocolVersion': 1,
   'clientCapabilities': {
     'fs': {'readTextFile': false, 'writeTextFile': false},
     'terminal': false,
+    'elicitation': {'form': <String, Object?>{}},
   },
   'clientInfo': {'name': 'baocode', 'title': 'BaoCode', 'version': '1'},
 };

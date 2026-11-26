@@ -216,6 +216,129 @@ void main() {
     });
   });
 
+  group('questions', () {
+    // As agy 1.5.16 sends its ask_question's.
+    const schema = {
+      'type': 'object',
+      'properties': {
+        'q1': {
+          'type': 'array',
+          'title': 'Which colors?',
+          'items': {
+            'anyOf': [
+              {'const': '1', 'title': 'red'},
+              {'const': '2', 'title': 'green, light'},
+              {'const': '3', 'title': 'green'},
+            ],
+          },
+        },
+        'q1_other': {
+          'type': 'string',
+          'title': 'Other',
+          'description': 'Optional free-form answer to: Which colors?',
+        },
+        'q2': {
+          'type': 'string',
+          'title': 'Which size?',
+          'oneOf': [
+            {'const': '1', 'title': '(Recommended) S'},
+            {'const': '2', 'title': 'L'},
+          ],
+        },
+        'q2_other': {'type': 'string', 'title': 'Other'},
+      },
+    };
+
+    test('a form put as AskUserQuestion\'s questions', () {
+      final form = AgyQuestionForm.of(schema)!;
+      expect(form.questions, [
+        {
+          'question': 'Which colors?',
+          'header': '',
+          'options': [
+            {'label': 'red', 'description': ''},
+            {'label': 'green, light', 'description': ''},
+            {'label': 'green', 'description': ''},
+          ],
+          'multiSelect': true,
+        },
+        {
+          'question': 'Which size?',
+          'header': '',
+          'options': [
+            {'label': '(Recommended) S', 'description': ''},
+            {'label': 'L', 'description': ''},
+          ],
+          'multiSelect': false,
+        },
+      ]);
+    });
+
+    test('the picks given back as numbers, the rest in words', () {
+      final form = AgyQuestionForm.of(schema)!;
+      expect(
+        form.content({
+          'Which colors?': 'green, light, red, teal',
+          'Which size?': 'L',
+        }),
+        {
+          'q1': ['2', '1'],
+          'q1_other': 'teal',
+          'q2': '2',
+        },
+      );
+      expect(form.content({'Which size?': 'XL'}), {'q2_other': 'XL'});
+    });
+
+    test('a form with a field to write in, not a question', () {
+      expect(
+        AgyQuestionForm.of({
+          'properties': {
+            'name': {'type': 'string', 'title': 'Name'},
+          },
+        }),
+        isNull,
+      );
+    });
+
+    test('ask_question\'s call as AskUserQuestion', () {
+      final call = AcpToolCall('call_1')
+        ..merge({
+          'name': 'ask_question',
+          'kind': 'other',
+          'rawInput': {
+            'questions': [
+              {
+                'question': 'Which?',
+                'options': ['a', 'b'],
+                'is_multi_select': false,
+              },
+            ],
+          },
+        });
+      final use = claudeToolUse(call);
+      expect(use.name, 'AskUserQuestion');
+      expect((use.input['questions'] as List).single, {
+        'question': 'Which?',
+        'header': '',
+        'options': [
+          {'label': 'a', 'description': ''},
+          {'label': 'b', 'description': ''},
+        ],
+        'multiSelect': false,
+      });
+      final result = claudeToolResult(
+        call,
+        'AskUserQuestion',
+        answers: {'Which?': 'b'},
+      );
+      expect(result.content, contains('"Which?"="b"'));
+      expect(result.structured, {
+        'answers': {'Which?': 'b'},
+      });
+    });
+  });
+
   test('agy models: thinking levels as one model', () {
     final models = parseAgyModels(
       'gemini-3.8-flash-low\tGemini 3.8 Flash (Low)\n'
