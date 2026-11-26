@@ -123,6 +123,27 @@ String claudeToolId(String acpId) =>
       );
     }
   }
+  // A question to the user, as Claude Code asks one.
+  if (name == 'ask_question') {
+    return (
+      name: 'AskUserQuestion',
+      input: {
+        'questions': [
+          for (final question in input['questions'] as List? ?? const [])
+            if (question case {'question': final String text})
+              {
+                'question': text,
+                'header': '',
+                'options': [
+                  for (final option in question['options'] as List? ?? const [])
+                    {'label': '$option', 'description': ''},
+                ],
+                'multiSelect': question['is_multi_select'] == true,
+              },
+        ],
+      },
+    );
+  }
   // A search of the web is of kind `search` too.
   if (name == 'search_web') {
     return (
@@ -215,12 +236,29 @@ String claudeToolId(String acpId) =>
 /// it failed, and its `tool_use_result` (an edit's patch, a command's
 /// output) for the chat to show. [fileText] is the file's text as it stands
 /// after an edit (null where it could not be read), to number the patch's
-/// lines as in it.
+/// lines as in it. [answers] are what the user answered to a question it
+/// asked, by the question.
 ({String content, bool isError, Map<String, Object?>? structured})
-claudeToolResult(AcpToolCall call, String name, {String? fileText}) {
+claudeToolResult(
+  AcpToolCall call,
+  String name, {
+  String? fileText,
+  Map<String, String>? answers,
+}) {
   final output = call.output ?? '';
   final content = _cut(output.isEmpty ? '(no output)' : output);
   switch (name) {
+    case 'AskUserQuestion' when answers != null:
+      final said = [
+        for (final MapEntry(:key, :value) in answers.entries) '"$key"="$value"',
+      ].join(', ');
+      return (
+        content:
+            'User has answered your questions: $said. You can now continue '
+            'with the user\'s answers in mind.',
+        isError: false,
+        structured: {'answers': answers},
+      );
     // agy keeps a search's results to itself: nothing to show.
     case 'WebSearch' when output.isEmpty && !call.failed:
       return (content: '', isError: false, structured: null);
@@ -356,6 +394,124 @@ Map<String, Object?> claudeTodos(Map<String, Object?> update) => {
         },
   ],
 };
+
+/// A form agy asks the user to fill in (`elicitation/create`), as its
+/// ask_question sends one: each question a field, its title the question,
+/// its choices numbered (`oneOf`; `items.anyOf` for a pick of several),
+/// and beside it `<field>_other` for an answer in the user's words.
+class AgyQuestionForm {
+  AgyQuestionForm._(this._fields);
+
+  final List<_FormField> _fields;
+
+  /// [schema] (its `requestedSchema`) as questions; null for a form that
+  /// is not all questions with choices.
+  static AgyQuestionForm? of(Object? schema) {
+    if (schema case {'properties': final Map<Object?, Object?> properties}) {
+      final fields = <_FormField>[];
+      for (final MapEntry(:key, :value) in properties.entries) {
+        if (key is! String || value is! Map) return null;
+        if (key.endsWith('_other') &&
+            properties.containsKey(key.substring(0, key.length - 6))) {
+          continue;
+        }
+        final items = value['items'];
+        final many = value['type'] == 'array';
+        final choices = <(String, String)>[
+          for (final choice in [
+            ...?value['oneOf'] as List?,
+            if (items is Map) ...?(items['anyOf'] ?? items['oneOf']) as List?,
+          ])
+            if (choice case {'const': final Object id})
+              ('$id', '${choice['title'] ?? id}'),
+          for (final id in [
+            ...?value['enum'] as List?,
+            if (items is Map) ...?items['enum'] as List?,
+          ])
+            ('$id', '$id'),
+        ];
+        if (choices.isEmpty) return null;
+        fields.add(
+          _FormField(
+            key,
+            '${value['title'] ?? key}',
+            choices,
+            many: many,
+            other: properties.containsKey('${key}_other')
+                ? '${key}_other'
+                : null,
+          ),
+        );
+      }
+      if (fields.isNotEmpty) return AgyQuestionForm._(fields);
+    }
+    return null;
+  }
+
+  /// The questions, as AskUserQuestion's input has them.
+  List<Map<String, Object?>> get questions => [
+    for (final field in _fields)
+      {
+        'question': field.title,
+        'header': '',
+        'options': [
+          for (final (_, label) in field.choices)
+            {'label': label, 'description': ''},
+        ],
+        'multiSelect': field.many,
+      },
+  ];
+
+  /// The form filled in with [answers] (AskUserQuestion's: by question,
+  /// the choices picked joined by `, `): the choices as their numbers,
+  /// what matches none in the user's words.
+  Map<String, Object?> content(Map<String, String> answers) {
+    final content = <String, Object?>{};
+    for (final field in _fields) {
+      final answer = answers[field.title];
+      if (answer == null) continue;
+      final picked = <String>[];
+      var rest = answer.trim();
+      // Labels may hold `, `: the longest that fits is taken first.
+      final byLength = [...field.choices]
+        ..sort((a, b) => b.$2.length.compareTo(a.$2.length));
+      while (rest.isNotEmpty) {
+        final match = byLength
+            .where((c) => rest == c.$2 || rest.startsWith('${c.$2}, '))
+            .firstOrNull;
+        if (match == null || !field.many && picked.isNotEmpty) break;
+        picked.add(match.$1);
+        rest = rest.substring(match.$2.length);
+        if (rest.startsWith(', ')) rest = rest.substring(2);
+      }
+      if (picked.isNotEmpty) {
+        content[field.key] = field.many ? picked : picked.first;
+      }
+      if (rest.isNotEmpty && field.other != null) content[field.other!] = rest;
+    }
+    return content;
+  }
+}
+
+class _FormField {
+  _FormField(
+    this.key,
+    this.title,
+    this.choices, {
+    this.many = false,
+    this.other,
+  });
+
+  final String key;
+  final String title;
+
+  /// Each choice's id and label.
+  final List<(String, String)> choices;
+  final bool many;
+
+  /// The field for an answer in the user's words.
+  final String? other;
+}
 
 /// What a tool's output keeps in the conversation, at most.
 const maxResultChars = 30000;

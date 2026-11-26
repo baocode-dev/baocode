@@ -744,6 +744,7 @@ class AgyTransport implements ClaudeCodeTransport {
     String method,
     Map<String, Object?> params,
   ) async {
+    if (method == 'elicitation/create') return _elicit(params);
     if (method != 'session/request_permission') {
       throw AcpError(-32601, 'Method not found: $method');
     }
@@ -765,6 +766,42 @@ class AgyTransport implements ClaudeCodeTransport {
             'outcome': {'outcome': 'selected', 'optionId': id},
           };
     final update = (params['toolCall'] as Map?)?.cast<String, Object?>();
+    // Not a tool to approve: a question (a subagent's), its options the
+    // answers.
+    if (update?['toolCallId'] case final String id
+        when id.startsWith('interaction_')) {
+      if (_turn?.cancelled != false) return selected(null);
+      final labels = {
+        for (final option in options)
+          if (option['optionId'] case final String id)
+            '${option['name'] ?? id}': id,
+      };
+      final question = '${update!['title'] ?? 'Choose an option.'}';
+      _closeOpen();
+      final answer = await _canUseTool({
+        'tool_name': 'AskUserQuestion',
+        'input': {
+          'questions': [
+            {
+              'question': question,
+              'header': '',
+              'options': [
+                for (final label in labels.keys)
+                  {'label': label, 'description': ''},
+              ],
+              'multiSelect': false,
+            },
+          ],
+        },
+        'tool_use_id': claudeToolId(id),
+        'permission_suggestions': const [],
+      });
+      final picked = switch (answer?['updatedInput']) {
+        {'answers': final Map<Object?, Object?> answers} => answers[question],
+        _ => null,
+      };
+      return selected(labels[picked]);
+    }
     final call = update == null ? null : _toolCall(update);
     if (call == null || _turn?.cancelled != false) return selected(null);
     _closeOpen();
@@ -797,43 +834,24 @@ class AgyTransport implements ClaudeCodeTransport {
         return true;
       }
     }
-    final requestId = 'agy-perm-${++_requests}';
-    final asked = _asked[requestId] = Completer();
-    unawaited(
-      _kernel
-          .request('can_use_tool', {
-            'tool_name': call.name,
-            'input': input,
-            'tool_use_id': call.claudeId,
-            'permission_suggestions': [
-              if (call.name == 'Bash' && command != null)
-                {
-                  'type': 'addRules',
-                  'rules': [
-                    {'toolName': 'Bash', 'ruleContent': command},
-                  ],
-                  'behavior': 'allow',
-                  'destination': 'session',
-                }
-              else if (call.edits)
-                {
-                  'type': 'setMode',
-                  'mode': 'acceptEdits',
-                  'destination': 'session',
-                },
+    final answer = await _canUseTool({
+      'tool_name': call.name,
+      'input': input,
+      'tool_use_id': call.claudeId,
+      'permission_suggestions': [
+        if (call.name == 'Bash' && command != null)
+          {
+            'type': 'addRules',
+            'rules': [
+              {'toolName': 'Bash', 'ruleContent': command},
             ],
-          }, const Duration(days: 1))
-          .then<void>(
-            (answer) {
-              if (!asked.isCompleted) asked.complete(answer);
-            },
-            onError: (Object _) {
-              if (!asked.isCompleted) asked.complete(null);
-            },
-          ),
-    );
-    final answer = await asked.future;
-    _asked.remove(requestId);
+            'behavior': 'allow',
+            'destination': 'session',
+          }
+        else if (call.edits)
+          {'type': 'setMode', 'mode': 'acceptEdits', 'destination': 'session'},
+      ],
+    });
     if (answer == null || answer['behavior'] != 'allow') {
       if (call.edits) await _hook('PermissionDenied', call);
       return false;
@@ -858,6 +876,62 @@ class AgyTransport implements ClaudeCodeTransport {
   }
 
   int _requests = 0;
+
+  /// Asks the kernel `can_use_tool` [request], as the CLI does: its answer
+  /// (`behavior`, `updatedInput`, …), null for the turn cancelled first.
+  Future<Map<String, Object?>?> _canUseTool(
+    Map<String, Object?> request,
+  ) async {
+    final requestId = 'agy-perm-${++_requests}';
+    final asked = _asked[requestId] = Completer();
+    unawaited(
+      _kernel
+          .request('can_use_tool', request, const Duration(days: 1))
+          .then<void>(
+            (answer) {
+              if (!asked.isCompleted) asked.complete(answer);
+            },
+            onError: (Object _) {
+              if (!asked.isCompleted) asked.complete(null);
+            },
+          ),
+    );
+    final answer = await asked.future;
+    _asked.remove(requestId);
+    return answer;
+  }
+
+  /// A form agy asks the user to fill in (its ask_question's), put to them
+  /// as Claude Code's AskUserQuestion; what they picked given back as the
+  /// form has it.
+  Future<Map<String, Object?>> _elicit(Map<String, Object?> params) async {
+    final form = AgyQuestionForm.of(params['requestedSchema']);
+    if (_turn?.cancelled != false) return const {'action': 'cancel'};
+    if (form == null) return const {'action': 'decline'};
+    _closeOpen();
+    final call = switch (params['toolCallId']) {
+      final String id => _calls[id],
+      _ => null,
+    };
+    if (call != null) _tell(call);
+    final answer = await _canUseTool({
+      'tool_name': 'AskUserQuestion',
+      'input': {'questions': form.questions},
+      'tool_use_id': call?.claudeId ?? claudeToolId('ask_${_requests + 1}'),
+      'permission_suggestions': const [],
+    });
+    if (answer == null) return const {'action': 'cancel'};
+    if (answer['behavior'] != 'allow') return const {'action': 'decline'};
+    final given = switch (answer['updatedInput']) {
+      {'answers': final Map<Object?, Object?> answers} => answers,
+      _ => const <Object?, Object?>{},
+    };
+    final answers = {
+      for (final MapEntry(:key, :value) in given.entries) '$key': '$value',
+    };
+    call?.answers = answers;
+    return {'action': 'accept', 'content': form.content(answers)};
+  }
 
   /// Calls back the kernel's hooks of [event] for [call], as Claude Code
   /// does, each once the one before is answered.
@@ -1152,7 +1226,12 @@ class AgyTransport implements ClaudeCodeTransport {
         // Gone, or not text: the patch numbered from its start.
       }
     }
-    final result = claudeToolResult(call.acp, call.name, fileText: fileText);
+    final result = claudeToolResult(
+      call.acp,
+      call.name,
+      fileText: fileText,
+      answers: call.answers,
+    );
     _result(
       call,
       result.content,
@@ -1305,6 +1384,9 @@ class _Call {
   bool preHooked = false;
   String name = '';
   Map<String, Object?> input = const {};
+
+  /// For a question asked: what the user answered, by the question.
+  Map<String, String>? answers;
 
   /// Whether it changes a file.
   bool get edits => acp.kind == 'edit' || name == 'Edit' || name == 'Write';

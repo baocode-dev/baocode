@@ -125,7 +125,7 @@ class FakeRuntime implements AgyRuntime {
 /// The kernel's side: what the transport printed, and answers to what it
 /// asks (approvals, hooks).
 class Kernel {
-  Kernel(this.transport, {this.allow = true}) {
+  Kernel(this.transport, {this.allow = true, this.answers = const {}}) {
     transport.messages.listen((message) {
       seen.add(message);
       if (message['type'] == 'control_request') {
@@ -136,9 +136,20 @@ class Kernel {
           'response': {
             'subtype': 'success',
             'request_id': message['request_id'],
-            'response': request['subtype'] == 'can_use_tool'
-                ? {'behavior': allow ? 'allow' : 'deny', 'message': 'no'}
-                : const <String, Object?>{},
+            'response': switch (request) {
+              {'subtype': 'can_use_tool', 'tool_name': 'AskUserQuestion'} => {
+                'behavior': 'allow',
+                'updatedInput': {
+                  ...request['input'] as Map,
+                  'answers': answers,
+                },
+              },
+              {'subtype': 'can_use_tool'} => {
+                'behavior': allow ? 'allow' : 'deny',
+                'message': 'no',
+              },
+              _ => const <String, Object?>{},
+            },
           },
         });
       }
@@ -148,6 +159,9 @@ class Kernel {
 
   final ClaudeCodeTransport transport;
   final bool allow;
+
+  /// What the user answers to questions, by the question.
+  final Map<String, String> answers;
   final List<Map<String, Object?>> seen = [];
   final List<Map> asked = [];
   final List<Map<String, Object?>> results = [];
@@ -457,6 +471,90 @@ void main() {
     await AgyTransport.forget(id, '${home.path}/.claude', runtime: runtime);
     expect(runtime.deleted, ['agy-1']);
     expect(runtime.started.single.exited, completes);
+  });
+
+  test('a question asked: put to the user, the answer given back', () async {
+    Object? filled;
+    Future<Object?> agentAsking(
+      FakeAgent agent,
+      String method,
+      Map params,
+    ) async {
+      if (method != 'session/prompt') {
+        return agentSaying('')(agent, method, params);
+      }
+      final session = params['sessionId'] as String;
+      agent.say(session, {
+        'sessionUpdate': 'tool_call',
+        'toolCallId': 'call_9',
+        'name': 'ask_question',
+        'kind': 'other',
+        'status': 'in_progress',
+        'rawInput': {
+          'questions': [
+            {
+              'question': 'Which color?',
+              'options': ['Red', 'Blue'],
+              'is_multi_select': false,
+            },
+          ],
+        },
+      });
+      filled = await agent.ask('elicitation/create', {
+        'sessionId': session,
+        'toolCallId': 'call_9',
+        'mode': 'form',
+        'message': 'The agent has a question.',
+        'requestedSchema': {
+          'type': 'object',
+          'properties': {
+            'q1': {
+              'type': 'string',
+              'title': 'Which color?',
+              'oneOf': [
+                {'const': '1', 'title': 'Red'},
+                {'const': '2', 'title': 'Blue'},
+              ],
+            },
+            'q1_other': {'type': 'string', 'title': 'Other'},
+          },
+        },
+      });
+      agent.say(session, {
+        'sessionUpdate': 'tool_call_update',
+        'toolCallId': 'call_9',
+        'status': 'completed',
+      });
+      return {'stopReason': 'end_turn'};
+    }
+
+    final runtime = FakeRuntime(() => FakeAgent(agentAsking));
+    final transport = await AgyTransport.start(
+      ClaudeLaunch(cwd: cwd, model: 'gemini-3.8-flash'),
+      runtime: runtime,
+    );
+    final kernel = Kernel(transport, answers: {'Which color?': 'Blue'});
+    await kernel.send('ask me');
+
+    final hello = runtime.started.single.requests.first.$2;
+    expect((hello['clientCapabilities'] as Map)['elicitation'], isNotNull);
+    final asked = kernel.asked.singleWhere(
+      (r) => r['subtype'] == 'can_use_tool',
+    );
+    expect(asked['tool_name'], 'AskUserQuestion');
+    expect(asked['tool_use_id'], 'toolu_agy_call_9');
+    expect(filled, {
+      'action': 'accept',
+      'content': {'q1': '2'},
+    });
+    final result = kernel.seen.lastWhere(
+      (m) => m['type'] == 'user' && m['tool_use_result'] != null,
+    );
+    expect(result['tool_use_result'], {
+      'answers': {'Which color?': 'Blue'},
+    });
+    expect(kernel.results.single['subtype'], 'success');
+    transport.close();
   });
 
   group('a turn agy goes silent in', () {
