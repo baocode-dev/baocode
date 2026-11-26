@@ -216,6 +216,91 @@ void main() {
     });
   });
 
+  group('agy\'s own', () {
+    test('update_steps as TodoWrite', () {
+      final call = AcpToolCall('call_1')
+        ..merge({
+          'name': 'update_steps',
+          'kind': 'other',
+          'title': 'Run update_steps',
+          'status': 'completed',
+          'rawInput': {
+            'steps': [
+              {'status': 'done', 'title': 'Read'},
+              {'status': 'in_progress', 'title': 'Run'},
+              {'status': 'pending', 'title': 'Report'},
+            ],
+          },
+        });
+      final use = claudeToolUse(call);
+      expect(use.name, 'TodoWrite');
+      expect(use.input['todos'], [
+        {'content': 'Read', 'status': 'completed', 'activeForm': 'Read'},
+        {'content': 'Run', 'status': 'in_progress', 'activeForm': 'Run'},
+        {'content': 'Report', 'status': 'pending', 'activeForm': 'Report'},
+      ]);
+      final result = claudeToolResult(call, 'TodoWrite');
+      expect(result.content, 'Todos have been modified successfully.');
+      expect(result.structured, {'newTodos': use.input['todos']});
+    });
+
+    test('call_mcp_tool as the MCP tool it reaches, not a command', () {
+      final call = AcpToolCall('call_2')
+        ..merge({
+          'kind': 'execute',
+          'title': 'MCP Tool browser_open',
+          'status': 'in_progress',
+          'rawInput': {
+            'ServerName': 'baocode',
+            'ToolName': 'browser_open',
+            'Arguments': {'url': 'https://example.com'},
+          },
+        });
+      final use = claudeToolUse(call, servers: ['baocode']);
+      expect(use.name, 'mcp__baocode__browser_open');
+      expect(use.input, {'url': 'https://example.com'});
+    });
+
+    test('an MCP tool\'s result, as its server answered it', () {
+      final call = AcpToolCall('call_3')
+        ..merge({'name': 'mcp_baocode_shot', 'status': 'completed'});
+      expect(
+        claudeToolResult(
+          call,
+          'mcp__baocode__shot',
+          mcpResult: {
+            'content': [
+              {'type': 'text', 'text': 'opened'},
+            ],
+          },
+        ).content,
+        'opened',
+      );
+      final shot = claudeToolResult(
+        call,
+        'mcp__baocode__shot',
+        mcpResult: {
+          'isError': false,
+          'content': [
+            {'type': 'text', 'text': 'here'},
+            {'type': 'image', 'data': 'AAAA', 'mimeType': 'image/png'},
+          ],
+        },
+      );
+      expect(shot.content, [
+        {'type': 'text', 'text': 'here'},
+        {
+          'type': 'image',
+          'source': {
+            'type': 'base64',
+            'media_type': 'image/png',
+            'data': 'AAAA',
+          },
+        },
+      ]);
+    });
+  });
+
   group('questions', () {
     // As agy 1.5.16 sends its ask_question's.
     const schema = {
