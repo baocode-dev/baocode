@@ -440,9 +440,15 @@ List<String> _cut(String data, int from) {
     } else if (_mathOpening.firstMatch(line) case final opening?) {
       final close = opening[1] == r'$$' ? r'$$' : r'\]';
       if (!opening[2]!.trimRight().endsWith(close)) mathClose = close;
-    } else if (_tagOpening.firstMatch(line) case final opening?) {
+    } else if (_tagOpening.firstMatch(line) case final opening?
+        // More after it on its line: a `<details>`'s, closed there or not.
+        when opening[3]!.trim().isEmpty ||
+            opening[1]!.toLowerCase() == 'details') {
       final name = opening[1]!.toLowerCase();
-      if (!_voidTags.contains(name)) tags.add((name, true));
+      if (!_voidTags.contains(name) &&
+          !(name == 'details' && _closes(opening[3]!, (name, true)))) {
+        tags.add((name, true));
+      }
     } else if (_rawHtmlOpening.firstMatch(line) case final opening?) {
       // HTML's blocks that blank lines do not end, unless closed on it.
       final name = opening[1]!.toLowerCase();
@@ -504,8 +510,8 @@ final _linkDefinition = RegExp(r'^ {0,3}\[[^\]]+\]:', multiLine: true);
 /// A fence: its run, and anything after it (none on a closing one).
 final _fenceLine = RegExp(r'^ {0,3}(`{3,}|~{3,})[ \t]*(\S.*)?$');
 final _mathOpening = RegExp(r'^ {0,3}(\$\$|\\\[)(.*)$');
-final _tagOpening = RegExp(r'^ {0,3}<([A-Za-z][\w-]*)(\s[^<>]*)?>\s*$');
-final _tagClosing = RegExp(r'^ {0,3}</([A-Za-z][\w-]*)\s*>\s*$');
+final _tagOpening = RegExp(r'^ {0,3}<([A-Za-z][\w-]*)(\s[^<>]*)?>(.*)$');
+final _tagClosing = RegExp(r'</([A-Za-z][\w-]*)\s*>\s*$');
 final _rawHtmlOpening = RegExp(
   r'^ {0,3}<(script|pre|style|textarea)(\s|>|$)',
   caseSensitive: false,
@@ -515,7 +521,7 @@ const _voidTags = {
   'meta', 'source', 'track', 'wbr',
 };
 
-/// Whether [line] closes [open]: a tag section on a line of its own
+/// Whether [line] closes [open]: a tag section at its end
 /// ([TagBlockSyntax]), an HTML block anywhere in it.
 bool _closes(String line, (String, bool) open) => switch (open) {
   (final name, true) => _tagClosing.firstMatch(line)?[1]?.toLowerCase() == name,
