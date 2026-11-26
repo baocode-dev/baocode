@@ -256,8 +256,8 @@ void main() {
       );
     });
 
-    testWidgets('an edit, compact: one line with its counts, opening to '
-        'the diff', (tester) async {
+    testWidgets('an edit, compact (the default): one line with its counts, '
+        'opening to the diff', (tester) async {
       EditDetail.current.value = EditDetail.compact;
       addTearDown(() => EditDetail.current.value = EditDetail.card);
       await pumpStep(tester, edit);

@@ -7,9 +7,12 @@ import 'package:path/path.dart' as p;
 
 import '../chat/chat_session.dart';
 import '../kernel/agent_kernel.dart';
+import '../kernel/kernel_types.dart';
 import '../kernel/claude_code/claude_code_kernel.dart';
 import '../kernel/claude_code/claude_code_transport.dart';
+import '../kernel/claude_code/claude_core_setting.dart';
 import '../kernel/claude_code/mock_claude_code_transport.dart';
+import '../models/model_providers.dart';
 import '../platform/app_paths.dart';
 import '../platform/data_dir.dart';
 import '../remote/remote_claude.dart';
@@ -195,6 +198,20 @@ KernelDescriptor welcomeKernel(
   );
   return descriptor;
 }
+
+/// [health] as the demo shows it: with no model to run on, as a new
+/// conversation would have (BaoCode's own core, no upstream turned on), so
+/// that the user is offered setting one up; the demo plays all the same.
+KernelHealth welcomeHealth(KernelHealth health) =>
+    health.status != KernelHealthStatus.failed &&
+        ClaudeCore.current() == ClaudeCore.builtin &&
+        ModelProviders.current.firstModel == null
+    ? const KernelHealth(
+        KernelHealthStatus.failed,
+        message: ClaudeCore.noModel,
+        noModel: true,
+      )
+    : health;
 
 /// A Claude Code CLI that answers each of the demo's prompts with what was
 /// recorded for it, at its pace; control requests as

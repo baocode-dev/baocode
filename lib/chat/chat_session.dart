@@ -297,7 +297,15 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
 
   KernelDescriptor get kernel => _kernel.descriptor;
 
-  KernelHealth get health => _kernel.health;
+  KernelHealth get health => switch (healthAs) {
+    final healthAs? => healthAs(_kernel.health),
+    null => _kernel.health,
+  };
+
+  /// What its kernel's health shows as, where more is known than the
+  /// kernel does: the welcome demo plays on no model, and tells the user
+  /// they have none all the same.
+  KernelHealth Function(KernelHealth health)? healthAs;
 
   /// Whether the conversation it continues is still being read.
   bool get loadingHistory => switch (_kernel) {

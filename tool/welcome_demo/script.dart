@@ -277,6 +277,42 @@ Future<void> rewriteScript(ShowRun run, String root) async {
         ),
         took: 1400,
       );
+      // A question for the agent, and its answer: the two talking.
+      final ask = t(
+        'The draft has two syntaxes: the older limit, remaining and reset, and the current structured fields. Which one should I write up?',
+        '草案有两种写法：旧的 limit、remaining、reset，和现在的结构化字段。按哪种整理？',
+      );
+      await research.tool(
+        'SendMessage',
+        {'to': 'main', 'summary': t('Which syntax?', '按哪种写法？'), 'message': ask},
+        result: 'Message sent to main',
+        activity: t('Asking the agent', '询问主代理'),
+        took: 400,
+      );
+      run.raw({
+        'type': 'user',
+        'uuid': '00000000-0000-4000-a000-00000000a5c0',
+        'message': {
+          'role': 'user',
+          'content':
+              '<agent-message from="${research.task}">$ask</agent-message>',
+        },
+        'parent_tool_use_id': null,
+      });
+      await run.pause(900);
+      await run.tool(
+        'SendMessage',
+        {
+          'to': research.task,
+          'message': t(
+            'The current one: quota and window in RateLimit-Policy, what is left and the reset in RateLimit.',
+            '按现在的：配额和窗口写在 RateLimit-Policy 里，剩余次数和重置时间写在 RateLimit 里。',
+          ),
+        },
+        result: 'Message sent to ${research.task}',
+        took: 300,
+      );
+      await run.pause(500);
       await research.say(
         t(
           'Two fields: one for the policy, one for what is left and when it resets.',

@@ -5,6 +5,7 @@ import 'package:baocode/chat/chat_session.dart';
 import 'package:baocode/kernel/agent_kernel.dart';
 import 'package:baocode/kernel/claude_code/claude_code_kernel.dart';
 import 'package:baocode/kernel/claude_code/claude_code_transport.dart';
+import 'package:baocode/kernel/claude_code/claude_core_setting.dart';
 import 'package:baocode/kernel/claude_code/claude_storage.dart';
 import 'package:baocode/workspace/preference_store.dart';
 import 'package:baocode/workspace/welcome.dart';
@@ -121,21 +122,46 @@ void main() {
     for (var i = 0; i < 200; i++) {
       await Future<void>.delayed(const Duration(milliseconds: 50));
       items = await itemsOf(demo);
-      if (items.whereType<UserMessageItem>().length == 2 &&
+      if (items.whereType<UserMessageItem>().length == 3 &&
           !demo.session.isStreaming &&
           items.last is NoticeItem) {
         break;
       }
     }
     expect(items.first, isA<NoticeItem>());
-    expect(items.whereType<UserMessageItem>().map((item) => item.text), [
-      startsWith('Compare the algorithms'),
-      startsWith('Go with the sliding-window counter'),
-    ]);
+    expect(
+      items
+          .whereType<UserMessageItem>()
+          .where((item) => item.fromAgent == null)
+          .map((item) => item.text),
+      [
+        startsWith('Compare the algorithms'),
+        startsWith('Go with the sliding-window counter'),
+      ],
+    );
     expect(items.last, isA<NoticeItem>());
     expect(
       items.whereType<ToolCallItem>().map((item) => item.tool),
       contains('WebSearch'),
+    );
+    // The agent and a subagent talking: its question, and the answer.
+    expect(
+      items.whereType<UserMessageItem>().where(
+        (item) => item.fromAgent != null,
+      ),
+      [
+        isA<UserMessageItem>().having(
+          (item) => item.fromAgent,
+          'from',
+          'Look up the RateLimit headers',
+        ),
+      ],
+    );
+    expect(
+      items.whereType<ToolCallItem>().where(
+        (item) => item.kind == ToolKind.message,
+      ),
+      hasLength(1),
     );
     final agents = items.whereType<AgentItem>().toList();
     expect(agents, hasLength(3));
@@ -151,6 +177,13 @@ void main() {
     );
     expect(launches, isEmpty);
     expect(demo.shownStatus, ThreadStatus.idle);
+    // No model set up: offered one, as a new conversation would be.
+    final core = ClaudeCore.current;
+    addTearDown(() => ClaudeCore.current = core);
+    ClaudeCore.current = () => ClaudeCore.builtin;
+    expect(demo.session.health.noModel, isTrue);
+    ClaudeCore.current = () => ClaudeCore.cli;
+    expect(demo.session.health.noModel, isFalse);
 
     // What is sent there starts a conversation of their own.
     demo.session.send(const ComposerMessage(text: 'Hello'));
@@ -161,7 +194,7 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 50));
     expect(launches, hasLength(1));
     expect(launches.single.resume, isNull);
-    expect((await itemsOf(demo)).whereType<UserMessageItem>(), hasLength(2));
+    expect((await itemsOf(demo)).whereType<UserMessageItem>(), hasLength(3));
   });
 
   test('the demo stays listed till deleted', () async {
