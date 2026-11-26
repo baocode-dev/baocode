@@ -98,6 +98,33 @@ void main() {
       expect(paths, containsAll(['README.md', 'lib/reader.dart']));
     });
 
+    test(
+      'CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: compacts earlier, never later',
+      () async {
+        var started = false;
+        Future<(int, int)> buffer(String percent) async {
+          if (started) await h.dispose();
+          started = true;
+          h = await Harness.start(
+            environment: {'CLAUDE_AUTOCOMPACT_PCT_OVERRIDE': percent},
+          );
+          final context = await h.request('get_context_usage');
+          final buffer = [
+            for (final c in context['categories'] as List)
+              if ((c as Map)['name'] == 'Autocompact buffer') c['tokens'],
+          ].single;
+          return (context['maxTokens'] as int, buffer as int);
+        }
+
+        // Half of the window but the 20K kept for the answer.
+        final (window, half) = await buffer('50');
+        expect(half, window - (window - 20000) ~/ 2);
+        expect((await buffer('99')).$2, 33000);
+        expect((await buffer('abc')).$2, 33000);
+        expect((await buffer('0')).$2, 33000);
+      },
+    );
+
     test('rewind_conversation: the turns after it are gone', () async {
       h = await Harness.start();
       h.model.script.addAll([

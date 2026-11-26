@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:path/path.dart' as p;
 
@@ -591,8 +592,20 @@ class AgentSession {
     return modelWindow;
   }
 
-  /// The free room kept before compacting.
-  int get compactBuffer => contextWindow >= 100000 ? 33000 : contextWindow ~/ 5;
+  /// The free room kept before compacting: more of it when
+  /// `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` asks to compact at a lower share of
+  /// the window (never less). As Claude Code's, the share is of the window
+  /// but the room kept for the answer (20K of the 33K).
+  int get compactBuffer {
+    final window = contextWindow;
+    final buffer = window >= 100000 ? 33000 : window ~/ 5;
+    final percent = double.tryParse(
+      environment['CLAUDE_AUTOCOMPACT_PCT_OVERRIDE']?.trim() ?? '',
+    );
+    if (percent == null || !(percent > 0 && percent <= 100)) return buffer;
+    final effective = window - math.min(20000, buffer);
+    return math.max(buffer, window - (effective * percent / 100).floor());
+  }
 
   /// The effort in effect: the one asked for, else the settings', else the
   /// model's own.
