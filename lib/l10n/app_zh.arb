@@ -539,6 +539,7 @@
   "agentUntitled": "新对话",
   "agentImageTitle": "图片：{name}",
   "agentImageUntitled": "图片",
+  "welcomeDemoTitle": "演示：对比并重写一个限流中间件",
   "chatTitleSummarize": "总结新标题",
   "chatTitleSummarizing": "正在总结…",
   "chatTitleSummarizeFailed": "未能生成标题，再试一次",

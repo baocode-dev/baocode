@@ -3332,6 +3332,12 @@ abstract class AppLocalizations {
   /// **'Image'**
   String get agentImageUntitled;
 
+  /// The title of the demo conversation a new user first sees: nothing in it ran; what they send starts a conversation of their own.
+  ///
+  /// In en, this message translates to:
+  /// **'Demo: a rate limiter, compared and rewritten'**
+  String get welcomeDemoTitle;
+
   /// In the list under a chat's title being renamed: has a model title the conversation from what the user asked.
   ///
   /// In en, this message translates to:

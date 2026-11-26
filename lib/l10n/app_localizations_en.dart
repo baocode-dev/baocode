@@ -1832,6 +1832,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get agentImageUntitled => 'Image';
 
   @override
+  String get welcomeDemoTitle => 'Demo: a rate limiter, compared and rewritten';
+
+  @override
   String get chatTitleSummarize => 'Summarize into a new title';
 
   @override

@@ -1188,6 +1188,10 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
     return [editor?.note ?? OpenEditor.closedNote];
   }
 
+  /// Where what is sent goes instead of to its agent: a conversation not
+  /// to go on with (the welcome demo, see [Workspace]) has it start another.
+  void Function(ComposerMessage message)? sendInstead;
+
   /// Sends [message]; [now], taken up at once, the turn running stopped
   /// for it (rather than queued behind it). With a plan awaiting (see
   /// [awaitingPlan]), it says what should change in it.
@@ -1204,7 +1208,9 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
     UserPlace? from,
     List<String> notes = const [],
   }) {
-    if (message.isEmpty || !canSend) return;
+    if (message.isEmpty) return;
+    if (sendInstead case final instead?) return instead(message);
+    if (!canSend) return;
     final turn = KernelTurn(
       id: newTurnId(),
       // Pastes too long to send, kept in files the agent reads; a remote

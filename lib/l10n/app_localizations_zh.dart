@@ -1792,6 +1792,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get agentImageUntitled => '图片';
 
   @override
+  String get welcomeDemoTitle => '演示：对比并重写一个限流中间件';
+
+  @override
   String get chatTitleSummarize => '总结新标题';
 
   @override

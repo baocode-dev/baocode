@@ -151,6 +151,7 @@ import 'workspace/agent_title.dart';
 import 'workspace/main_window.dart';
 import 'workspace/preference_store.dart';
 import 'workspace/window_controls.dart';
+import 'workspace/welcome.dart';
 import 'workspace/workspace.dart';
 
 Future<void> main(List<String> arguments) async {
@@ -243,6 +244,8 @@ Future<void> main(List<String> arguments) async {
     titler: claudeAgentTitle,
     l10n: () =>
         lookupAppLocalizations(locale.locale ?? AppLocale.systemLocale()),
+    // A new user: ~/BaoCode, and the demo conversation there.
+    welcome: kIsWeb ? null : Welcome.io(),
   )..load();
   // The conversations' titles and projects, kept with their calls.
   UsageLedger.titleOf = (session) => switch (workspace.threads
