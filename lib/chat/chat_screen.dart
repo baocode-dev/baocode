@@ -575,7 +575,11 @@ class _ChatScreenState extends State<ChatScreen>
   void _welcomeToModels() {
     // The channel build's model is its account's: no setting one up.
     if (ChannelSetup.channelBuild) return;
-    if (!_session.health.noModel || ModelWelcome.welcomed) return;
+    if (!_session.health.noModel ||
+        !_session.modelWelcome ||
+        ModelWelcome.welcomed) {
+      return;
+    }
     if (ChannelSetup.current case final setup? when !setup.done) {
       if (_awaitingSetup) return;
       _awaitingSetup = true;

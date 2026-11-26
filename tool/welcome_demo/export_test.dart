@@ -68,12 +68,12 @@ void main() {
       final file = File('assets/welcome/demo.$locale.json')
         ..parent.createSync(recursive: true);
       final notice = Story.t(
-        'This is a demo: nothing in it really runs, and none of your files are touched. Send a message any time to start a conversation of your own.',
-        '这是一段演示：里面的操作都没有真的执行，也不会改动你的文件。随时发一条消息，就会开始你自己的对话。',
+        'This is a demo: nothing in it really runs, and none of your files are touched. For a real conversation, click New Chat at the top left.',
+        '这是一段演示：里面的操作都没有真的执行，也不会改动你的文件。要开始真正的对话，点左上角的「新对话」。',
       );
       final ending = Story.t(
-        'That was the demo. Ask anything below: a new conversation starts, in this folder.',
-        '演示到这里。在下面随便问点什么，会在这个文件夹里开始一段新的对话。',
+        'That was the demo. Pick a suggestion or send anything below to watch it again; New Chat at the top left starts a real conversation.',
+        '演示到这里。点下面的建议或随便发点什么，会再演示一遍；左上角的「新对话」会开始真正的对话。',
       );
       final demo = {'notice': notice, 'ending': ending, 'turns': turns};
       file.writeAsStringSync('${jsonEncode(demo)}\n');

@@ -185,16 +185,29 @@ void main() {
     ClaudeCore.current = () => ClaudeCore.cli;
     expect(demo.session.health.noModel, isFalse);
 
-    // What is sent there starts a conversation of their own.
+    // Ends offering what to send next; what is sent plays it again.
+    expect(demo.session.replySuggestions, hasLength(3));
+    expect(demo.session.modelWelcome, isFalse);
     demo.session.send(const ComposerMessage(text: 'Hello'));
-    final mine = first.current!;
-    expect(mine, isNot(demo));
-    expect(mine.project.path, folder);
-    expect(first.threads, containsAll([demo, mine]));
-    await Future<void>.delayed(const Duration(milliseconds: 50));
-    expect(launches, hasLength(1));
-    expect(launches.single.resume, isNull);
-    expect((await itemsOf(demo)).whereType<UserMessageItem>(), hasLength(3));
+    for (var i = 0; i < 200; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      items = await itemsOf(demo);
+      if (items.whereType<UserMessageItem>().length == 6 &&
+          !demo.session.isStreaming) {
+        break;
+      }
+    }
+    expect(first.current, demo);
+    expect(first.threads, [demo]);
+    expect(
+      items
+          .whereType<UserMessageItem>()
+          .where((item) => item.fromAgent == null)
+          .map((item) => item.text)
+          .skip(2),
+      ['Hello', startsWith('Go with the sliding-window counter')],
+    );
+    expect(launches, isEmpty);
   });
 
   test('the demo stays listed till deleted', () async {

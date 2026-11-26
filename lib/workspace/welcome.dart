@@ -214,8 +214,8 @@ KernelHealth welcomeHealth(KernelHealth health) =>
     : health;
 
 /// A Claude Code CLI that answers each of the demo's prompts with what was
-/// recorded for it, at its pace; control requests as
-/// [MockClaudeCodeTransport] answers them. Anything else sent ends at once.
+/// recorded for it, at its pace, and anything else with its first turn;
+/// control requests as [MockClaudeCodeTransport] answers them.
 class WelcomeTransport implements ClaudeCodeTransport {
   WelcomeTransport(this.recording, ClaudeLaunch launch)
     : _control = MockClaudeCodeTransport(launch) {
@@ -282,9 +282,12 @@ class WelcomeTransport implements ClaudeCodeTransport {
 
   Future<void> _play(Map<String, Object?> sent) async {
     final prompt = _text(sent).trim();
-    final turn = recording.turns
-        .where((turn) => turn.prompt.trim() == prompt)
-        .firstOrNull;
+    // Anything else the user sends there plays it again from the start.
+    final turn =
+        recording.turns
+            .where((turn) => turn.prompt.trim() == prompt)
+            .firstOrNull ??
+        recording.turns.firstOrNull;
     final playing = ++_playing;
     _busy = true;
     if (turn == null) {
@@ -340,77 +343,81 @@ class WelcomeTransport implements ClaudeCodeTransport {
 
 /// Plays the demo in [session] once the user sees it, nothing over it
 /// ([ChatSession.seen]): its prompts sent one after the other, each once
-/// the turn before is over and the demo shows again.
+/// the turn before is over and the demo shows again. What the user sends
+/// there ([replay]) plays it again, in place of its first prompt.
 class WelcomePlayer {
-  WelcomePlayer(this.session, this.prompts) {
-    session.seen.addListener(_seenChanged);
-    _seenChanged();
+  WelcomePlayer(this.session, this.prompts)
+    : _pending = [for (final prompt in prompts) ComposerMessage(text: prompt)] {
+    session.seen.addListener(_go);
+    session.addListener(_changed);
+    _go();
   }
 
   final ChatSession session;
   final List<String> prompts;
 
-  /// How long it shows before it plays: a dialog that opens with it (the
-  /// welcome to models, say) comes over it first.
+  /// How long it shows before it first plays: a dialog that opens with it
+  /// comes over it first.
   static const settle = Duration(milliseconds: 800);
 
   /// Between one turn's end and the next prompt.
   static const between = Duration(milliseconds: 1500);
 
-  var _next = 0;
+  /// What is still to be sent, in order.
+  List<ComposerMessage> _pending;
+  var _sent = false;
+  var _streaming = false;
   Timer? _timer;
   bool _stopped = false;
 
-  /// Whether all its prompts were sent.
-  bool get done => _next >= prompts.length;
+  /// Whether all it had to send was sent.
+  bool get done => _pending.isEmpty;
 
-  void _seenChanged() {
+  /// Plays it again, [message] (what the user sent there) in place of its
+  /// first prompt: once the turn at work, if any, is over.
+  void replay(ComposerMessage message) {
+    _pending = [
+      message,
+      for (final prompt in prompts.skip(1)) ComposerMessage(text: prompt),
+    ];
+    _go();
+  }
+
+  bool get _ready =>
+      !_stopped &&
+      !done &&
+      !session.disposed &&
+      session.seen.value &&
+      !session.isStreaming;
+
+  void _go() {
     _timer?.cancel();
-    if (_stopped ||
-        done ||
-        session.disposed ||
-        !session.seen.value ||
-        session.isStreaming) {
-      return;
-    }
-    _timer = Timer(_next == 0 ? settle : between, _send);
+    if (_ready) _timer = Timer(_sent ? between : settle, _send);
+  }
+
+  void _changed() {
+    if (session.disposed) return;
+    final streaming = session.isStreaming;
+    if (streaming == _streaming) return;
+    _streaming = streaming;
+    if (!streaming) _go();
   }
 
   void _send() {
-    if (_stopped ||
-        done ||
-        session.disposed ||
-        !session.seen.value ||
-        session.isStreaming) {
-      return;
-    }
-    final prompt = prompts[_next++];
-    // Its own, sent as is: not the user's, which start a conversation of
-    // their own.
+    if (!_ready) return;
+    _sent = true;
+    final message = _pending.removeAt(0);
+    // Its own, sent as is: not the user's, which [replay] it.
     final instead = session.sendInstead;
     session.sendInstead = null;
-    session.send(ComposerMessage(text: prompt));
+    session.send(message);
     session.sendInstead = instead;
-    if (!done) session.addListener(_turnEnded);
-  }
-
-  var _started = false;
-
-  void _turnEnded() {
-    if (session.isStreaming) {
-      _started = true;
-      return;
-    }
-    if (!_started) return;
-    _started = false;
-    session.removeListener(_turnEnded);
-    _seenChanged();
   }
 
   void stop() {
     _stopped = true;
     _timer?.cancel();
-    session.seen.removeListener(_seenChanged);
-    session.removeListener(_turnEnded);
+    session.seen.removeListener(_go);
+    session.removeListener(_changed);
   }
 }

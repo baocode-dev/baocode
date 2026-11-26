@@ -1201,8 +1201,13 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
   /// WelcomePlayer) goes on then.
   final ValueNotifier<bool> seen = ValueNotifier(false);
 
+  /// Whether having no model to run on opens the welcome to models by
+  /// itself (the first time for the app): not over the welcome demo, which
+  /// offers setting one up below it.
+  bool modelWelcome = true;
+
   /// Where what is sent goes instead of to its agent: a conversation not
-  /// to go on with (the welcome demo, see [Workspace]) has it start another.
+  /// to go on with (the welcome demo, see [Workspace]) plays again.
   void Function(ComposerMessage message)? sendInstead;
 
   /// Sends [message]; [now], taken up at once, the turn running stopped

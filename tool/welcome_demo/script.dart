@@ -418,7 +418,11 @@ Future<void> rewriteScript(ShowRun run, String root) async {
 | index.ts | the store is swappable: in memory by default, Workers KV as the other (eventually consistent, noted in the docs); the previous window is weighted |
 | index.test.ts | the new headers asserted, and the next-window case checks the weighting. 4 tests, all passing |
 
-The old X-RateLimit headers gave way to the standard RateLimit ones, which an option turns off; a 429 still comes with Retry-After.''',
+The old X-RateLimit headers gave way to the standard RateLimit ones, which an option turns off; a 429 still comes with Retry-After.
+
+<reply_suggestion>Add tests for the KV store too</reply_suggestion>
+<reply_suggestion>Explain the weighting formula</reply_suggestion>
+<reply_suggestion>Commit it</reply_suggestion>''',
       '''完成了。限流中间件现在按滑动窗口计数：
 
 | 文件 | 改了什么 |
@@ -426,7 +430,11 @@ The old X-RateLimit headers gave way to the standard RateLimit ones, which an op
 | index.ts | 存储可以替换：默认存在内存里，也可以用 Workers KV（最终一致，文档里有说明）；上一窗口的请求按比例加权 |
 | index.test.ts | 断言改成新的响应头，“下一窗口”的用例改成检查加权。4 个测试全部通过 |
 
-旧的 X-RateLimit 响应头换成了标准的 RateLimit，可以用选项关掉；429 时照旧带 Retry-After。''',
+旧的 X-RateLimit 响应头换成了标准的 RateLimit，可以用选项关掉；429 时照旧带 Retry-After。
+
+<reply_suggestion>KV 存储也补上测试</reply_suggestion>
+<reply_suggestion>解释一下加权公式</reply_suggestion>
+<reply_suggestion>提交吧</reply_suggestion>''',
     ),
     charsPerSecond: 420,
   );
