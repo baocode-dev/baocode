@@ -875,7 +875,9 @@ class AgyTransport implements ClaudeCodeTransport {
       case 'session_info_update':
         if (update['title'] case final String said) {
           final title = withoutReminders(said);
-          if (title.isNotEmpty) {
+          // agy does not learn of renames, so it keeps sending its own title
+          // on resume: only name an untitled session (matching bao_agent).
+          if (title.isNotEmpty && _store.title == null) {
             _store.note({'type': 'ai-title', 'aiTitle': title});
             _emit({
               'type': 'system',
