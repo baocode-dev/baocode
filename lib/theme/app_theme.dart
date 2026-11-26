@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../ide/terminal/terminal_colors.dart';
 import '../platform/app_platform.dart';
 import 'code_font.dart';
+import 'linux_code_fonts.dart';
 import 'window_blur.dart';
 import 'workbench_theme.dart' hide ColorScheme;
 
@@ -253,14 +254,21 @@ abstract final class AppMetrics {
 
 abstract final class AppFonts {
   /// The font code, paths and commands are drawn in: the first of
-  /// [CodeFont.families], which the user may change.
-  static String get mono => CodeFont.families.value.first;
+  /// [CodeFont.families], which the user may change; on Linux the first
+  /// installed, as loaded ([LinuxCodeFonts.resolved]).
+  static String get mono =>
+      LinuxCodeFonts.resolved.value?.first ?? CodeFont.families.value.first;
 
   /// What code falls back on, in order: the families after [mono], then on
-  /// Windows [windowsFallbacks]. A family not installed is passed over.
+  /// Windows [windowsFallbacks]. A family not installed is passed over. On
+  /// Linux the rest as loaded, [LinuxCodeFonts.fallbacks] among them, or
+  /// while they are not, by their names.
   static List<String> get monoFallbacks => [
-    ...CodeFont.families.value.skip(1),
+    ...(LinuxCodeFonts.resolved.value?.skip(1) ??
+        CodeFont.families.value.skip(1)),
     if (AppPlatform.isWindows) ...windowsFallbacks,
+    if (AppPlatform.isLinux && LinuxCodeFonts.resolved.value == null)
+      ...LinuxCodeFonts.fallbacks,
   ];
 
   /// A style for code drawn at [size], as the code's size is moved (see

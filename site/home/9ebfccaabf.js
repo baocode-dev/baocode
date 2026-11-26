@@ -15,7 +15,7 @@
       const vs = "attribute vec2 p; void main(){ gl_Position = vec4(p, 0.0, 1.0); }";
       const fs = `
         precision highp float;
-        uniform vec2 uRes; uniform vec2 uSrc; uniform vec4 uBox; uniform float uT; uniform float uPx;
+        uniform vec2 uRes; uniform vec2 uSrc; uniform vec4 uBox; uniform float uT; uniform float uPx; uniform float uLight;
         float beam(vec2 d, float cosA, float sA, float sB, float spd) {
           return clamp(0.45 + 0.15 * sin(cosA * sA + uT * spd) + 0.3 + 0.2 * cos(-cosA * sB + uT * spd), 0.0, 1.0);
         }
@@ -57,7 +57,16 @@
           float n = fract(sin(dot(px, vec2(12.9898, 78.233))) * 43758.5453);
           col += (n - 0.5) / 255.0;
           col = max(col, 0.0);
-          gl_FragColor = vec4(col, max(col.r, max(col.g, col.b)));
+          float a = max(col.r, max(col.g, col.b));
+          // On a light page light adds nothing: the same glow as a tint, its
+          // hue deepened, laid over the ground.
+          if (uLight > 0.5) {
+            vec3 hue = pow(col / max(a, 1e-4), vec3(2.4)) * 0.92;
+            a = min(1.0, a * 1.5);
+            gl_FragColor = vec4(hue * a, a);
+          } else {
+            gl_FragColor = vec4(col, a);
+          }
         }`;
       function shader(type, src) {
         const sh = gl.createShader(type);
@@ -76,7 +85,11 @@
       gl.enableVertexAttribArray(loc);
       gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
       const u = (k) => gl.getUniformLocation(prog, k);
-      const uRes = u("uRes"), uSrc = u("uSrc"), uBox = u("uBox"), uT = u("uT"), uPx = u("uPx");
+      const uRes = u("uRes"), uSrc = u("uSrc"), uBox = u("uBox"), uT = u("uT"), uPx = u("uPx"), uLight = u("uLight");
+      // Light or dark (head.js), followed as it changes.
+      const scheme = () => gl.uniform1f(uLight, window.baoTheme?.light ? 1 : 0);
+      scheme();
+      window.baoTheme?.onChange(() => { scheme(); draw(lastT); });
 
       let visible = true;
       function layout() {

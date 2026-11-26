@@ -970,6 +970,87 @@ class ChatSelectionController extends ChangeNotifier {
     final rect = rects.isEmpty ? Offset.zero & leaf.box.size : rects.first;
     return leaf.box.localToGlobal(rect.center);
   }
+
+  /// [range] trimmed to the text in it, as far as it is built: a start
+  /// with only blanks after it in its piece (the line break after a
+  /// message, a drag begun beside it) moved on to the next piece, an end
+  /// with only blanks before it back to the one before. Null when nothing
+  /// but blanks is selected.
+  (ChatTextPos, ChatTextPos)? textRange() {
+    final range = this.range;
+    if (range == null) return null;
+    var (start, end) = range;
+    List<ChatTextLeaf>? leavesOf(int index) => switch (_items[index]) {
+      final item? when item.attached => item.leaves(),
+      _ => null,
+    };
+    bool blank(String text, int from, int to) {
+      for (var i = from; i < to; i++) {
+        if (text.codeUnitAt(i) > 0x20) return false;
+      }
+      return true;
+    }
+
+    var leaves = leavesOf(start.item);
+    while (start < end && leaves != null) {
+      if (start.leaf < leaves.length) {
+        final text = leaves[start.leaf].text;
+        final from = start.offset.clamp(0, text.length);
+        if (!blank(text, from, text.length)) break;
+        start = ChatTextPos(start.item, start.leaf + 1, 0);
+      } else {
+        start = ChatTextPos(start.item + 1, 0, 0);
+        leaves = leavesOf(start.item);
+      }
+    }
+    leaves = leavesOf(end.item);
+    while (start < end && leaves != null) {
+      final leaf = math.min(end.leaf, leaves.length - 1);
+      if (leaf >= 0) {
+        final text = leaves[leaf].text;
+        final to = end.offset.clamp(0, text.length);
+        if (!blank(text, 0, to)) break;
+      }
+      if (leaf > 0) {
+        end = ChatTextPos(end.item, leaf - 1, leaves[leaf - 1].text.length);
+      } else if (end.item > 0) {
+        leaves = leavesOf(end.item - 1);
+        end = ChatTextPos(
+          end.item - 1,
+          math.max(0, (leaves?.length ?? 1) - 1),
+          leaves?.lastOrNull?.text.length ?? 0,
+        );
+      } else {
+        break;
+      }
+    }
+    return start < end ? (start, end) : null;
+  }
+
+  /// The character [pos] is at the end of ([after]: at the start of), and
+  /// the piece of text it is in ([leaf]), in the box of its item (see
+  /// [builtItems]): where a selection's end is, if built. A line's height,
+  /// for a piece of no text.
+  ({Rect char, Rect leaf})? charRectAt(ChatTextPos pos, {bool after = false}) {
+    final item = _items[pos.item];
+    if (item == null || !item.attached) return null;
+    final leaves = item.leaves();
+    if (leaves.isEmpty) return null;
+    final leaf = leaves[math.min(pos.leaf, leaves.length - 1)];
+    final length = leaf.text.length;
+    final offset = pos.offset.clamp(0, length);
+    final start = math.max(
+      0,
+      math.min(after ? offset : offset - 1, length - 1),
+    );
+    final rects = leaf.rectsFor(start, math.min(length, start + 1));
+    final box = Offset.zero & leaf.box.size;
+    final toItem = leaf.box.getTransformTo(item);
+    return (
+      char: MatrixUtils.transformRect(toItem, rects.firstOrNull ?? box),
+      leaf: MatrixUtils.transformRect(toItem, box),
+    );
+  }
 }
 
 /// The conversation item [index] whose text is under it, and its

@@ -23,6 +23,7 @@
   <a href="/download">Download</a>
   <a href="/changelog" aria-current="page">Changelog</a>
   <a href="https://github.com/baocode-dev/baocode"><svg class="ic" aria-hidden="true"><use href="#ic-github"/></svg>GitHub</a>
+  <button class="theme" type="button" data-theme-toggle aria-label="Appearance: system" data-tip="Appearance: system"></button>
   <a class="lang" href="/zh/changelog" hreflang="zh" lang="zh-CN">中文</a>
 </header>
 
@@ -30,24 +31,54 @@
   <h1>Changelog</h1>
   <p class="subtitle">What changed in each version of BaoCode.</p>
 
-  <section class="release" id="v2.0.6">
-    <h2 class="plain"><a href="#v2.0.6">2.0.6</a></h2>
-    <p>This release adds the Antigravity ACP upstream, so one conversation can move between its models and other upstreams&#x27;, opens files picked in the search palette or a terminal in the chat&#x27;s side panel, and fixes PDFs failing on OpenAI upstreams.</p>
+  <section class="release" id="v2.0.7">
+    <h2 class="plain"><a href="#v2.0.7">2.0.7</a></h2>
+    <p>This release lets you copy, quote or ask by the way about text selected in the conversation, frees the chat grid from its 2×2, runs a stopped or failed last turn again in one click, and fixes several issues on Linux and Windows.</p>
     <p>New</p>
     <ul>
-    <li>Antigravity ACP upstream: BaoCode installs and updates Google&#x27;s official Antigravity CLI and drives it over ACP. Sign in with a Google account to use its Gemini, Claude and GPT models, and switch between them and other upstreams&#x27; models in the same conversation.</li>
-    <li>The context panel of an Antigravity conversation estimates what fills the context (system prompt, rules, skills, messages) and shows the account&#x27;s weekly limits and when they reset.</li>
-    <li>Antigravity&#x27;s commands, edits, reads and web searches show as Claude Code&#x27;s do; in full access its commands no longer ask one by one; its turns appear in the usage records.</li>
+    <li>Text selected in the conversation gets a bar over it: Copy, Quote (into the message being written, as a tag) and By the Way.</li>
+    <li>The chat grid is no longer a fixed 2×2: split panes along rows or columns, as many as the window has room for.</li>
+    <li>A stopped or failed last turn has a Run this turn again button; the model can be changed first, and as with an edit you're asked whether the files it changed go back.</li>
+    <li>The agent suggests two to four replies; hold ⌘ or Ctrl while clicking to pick several and send them together.</li>
+    <li>Images sent are kept as files and the agent is told where, so it can upload or attach the very one you sent.</li>
+    <li>The conversation's files page has Open in Terminal.</li>
+    <li>A model that failed its test: click Failed to copy the error, or use Copy Error in the row's menu.</li>
     </ul>
     <p>Improved</p>
     <ul>
-    <li>In the chat layout, a file picked in the search palette (Ctrl+P) or clicked in a terminal opens in the agent&#x27;s side panel instead of switching to the IDE.</li>
-    <li>Claude Code&#x27;s own models always offer 200K / 400K / 1M context.</li>
+    <li>A skill run from a slash command (such as /code-review) shows its work as it goes instead of staying empty until done.</li>
+    <li>Messages queued behind a running turn go back into the composer when the app quits, kept for the next run.</li>
+    <li>A conversation with scheduled jobs or a loop waiting keeps its process when you switch away, so they come on time.</li>
+    </ul>
+    <p>Fixed</p>
+    <ul>
+    <li>The selection bar showing on only every other selection.</li>
+    <li>A message's editor opening off its message when Interface Size isn't 100%, or going out of view in a short window.</li>
+    <li>Windows: closing the window with no tray icon up minimizes it instead of leaving the app running out of reach; PowerShell Store execution aliases are recognized.</li>
+    <li>Windows: Ctrl+Y redoes in the markdown editor and the composer.</li>
+    <li>Linux: the package declares its GL libraries, fixing a crash at start on minimal desktops; a certificate bundle with stray bytes no longer drops every certificate; code fonts stay monospaced under CJK locales.</li>
+    <li>Suggested replies with inline code in them no longer all show as plain text.</li>
+    </ul>
+  </section>
+
+  <section class="release" id="v2.0.6">
+    <h2 class="plain"><a href="#v2.0.6">2.0.6</a></h2>
+    <p>This release adds the Antigravity ACP upstream, so one conversation can move between its models and other upstreams', opens files picked in the search palette or a terminal in the chat's side panel, and fixes PDFs failing on OpenAI upstreams.</p>
+    <p>New</p>
+    <ul>
+    <li>Antigravity ACP upstream: BaoCode installs and updates Google's official Antigravity CLI and drives it over ACP. Sign in with a Google account to use its Gemini, Claude and GPT models, and switch between them and other upstreams' models in the same conversation.</li>
+    <li>The context panel of an Antigravity conversation estimates what fills the context (system prompt, rules, skills, messages) and shows the account's weekly limits and when they reset.</li>
+    <li>Antigravity's commands, edits, reads and web searches show as Claude Code's do; in full access its commands no longer ask one by one; its turns appear in the usage records.</li>
+    </ul>
+    <p>Improved</p>
+    <ul>
+    <li>In the chat layout, a file picked in the search palette (Ctrl+P) or clicked in a terminal opens in the agent's side panel instead of switching to the IDE.</li>
+    <li>Claude Code's own models always offer 200K / 400K / 1M context.</li>
     <li>The built-in core reads images and PDFs as Claude Code does: large images are resized, long PDFs are read by pages, and re-reading an unchanged file is pointed out.</li>
     </ul>
     <p>Fixed</p>
     <ul>
-    <li>A PDF read by the built-in core is no longer sent to OpenAI upstreams as text and failing; an upstream&#x27;s failure is shown instead of retried silently.</li>
+    <li>A PDF read by the built-in core is no longer sent to OpenAI upstreams as text and failing; an upstream's failure is shown instead of retried silently.</li>
     <li>Antigravity: a failed command with no output no longer causes a 400 error; finished turns show the output speed; a 1M context shows as 1M.</li>
     </ul>
   </section>

@@ -10,7 +10,18 @@ abstract final class SvgIcons {
   /// Usage: a conversation's, and Settings → Usage (Lucide's chart-pie).
   static const usage = IconData(0xe000, fontFamily: fontFamily);
 
-  static const _assets = {0xe000: 'assets/icons/lucide-chart-pie.svg'};
+  /// The conversation's selection bar's Copy, Quote and By the Way (Remix
+  /// Icon's file-copy-line, double-quotes-l and chat-3-line).
+  static const copy = IconData(0xe001, fontFamily: fontFamily);
+  static const quote = IconData(0xe002, fontFamily: fontFamily);
+  static const aside = IconData(0xe003, fontFamily: fontFamily);
+
+  static const _assets = {
+    0xe000: 'assets/icons/lucide-chart-pie.svg',
+    0xe001: 'assets/icons/file-copy-line.svg',
+    0xe002: 'assets/icons/double-quotes-l.svg',
+    0xe003: 'assets/icons/chat-3-line.svg',
+  };
 
   /// [icon]'s SVG, where it is one of these.
   static String? assetOf(IconData icon) =>

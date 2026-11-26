@@ -1853,6 +1853,18 @@ class MarkdownEditorState extends State<MarkdownEditor>
       }
       return KeyEventResult.handled;
     }
+    // Ctrl+Y redoes too off Apple's, as Windows has it (and the Edit menu
+    // says): the defaults have only Ctrl+Shift+Z.
+    if (key == LogicalKeyboardKey.keyY &&
+        keyboard.isControlPressed &&
+        !keyboard.isShiftPressed &&
+        !keyboard.isMetaPressed &&
+        !keyboard.isAltPressed &&
+        defaultTargetPlatform != TargetPlatform.macOS &&
+        defaultTargetPlatform != TargetPlatform.iOS) {
+      controller.redo();
+      return KeyEventResult.handled;
+    }
     // Home and End to the line's ends, Shift selecting to them, as an
     // editor has them: macOS's defaults scroll the document instead, and
     // select to its ends with Shift. The numpad's 7 and 1 are Home and End

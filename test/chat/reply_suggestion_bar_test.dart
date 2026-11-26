@@ -9,6 +9,7 @@ void main() {
         suggestions: const ['one', 'two', 'three'],
         playKey: key,
         onPick: (_) {},
+        onToggle: (_) {},
         onSend: (_) {},
       ),
     ),

@@ -10,6 +10,7 @@ import 'package:baocode/chat/chat_session.dart';
 import 'package:baocode/chat/selection/chat_selection.dart';
 import 'package:baocode/chat/composer/composer_draft.dart';
 import 'package:baocode/chat/widgets/step_header.dart';
+import 'package:baocode/ide/selection_bubble.dart';
 import 'package:baocode/theme/app_theme.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 
@@ -1468,6 +1469,305 @@ void main() {
     },
     variant: TargetPlatformVariant.desktop(),
   );
+
+  testWidgets('a selection has its bar over it as soon as it is made, the '
+      'drag still held; Quote hands its text over; it goes with the text as '
+      'the list scrolls, and fades out at the next press', (tester) async {
+    final quoted = <String>[];
+    const answer = 'The parser drops the last token.';
+    final feed = _Feed([
+      for (var i = 0; i < 12; i++) ...[
+        UserMessageItem(text: 'Question $i?'),
+        AssistantTextItem('Answer $i, long enough to scroll.\n\nMore of it.'),
+      ],
+      const UserMessageItem(text: 'Why does it fail?'),
+      const AssistantTextItem(answer),
+    ])..streaming = false;
+    addTearDown(feed.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(
+          body: ChatHistoryView(feed: feed, onQuote: quoted.add),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final paragraph = tester.renderObject<RenderParagraph>(
+      find.byWidgetPredicate(
+        (widget) => widget is RichText && widget.text.toPlainText() == answer,
+      ),
+    );
+    final quote = find.text('Quote');
+    final mouse = await tester.startGesture(
+      paragraph.localToGlobal(Offset(0.5, paragraph.size.height / 2)),
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pump();
+    await mouse.moveTo(
+      paragraph.localToGlobal(
+        Offset(paragraph.size.width - 0.5, paragraph.size.height / 2),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(quote, findsOneWidget, reason: 'while the drag is held');
+    await mouse.up();
+    await tester.pumpAndSettle();
+    expect(quote, findsOneWidget);
+    expect(find.text('By the Way'), findsNothing, reason: 'nothing aside');
+    // One line selected: over it.
+    final line = paragraph.localToGlobal(Offset.zero).dy;
+    final bar = find.byType(SelectionBubble);
+    expect(tester.getRect(bar).bottom, lessThanOrEqualTo(line));
+
+    // Scrolled, it goes with the text in the same frame.
+    final before = tester.getRect(bar).top;
+    final position = tester
+        .state<ScrollableState>(find.byType(Scrollable).first)
+        .position;
+    position.jumpTo(position.pixels - 30);
+    await tester.pump();
+    expect(tester.getRect(bar).top, closeTo(before + 30, 0.5));
+
+    await tester.tap(quote);
+    await tester.pump();
+    expect(quoted, [answer]);
+    // Fading out, then gone.
+    expect(quote, findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(quote, findsNothing);
+
+    // Shown again, a press in the text takes it away.
+    final again = await tester.startGesture(
+      paragraph.localToGlobal(Offset(0.5, paragraph.size.height / 2)),
+      kind: PointerDeviceKind.mouse,
+    );
+    await again.moveTo(
+      paragraph.localToGlobal(
+        Offset(paragraph.size.width - 0.5, paragraph.size.height / 2),
+      ),
+    );
+    await again.up();
+    await tester.pumpAndSettle();
+    expect(quote, findsOneWidget);
+    // Away from the last press: not a second click of a double one
+    // (which selects a word, and has its bar).
+    await tester.tapAt(
+      paragraph.localToGlobal(
+        Offset(paragraph.size.width - 2, paragraph.size.height / 2),
+      ),
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pumpAndSettle();
+    expect(quote, findsNothing);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+  testWidgets('the bar is over the selection, in its middle, as a '
+      'document\'s editor has it: over the characters within a line, over the '
+      'text across lines; as it grows, there at once', (tester) async {
+    const first = 'The parser drops the last token of every line.';
+    const second = 'Then the printer has nothing to close the block with.';
+    final feed = _Feed([
+      const UserMessageItem(text: 'Why does it fail?'),
+      const AssistantTextItem('$first\n\n$second'),
+    ])..streaming = false;
+    addTearDown(feed.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(
+          body: ChatHistoryView(feed: feed, onQuote: (_) {}),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    RenderParagraph paragraph(String text) =>
+        tester.renderObject<RenderParagraph>(
+          find.byWidgetPredicate(
+            (widget) => widget is RichText && widget.text.toPlainText() == text,
+          ),
+        );
+    final top = paragraph(first);
+    final bottom = paragraph(second);
+    Offset at(RenderParagraph p, double x) =>
+        p.localToGlobal(Offset(x, p.size.height / 2));
+    final bar = find.byType(SelectionBubble);
+    final firstLine = top.localToGlobal(Offset.zero).dy;
+
+    // Within a line: over the characters selected, in their middle (within
+    // a character of it: the selection ends at characters' edges).
+    final drag = await tester.startGesture(
+      at(top, 2),
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pump();
+    await drag.moveTo(at(top, 120));
+    await tester.pumpAndSettle();
+    var rect = tester.getRect(bar);
+    expect(rect.bottom, lessThanOrEqualTo(firstLine));
+    expect(rect.center.dx, closeTo((at(top, 2).dx + at(top, 120).dx) / 2, 16));
+
+    // Further along the line: in the middle again in the frame the
+    // selection is, not one behind it, there at once (it only comes and
+    // goes softly).
+    await drag.moveTo(at(top, 240));
+    await tester.pump();
+    rect = tester.getRect(bar);
+    expect(rect.center.dx, closeTo((at(top, 2).dx + at(top, 240).dx) / 2, 16));
+    await tester.pumpAndSettle();
+    expect(tester.getRect(bar), rect);
+
+    // Across lines: over the first, in the middle of the text.
+    await drag.moveTo(at(bottom, 60));
+    await tester.pumpAndSettle();
+    rect = tester.getRect(bar);
+    expect(rect.bottom, lessThanOrEqualTo(firstLine));
+    final text = (top.localToGlobal(Offset.zero) & top.size).expandToInclude(
+      bottom.localToGlobal(Offset.zero) & bottom.size,
+    );
+    expect(rect.center.dx, closeTo(text.center.dx, 8));
+    await drag.up();
+    await tester.pumpAndSettle();
+    expect(bar, findsOneWidget, reason: 'left where it is');
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+  testWidgets('a drag begun while the bar shows has a bar of its own; a press '
+      'outside the history takes it away', (tester) async {
+    const first = 'The parser drops the last token of every line.';
+    const second = 'Then the printer has nothing to close the block with.';
+    final feed = _Feed([
+      const UserMessageItem(text: 'Why does it fail?'),
+      const AssistantTextItem('$first\n\n$second'),
+    ])..streaming = false;
+    addTearDown(feed.dispose);
+    const outside = Key('outside');
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(
+          body: Column(
+            children: [
+              Expanded(
+                child: ChatHistoryView(feed: feed, onQuote: (_) {}),
+              ),
+              const SizedBox(key: outside, height: 60),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    RenderParagraph paragraph(String text) =>
+        tester.renderObject<RenderParagraph>(
+          find.byWidgetPredicate(
+            (widget) => widget is RichText && widget.text.toPlainText() == text,
+          ),
+        );
+    Offset at(RenderParagraph p, double x) =>
+        p.localToGlobal(Offset(x, p.size.height / 2));
+    final bar = find.byType(SelectionBubble);
+    Future<void> select(RenderParagraph p) async {
+      final drag = await tester.startGesture(
+        at(p, 2),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+      await drag.moveTo(at(p, 160));
+      await tester.pumpAndSettle();
+      await drag.up();
+      await tester.pumpAndSettle();
+    }
+
+    await select(paragraph(first));
+    expect(bar, findsOneWidget);
+    // The next, the bar still there: its press in the history is not one
+    // outside the bar's, which would take the new one away (only every
+    // other selection had a bar).
+    final below = paragraph(second);
+    await select(below);
+    expect(bar, findsOneWidget);
+    expect(
+      tester.getRect(bar).bottom,
+      lessThanOrEqualTo(below.localToGlobal(Offset.zero).dy),
+    );
+    expect(
+      tester.getRect(bar).bottom,
+      greaterThan(paragraph(first).localToGlobal(Offset.zero).dy),
+      reason: 'over the second paragraph, not the first',
+    );
+
+    await tester.tapAt(
+      tester.getCenter(find.byKey(outside)),
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pumpAndSettle();
+    expect(bar, findsNothing);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+  testWidgets('dragged from the end of a message down into the reply, the '
+      'bar is over the reply\'s text, not over the message the drag began '
+      'beside', (tester) async {
+    const asked = 'Why does it fail?';
+    const answer = 'The parser drops the last token of every line.';
+    final feed = _Feed([
+      for (var i = 0; i < 3; i++) ...[
+        UserMessageItem(text: 'Question $i?'),
+        AssistantTextItem('Answer $i.'),
+      ],
+      const UserMessageItem(text: asked),
+      const AssistantTextItem(answer),
+    ])..streaming = false;
+    addTearDown(feed.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(
+          body: ChatHistoryView(feed: feed, onQuote: (_) {}),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    RenderParagraph paragraph(String text) =>
+        tester.renderObject<RenderParagraph>(
+          find
+              .descendant(
+                of: find.byType(SuperListView),
+                matching: find.byWidgetPredicate(
+                  (widget) =>
+                      widget is RichText && widget.text.toPlainText() == text,
+                ),
+              )
+              .first,
+        );
+    final message = paragraph(asked);
+    final reply = paragraph(answer);
+    final drag = await tester.startGesture(
+      // Past the message's last character, in its bubble.
+      message.localToGlobal(
+        Offset(message.size.width + 2, message.size.height / 2),
+      ),
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pump();
+    await drag.moveTo(reply.localToGlobal(Offset(300, reply.size.height / 2)));
+    await tester.pumpAndSettle();
+    final rect = tester.getRect(find.byType(SelectionBubble));
+    final replyTop = reply.localToGlobal(Offset.zero).dy;
+    expect(rect.bottom, lessThanOrEqualTo(replyTop));
+    expect(
+      rect.top,
+      greaterThan(message.localToGlobal(Offset.zero).dy),
+      reason: 'not over the message\'s line',
+    );
+    // In the middle of what of the reply is selected.
+    expect(
+      rect.center.dx,
+      closeTo(reply.localToGlobal(const Offset(150, 0)).dx, 16),
+    );
+    await drag.up();
+    await tester.pumpAndSettle();
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 }
 
 /// A piece of text, in a box of its own.

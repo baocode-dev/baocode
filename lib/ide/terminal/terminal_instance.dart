@@ -31,6 +31,7 @@ import 'package:path/path.dart' as p;
 
 import '../../settings/user_settings.dart';
 import '../../theme/code_font.dart';
+import '../../theme/linux_code_fonts.dart';
 import 'pty.dart';
 import 'shell_integration/shell_integration.dart';
 import 'shell_integration/shell_integration_injection.dart';
@@ -210,6 +211,7 @@ class TerminalInstance extends ChangeNotifier {
     );
     _colorTheme.addListener(_updateTheme);
     CodeFont.families.addListener(_updateFont);
+    LinuxCodeFonts.resolved.addListener(_updateFont);
     source = TerminalCoreSource(terminal, decorationService: decorations);
     clipboard = TerminalClipboard(
       selection: selection,
@@ -830,6 +832,7 @@ class TerminalInstance extends ChangeNotifier {
     _disposed = true;
     _colorTheme.removeListener(_updateTheme);
     CodeFont.families.removeListener(_updateFont);
+    LinuxCodeFonts.resolved.removeListener(_updateFont);
     if (!_exited) _pty?.kill();
     unawaited(_printing?.cancel());
     unawaited(_output.close());

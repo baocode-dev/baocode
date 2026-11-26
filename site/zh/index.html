@@ -9,10 +9,10 @@
   <link rel="alternate" hreflang="zh" href="https://baocode.dev/zh/" />
   <link rel="icon" href="/icon.png" />
   <script src="/head.js"></script>
-  <link rel="stylesheet" href="/flutter-window.css?v=1122r" />
-  <script src="/home/3cc397fb24.js" defer></script>
+  <link rel="stylesheet" href="/flutter-window.css?v=1125l" />
+  <script src="/home/ab09708ff0.js" defer></script>
   <script src="/assets/vendor/iconify-icon.min.js" defer></script>
-  <link rel="stylesheet" href="/home/3964bf1951.css" />
+  <link rel="stylesheet" href="/home/80b8d7a642.css" />
   <script src="/home/dc40fe04a6.js"></script>
   <script src="/home/3c996761b9.js"></script>
 </head>
@@ -27,6 +27,7 @@
       </div>
       <div class="hdr-right">
         <a class="hdr-link" href="/zh/changelog" data-i18n="hdrLog">更新日志</a>
+        <button class="pill-outline theme-btn" type="button" data-theme-toggle aria-label="外观：跟随系统" data-tip="外观：跟随系统" data-i18n-attr="aria-label:themeBtn;data-tip:themeBtn"></button>
         <a class="pill-outline lang" href="/" hreflang="en" lang="en">
           <iconify-icon icon="lucide:globe" width="14" height="14"></iconify-icon>
           <span data-i18n="langOther">EN</span>
@@ -34,7 +35,7 @@
         <a class="pill-outline" href="https://github.com/baocode-dev/baocode" target="_blank" rel="noopener" aria-label="GitHub">
           <iconify-icon icon="simple-icons:github" width="14" height="14"></iconify-icon>
           <span class="gh-word">GitHub</span>
-          <span class="gh-stars"><iconify-icon icon="lucide:star" width="12" height="12"></iconify-icon><span data-gh-stars>775</span></span>
+          <span class="gh-stars"><iconify-icon icon="lucide:star" width="12" height="12"></iconify-icon><span data-gh-stars>895</span></span>
         </a>
         <a class="pill-white" id="hdrDl" href="/zh/download" data-i18n="hdrDl">下载</a>
       </div>
@@ -72,7 +73,7 @@
             </div>
           </a>
           <a class="dl-all-link" href="/zh/download" data-i18n="heroAllDl">查看全部平台下载</a>
-          <p class="hero-meta"><span data-version>版本 2.0.6</span><span data-i18n="heroFree">免费开源</span><span data-updated>更新于 2026 年 11 月 24 日</span></p>
+          <p class="hero-meta"><span data-version>版本 2.0.7</span><span data-i18n="heroFree">免费开源</span><span data-updated>更新于 2026 年 11 月 26 日</span></p>
         </div>
         </div>
         </div>
@@ -88,7 +89,9 @@
           <!-- Narrow screens get pictures of the window instead of the live one. -->
           <div class="window-shots" id="windowShots">
             <img class="is-on" data-demo="agent" src="/assets/window-agent.webp" alt="BaoCode Agent" width="1600" height="1037" loading="lazy">
+            <img class="is-on on-light" data-demo="agent" src="/assets/window-agent-light.webp" alt="BaoCode Agent" width="1600" height="1037" loading="lazy">
             <img data-demo="editor" src="/assets/window-editor.webp" alt="BaoCode IDE" width="1600" height="1037" loading="lazy">
+            <img class="on-light" data-demo="editor" src="/assets/window-editor-light.webp" alt="BaoCode IDE" width="1600" height="1037" loading="lazy">
           </div>
         </div>
       </div>
@@ -121,7 +124,7 @@
               </div>
               <div class="v-fps-legend">
                 <span><i style="background:#e5ba7d"></i>BaoCode <b id="fpsBao">358</b></span>
-                <span><i style="background:rgba(255,255,255,0.35)"></i><em style="font-style:normal" data-i18n="fpsElectron">Electron 应用</em> <b id="fpsEl">72</b></span>
+                <span><i style="background:var(--chart-other)"></i><em style="font-style:normal" data-i18n="fpsElectron">Electron 应用</em> <b id="fpsEl">72</b></span>
               </div>
               <div id="fpsChart" aria-hidden="true"></div>
             </div>
@@ -178,7 +181,7 @@
                   <span data-i18n="b3Bar1">BaoCode 真实浏览器扩展</span>
                   <div class="v-track"><i style="width:94%;background:#e5ba7d;"></i></div>
                   <span style="color:var(--ink-3);" data-i18n="b3Bar2">盲目截屏方案</span>
-                  <div class="v-track"><i style="width:9.4%;background:#4a4945;"></i></div>
+                  <div class="v-track"><i style="width:9.4%;background:var(--bar-dim);"></i></div>
                 </div>
                 <div class="v-tags">
                   <span data-i18n="b3T1">0–1 压感拖拽</span>
@@ -316,7 +319,7 @@
 
         <div class="dl-matrix">
           <div class="dl-os">
-            <h3><iconify-icon icon="simple-icons:apple" width="16" height="16"></iconify-icon> macOS <small class="dl-ver" data-version>版本 2.0.6</small></h3>
+            <h3><iconify-icon icon="simple-icons:apple" width="16" height="16"></iconify-icon> macOS <small class="dl-ver" data-version>版本 2.0.7</small></h3>
             <div class="dl-list">
               <a class="dl-row" data-file="macos-arm64" href="/dl/macos-arm64">
                 <span>Apple Silicon <span class="fmt">.dmg</span></span>
@@ -330,7 +333,7 @@
           </div>
 
           <div class="dl-os">
-            <h3><iconify-icon icon="simple-icons:windows11" width="15" height="15"></iconify-icon> Windows <small class="dl-ver" data-version>版本 2.0.6</small></h3>
+            <h3><iconify-icon icon="simple-icons:windows11" width="15" height="15"></iconify-icon> Windows <small class="dl-ver" data-version>版本 2.0.7</small></h3>
             <div class="dl-list">
               <a class="dl-row" data-file="windows" href="/dl/windows">
                 <span>Windows 10 / 11 <span class="fmt">.exe</span></span>
@@ -344,7 +347,7 @@
           </div>
 
           <div class="dl-os">
-            <h3><iconify-icon icon="simple-icons:linux" width="16" height="16"></iconify-icon> Linux <small class="dl-ver" data-version>版本 2.0.6</small></h3>
+            <h3><iconify-icon icon="simple-icons:linux" width="16" height="16"></iconify-icon> Linux <small class="dl-ver" data-version>版本 2.0.7</small></h3>
             <div class="dl-list">
               <a class="dl-row" data-file="linux-x64" href="/dl/linux-x64">
                 <span>Linux x64 <span class="fmt">.deb</span></span>
@@ -415,7 +418,7 @@
   </div>
 
   <script src="/home/df7e0f97c4.js"></script>
-  <script src="/home/43666397f1.js"></script>
+  <script src="/home/9ebfccaabf.js"></script>
 
   <!-- What a visitor says of BaoCode (site.js), sent to stats.baocode.dev's /v1/review. -->
   <dialog class="say" data-say aria-labelledby="say-title">
@@ -434,9 +437,9 @@
       <div class="get"><button class="say-btn" type="button" data-say-close data-i18n="sayClose">关闭</button></div>
     </div>
   </dialog>
-  <script src="/flutter-window.js?v=1122r"></script>
+  <script src="/flutter-window.js?v=1125l"></script>
   <script src="/home/e113fb4f79.js"></script>
-  <script src="/home/d62115106b.js"></script>
+  <script src="/home/b7b5ab3be8.js"></script>
   <script src="/home/f3226c45c9.js"></script>
   <script src="/home/3609219eb7.js"></script>
   <script src="/site.js"></script>

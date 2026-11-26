@@ -1810,3 +1810,102 @@
 .app-window.is-winos .win-mode-usage .traffic-lights { display: none; }
 .app-window.is-winos .win-mode-usage .fl-sidepanel-actions { visibility: hidden; }
 .win-mode-usage { position: relative; }
+
+/* Theme: Bao Light (bao-light-color-theme.json), the window on the site's
+   light page (head.js's data-theme), whichever theme it was given. The
+   few colors its markup and scripts give once (var(--x-…, <dark>)) have
+   their light ones here too. */
+:root[data-theme="light"] .app-window {
+  --w-chrome: #f3f3f1;
+  --w-surface: #fcfbfa;
+  --w-panel: #ecece9;
+  --w-panel-border: #d3d1ce;
+  --w-drawer: #efefec;
+  --w-card: #f0efec;
+  --w-chip-border: #dddcd9;
+  --w-border: #e6e6e3;
+  --w-hairline: rgba(41, 41, 39, 0.08);
+  --w-sel: #e3e2de;
+  --w-act: #dcdad6;
+  --w-input: #fcfbfa;
+  --w-track: #e9e8e5;
+  --w-hover: rgba(37, 35, 30, 0.07);
+  --w-active-bg: rgba(37, 35, 30, 0.12);
+  --w-line-hl: rgba(37, 35, 30, 0.035);
+
+  --w-fg: #292927;
+  --w-fg-hi: #1a1a18;
+  --w-fg-2: #656360;
+  --w-fg-3: #95948f;
+  --w-icon: #656360;
+  --w-tab-muted: #6e6c68;
+
+  --w-accent: #e2b373;
+  --w-accent-hi: #d9a862;
+  --w-accent-fg: #282624;
+  --w-accent-border: rgba(196, 151, 90, 0.6);
+  --w-accent-border-hi: rgba(196, 151, 90, 0.85);
+  --w-tab-top: #b39364;
+  --w-focus-border: #c4975a;
+  --w-add: #5c7f37;
+  --w-del: #b0443a;
+  --w-caution: #8f6528;
+  --w-ssh-bg: rgba(79, 115, 152, 0.12);
+  --w-ssh-fg: #4f7398;
+
+  --tok-cm: #008000;
+  --tok-kw: #af00db;
+  --tok-mod: #0000ff;
+  --tok-ty: #267f99;
+  --tok-fn: #795e26;
+  --tok-var: #001080;
+  --tok-str: #a31515;
+  --tok-num: #098658;
+  --tok-op: #000000;
+
+  --x-icon: #656360;
+  --x-dim: #95948f;
+  --x-fg: #292927;
+  --x-grey: #8e8c87;
+  --x-spark: #c4975a;
+  --x-spark-fill: rgba(196, 151, 90, 0.18);
+  --x-grid: rgba(41, 41, 39, 0.08);
+  --x-hl: rgba(196, 151, 90, 0.2);
+  --x-up: #5c7f37;
+  --x-down: #b0443a;
+  --x-corp: #6e6c68;
+  --x-codex: #1a1a18;
+
+  color-scheme: light;
+}
+:where(:root[data-theme="light"]) .app-window {
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.8) inset,
+    0 40px 100px -30px rgba(40, 32, 20, 0.3),
+    0 0 0 1px rgba(0, 0, 0, 0.06);
+}
+
+:root[data-theme="light"] .app-window .ide-editor::after { background: rgba(41, 41, 39, 0.18); }
+:root[data-theme="light"] .app-window .vs-scrollbar { border-left-color: rgba(0, 0, 0, 0.05); }
+:root[data-theme="light"] .app-window .vs-scrollbar i { background: rgba(100, 98, 93, 0.3); }
+:root[data-theme="light"] .app-window .fl-ctx-reserve { background: repeating-linear-gradient(-50deg, rgba(41, 41, 39, 0.2), rgba(41, 41, 39, 0.2) 2px, transparent 2px, transparent 5px); }
+:root[data-theme="light"] .app-window .fl-chip { border-color: rgba(0, 0, 0, 0.1); }
+:root[data-theme="light"] .app-window .fl-web-badges i { box-shadow: 0 0 0 1.5px var(--w-surface), inset 0 0 0 1px rgba(0, 0, 0, 0.08); }
+:root[data-theme="light"] .app-window :is(.fl-plancard-body, .fl-agentmsg-body) code { background: rgba(0, 0, 0, 0.05); }
+:root[data-theme="light"] .app-window .fl-step-body { background: rgba(0, 0, 0, 0.02); }
+:root[data-theme="light"] .app-window :is(.fl-img-box, .fl-ft-img) { background: rgba(0, 0, 0, 0.03); }
+:root[data-theme="light"] .app-window .fl-img-box.is-making::after { background: linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, 0.7) 50%, transparent 70%); }
+:root[data-theme="light"] .app-window .fl-mp-logo { background: rgba(0, 0, 0, 0.04); }
+:root[data-theme="light"] .app-window :is(.fl-mp-add, .fl-mp-use) { color: #8f6528; }
+:root[data-theme="light"] .app-window .fl-term-body .t-path { color: var(--w-ssh-fg); }
+:root[data-theme="light"] .app-window .fl-term-body .t-user { color: var(--w-add); }
+
+/* The browser in the window: Chrome's light look. */
+:root[data-theme="light"] .app-window .fl-chrome { border-color: #dadce0; background: #dee1e6; box-shadow: 0 18px 40px -18px rgba(40, 32, 20, 0.25); }
+:root[data-theme="light"] .app-window .fl-cr-tabs { background: #dee1e6; }
+:root[data-theme="light"] .app-window .fl-cr-tab { color: #45474a; }
+:root[data-theme="light"] .app-window .fl-cr-tab.is-active { background: #ffffff; color: #202124; }
+:root[data-theme="light"] .app-window :is(.fl-cr-tab iconify-icon, .fl-cr-new, .fl-cr-url iconify-icon) { color: #5f6368; }
+:root[data-theme="light"] .app-window .fl-cr-fav { background: #bdc1c6; }
+:root[data-theme="light"] .app-window .fl-cr-bar { background: #ffffff; color: #5f6368; border-bottom: 1px solid #e3e3e3; }
+:root[data-theme="light"] .app-window .fl-cr-url { background: #f1f3f4; color: #202124; }

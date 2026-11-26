@@ -14,6 +14,7 @@ import 'package:baocode/kernel/mock/mock_kernels.dart';
 import 'package:baocode/l10n/app_localizations.dart';
 import 'package:baocode/theme/app_theme.dart';
 import 'package:baocode/theme/code_font.dart';
+import 'package:baocode/theme/workbench_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
@@ -233,4 +234,64 @@ void main() {
       },
     );
   }, skip: _out == null);
+
+  for (final (name, theme) in [
+    ('6-picked', null),
+    ('7-picked-light', 'Bao Light'),
+    ('8-picked-dark', 'Bao Dark'),
+  ]) {
+    testWidgets('two picked with ⌘, one hovered: in the composer, a line '
+        'each (${theme ?? 'the default theme'})', (tester) async {
+      if (theme != null) {
+        final themes = WorkbenchThemeService.instance;
+        await tester.runAsync(themes.initialize);
+        await tester.runAsync(() => themes.setColorTheme(theme));
+      }
+      final cli = FakeCli();
+      final session = _scripted(cli);
+      await _shoot(
+        tester,
+        name,
+        const Size(720, 560),
+        session,
+        () async {
+          await tester.pump();
+          _reply(cli, _answer, ['最大高度改成 8 行', '发送按钮挪到右下', '先不改了', '拖拽调高度也做']);
+        },
+        then: () async {
+          // ⌘ held for the system too.
+          const window = MethodChannel('baocode/window');
+          final messenger = tester.binding.defaultBinaryMessenger
+            ..setMockMethodCallHandler(
+              window,
+              (call) async => call.method == 'heldModifiers'
+                  ? {
+                      'shift': false,
+                      'control': false,
+                      'alt': false,
+                      'meta': true,
+                    }
+                  : null,
+            );
+          addTearDown(() => messenger.setMockMethodCallHandler(window, null));
+          for (final said in ['最大高度改成 8 行', '拖拽调高度也做']) {
+            await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+            await tester.tap(find.text(said, findRichText: true));
+            await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+            await tester.pump();
+          }
+          final mouse = await tester.createGesture(
+            kind: PointerDeviceKind.mouse,
+          );
+          addTearDown(mouse.removePointer);
+          await mouse.addPointer(location: Offset.zero);
+          await mouse.moveTo(
+            // The pill's, not the composer's.
+            tester.getCenter(find.text('拖拽调高度也做', findRichText: true).first),
+          );
+          await tester.pump(const Duration(milliseconds: 300));
+        },
+      );
+    }, skip: _out == null);
+  }
 }

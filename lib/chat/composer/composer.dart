@@ -337,15 +337,16 @@ class ChatComposerState extends State<ChatComposer>
     return true;
   }
 
-  /// The number for a long paste: one past the highest the text has.
-  int _nextPastedNumber() {
+  /// The number for a long paste (a quote): one past the highest the text
+  /// has.
+  int _nextPastedNumber({bool quoted = false}) {
     var highest = 0;
     for (final (:embed, start: _, end: _) in _controller.embeds) {
       if (embed.type == ComposerPastedTextEmbed.type) {
-        highest = math.max(
-          highest,
-          ComposerPastedTextEmbed.decode(embed.data).number,
-        );
+        final pasted = ComposerPastedTextEmbed.decode(embed.data);
+        if (pasted.quoted == quoted) {
+          highest = math.max(highest, pasted.number);
+        }
       }
     }
     return highest + 1;
@@ -366,6 +367,7 @@ class ChatComposerState extends State<ChatComposer>
       _focusNode.requestFocus();
       _takeDraftFiles();
       _takeDraftCode();
+      _takeDraftQuotes();
       _takeDraftMessage();
     });
   }
@@ -685,6 +687,46 @@ class ChatComposerState extends State<ChatComposer>
     ], at: _controller.length);
   }
 
+  /// The text quoted from the conversation put in the draft from outside
+  /// (see [ComposerDraft.insertQuote]): tags of it after what is typed. One
+  /// asked aside makes the message a `/btw` too, unless it is one already;
+  /// the caret after the tags either way, for the question.
+  void _takeDraftQuotes() {
+    final quotes = widget.draft?.takeQuotes() ?? const [];
+    if (quotes.isEmpty) return;
+    var number = _nextPastedNumber(quoted: true);
+    _insertTags([
+      for (final quote in quotes)
+        ComposerPastedTextEmbed.of(
+          PastedText(number: number++, text: quote.text, quoted: true),
+        ),
+    ], at: _controller.length);
+    if (!quotes.any((quote) => quote.aside) || _asksAside) return;
+    final command = ComposerTokenEmbed.fromSuggestion(
+      const Suggestion(
+        kind: SuggestionKind.command,
+        label: ComposerDraft.asideCommand,
+      ),
+    );
+    final inserted = '${command.atom} ';
+    _controller
+      ..breakUndo()
+      ..replace(
+        0,
+        0,
+        inserted,
+        selection: TextSelection.collapsed(
+          offset: _controller.length + inserted.length,
+        ),
+      )
+      ..breakUndo();
+  }
+
+  /// Whether the message is a `/btw` (By the Way), as typed or put in.
+  bool get _asksAside =>
+      RegExp('^/${ComposerDraft.asideCommand}(\\s|\$)')
+          .hasMatch(composerPlainText(_controller.text).trimLeft());
+
   /// The message put back in the draft to be edited (see
   /// [ComposerDraft.restore]): after what is typed, the caret at its end.
   void _takeDraftMessage() {
@@ -745,6 +787,7 @@ class ChatComposerState extends State<ChatComposer>
     final draft = widget.draft;
     if (draft != null && draft.pendingFiles.isNotEmpty) _takeDraftFiles();
     if (draft != null && draft.pendingCode.isNotEmpty) _takeDraftCode();
+    if (draft != null && draft.pendingQuotes.isNotEmpty) _takeDraftQuotes();
     if (draft?.pendingMessage != null) _takeDraftMessage();
     if (draft == null || identical(draft.savedBy, this) || !draft.saved) {
       return;
@@ -1870,8 +1913,11 @@ class ChatComposerState extends State<ChatComposer>
         placeholder: context.l10n.composerPlaceholder,
         onKey: _handleKey,
         onPaste: _paste,
-        onPasteCopy: (markdown) =>
-            renumberPastes(markdown, from: _nextPastedNumber()),
+        onPasteCopy: (markdown) => renumberPastes(
+          markdown,
+          from: _nextPastedNumber(),
+          quotesFrom: _nextPastedNumber(quoted: true),
+        ),
         style: MarkdownEditorStyle(
           text: base,
           selection: AppColors.textSelection,

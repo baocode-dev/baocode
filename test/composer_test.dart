@@ -703,6 +703,54 @@ void main() {
     );
   });
 
+  testWidgets('text quoted from the conversation goes in as tags after what '
+      'is typed; By the Way makes the message a /btw, once', (tester) async {
+    ComposerMessage? asked;
+    final session = ChatSession(historyCount: 16);
+    addTearDown(session.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: ChatScreen(
+          session: session,
+          onSideQuestion: (message) => asked = message,
+        ),
+      ),
+    );
+    await tester.pump();
+    await typeText(tester, 'why');
+    final controller = composerController(tester);
+
+    session.draft.insertQuote('line one\nline two');
+    await tester.pump();
+    expect(session.draft.pendingQuotes, isEmpty);
+    expect(composerPlainText(controller.text), 'why [Quote #1] ');
+
+    session.draft.insertQuote('more', aside: true);
+    await tester.pump();
+    expect(
+      composerPlainText(controller.text),
+      '/btw why [Quote #1] [Quote #2] ',
+    );
+    // The caret after the tags, for the question.
+    expect(controller.selection.baseOffset, controller.length);
+
+    session.draft.insertQuote('again', aside: true);
+    await tester.pump();
+    expect(
+      composerPlainText(controller.text),
+      '/btw why [Quote #1] [Quote #2] [Quote #3] ',
+    );
+
+    await pressKey(tester, LogicalKeyboardKey.enter);
+    expect(session.itemCount, 16, reason: 'asked beside, not here');
+    expect(
+      asked?.text,
+      'why [Quote #1] [Quote #2] [Quote #3]'
+      '${codeAppendix(const [PastedText(number: 1, text: 'line one\nline two', quoted: true), PastedText(number: 2, text: 'more', quoted: true), PastedText(number: 3, text: 'again', quoted: true)])}',
+    );
+  });
+
   testWidgets('accepting a suggestion inserts exactly one space', (
     tester,
   ) async {

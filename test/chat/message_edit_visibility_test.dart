@@ -14,6 +14,7 @@ import 'package:baocode/chat/widgets/user_message_bubble.dart';
 import 'package:baocode/kernel/agent_kernel.dart';
 import 'package:baocode/kernel/claude_code/claude_code_kernel.dart';
 import 'package:baocode/theme/app_theme.dart';
+import 'package:baocode/theme/ui_zoom.dart';
 
 import '../kernel_test.dart' show FakeCli;
 
@@ -51,6 +52,7 @@ Future<void> _stopped(
   Size size = const Size(1000, 600),
   bool following = false,
   bool toolRunning = false,
+  double zoom = 1,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -78,8 +80,11 @@ Future<void> _stopped(
     MaterialApp(
       theme: buildAppTheme(),
       builder: (context, child) => MediaQuery(
-        data: MediaQuery.of(context).copyWith(disableAnimations: reducedMotion),
-        child: child!,
+        data: UiZoom.zoomed(
+          MediaQuery.of(context),
+          zoom,
+        ).copyWith(disableAnimations: reducedMotion),
+        child: UiZoom(scale: zoom, child: child),
       ),
       home: ChatScreen(session: session, embedded: true),
     ),
@@ -137,12 +142,16 @@ Future<void> _stopped(
   expect(position.pixels, lessThan(position.maxScrollExtent));
 }
 
-Future<void> _edit(WidgetTester tester) async {
+Future<void> _edit(
+  WidgetTester tester, {
+  PointerDeviceKind kind = PointerDeviceKind.touch,
+}) async {
   await tester.tap(
     find.descendant(
       of: _bubble(),
       matching: find.text(_message, findRichText: true),
     ),
+    kind: kind,
   );
   await tester.pumpAndSettle();
   expect(_editor(), findsOneWidget);
@@ -225,6 +234,39 @@ void main() {
         );
         await _edit(tester);
         _visible(tester);
+        await tester.pumpWidget(const SizedBox());
+      }
+    }, variant: platforms);
+
+    testWidgets('clicked with a mouse, the editor no more follows the end than '
+        'tapped ($style)', (tester) async {
+      await _stopped(tester, style, following: true);
+      await _edit(tester, kind: PointerDeviceKind.mouse);
+      _visible(tester);
+      final position = _position(tester);
+      // The editor's bottom at the view's: the list's own room under it is
+      // left out of view.
+      expect(position.pixels, lessThan(position.maxScrollExtent));
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(position.pixels, position.maxScrollExtent);
+      await tester.pumpWidget(const SizedBox());
+    }, variant: platforms);
+
+    testWidgets('under the window\'s zoom, the editor opens where its message '
+        'is ($style)', (tester) async {
+      for (final zoom in [0.8, 1.25]) {
+        await _stopped(tester, style, zoom: zoom);
+        final before = tester.getRect(_bubble());
+        final offset = _position(tester).pixels;
+        await _edit(tester);
+        _visible(tester);
+        // On screen, the scroll is zoomed as the rest is.
+        final scrolled = (_position(tester).pixels - offset) * zoom;
+        expect(
+          tester.getRect(_editor()).top,
+          closeTo(before.top - scrolled, 1),
+        );
         await tester.pumpWidget(const SizedBox());
       }
     }, variant: platforms);

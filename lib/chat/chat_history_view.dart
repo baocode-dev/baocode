@@ -12,10 +12,15 @@ import 'package:super_sliver_list/super_sliver_list.dart';
 
 import '../base/smooth_scroll.dart';
 import '../diagnostics/frame_watch.dart';
+import '../ide/ide_commands.dart' show IdeKeybinding;
 import '../ide/ide_find_widget.dart';
 import '../ide/ide_hover.dart';
+import '../ide/ide_menu.dart';
+import '../ide/ide_motion.dart';
+import '../ide/selection_bubble.dart';
 import '../l10n/l10n.dart';
 import '../theme/app_theme.dart';
+import '../theme/svg_icons.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import '../usage/usage_ledger.dart';
 import '../usage/usage_prices.dart';
@@ -60,6 +65,8 @@ class ChatHistoryView extends StatefulWidget {
     this.onFindClosed,
     this.after,
     this.forkAfter,
+    this.onQuote,
+    this.onQuoteAside,
     this.underTitle = false,
   });
 
@@ -94,6 +101,16 @@ class ChatHistoryView extends StatefulWidget {
   /// What forks the conversation from the end of the turn item [index]
   /// ends, its footer's button; none where it cannot be forked there.
   final VoidCallback? Function(int index)? forkAfter;
+
+  /// Puts text selected in it in the message being written, as a quote of
+  /// it (the selection's Quote); none where there is no message to put it
+  /// in.
+  final ValueChanged<String>? onQuote;
+
+  /// Puts text selected in it in a `/btw` message, as a quote of it (the
+  /// selection's By the Way); none where nothing is asked beside the
+  /// conversation.
+  final ValueChanged<String>? onQuoteAside;
 
   /// Whether a row is right over it (its card's title): room of its own
   /// above the history, which then keeps less above its first item and a
@@ -714,6 +731,14 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   /// The press went to the minimap, beside the list.
   bool _pressOnMinimap = false;
 
+  /// The press went to the bar over the selection (see [_placeBubbleBy]).
+  bool _pressOnBubble = false;
+
+  /// The last press in the history, which [_handlePointerDown] saw (and,
+  /// selecting, gave a bar of its own): not one outside the bar's to take
+  /// that away again (see [_buildBubble]).
+  int? _historyPress;
+
   // --- Scrubbing ---------------------------------------------------------------
   //
   // The minimap's glass or the bar's thumb dragged: each frame a jump to rows
@@ -835,6 +860,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       ..addListener(_findChanged);
     _scrollController.addListener(_handleScroll);
     _feed.addListener(_handleSessionChanged);
+    _selection.addListener(_selectionChanged);
     _statusIndex = _lastStatusIndex();
     UserMessageStyle.current.addListener(_handleStyleChanged);
     ChatMinimap.side.addListener(_handleStyleChanged);
@@ -1052,9 +1078,11 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     _editorClose.dispose();
     _viewerScroll.dispose();
     _handoff.dispose();
-    _selection.dispose();
+    _selection
+      ..removeListener(_selectionChanged)
+      ..dispose();
+    _bubble.dispose();
     _inertSelection.dispose();
-    _menu.remove();
     _listController.dispose();
     _scrollController.dispose();
     _selectionFocusNode.dispose();
@@ -1707,8 +1735,6 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   Duration _lastPress = Duration.zero;
   Offset? _lastPressAt;
 
-  final ContextMenuController _menu = ContextMenuController();
-
   /// Whether [event] landed on an interactive scrollbar anywhere inside this
   /// view (a table's sideways bar, a code block's, a step card's, …).
   bool _hitScrollbar(PointerDownEvent event) {
@@ -1737,7 +1763,10 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
 
   void _handlePointerDown(PointerDownEvent event) {
     _pressedDevices.add(event.device);
-    _menu.remove();
+    _historyPress = event.pointer;
+    final onBubble = _pressOnBubble;
+    _pressOnBubble = false;
+    if (!onBubble) _hideBubble();
     // A press stops the list where it is (a trackpad swipe's fling carries
     // on for a while), as it does in the platform's lists: a mouse is not
     // one of the list's drag devices, so nothing else would, and a
@@ -1770,6 +1799,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     }
     final elsewhere =
         _pressInEditor ||
+        onBubble ||
         own ||
         onBar ||
         onInnerBar ||
@@ -1779,6 +1809,8 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     _dragFrom = elsewhere || event.buttons != kPrimaryMouseButton
         ? null
         : event.position;
+    // What it selects has the bar over it (see [_placeBubbleBy]).
+    if (_dragFrom != null) _pointerSelects = true;
     _dragAt = null;
     // A press that may select stops the list following what is written,
     // while held: the text under the pointer would go on up, and the
@@ -1793,7 +1825,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     _pressOnMinimap = false;
     if (_pressInEditor) {
       _pressInEditor = false;
-    } else if (!own && !onInnerBar) {
+    } else if (!own && !onInnerBar && !onBubble) {
       _selectionFocusNode.requestFocus();
     }
     if (!elsewhere && event.buttons & kSecondaryMouseButton != 0) {
@@ -1804,6 +1836,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     // selected, as a click does.
     if (elsewhere &&
         event.kind != PointerDeviceKind.mouse &&
+        !onBubble &&
         !own &&
         !onBar &&
         !onInnerBar &&
@@ -2036,9 +2069,19 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     ),
   };
 
-  /// A right click: a file link's menu on one; else copy and select all,
-  /// the word under the pointer selected when nothing is.
+  /// What is selected, put in the message being written by [put] (as a
+  /// quote of it, see [ChatHistoryView.onQuote]).
+  void _quoteSelection(ValueChanged<String> put) {
+    final text = _selection.selectedText();
+    _hideBubble();
+    if (text != null) put(text);
+  }
+
+  /// A right click: a file link's menu on one; else what there is to do
+  /// with the selection (the bar's, and select all), the word under the
+  /// pointer selected when nothing is.
   void _openMenu(Offset at) {
+    _hideBubble();
     if (fileLinkMenuAt(context, at) case final menu?) {
       unawaited(menu.show(context, at));
       return;
@@ -2053,30 +2096,267 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
         }
       }
     }
-    _menu.show(
-      context: context,
-      contextMenuBuilder: (context) => AdaptiveTextSelectionToolbar.buttonItems(
-        anchors: TextSelectionToolbarAnchors(primaryAnchor: at),
-        buttonItems: [
-          if (_selection.hasSelection)
-            ContextMenuButtonItem(
-              type: ContextMenuButtonType.copy,
-              onPressed: () {
-                _copySelection();
-                _menu.remove();
-              },
+    final l10n = context.l10n;
+    final selected = _selection.hasSelection;
+    String? keys(LogicalKeyboardKey key) =>
+        IdeKeybinding(key, primary: true).label();
+    unawaited(
+      showIdeMenu(
+        context,
+        position: at,
+        entries: ideMenuGroups([
+          [
+            IdeMenuAction(
+              l10n.commonCopy,
+              keybinding: keys(LogicalKeyboardKey.keyC),
+              enabled: selected,
+              onSelected: _copySelection,
             ),
-          ContextMenuButtonItem(
-            type: ContextMenuButtonType.selectAll,
-            onPressed: () {
-              _selection.selectAll();
-              _menu.remove();
-            },
-          ),
-        ],
+            if (widget.onQuote case final quote? when selected)
+              IdeMenuAction(
+                l10n.chatQuote,
+                onSelected: () => _quoteSelection(quote),
+              ),
+            if (widget.onQuoteAside case final aside? when selected)
+              IdeMenuAction(
+                l10n.chatQuoteAside,
+                onSelected: () => _quoteSelection(aside),
+              ),
+          ],
+          [
+            IdeMenuAction(
+              l10n.commonSelectAll,
+              keybinding: keys(LogicalKeyboardKey.keyA),
+              onSelected: _selection.selectAll,
+            ),
+          ],
+        ]),
       ),
     );
   }
+
+  // --- The bar over the selection ---------------------------------------------
+  //
+  // Text selected with the pointer has a small bar, with Copy, Quote and By
+  // the Way, as a document's editor has its marks: over the selection (what
+  // of it shows), in its middle; under it where there is no room over it.
+  // It comes in as soon as there is a selection, while it is still dragged;
+  // as it grows, it goes there once it holds still a moment (or is let go
+  // of), not at a quick drag's every step, and at once then (it only comes
+  // and goes softly). It goes with the selection, at the next press, or at
+  // a click anywhere else. Placed as it is painted (see
+  // [_Follower]), it goes with the text as the list scrolls, nothing built
+  // or laid out for it meanwhile; and nothing is read of what is selected
+  // until one of its buttons wants it.
+
+  /// Which showing of the bar this is (see [_bubbleShows]), while it shows;
+  /// 0 while it does not (fading out).
+  final ValueNotifier<int> _bubble = ValueNotifier(0);
+
+  /// The bar's showings so far: each comes in anew, where the last one, if
+  /// still fading out, goes at once.
+  int _bubbleShows = 0;
+
+  /// Whether the selection is the pointer's (a drag, a double click, a
+  /// Shift+click in the text), which has the bar; one by the keys (Select
+  /// All) has none.
+  bool _pointerSelects = false;
+
+  /// What the bar is over: the first and last characters of the text
+  /// selected, each where it is built (none where its item is not).
+  ({_SelectionEnd? start, _SelectionEnd? end})? _bubbleAt;
+
+  /// The selection changed since [_bubbleAt] was read from it, the bar
+  /// showing: read again as the bar is painted, in the frame the selection
+  /// is (not the next one, the bar behind what it is over).
+  bool _bubbleStale = false;
+
+  /// The item the selection started in as the bar was placed: as it is
+  /// renumbered (earlier history read in), so are the ends the bar is by.
+  int _bubbleFrom = 0;
+
+  bool _bubbleScheduled = false;
+
+  /// The bar gone till the next press selects (a button of it used, a
+  /// click elsewhere).
+  void _hideBubble() {
+    _pointerSelects = false;
+    _bubble.value = 0;
+  }
+
+  void _selectionChanged() {
+    if (!_selection.hasSelection || _selection.selectsAll) {
+      _bubble.value = 0;
+    } else if (_pointerSelects) {
+      if (_bubble.value == 0) {
+        _bubbleSoon();
+      } else {
+        _bubbleStale = true;
+      }
+    }
+  }
+
+  /// [_placeBubbleBy] the selection once it is laid out, for the bar to
+  /// come in: once a frame however often it changed.
+  void _bubbleSoon() {
+    if (!mounted || _bubbleScheduled) return;
+    _bubbleScheduled = true;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      _bubbleScheduled = false;
+      if (mounted) _placeBubbleBy();
+    });
+    SchedulerBinding.instance.ensureVisualUpdate();
+  }
+
+  /// The bar over the selection as it is now, coming in.
+  void _placeBubbleBy() {
+    if (!_pointerSelects ||
+        !_selection.hasSelection ||
+        _selection.selectsAll ||
+        !_readBubbleAt()) {
+      return;
+    }
+    if (_bubble.value == 0) _bubble.value = ++_bubbleShows;
+  }
+
+  /// [_bubbleAt] the selection as it is laid out now: over its text, not
+  /// over a line break or blanks it starts or ends with (dragged from
+  /// beside a message), which may be far from it. Whether any of it is
+  /// built.
+  bool _readBubbleAt() {
+    _bubbleStale = false;
+    final range = _selection.textRange() ?? _selection.range!;
+    final (first, last) = range;
+    _SelectionEnd? end(ChatTextPos pos, {required bool after}) =>
+        switch (_selection.charRectAt(pos, after: after)) {
+          (:final char, :final leaf) => (
+            item: pos.item,
+            char: char,
+            leaf: leaf,
+          ),
+          null => null,
+        };
+    final next = (start: end(first, after: true), end: end(last, after: false));
+    if (next.start == null && next.end == null) return false;
+    _bubbleFrom = _selection.range!.$1.item;
+    _bubbleAt = next;
+    return true;
+  }
+
+  /// Where the bar goes in [layer] (the history's box), [size] as it is,
+  /// by what shows of the selection as it is laid out now (see
+  /// [SelectionBubble.placeBy]). None while none of it shows.
+  Offset? _placeBubble(RenderBox layer, Size size) {
+    if (_bubbleStale && _pointerSelects && _selection.hasSelection) {
+      _readBubbleAt();
+    }
+    final at = _bubbleAt;
+    if (at == null || size.isEmpty || !layer.hasSize) return null;
+    // Its items renumbered (earlier history read in): where the ends are
+    // now; fading out, where they were (not where the next press went).
+    final shift = switch (_selection.range) {
+      (final start, _) => start.item - _bubbleFrom,
+      null => 0,
+    };
+    ({Rect char, Rect leaf})? shown(_SelectionEnd? end) {
+      if (end == null) return null;
+      final item = _selection.builtItems[end.item + shift];
+      if (item == null || !item.attached || !item.hasSize) return null;
+      final to = item.getTransformTo(layer);
+      return (
+        char: MatrixUtils.transformRect(to, end.char),
+        leaf: MatrixUtils.transformRect(to, end.leaf),
+      );
+    }
+
+    final start = shown(at.start);
+    final end = shown(at.end);
+    if (start == null && end == null) return null;
+    final view = Offset.zero & layer.size;
+    // An end built nowhere is past the view's edge on its side.
+    final top = start?.char.top ?? view.top - 1;
+    final bottom = end?.char.bottom ?? view.bottom + 1;
+    final Rect across;
+    if (start != null &&
+        end != null &&
+        (start.char.center.dy - end.char.center.dy).abs() <
+            start.char.height / 2) {
+      // Within a line: the characters selected.
+      across = Rect.fromLTRB(start.char.left, 0, end.char.right, 0);
+    } else {
+      // Over lines: the text they are in.
+      across = [
+        ?start?.leaf,
+        ?end?.leaf,
+      ].reduce((a, b) => a.expandToInclude(b));
+    }
+    final around = Rect.fromLTRB(across.left, top, across.right, bottom);
+    if (!around.overlaps(view)) return null;
+    return SelectionBubble.placeBy(around.intersect(view), view, size);
+  }
+
+  /// The bar, while [_bubble] says it shows.
+  Widget _buildBubble() => Listener(
+    onPointerDown: (_) => _pressOnBubble = true,
+    child: ValueListenableBuilder(
+      valueListenable: _bubble,
+      builder: (context, shown, _) {
+        final l10n = context.l10n;
+        // Between the user's messages' text and their muted text: the bar
+        // reads, but does not outshine what is selected.
+        final color = Color.lerp(AppColors.textMuted, AppColors.text, 0.45);
+        return FadeAway(
+          key: ValueKey(_bubbleShows),
+          child: shown != 0
+              ? TapRegion(
+                  // A press elsewhere in the app. One in the history was
+                  // seen there first (it hears it first, being deeper): it
+                  // took the bar away and, starting a selection, may have
+                  // had it come back, which this would undo.
+                  onTapOutside: (event) {
+                    if (event.pointer != _historyPress) _hideBubble();
+                  },
+                  child: PopIn(
+                    // As the user's messages are: their fill and line.
+                    child: SelectionBubble(
+                      color: AppColors.bubbleFill,
+                      border: AppColors.bubbleBorder(),
+                      children: [
+                        SelectionBubbleButton(
+                          icon: SvgIcons.copy,
+                          label: l10n.commonCopy,
+                          color: color,
+                          hover: AppColors.bubbleHover,
+                          onTap: () {
+                            _copySelection();
+                            _hideBubble();
+                          },
+                        ),
+                        if (widget.onQuote case final quote?)
+                          SelectionBubbleButton(
+                            icon: SvgIcons.quote,
+                            label: l10n.chatQuote,
+                            color: color,
+                            hover: AppColors.bubbleHover,
+                            onTap: () => _quoteSelection(quote),
+                          ),
+                        if (widget.onQuoteAside case final aside?)
+                          SelectionBubbleButton(
+                            icon: SvgIcons.aside,
+                            label: l10n.chatQuoteAside,
+                            color: color,
+                            hover: AppColors.bubbleHover,
+                            onTap: () => _quoteSelection(aside),
+                          ),
+                      ],
+                    ),
+                  ),
+                )
+              : null,
+        );
+      },
+    ),
+  );
 
   /// Item [index]'s row, its text in the conversation's selection.
   Widget _selectable(int index, Widget child) => ChatSelectionItemScope(
@@ -2145,8 +2425,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       final viewport = RenderAbstractViewport.maybeOf(item);
       if (viewport is! RenderBox) return false;
       final top =
-          item.localToGlobal(Offset.zero).dy -
-          (viewport as RenderBox).localToGlobal(Offset.zero).dy +
+          item.localToGlobal(Offset.zero, ancestor: viewport).dy +
           _gapBefore(index);
       return top < _editorInset;
     }
@@ -2327,8 +2606,12 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     // Not following the end as the editor grows: that would push its top out
     // of a short view, the end of the list in view but not the editor
     // (#1257). It is brought into view as it grows (_ensureEditorVisible);
-    // closed, it follows again.
-    _followedBeforeEdit = _scrollController.anchored;
+    // closed, it follows again. A click opened it: the press stopped the list
+    // following while held, to follow again as it is let go, after this
+    // (the message hears it first, see _handlePointerUp); it is this that
+    // has it follow again now.
+    _followedBeforeEdit = _scrollController.anchored || _followedBeforePress;
+    _followedBeforePress = false;
     _scrollController.anchored = false;
     setState(() {
       _closingIndex = null;
@@ -2451,9 +2734,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
           .where((box) => _indexOf(box) == index)
           .firstOrNull;
       if (item == null) return null;
-      final top =
-          item.localToGlobal(Offset(0, _gapBefore(index))).dy -
-          layer.localToGlobal(Offset.zero).dy;
+      final top = _topIn(layer, item, _gapBefore(index));
       return _sticks ? math.max(top, inset) : top;
     }
     // Not findRenderObject: painted in the frame whose layout dropped the
@@ -2463,9 +2744,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
         (_editorPlaceholderKey.currentContext as Element?)?.renderObject
             as RenderBox?;
     if (placeholder != null && placeholder.attached && placeholder.hasSize) {
-      final top =
-          placeholder.localToGlobal(Offset.zero).dy -
-          layer.localToGlobal(Offset.zero).dy;
+      final top = _topIn(layer, placeholder, 0);
       return _sticks ? math.max(top, inset) : top;
     }
     final first = _laidOutItems().firstOrNull;
@@ -2475,6 +2754,12 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     }
     return null;
   }
+
+  /// How far [y] in [box] is below the top of [layer], in [layer]'s units:
+  /// not the difference of their places on screen, which the window's zoom
+  /// scales (see [UiZoom]) while [layer] paints in units of its own.
+  static double _topIn(RenderBox layer, RenderBox box, double y) =>
+      MatrixUtils.transformPoint(box.getTransformTo(layer), Offset(0, y)).dy;
 
   // --- The sticky user message ---------------------------------------------
 
@@ -3625,6 +3910,19 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                       onPointerPanZoomEnd: _endForwardedPan,
                     ),
                   ),
+                // By the selection (see [_placeBubbleBy]).
+                Positioned.fill(
+                  child: SelectionBubbleFollower(
+                    place: _placeBubble,
+                    repaint: Listenable.merge([
+                      _scrollController,
+                      _editorMoved,
+                      _selection,
+                      _bubble,
+                    ]),
+                    child: _buildBubble(),
+                  ),
+                ),
                 // Over the history's top right, as the editor's; over the
                 // side panel's rail too, where it floats there.
                 Positioned(
@@ -3939,6 +4237,11 @@ class _RenderStickyFollower extends RenderProxyBox {
   Rect? describeApproximatePaintClip(RenderObject child) =>
       _paintedTop == null ? Rect.zero : null;
 }
+
+/// An end of the selection, as the bar over it has it: its character
+/// ([char]) and the piece of text that is in ([leaf]), in the box of its
+/// item [item].
+typedef _SelectionEnd = ({int item, Rect char, Rect leaf});
 
 /// Reports [child]'s size after layout whenever it changes.
 class _SizeReporter extends SingleChildRenderObjectWidget {

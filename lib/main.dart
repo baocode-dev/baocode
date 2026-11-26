@@ -90,6 +90,7 @@ import 'platform/native_md_clipboard.dart';
 import 'platform/app_binding.dart';
 import 'platform/app_platform.dart';
 import 'platform/data_dir.dart';
+import 'platform/held_keys.dart';
 import 'platform/error_log.dart';
 import 'platform/event_log.dart';
 import 'platform/open_requests.dart';
@@ -125,6 +126,7 @@ import 'telemetry/telemetry_service.dart';
 import 'telemetry/telemetry_store.dart';
 import 'theme/app_theme.dart';
 import 'theme/code_font.dart';
+import 'theme/linux_code_fonts.dart';
 import 'theme/pixel_snapped_text_scaler.dart';
 import 'theme/ui_zoom.dart';
 import 'theme/window_blur.dart';
@@ -207,6 +209,7 @@ Future<void> main(List<String> arguments) async {
       (key) => files.settings[key],
     ).timeout(const Duration(seconds: 1), onTimeout: () {});
     followSettingsFiles(files);
+    await LinuxCodeFonts.start();
     // The channel build's first start: set up before anything else shows.
     await _beginChannelSetup(files);
     _openChannelGate(files);
@@ -389,6 +392,9 @@ Future<void> main(List<String> arguments) async {
         .layoutAtLaunch(workspace.layout);
   }
   WindowControls.trackActiveView();
+  // The modifiers held as the system has them, not one the app missed
+  // going up.
+  if (WindowControls.isDesktop) HeldKeys.start();
   // What an editor copies, its tags and all, on the clipboard itself.
   if (WindowControls.isDesktop) {
     MdClipboard.instance = const NativeMdClipboard();
@@ -880,6 +886,7 @@ class _BaoCodeAppState extends State<BaoCodeApp>
   /// windows' blur, which every surface over it is tinted for.
   static final Listenable _codeFont = Listenable.merge([
     CodeFont.families,
+    LinuxCodeFonts.resolved,
     CodeFont.size,
     CodeFont.ligatures,
     WindowBlur.enabled,

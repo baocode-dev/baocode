@@ -3560,36 +3560,6 @@ abstract class AppLocalizations {
   /// **'Archived · {count}'**
   String sidebarArchivedCount(int count);
 
-  /// No description provided for @sidebarDeleteAgentTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Delete agent?'**
-  String get sidebarDeleteAgentTitle;
-
-  /// No description provided for @sidebarDeleteAgentMessage.
-  ///
-  /// In en, this message translates to:
-  /// **'“{title}” and its conversation will be removed.'**
-  String sidebarDeleteAgentMessage(String title);
-
-  /// No description provided for @sidebarDeleteAgentsTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Delete agents?'**
-  String get sidebarDeleteAgentsTitle;
-
-  /// No description provided for @sidebarDeleteAgentsMessage.
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =1{The agent and its conversation will be deleted} other{The {count} agents and their conversations will be deleted}}, from their kernels too. This cannot be undone.'**
-  String sidebarDeleteAgentsMessage(int count);
-
-  /// No description provided for @sidebarDeleteAgentMessageKernel.
-  ///
-  /// In en, this message translates to:
-  /// **'“{title}” and its conversation will be deleted, from {kernel} too. This cannot be undone.'**
-  String sidebarDeleteAgentMessageKernel(String title, String kernel);
-
   /// No description provided for @sidebarSearchAgents.
   ///
   /// In en, this message translates to:
@@ -3707,7 +3677,7 @@ abstract class AppLocalizations {
   /// No description provided for @sidebarDeleteCount.
   ///
   /// In en, this message translates to:
-  /// **'Delete {count} Agents…'**
+  /// **'Delete {count} Agents'**
   String sidebarDeleteCount(int count);
 
   /// An agent's menu in the sidebar: copies the id of its session, which Claude Code finds the conversation by.
@@ -3733,12 +3703,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Detach from Conversation'**
   String get sidebarDetachAside;
-
-  /// After the message asking to delete an agent that has conversations asked beside it with /btw.
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =1{Its /btw conversation is deleted with it.} other{Its {count} /btw conversations are deleted with it.}}'**
-  String sidebarDeleteAsidesToo(int count);
 
   /// The /btw command in the composer's command list: what follows is asked in a new conversation copied from this one, listed under it.
   ///
@@ -3815,26 +3779,38 @@ abstract class AppLocalizations {
   /// No description provided for @sidebarDeleteArchived.
   ///
   /// In en, this message translates to:
-  /// **'Delete All Archived…'**
+  /// **'Delete All Archived'**
   String get sidebarDeleteArchived;
-
-  /// No description provided for @sidebarDeleteArchivedTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Delete archived agents?'**
-  String get sidebarDeleteArchivedTitle;
-
-  /// No description provided for @sidebarDeleteArchivedMessage.
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =1{The archived agent and its conversation will be deleted} other{The {count} archived agents and their conversations will be deleted}}, from their kernels too. This cannot be undone.'**
-  String sidebarDeleteArchivedMessage(int count);
 
   /// No description provided for @sidebarRemoveFromList.
   ///
   /// In en, this message translates to:
   /// **'Remove from List'**
   String get sidebarRemoveFromList;
+
+  /// The note at the bottom of the window, Undo beside it, once an agent is deleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleted “{title}”'**
+  String sidebarAgentDeleted(String title);
+
+  /// No description provided for @sidebarAgentsDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Deleted 1 agent} other{Deleted {count} agents}}'**
+  String sidebarAgentsDeleted(int count);
+
+  /// No description provided for @sidebarProjectRemoved.
+  ///
+  /// In en, this message translates to:
+  /// **'Removed “{name}” from the list'**
+  String sidebarProjectRemoved(String name);
+
+  /// No description provided for @sidebarWorkspaceDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleted workspace “{name}”'**
+  String sidebarWorkspaceDeleted(String name);
 
   /// No description provided for @sidebarDropToPin.
   ///
@@ -4657,6 +4633,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Pasted text #{number}'**
   String pastedTextChip(int number);
+
+  /// Text quoted from the conversation, as a small tag in a message: the quote's number in the message.
+  ///
+  /// In en, this message translates to:
+  /// **'Quote #{number}'**
+  String quoteChip(int number);
+
+  /// Over text selected in the conversation: puts it in the message being written, as a quote of it.
+  ///
+  /// In en, this message translates to:
+  /// **'Quote'**
+  String get chatQuote;
+
+  /// Over text selected in the conversation: quotes it in a /btw message, asked in a conversation of its own beside this one.
+  ///
+  /// In en, this message translates to:
+  /// **'By the Way'**
+  String get chatQuoteAside;
 
   /// Shown in place of a long paste kept in a file that has since gone.
   ///
@@ -5690,11 +5684,11 @@ abstract class AppLocalizations {
   /// **'Remove from the queue'**
   String get queuedRemove;
 
-  /// Hover of a reply the agent suggests, over the composer.
+  /// Hover of a reply the agent suggests, over the composer. {key} is ⌘ on macOS, Ctrl elsewhere.
   ///
   /// In en, this message translates to:
-  /// **'Click to put it in the input, double-click to send it'**
-  String get replySuggestionHint;
+  /// **'Click to put it in the input, double-click to send it, {key}-click to pick more than one'**
+  String replySuggestionHint(String key);
 
   /// No description provided for @stopConfirmMessage.
   ///
@@ -6395,7 +6389,7 @@ abstract class AppLocalizations {
   /// No description provided for @generalSettingsPromptSuggestionsDescription.
   ///
   /// In en, this message translates to:
-  /// **'After each turn, two or three things you might send next, over the composer: click one to put it in the input and edit it, double-click to send it as it is; Tab in an empty input takes the first. The agent writes them at the end of its reply, with no extra request. Applies from the next message.'**
+  /// **'After each turn, two to four things you might send next, over the composer: click one to put it in the input and edit it, double-click to send it as it is; click with ⌘ or Ctrl held to put in more than one, each on its own line; Tab in an empty input takes the first. The agent writes them at the end of its reply, with no extra request. Applies from the next message.'**
   String get generalSettingsPromptSuggestionsDescription;
 
   /// The commit attribution dropdown, as read out: its setting and the choice in effect.

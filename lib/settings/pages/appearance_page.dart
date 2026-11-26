@@ -27,6 +27,7 @@ import '../../l10n/l10n.dart';
 import '../../platform/event_log.dart' show appEvent;
 import '../../theme/app_theme.dart';
 import '../../theme/code_font.dart';
+import '../../theme/linux_code_fonts.dart';
 import '../../theme/window_blur.dart';
 import '../../theme/workbench_theme.dart' show ThemeSettingDefaults;
 import '../user_settings.dart';
@@ -108,17 +109,6 @@ class AppearanceSettingsPage extends StatelessWidget {
       debugPrint('$id not applied: $error');
     }),
   );
-
-  /// The families the dropdown offers: each is put first, then the defaults.
-  static const _codeFontPresets = <String>[
-    'JetBrains Mono',
-    'Fira Code',
-    'Cascadia Code',
-    'Consolas',
-    'Menlo',
-    'Monaco',
-    'Courier New',
-  ];
 
   /// The step of [steps] nearest [value]: the slider's position.
   static int _nearest<T extends num>(List<T> steps, num value) {
@@ -403,6 +393,7 @@ class AppearanceSettingsPage extends StatelessWidget {
         WindowBlur.enabled,
         for (final role in PixelLoaderRole.values) ...[role.style, role.speed],
         CodeFont.families,
+        LinuxCodeFonts.resolved,
         CodeFont.size,
         CodeFont.ligatures,
         CodeFont.uiScale,
@@ -688,25 +679,30 @@ class AppearanceSettingsPage extends StatelessWidget {
                     semanticLabel: l10n.appearanceSettingsCodeFontLabel(
                       _familyName(context, families),
                     ),
-                    entries: () => ideMenuGroups([
-                      [
-                        IdeMenuAction(
-                          l10n.appearanceSettingsCodeFontDefault,
-                          checked: listEquals(
-                            families,
-                            CodeFont.defaultFamilies,
-                          ),
-                          onSelected: () =>
-                              _selectFamilies(CodeFont.defaultFamilies),
-                        ),
-                        for (final name in _codeFontPresets)
+                    entries: () {
+                      // On Linux, what it offers loaded ahead of a pick.
+                      unawaited(LinuxCodeFonts.preloadPresets());
+                      return ideMenuGroups([
+                        [
                           IdeMenuAction(
-                            name,
-                            checked: listEquals(families, _presetOf(name)),
-                            onSelected: () => _selectFamilies(_presetOf(name)),
+                            l10n.appearanceSettingsCodeFontDefault,
+                            checked: listEquals(
+                              families,
+                              CodeFont.defaultFamilies,
+                            ),
+                            onSelected: () =>
+                                _selectFamilies(CodeFont.defaultFamilies),
                           ),
-                      ],
-                    ]),
+                          for (final name in CodeFont.familyPresets)
+                            IdeMenuAction(
+                              name,
+                              checked: listEquals(families, _presetOf(name)),
+                              onSelected: () =>
+                                  _selectFamilies(_presetOf(name)),
+                            ),
+                        ],
+                      ]);
+                    },
                   ),
                 ),
                 // Not const: it must redraw as the font, size or ligatures
@@ -827,6 +823,7 @@ class _TerminalFontPreview extends StatelessWidget {
       listenable: Listenable.merge([
         terminalColorTheme,
         CodeFont.families,
+        LinuxCodeFonts.resolved,
         CodeFont.terminalSize,
       ]),
       builder: (context, _) {

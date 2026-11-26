@@ -40,6 +40,7 @@ import 'chat/side_panel/side_panel_controller.dart';
 import 'chat/side_panel/side_panel_view.dart';
 import 'chat/side_panel/web_page_opener.dart';
 import 'chat/widgets/hover_scroll_text.dart';
+import 'chat/widgets/undo_toast.dart';
 import 'customize/customization_store.dart';
 import 'customize/customizations.dart';
 import 'customize/customize_view.dart';
@@ -2605,28 +2606,16 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     _openIdeChat(folder, forked);
   }
 
-  /// Deletes [thread]'s conversation once confirmed, as the sidebar's
-  /// Delete asks.
-  Future<void> _confirmDeleteThread(AgentThread thread) async {
+  /// Deletes [thread]'s conversation at once, a moment left to undo it,
+  /// as the sidebar's Delete does.
+  void _deleteThread(AgentThread thread) {
     final l10n = context.l10n;
-    final title = thread.localizedTitle(l10n);
-    final choice = await showIdeDialog(
+    showUndoToast(
       context,
-      message: l10n.sidebarDeleteAgentTitle,
-      detail: [
-        thread.kernel.catalog == null
-            ? l10n.sidebarDeleteAgentMessage(title)
-            : l10n.sidebarDeleteAgentMessageKernel(title, thread.kernel.label),
-        // Its asides go with it.
-        if (_workspace.asidesOf(thread).length case final asides
-            when asides > 0)
-          l10n.sidebarDeleteAsidesToo(asides),
-      ].join(' '),
-      buttons: [l10n.commonDelete],
-      type: IdeDialogType.warning,
+      l10n.sidebarAgentDeleted(thread.localizedTitle(l10n)),
+      onUndo: _workspace.deleteLater([thread]),
+      shown: Workspace.deleteDelay,
     );
-    if (choice != 0) return;
-    _workspace.delete(thread);
   }
 
   /// The IDE's chat in [folder]: its tabs over the one shown, the agent
@@ -2692,7 +2681,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
             onFork: (thread) => unawaited(_forkIdeChat(folder, thread)),
             onArchive: (thread) =>
                 _workspace.setArchived(thread, !thread.archived),
-            onDelete: (thread) => unawaited(_confirmDeleteThread(thread)),
+            onDelete: _deleteThread,
             historyOpen: historyFolder == folder,
             onHistory: () => historyFolder == folder
                 ? _closeIdeHistory(folder)
@@ -2732,8 +2721,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
                           _ideHistory.value = null;
                           unawaited(_forkIdeChat(folder, thread));
                         },
-                        onDelete: (thread) =>
-                            unawaited(_confirmDeleteThread(thread)),
+                        onDelete: _deleteThread,
                         onDismiss: () => _closeIdeHistory(folder),
                       ),
               ),

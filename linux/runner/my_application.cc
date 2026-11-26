@@ -6,7 +6,9 @@
 #include "login_window.h"
 #include "flutter/generated_plugin_registrant.h"
 
+#include <fontconfig/fontconfig.h>
 #include <gdk/gdkkeysyms.h>
+#include <initializer_list>
 #include <string.h>
 
 struct _MyApplication {
@@ -243,6 +245,64 @@ static void reveal_path(const char* path) {
                 nullptr, nullptr);
 }
 
+// codeFontFiles: for each family named, the files of its regular, bold,
+// italic and bold italic faces as Fontconfig matches them, for the app to
+// load itself (see linux_code_fonts.dart), and whether it is installed at
+// all. FcFontMatch answers with a substitute too, so only a face of the
+// family itself counts (for `monospace`, any monospaced one). A face in a
+// collection but its first is installed without a file: Flutter's loader
+// reads only the first.
+static FlValue* code_font_files(FlValue* args) {
+  FlValue* result = fl_value_new_map();
+  if (fl_value_get_type(args) != FL_VALUE_TYPE_LIST) return result;
+  for (size_t i = 0; i < fl_value_get_length(args); ++i) {
+    FlValue* value = fl_value_get_list_value(args, i);
+    if (fl_value_get_type(value) != FL_VALUE_TYPE_STRING) continue;
+    const auto* family = reinterpret_cast<const FcChar8*>(fl_value_get_string(value));
+    // Taken by the entry below: g_steal_pointer gives a gpointer in C++
+    // with the GLib the release builds use.
+    FlValue* files = fl_value_new_list();
+    bool installed = false;
+    for (int weight : {FC_WEIGHT_REGULAR, FC_WEIGHT_BOLD}) {
+      for (int slant : {FC_SLANT_ROMAN, FC_SLANT_ITALIC}) {
+        FcPattern* query = FcPatternCreate();
+        FcPatternAddString(query, FC_FAMILY, family);
+        FcPatternAddInteger(query, FC_WEIGHT, weight);
+        FcPatternAddInteger(query, FC_SLANT, slant);
+        FcConfigSubstitute(nullptr, query, FcMatchPattern);
+        FcDefaultSubstitute(query);
+        FcResult status;
+        FcPattern* match = FcFontMatch(nullptr, query, &status);
+        FcPatternDestroy(query);
+        if (match == nullptr) continue;
+        FcChar8* name;
+        bool exact = false;
+        for (int j = 0; FcPatternGetString(match, FC_FAMILY, j, &name) == FcResultMatch; ++j) {
+          if (FcStrCmpIgnoreCase(family, name) == 0) exact = true;
+        }
+        int spacing = 0;
+        if (FcStrCmpIgnoreCase(family, reinterpret_cast<const FcChar8*>("monospace")) == 0) {
+          exact = FcPatternGetInteger(match, FC_SPACING, 0, &spacing) == FcResultMatch &&
+                  spacing == FC_MONO;
+        }
+        installed = installed || exact;
+        FcChar8* path;
+        int index;
+        if (exact && FcPatternGetInteger(match, FC_INDEX, 0, &index) == FcResultMatch &&
+            index == 0 && FcPatternGetString(match, FC_FILE, 0, &path) == FcResultMatch) {
+          fl_value_append_take(files, fl_value_new_string(reinterpret_cast<const char*>(path)));
+        }
+        FcPatternDestroy(match);
+      }
+    }
+    FlValue* entry = fl_value_new_map();
+    fl_value_set_string_take(entry, "files", files);
+    fl_value_set_string_take(entry, "installed", fl_value_new_bool(installed));
+    fl_value_set_string_take(result, fl_value_get_string(value), entry);
+  }
+  return result;
+}
+
 // baocode/window: the calls WindowControls makes when this host is a desktop.
 // Menus, clipboard images and drag-out stay unimplemented (MissingPlugin);
 // the app already treats those as optional.
@@ -253,7 +313,27 @@ static void window_method_call_cb(FlMethodChannel* channel, FlMethodCall* call,
   FlValue* args = fl_method_call_get_args(call);
   g_autoptr(FlMethodResponse) response = nullptr;
 
-  if (strcmp(name, "pickDirectory") == 0) {
+  if (strcmp(name, "codeFontFiles") == 0) {
+    g_autoptr(FlValue) result = code_font_files(args);
+    response = FL_METHOD_RESPONSE(fl_method_success_response_new(result));
+  } else if (strcmp(name, "heldModifiers") == 0) {
+    // The modifiers held now, as the system has them: the app's own may
+    // have missed one going up (see held_keys.dart).
+    GdkKeymap* keymap = gdk_keymap_get_for_display(gdk_display_get_default());
+    const guint state = gdk_keymap_get_modifier_state(keymap);
+    g_autoptr(FlValue) result = fl_value_new_map();
+    fl_value_set_string_take(result, "shift",
+                             fl_value_new_bool((state & GDK_SHIFT_MASK) != 0));
+    fl_value_set_string_take(
+        result, "control", fl_value_new_bool((state & GDK_CONTROL_MASK) != 0));
+    fl_value_set_string_take(result, "alt",
+                             fl_value_new_bool((state & GDK_MOD1_MASK) != 0));
+    fl_value_set_string_take(
+        result, "meta",
+        fl_value_new_bool(
+            (state & (GDK_SUPER_MASK | GDK_MOD4_MASK | GDK_META_MASK)) != 0));
+    response = FL_METHOD_RESPONSE(fl_method_success_response_new(result));
+  } else if (strcmp(name, "pickDirectory") == 0) {
     GSList* names = choose_files(self->window, GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER,
                                  "Open Folder", FALSE, nullptr, nullptr, FALSE);
     g_autoptr(FlValue) result = nullptr;

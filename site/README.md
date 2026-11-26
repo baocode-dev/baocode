@@ -22,6 +22,11 @@ The BaoCode website, hosted on Cloudflare: `site/` is served as it is,
 - `import.html`, `import.js`: a site's one-click import of an upstream,
   handed on to the app (`baocode://provider/import`); `upstreams.html`, how
   a site adds it. See `docs/upstream-import.md`.
+- Light or dark: the system's, or the one picked with the header's button
+  (kept as `baocode.theme`), set by `head.js` as `<html data-theme>` before
+  the page shows; the styles' light colors are under
+  `:root[data-theme="light"]`, and the home page's scripts follow
+  `window.baoTheme`.
 - `site.js` keeps, on any page, where a visitor came from (`?abc` after
   any page's address, the site linking here, or direct); `head.js`,
   `activate.html`, `activate.js`, `channels.json` and `channels/`: the
