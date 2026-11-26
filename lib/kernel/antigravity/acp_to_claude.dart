@@ -5,6 +5,8 @@
 /// upstream reads them on as its own.
 library;
 
+import 'dart:convert';
+
 /// A tool call as agy reported it so far: `tool_call`, then its updates.
 class AcpToolCall {
   AcpToolCall(this.id);
@@ -94,6 +96,44 @@ class AcpToolCall {
 String claudeToolId(String acpId) =>
     'toolu_agy_${acpId.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_')}';
 
+/// The MCP tool [call] reaches through call_mcp_tool, if it is one.
+({String server, String tool})? agyMcpCall(AcpToolCall call) {
+  if (call.name != 'call_mcp_tool' &&
+      !(call.title?.startsWith('MCP Tool ') ?? false)) {
+    return null;
+  }
+  return switch (call.input) {
+    {'ServerName': final String server, 'ToolName': final String tool}
+        when server.isNotEmpty && tool.isNotEmpty =>
+      (server: server, tool: tool),
+    _ => null,
+  };
+}
+
+/// update_steps' input as TodoWrite's.
+Map<String, Object?> _steps(Map<String, Object?> input) => {
+  'todos': [
+    for (final step in input['steps'] as List? ?? const [])
+      if (step case {'title': final String title})
+        _todo(title, switch (step['status']) {
+          'done' || 'completed' => 'completed',
+          final String status => status,
+          _ => null,
+        }),
+  ],
+};
+
+/// A todo of TodoWrite's: [status] one of its own, else pending.
+Map<String, Object?> _todo(String content, Object? status) => {
+  'content': content,
+  'status': switch (status) {
+    'in_progress' => 'in_progress',
+    'completed' => 'completed',
+    _ => 'pending',
+  },
+  'activeForm': content,
+};
+
 /// [call] as Claude Code's tool: its name and input. [servers] are the
 /// app's own MCP servers agy was given, whose tools agy names
 /// `mcp_<server>_<tool>` (Claude Code `mcp__<server>__<tool>`).
@@ -122,6 +162,21 @@ String claudeToolId(String acpId) =>
         input: {...input}..remove('toolSummary'),
       );
     }
+  }
+  // An MCP tool reached through call_mcp_tool, as agy calls those its
+  // context has no room to list: of kind `execute`, yet not a command.
+  if (agyMcpCall(call) case (:final server, :final tool)) {
+    return (
+      name: 'mcp__${server}__$tool',
+      input: switch (input['Arguments']) {
+        final Map<Object?, Object?> arguments => arguments.cast(),
+        _ => const {},
+      },
+    );
+  }
+  // Its steps, as Claude Code's todos.
+  if (name == 'update_steps') {
+    return (name: 'TodoWrite', input: _steps(input));
   }
   // A question to the user, as Claude Code asks one.
   if (name == 'ask_question') {
@@ -237,17 +292,33 @@ String claudeToolId(String acpId) =>
 /// output) for the chat to show. [fileText] is the file's text as it stands
 /// after an edit (null where it could not be read), to number the patch's
 /// lines as in it. [answers] are what the user answered to a question it
-/// asked, by the question.
-({String content, bool isError, Map<String, Object?>? structured})
+/// asked, by the question. [mcpResult] is what one of the app's MCP
+/// servers answered it (agy tells none of it): its content Claude's
+/// blocks, or text alone.
+({Object content, bool isError, Map<String, Object?>? structured})
 claudeToolResult(
   AcpToolCall call,
   String name, {
   String? fileText,
   Map<String, String>? answers,
+  Map<String, Object?>? mcpResult,
 }) {
   final output = call.output ?? '';
   final content = _cut(output.isEmpty ? '(no output)' : output);
+  if (mcpResult != null) {
+    return (
+      content: _mcpContent(mcpResult['content']),
+      isError: mcpResult['isError'] == true || call.failed,
+      structured: null,
+    );
+  }
   switch (name) {
+    case 'TodoWrite':
+      return (
+        content: 'Todos have been modified successfully.',
+        isError: false,
+        structured: {'newTodos': _steps(call.input)['todos']},
+      );
     case 'AskUserQuestion' when answers != null:
       final said = [
         for (final MapEntry(:key, :value) in answers.entries) '"$key"="$value"',
@@ -378,20 +449,38 @@ String _commandOutput(String output) {
       .trim();
 }
 
+/// An MCP result's content as a tool result's: its text alone, or
+/// Claude's blocks where it holds images.
+Object _mcpContent(Object? content) {
+  final blocks = <Map<String, Object?>>[
+    for (final block in content is List ? content : const [])
+      switch (block) {
+        {'type': 'text', 'text': final String text} => {
+          'type': 'text',
+          'text': _cut(text),
+        },
+        {
+          'type': 'image',
+          'data': final String data,
+          'mimeType': final String type,
+        } =>
+          {
+            'type': 'image',
+            'source': {'type': 'base64', 'media_type': type, 'data': data},
+          },
+        _ => {'type': 'text', 'text': _cut(jsonEncode(block))},
+      },
+  ];
+  if (blocks.any((block) => block['type'] == 'image')) return blocks;
+  final text = blocks.map((block) => block['text']).join('\n');
+  return text.isEmpty ? '(no output)' : _cut(text);
+}
+
 /// An `update` of `plan` as Claude Code's `TodoWrite` input.
 Map<String, Object?> claudeTodos(Map<String, Object?> update) => {
   'todos': [
     for (final entry in update['entries'] as List? ?? const [])
-      if (entry is Map)
-        {
-          'content': '${entry['content'] ?? ''}',
-          'status': switch (entry['status']) {
-            'in_progress' => 'in_progress',
-            'completed' => 'completed',
-            _ => 'pending',
-          },
-          'activeForm': '${entry['content'] ?? ''}',
-        },
+      if (entry is Map) _todo('${entry['content'] ?? ''}', entry['status']),
   ],
 };
 

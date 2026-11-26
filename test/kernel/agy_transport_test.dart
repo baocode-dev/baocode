@@ -148,6 +148,21 @@ class Kernel {
                 'behavior': allow ? 'allow' : 'deny',
                 'message': 'no',
               },
+              {
+                'subtype': 'mcp_message',
+                'message': {'method': 'tools/call', 'id': final Object id},
+              } =>
+                {
+                  'mcp_response': {
+                    'jsonrpc': '2.0',
+                    'id': id,
+                    'result': {
+                      'content': [
+                        {'type': 'text', 'text': 'page opened'},
+                      ],
+                    },
+                  },
+                },
               _ => const <String, Object?>{},
             },
           },
@@ -554,6 +569,193 @@ void main() {
       'answers': {'Which color?': 'Blue'},
     });
     expect(kernel.results.single['subtype'], 'success');
+    transport.close();
+  });
+
+  test('a message folded into the turn running, as the user has it', () async {
+    final first = Completer<Object?>();
+    Future<Object?> agent(FakeAgent agent, String method, Map params) async {
+      if (method != 'session/prompt') {
+        return agentSaying('')(agent, method, params);
+      }
+      final session = params['sessionId'] as String;
+      final text = ((params['prompt'] as List).last as Map)['text'];
+      if (text == 'build it') {
+        agent.say(session, {
+          'sessionUpdate': 'agent_message_chunk',
+          'content': {'type': 'text', 'text': 'Building.'},
+        });
+        return first.future;
+      }
+      // As agy does: the prompt before ends at once, this one goes on.
+      first.complete({
+        'stopReason': 'end_turn',
+        'usage': {'inputTokens': 10, 'outputTokens': 1},
+      });
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      agent.say(session, {
+        'sessionUpdate': 'agent_message_chunk',
+        'content': {'type': 'text', 'text': 'Built, and tested.'},
+      });
+      return {
+        'stopReason': 'end_turn',
+        'usage': {'inputTokens': 5, 'outputTokens': 2},
+      };
+    }
+
+    final runtime = FakeRuntime(() => FakeAgent(agent));
+    final transport = await AgyTransport.start(
+      ClaudeLaunch(cwd: cwd, model: 'gemini-3.8-flash'),
+      runtime: runtime,
+    );
+    final kernel = Kernel(transport);
+    final sent = kernel.send('build it', uuid: 'u1');
+    while (!kernel.seen.any((m) => m['type'] == 'stream_event')) {
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+    }
+    transport.write({
+      'type': 'user',
+      'uuid': 'u2',
+      'priority': 'next',
+      'message': {
+        'role': 'user',
+        'content': [
+          {'type': 'text', 'text': 'and test it'},
+        ],
+      },
+    });
+    await sent;
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(
+      runtime.started.single.requests.where((r) => r.$1 == 'session/prompt'),
+      hasLength(2),
+    );
+    expect(kernel.results, hasLength(1));
+    expect(kernel.results.single['subtype'], 'success');
+    expect((kernel.results.single['usage'] as Map)['input_tokens'], 15);
+    expect(
+      [
+        for (final m in kernel.seen)
+          if (m['type'] == 'command_lifecycle') m['command_uuid'],
+      ],
+      ['u1', 'u2'],
+    );
+    final id = kernel.seen.first['session_id']! as String;
+    final said = [
+      for (final line in lines(id))
+        if (line['type'] == 'user' || line['type'] == 'assistant')
+          (((line['message'] as Map)['content'] as List).first as Map)['text'],
+    ];
+    expect(said, [
+      'build it',
+      'Building.',
+      'and test it',
+      'Built, and tested.',
+    ]);
+    transport.close();
+  });
+
+  test('a message to wait for the turn: sent once it ends', () async {
+    final runtime = FakeRuntime(() => FakeAgent(agentSaying('Done.')));
+    final transport = await AgyTransport.start(
+      ClaudeLaunch(cwd: cwd, model: 'gemini-3.8-flash'),
+      runtime: runtime,
+    );
+    final kernel = Kernel(transport);
+    final sent = kernel.send('first');
+    transport.write({
+      'type': 'user',
+      'uuid': 'later-1',
+      'priority': 'later',
+      'message': {
+        'role': 'user',
+        'content': [
+          {'type': 'text', 'text': 'second'},
+        ],
+      },
+    });
+    await sent;
+    while (kernel.results.length < 2) {
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+    }
+    expect(kernel.results, hasLength(2));
+    transport.close();
+  });
+
+  test('an app MCP tool\'s result shown as its server gave it', () async {
+    // flutter_test's own HttpClient answers all with 400.
+    final overrides = HttpOverrides.current;
+    HttpOverrides.global = null;
+    addTearDown(() => HttpOverrides.global = overrides);
+    Future<Object?> agent(FakeAgent agent, String method, Map params) async {
+      if (method != 'session/prompt') {
+        return agentSaying('')(agent, method, params);
+      }
+      final session = params['sessionId'] as String;
+      final created = agent.requests.firstWhere((r) => r.$1 == 'session/new');
+      final server = (created.$2['mcpServers'] as List).single as Map;
+      agent.say(session, {
+        'sessionUpdate': 'tool_call',
+        'toolCallId': 'call_m',
+        'name': 'mcp_baocode_browser_open',
+        'kind': 'other',
+        'status': 'in_progress',
+        'rawInput': {'url': 'https://example.com'},
+      });
+      final client = HttpClient();
+      final request = await client.postUrl(Uri.parse(server['url'] as String));
+      for (final header in server['headers'] as List) {
+        request.headers.set(
+          (header as Map)['name'] as String,
+          header['value'] as String,
+        );
+      }
+      request.headers.contentType = ContentType.json;
+      request.write(
+        jsonEncode({
+          'jsonrpc': '2.0',
+          'id': 4,
+          'method': 'tools/call',
+          'params': {
+            '_meta': {'antigravity.google/conversation_id': session},
+            'name': 'browser_open',
+            'arguments': {'url': 'https://example.com'},
+          },
+        }),
+      );
+      await (await request.close()).drain<void>();
+      client.close();
+      agent.say(session, {
+        'sessionUpdate': 'tool_call_update',
+        'toolCallId': 'call_m',
+        'status': 'completed',
+      });
+      return {'stopReason': 'end_turn'};
+    }
+
+    final runtime = FakeRuntime(() => FakeAgent(agent));
+    final transport = await AgyTransport.start(
+      ClaudeLaunch(
+        cwd: cwd,
+        model: 'gemini-3.8-flash',
+        sdkServers: const ['baocode'],
+      ),
+      runtime: runtime,
+    );
+    final kernel = Kernel(transport);
+    await kernel.send('open it');
+    final result = kernel.seen.lastWhere(
+      (m) =>
+          m['type'] == 'user' &&
+          m['isReplay'] != true &&
+          (((m['message'] as Map)['content'] as List).first as Map)['type'] ==
+              'tool_result',
+    );
+    final block =
+        (((result['message'] as Map)['content'] as List).first as Map);
+    expect(block['tool_use_id'], 'toolu_agy_call_m');
+    expect(block['content'], 'page opened');
     transport.close();
   });
 
