@@ -8,7 +8,6 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
 import '../base/mouse_navigation.dart';
-import '../channel/channel_setup.dart';
 import '../ide/ide_menu.dart';
 import '../kernel/kernel_types.dart';
 import '../keybindings/chat_keybindings.dart';
@@ -507,7 +506,6 @@ class _ChatScreenState extends State<ChatScreen>
     _session.addListener(_checkStarting);
     _planShown = _session.plan?.seq;
     _session.addListener(_followPlan);
-    _session.addListener(_welcomeToModels);
     _restoreAgents();
     ChatWidth.current.addListener(_widthChanged);
     ChatMinimap.enabled.addListener(_widthChanged);
@@ -529,7 +527,6 @@ class _ChatScreenState extends State<ChatScreen>
     _backMinimapRoom.dispose();
     _session.removeListener(_checkStarting);
     _session.removeListener(_followPlan);
-    _session.removeListener(_welcomeToModels);
     ChatWidth.current.removeListener(_widthChanged);
     ChatMinimap.enabled.removeListener(_widthChanged);
     _existence?.dispose();
@@ -564,37 +561,6 @@ class _ChatScreenState extends State<ChatScreen>
       _planShown = plan.seq;
       _openFile(FileOpenRequest(plan.path, plan: true));
     }
-  }
-
-  /// Whether the welcome to models waits for the channel build's setup.
-  bool _awaitingSetup = false;
-
-  /// No model to run on, the first time for the app: what setting one up
-  /// is, by itself; after that, from the banner and the model's pill. The
-  /// channel build's setup first (lib/channel/).
-  void _welcomeToModels() {
-    // The channel build's model is its account's: no setting one up.
-    if (ChannelSetup.channelBuild) return;
-    if (!_session.health.noModel ||
-        !_session.modelWelcome ||
-        ModelWelcome.welcomed) {
-      return;
-    }
-    if (ChannelSetup.current case final setup? when !setup.done) {
-      if (_awaitingSetup) return;
-      _awaitingSetup = true;
-      // Once its welcome closed, with Get Started.
-      unawaited(
-        setup.started.then((_) {
-          if (mounted) _welcomeToModels();
-        }),
-      );
-      return;
-    }
-    ModelWelcome.welcomed = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) unawaited(showModelWelcome(context));
-    });
   }
 
   // --- Keys ------------------------------------------------------------------

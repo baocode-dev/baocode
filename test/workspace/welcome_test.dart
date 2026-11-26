@@ -187,7 +187,6 @@ void main() {
 
     // Ends offering what to send next; what is sent plays it again.
     expect(demo.session.replySuggestions, hasLength(3));
-    expect(demo.session.modelWelcome, isFalse);
     demo.session.send(const ComposerMessage(text: 'Hello'));
     for (var i = 0; i < 200; i++) {
       await Future<void>.delayed(const Duration(milliseconds: 50));

@@ -143,7 +143,7 @@ export interface RateLimitStore {
 
 **建议用滑动窗口计数**：几乎精确、内存恒定，同一套代码在内存里和 Workers KV 上都能跑。''',
     ),
-    charsPerSecond: Story.zh ? 90 : 180,
+    charsPerSecond: Story.zh ? 55 : 120,
   );
 }
 
@@ -436,7 +436,7 @@ The old X-RateLimit headers gave way to the standard RateLimit ones, which an op
 <reply_suggestion>解释一下加权公式</reply_suggestion>
 <reply_suggestion>提交吧</reply_suggestion>''',
     ),
-    charsPerSecond: 420,
+    charsPerSecond: Story.zh ? 90 : 200,
   );
 }
 

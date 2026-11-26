@@ -518,7 +518,6 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
         final player = WelcomePlayer(session, demo.recording.prompts);
         session
           ..healthAs = welcomeHealth
-          ..modelWelcome = false
           ..sendInstead = player.replay;
       },
     );

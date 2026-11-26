@@ -360,8 +360,9 @@ class WelcomePlayer {
   /// comes over it first.
   static const settle = Duration(milliseconds: 800);
 
-  /// Between one turn's end and the next prompt.
-  static const between = Duration(milliseconds: 1500);
+  /// Between one turn's end and the next prompt: time to look at what it
+  /// drew.
+  static const between = Duration(seconds: 4);
 
   /// What is still to be sent, in order.
   List<ComposerMessage> _pending;
