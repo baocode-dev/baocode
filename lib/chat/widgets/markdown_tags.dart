@@ -21,19 +21,26 @@ class TagBlockSyntax extends md.BlockSyntax {
   @override
   RegExp get pattern => _opening;
 
-  static final _opening = RegExp(r'^ {0,3}<([A-Za-z][\w-]*)(\s[^<>]*)?>\s*$');
+  /// A tag on a line of its own; a `<details>`'s may have its `<summary>`
+  /// after it there.
+  static final _opening = RegExp(
+    r'^ {0,3}<([A-Za-z][\w-]*)(\s[^<>]*)?>(?:\s*' + _summarySource + r')?\s*$',
+    caseSensitive: false,
+  );
+  static const _summarySource = r'<summary(?:\s[^<>]*)?>(.*)</summary>';
   static final _fence = RegExp(r'^ {0,3}(`{3,}|~{3,})');
   static final _summary = RegExp(
-    r'^\s*<summary(?:\s[^<>]*)?>(.*)</summary>\s*$',
+    r'^\s*' + _summarySource + r'\s*$',
     caseSensitive: false,
   );
   static final _markup = RegExp(r'<[^<>]*>');
 
   @override
   bool canParse(md.BlockParser parser) {
-    final name = _opening.firstMatch(parser.current.content)?[1];
-    if (name == null) return false;
-    final lower = name.toLowerCase();
+    final match = _opening.firstMatch(parser.current.content);
+    if (match == null) return false;
+    final lower = match[1]!.toLowerCase();
+    if (match[3] != null) return lower == 'details';
     return lower == 'details' || lower == 'summary' || !_html.contains(lower);
   }
 
@@ -43,7 +50,7 @@ class TagBlockSyntax extends md.BlockSyntax {
     final name = match[1]!;
     final escaped = RegExp.escape(name);
     final opens = RegExp(
-      '^ {0,3}<$escaped(?:\\s[^<>]*)?>\\s*\$',
+      '^ {0,3}<$escaped(?:\\s[^<>]*)?>(?:\\s*$_summarySource)?\\s*\$',
       caseSensitive: false,
     );
     final closes = RegExp('^ {0,3}</$escaped\\s*>\\s*\$', caseSensitive: false);
@@ -72,9 +79,9 @@ class TagBlockSyntax extends md.BlockSyntax {
     }
 
     final details = name.toLowerCase() == 'details';
-    String? title;
-    // `<summary>…</summary>` first in a `<details>`: its title.
-    if (details) {
+    // `<summary>…</summary>` after the `<details>`, or first in it: its title.
+    String? title = match[3]?.replaceAll(_markup, '').trim();
+    if (details && title == null) {
       final first = lines.indexWhere((line) => line.trim().isNotEmpty);
       if (first >= 0) {
         if (_summary.firstMatch(lines[first]) case final summary?) {
