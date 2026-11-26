@@ -597,6 +597,24 @@ void main() {
       expect(find.textContaining('line 1'), findsOneWidget);
     });
 
+    testWidgets('<details><summary> on one line', (tester) async {
+      await pumpMarkdown(
+        tester,
+        '<details><summary>Links</summary>\n\n- [one](https://a.dev)\n'
+        '\n<details> <summary>Inner</summary>\nin\n</details>\n\n</details>'
+        '\n\nafter',
+      );
+      expect(find.text('Links'), findsOneWidget);
+      expect(find.textContaining('<summary>'), findsNothing);
+      expect(find.textContaining('one'), findsNothing);
+      expect(find.textContaining('after'), findsOneWidget);
+      await tester.tap(find.text('Links'));
+      await tester.pump();
+      expect(find.textContaining('one'), findsOneWidget);
+      expect(find.text('Inner'), findsOneWidget);
+      expect(find.textContaining('</details>'), findsNothing);
+    });
+
     testWidgets('HTML\'s other tags stay as they were', (tester) async {
       await pumpMarkdown(tester, '<div>\nhi\n</div>\n\n<br>');
       expect(find.textContaining('<div>'), findsOneWidget);
