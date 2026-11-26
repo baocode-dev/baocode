@@ -112,6 +112,25 @@ void main() {
     },
   );
 
+  group('a push refused because the remote moved on', () {
+    test('is recognized from Git\'s rejection text', () {
+      expect(
+        isGitPushRejected(
+          'Cannot push.\n! [rejected] main -> main (fetch first)\n'
+          'error: failed to push some refs',
+        ),
+        isTrue,
+      );
+      expect(
+        isGitPushRejected(
+          'Cannot push.\nerror: non-fast-forward updates were rejected',
+        ),
+        isTrue,
+      );
+      expect(isGitPushRejected('Cannot push. No such remote.'), isFalse);
+    });
+  });
+
   group('past the status limit', () {
     String huge() => [
       '## main\x00',

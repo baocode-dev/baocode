@@ -122,6 +122,16 @@ class _IdeGitPushDialogState extends State<IdeGitPushDialog> {
     super.dispose();
   }
 
+  /// Runs [operation], reporting a failure instead of throwing it to the
+  /// test framework (the SCM view's `_run` does the same for its actions).
+  Future<void> _reportErrors(Future<void> Function() operation) async {
+    try {
+      await operation();
+    } catch (error) {
+      widget.notifications.notify(IdeSeverity.error, '$error');
+    }
+  }
+
   Future<void> _push({bool force = false}) async {
     final l10n = context.l10n;
     final pushes = [
@@ -152,7 +162,22 @@ class _IdeGitPushDialogState extends State<IdeGitPushDialog> {
           tags: _tags,
         );
       } catch (error) {
-        widget.notifications.notify(IdeSeverity.error, '$error');
+        // Refused because the remote moved on: offer pull-then-push where
+        // the failure is reported (same as the SCM view's Push).
+        if (isGitPushRejected(error)) {
+          widget.notifications.notify(
+            IdeSeverity.error,
+            '$error',
+            primary: [
+              IdeNotificationAction(
+                l10n.scmSyncChanges,
+                () => unawaited(_reportErrors(push.git.sync)),
+              ),
+            ],
+          );
+        } else {
+          widget.notifications.notify(IdeSeverity.error, '$error');
+        }
       }
     }
   }

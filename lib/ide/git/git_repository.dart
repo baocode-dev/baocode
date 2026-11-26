@@ -20,6 +20,17 @@ import 'package:flutter/foundation.dart';
 import 'git_model.dart';
 import 'git_service.dart';
 
+/// Whether a push failed because the remote has commits the local branch
+/// does not: Git refuses the push as non-fast-forward. The exact phrase
+/// varies with Git's version and locale, but these are the ones it prints
+/// on the stderr BaoCode keeps in [IdeGitException.message].
+bool isGitPushRejected(Object error) {
+  final message = '$error'.toLowerCase();
+  return message.contains('fetch first') ||
+      message.contains('non-fast-forward') ||
+      message.contains('updates were rejected');
+}
+
 /// [IdeGitRepository.graphBranch] for the current branch and its upstream.
 const ideGraphCurrentBranch = 'HEAD';
 

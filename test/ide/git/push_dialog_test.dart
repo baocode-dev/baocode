@@ -3,6 +3,7 @@
 // changed); Push, Force Push (with lease, once confirmed), the tags too
 // where asked.
 
+import 'package:baocode/ide/git/git_service.dart';
 import 'package:baocode/ide/git/ide_git_push_dialog.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
@@ -84,5 +85,41 @@ void main() {
     expect(git.callsTo('push'), [
       ['push', '--force-with-lease', 'origin', 'main:release'],
     ]);
+  });
+
+  testWidgets('a push refused because the remote moved on offers Sync Changes', (
+    tester,
+  ) async {
+    git.answers['push'] = const IdeGitOutput(
+      1,
+      '',
+      ' ! [rejected] main -> main (fetch first)\n'
+      'error: failed to push some refs to origin\n',
+    );
+    final workspace = await pumpWorkbench(
+      tester,
+      const {'lib/a.dart': 'a'},
+      git: git.repository(),
+      size: const Size(1800, 900),
+    );
+    await tester.pumpAndSettle();
+    await chord(tester, LogicalKeyboardKey.keyG, control: true, shift: true);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Push (2)'));
+    await tester.pumpAndSettle();
+    await tester.tap(inDialog(find.text('Push')));
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pumpAndSettle();
+
+    final note = workspace.notifications.notifications.single;
+    expect(note.message, contains('fetch first'));
+    expect(note.primary.single.label, 'Sync Changes');
+
+    // The action pulls the upstream, then pushes again.
+    note.primary.single.run();
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pumpAndSettle();
+    expect(git.callsTo('pull'), isNotEmpty);
+    expect(git.callsTo('push'), isNotEmpty);
   });
 }
