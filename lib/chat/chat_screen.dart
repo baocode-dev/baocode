@@ -539,6 +539,7 @@ class _ChatScreenState extends State<ChatScreen>
       layer.dispose();
     }
     _session.detach();
+    if (!_session.disposed) _session.seen.value = false;
     if (widget.session == null) _session.dispose();
     super.dispose();
   }
@@ -1173,9 +1174,20 @@ class _ChatScreenState extends State<ChatScreen>
     return (query) async => [...(await kernel(query)).map(fileSuggestion)];
   }
 
+  /// Tells the session whether it shows, nothing over it ([ChatSession.seen]):
+  /// after the frame, its listeners may build.
+  void _noteSeen(bool seen) {
+    if (_session.seen.value == seen) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_session.disposed) _session.seen.value = seen;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final links = widget.fileLinks;
+    // Rebuilt as a dialog comes over it, or goes.
+    _noteSeen(ModalRoute.of(context)?.isCurrent ?? true);
     return ListenableBuilder(
       listenable: _session,
       builder: (context, child) {

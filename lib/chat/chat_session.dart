@@ -1188,6 +1188,11 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
     return [editor?.note ?? OpenEditor.closedNote];
   }
 
+  /// Whether a view shows it now with nothing over it (a dialog), as its
+  /// screens tell: what waits on the user seeing it (the welcome demo, see
+  /// WelcomePlayer) goes on then.
+  final ValueNotifier<bool> seen = ValueNotifier(false);
+
   /// Where what is sent goes instead of to its agent: a conversation not
   /// to go on with (the welcome demo, see [Workspace]) has it start another.
   void Function(ComposerMessage message)? sendInstead;
@@ -1412,11 +1417,13 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
   void discardChanges() => unawaited(_review?.discard());
 
   bool _disposed = false;
+  bool get disposed => _disposed;
 
   @override
   void dispose() {
     _disposed = true;
     _quietTimer?.cancel();
+    seen.dispose();
     _review
       ?..removeListener(_reviewChanged)
       ..dispose();

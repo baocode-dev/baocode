@@ -16,7 +16,7 @@ import 'package:path/path.dart' as p;
 import '../kernel_test.dart' show FakeCli;
 
 /// [Welcome], in a temporary folder: the demo as exported, read from the
-/// repository's assets.
+/// repository's assets, played at once.
 class _Welcome extends Welcome {
   _Welcome(this.root);
 
@@ -30,12 +30,30 @@ class _Welcome extends Welcome {
   }
 
   @override
-  Future<String?> demo(String folder, String localeName) async {
+  Future<({WelcomeRecording recording, String path})?> demo(
+    String folder,
+    String localeName,
+  ) async {
     final locale = WelcomeDemo.localeFor(localeName);
-    final text = File(WelcomeDemo.asset(locale)).readAsStringSync();
-    final file = File(p.join(root.path, 'demo.$locale.jsonl'))
-      ..writeAsStringSync(WelcomeDemo.place(text, folder));
-    return file.path;
+    final (:recording, :path) = await Welcome.keep(
+      File(WelcomeDemo.asset(locale)).readAsStringSync(),
+      folder,
+      locale,
+      root.path,
+    );
+    return (
+      recording: WelcomeRecording(
+        notice: recording.notice,
+        ending: recording.ending,
+        turns: [
+          for (final turn in recording.turns)
+            WelcomeTurn(turn.prompt, [
+              for (final line in turn.messages) (at: 0, message: line.message),
+            ]),
+        ],
+      ),
+      path: path,
+    );
   }
 }
 
@@ -93,16 +111,45 @@ void main() {
     expect(demo.id, WelcomeDemo.sessionId);
     expect(demo.title, 'Demo: a rate limiter, compared and rewritten');
 
-    final items = await itemsOf(demo);
-    expect(items.first, isA<NoticeItem>());
-    expect(items.whereType<UserMessageItem>(), hasLength(2));
-    expect(items.last, isA<NoticeItem>());
-    // Its paths are the user's folder's.
-    final file = File(p.join(root.path, 'demo.en.jsonl')).readAsStringSync();
-    expect(file, isNot(contains(WelcomeDemo.folder)));
-    expect(file, contains(folder));
+    // Before it plays: that it is a demo.
+    var items = await itemsOf(demo);
+    expect(items.single, isA<NoticeItem>());
     expect(launches, isEmpty);
-    // Nothing of it still at work.
+
+    // Played once seen.
+    demo.session.seen.value = true;
+    for (var i = 0; i < 200; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      items = await itemsOf(demo);
+      if (items.whereType<UserMessageItem>().length == 2 &&
+          !demo.session.isStreaming &&
+          items.last is NoticeItem) {
+        break;
+      }
+    }
+    expect(items.first, isA<NoticeItem>());
+    expect(items.whereType<UserMessageItem>().map((item) => item.text), [
+      startsWith('Compare the algorithms'),
+      startsWith('Go with the sliding-window counter'),
+    ]);
+    expect(items.last, isA<NoticeItem>());
+    expect(
+      items.whereType<ToolCallItem>().map((item) => item.tool),
+      contains('WebSearch'),
+    );
+    final agents = items.whereType<AgentItem>().toList();
+    expect(agents, hasLength(3));
+    expect(agents.every((agent) => agent.children.isNotEmpty), isTrue);
+    expect(
+      agents.every((agent) => agent.status == CommandStatus.succeeded),
+      isTrue,
+    );
+    // Paths in the user's folder; nothing of Claude Code's run.
+    expect(
+      items.whereType<CodeDiffItem>().map((item) => item.path),
+      everyElement(startsWith(folder)),
+    );
+    expect(launches, isEmpty);
     expect(demo.shownStatus, ThreadStatus.idle);
 
     // What is sent there starts a conversation of their own.

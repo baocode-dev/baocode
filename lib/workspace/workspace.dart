@@ -464,8 +464,8 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     return null;
   }
 
-  /// Opens the demo conversation, listed again if it was deleted: in the
-  /// folder it was in, else [welcome]'s.
+  /// Opens the demo conversation, to play from the start: listed again if
+  /// it was deleted, in the folder it was in, else [welcome]'s.
   Future<void> showWelcomeDemo() async {
     final welcome = this.welcome;
     if (welcome == null) return;
@@ -481,7 +481,10 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       _save();
       demo = await _addDemo(welcome, folder, at);
     }
-    if (demo != null && !_disposed) select(demo);
+    if (demo == null || _disposed) return;
+    // Played already: from the start again.
+    if (canReload(demo)) reload(demo);
+    select(demo);
   }
 
   /// Lists the demo conversation, in [folder]: its file written there for
@@ -498,22 +501,24 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     if (kernel == null || _removed.contains(WelcomeDemo.sessionId)) {
       return null;
     }
-    final path = await welcome.demo(folder, l10n().localeName);
-    if (path == null || _disposed) return null;
+    final demo = await welcome.demo(folder, l10n().localeName);
+    if (demo == null || _disposed) return null;
     final project = _project(folder);
     _addKept(
-      kernel,
+      welcomeKernel(kernel, demo.recording),
       project,
       SessionRecord(
         id: WelcomeDemo.sessionId,
         title: l10n().welcomeDemoTitle,
         updatedAt: at,
         cwd: folder,
-        path: path,
+        path: demo.path,
       ),
-      opened: (session) =>
-          session.sendInstead = (message) =>
-              create(project: project).session.send(message),
+      opened: (session) {
+        session.sendInstead = (message) =>
+            create(project: project).session.send(message);
+        WelcomePlayer(session, demo.recording.prompts);
+      },
     );
     return _threads
         .where((thread) => thread.record?.id == WelcomeDemo.sessionId)
