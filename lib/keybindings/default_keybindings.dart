@@ -66,6 +66,10 @@ const stashWelcomeCommandId = 'baocode.stash.welcome';
 /// as when a session first has no model to run on.
 const modelWelcomeCommandId = 'baocode.models.welcome';
 
+/// Show the Demo Conversation: the one a new user first sees, listed
+/// again if it was deleted (Workspace.showWelcomeDemo).
+const welcomeDemoCommandId = 'baocode.welcome.demo';
+
 /// A command a keybinding may run, as the Keyboard Shortcuts page lists it.
 @immutable
 class CommandInfo {
@@ -190,6 +194,11 @@ final Map<String, CommandInfo> commandCatalog = {
     const CommandInfo(
       modelWelcomeCommandId,
       'Set Up a Model...',
+      category: 'Help',
+    ),
+    const CommandInfo(
+      welcomeDemoCommandId,
+      'Show the Demo Conversation',
       category: 'Help',
     ),
     const CommandInfo(

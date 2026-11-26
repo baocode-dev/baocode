@@ -29,6 +29,7 @@ import 'editor_launcher.dart';
 import 'preference_store.dart';
 import 'project_workspace.dart';
 import 'temp_folder_stub.dart' if (dart.library.io) 'temp_folder_io.dart';
+import 'welcome.dart';
 
 /// The arrangement of the project and its conversation in the window.
 enum WorkspaceLayout { chat, ide }
@@ -297,6 +298,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     AppLocalizations Function()? l10n,
     this.workspaceDirectories = const ProjectWorkspaceDirectories(),
     ResumeAfterReset? resumes,
+    this.welcome,
   }) : _projects = [...projects],
        resumes = resumes ?? ResumeAfterReset.current,
        icons = icons ?? IconLibrary(),
@@ -325,6 +327,10 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   /// The strings of the app's language, for the titles given here: they
   /// are kept with the session, so are in the language of when given.
   final AppLocalizations Function() l10n;
+
+  /// What a new user is set up with, the first time: a folder to work in
+  /// and the demo conversation there (see [_welcomeNew]). None, nothing.
+  final Welcome? welcome;
 
   List<Project> get projects => List.unmodifiable(_projects);
   final List<Project> _projects;
@@ -403,6 +409,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
         unawaited(_listKept(project));
       }
     }
+    final demo = await _welcomeNew();
     // Only once all were read: what one failed to list is not gone. Nor
     // while remote projects' sessions are still to be listed (or cannot
     // be, their host away): what is kept of those must stay.
@@ -416,11 +423,116 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     }
     _restoreChatView();
     if (!_disposed) resumes.resume = _resumeAfterReset;
-    if (_selected == null && _projects.isNotEmpty) {
+    if (_selected == null && demo != null) {
+      select(demo);
+    } else if (_selected == null && _projects.isNotEmpty) {
       create();
     } else {
       notifyListeners();
     }
+  }
+
+  /// Whether a user was set up yet ([welcome]): once, the first time no
+  /// project was listed; never for one that had some.
+  bool _welcomed = false;
+
+  /// The demo conversation's folder and when it was first shown, while it
+  /// is listed (till deleted).
+  ({String folder, DateTime at})? _welcomeDemo;
+
+  /// The first time nothing is listed: [welcome]'s folder opened, and the
+  /// demo conversation in it. It is listed after as a kept one is, till
+  /// deleted; the one shown, the first time.
+  Future<AgentThread?> _welcomeNew() async {
+    final welcome = this.welcome;
+    if (welcome == null) return null;
+    var first = false;
+    if (!_welcomed) {
+      _welcomed = true;
+      if (_projects.isEmpty) {
+        final folder = await welcome.folder();
+        _welcomeDemo = (folder: folder, at: DateTime.now());
+        _openProject(folder);
+        first = true;
+      }
+      _save();
+    }
+    if (_welcomeDemo case (:final folder, :final at)) {
+      final demo = await _addDemo(welcome, folder, at);
+      if (first) return demo;
+    }
+    return null;
+  }
+
+  /// Opens the demo conversation, to play from the start: listed again if
+  /// it was deleted, in the folder it was in, else [welcome]'s.
+  Future<void> showWelcomeDemo() async {
+    final welcome = this.welcome;
+    if (welcome == null) return;
+    var demo = _threads
+        .where((thread) => thread.record?.id == WelcomeDemo.sessionId)
+        .firstOrNull;
+    if (demo == null) {
+      final folder = _welcomeDemo?.folder ?? await welcome.folder();
+      final at = DateTime.now();
+      _welcomeDemo = (folder: folder, at: at);
+      _removed.remove(WelcomeDemo.sessionId);
+      _openProject(folder);
+      _save();
+      demo = await _addDemo(welcome, folder, at);
+    }
+    if (demo == null || _disposed) return;
+    // Played already: from the start again.
+    if (canReload(demo)) reload(demo);
+    select(demo);
+  }
+
+  /// Lists the demo conversation, in [folder]: its note written there for
+  /// it, read as Claude Code's sessions are; played as it opens.
+  Future<AgentThread?> _addDemo(
+    Welcome welcome,
+    String folder,
+    DateTime at,
+  ) async {
+    final kernel = kernels
+        .where((kernel) => kernel.id == KernelRegistry.claudeCode.id)
+        .firstOrNull;
+    if (kernel == null || _removed.contains(WelcomeDemo.sessionId)) {
+      return null;
+    }
+    final demo = await welcome.demo(folder, l10n().localeName);
+    if (demo == null || _disposed) return null;
+    final project = _project(folder);
+    _addKept(
+      welcomeKernel(kernel, demo.recording),
+      project,
+      SessionRecord(
+        id: WelcomeDemo.sessionId,
+        title: l10n().welcomeDemoTitle,
+        updatedAt: at,
+        cwd: folder,
+        path: demo.path,
+      ),
+      // Played as it opens, after its note; again to whatever is sent.
+      opened: (session) {
+        session.healthAs = (health) =>
+            welcomeHealth(health, note: l10n().welcomeDemoNoModel);
+        void play() {
+          if (session.loadingHistory) return;
+          session.removeListener(play);
+          // Not from within the kernel's own event, as it is told.
+          scheduleMicrotask(
+            () => session.send(ComposerMessage(text: demo.recording.prompt)),
+          );
+        }
+
+        session.addListener(play);
+        play();
+      },
+    );
+    return _threads
+        .where((thread) => thread.record?.id == WelcomeDemo.sessionId)
+        .firstOrNull;
   }
 
   Future<void>? _refreshing;
@@ -700,8 +812,9 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   void _addKept(
     KernelDescriptor kernel,
     Project project,
-    SessionRecord session,
-  ) {
+    SessionRecord session, {
+    void Function(ChatSession session)? opened,
+  }) {
     if (_removed.contains(session.id)) return;
     // Listed already, or it is an agent of this run.
     if (_threads.any(
@@ -728,21 +841,25 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
         updatedAt: session.updatedAt,
         pinned: _pinned.contains(id),
         archived: _archived.contains(id),
-        open: () => ChatSession(
-          kernel: kernel,
-          kernels: kernels,
-          kernelContext: KernelContext(
-            cwd: session.cwd,
-            resume: session,
-            // As it was left, or as a new agent starts.
-            settings: _setUp(session.cwd, {
-              ..._preferredSettings,
-              ...?_agentSettings[session.id],
-            }),
-            workspace: () => _kernelWorkspace(session.cwd),
-          ),
-          historyCount: 0,
-        ),
+        open: () {
+          final chat = ChatSession(
+            kernel: kernel,
+            kernels: kernels,
+            kernelContext: KernelContext(
+              cwd: session.cwd,
+              resume: session,
+              // As it was left, or as a new agent starts.
+              settings: _setUp(session.cwd, {
+                ..._preferredSettings,
+                ...?_agentSettings[session.id],
+              }),
+              workspace: () => _kernelWorkspace(session.cwd),
+            ),
+            historyCount: 0,
+          );
+          opened?.call(chat);
+          return chat;
+        },
       ),
     );
   }
@@ -2939,6 +3056,12 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
             int.tryParse(value) != null,
       );
     }
+    _welcomed = kept['welcomed'] == true;
+    if (kept['welcomeDemo']
+        case {'folder': final String folder, 'at': final String at}
+        when DateTime.tryParse(at) != null) {
+      _welcomeDemo = (folder: folder, at: DateTime.parse(at));
+    }
     if (kept['ignoredRecommendations'] case final List<Object?> ignored) {
       _ignoredRecommendations.addAll(ignored.whereType<String>());
     }
@@ -3111,6 +3234,9 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       'contextPicks': 1,
       'agents': _agentSettings,
       'ignoredRecommendations': [..._ignoredRecommendations],
+      if (_welcomed) 'welcomed': true,
+      if (_welcomeDemo case (:final folder, :final at))
+        'welcomeDemo': {'folder': folder, 'at': at.toIso8601String()},
       'sidebar': {
         'grouping': ?_sidebarGrouping,
         'projectSort': ?_projectSort?.name,
@@ -4253,6 +4379,10 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     if (!_threads.contains(thread)) return false;
     final id =
         thread.record?.id ?? (thread.isOpen ? thread.session.sessionId : null);
+    if (id == WelcomeDemo.sessionId && _welcomeDemo != null) {
+      _welcomeDemo = null;
+      if (save) _save();
+    }
     if (id != null) {
       _removed.add(id);
       _forgetDraft(id);
@@ -4261,7 +4391,8 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       final named = _names.remove(id) != null;
       if (save && (named || kept.contains(true))) _save();
     }
-    final catalog = thread.kernel.catalog;
+    // The demo's file is the app's, not one the kernel keeps.
+    final catalog = id == WelcomeDemo.sessionId ? null : thread.kernel.catalog;
     final listener = _listeners.remove(thread);
     if (listener != null) thread.session.removeListener(listener);
     _snapshots.remove(thread);

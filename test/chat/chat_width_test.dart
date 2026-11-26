@@ -17,20 +17,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 
 void main() {
-  tearDown(() => ChatWidth.current.value = ChatWidth.fallback);
-
-  test('settings.json\'s values: a width, full; unset or narrower is the '
-      'default', () {
-    expect(ChatWidth.parse(null), ChatWidth.fallback);
+  test('settings.json\'s values: a width, full; unset is the default, '
+      'narrower the narrowest', () {
+    expect(ChatWidth.parse(null), 1040);
     expect(ChatWidth.parse('wide'), ChatWidth.fallback);
-    expect(ChatWidth.parse(400), ChatWidth.fallback);
-    expect(ChatWidth.parse(1040), 1040);
+    expect(ChatWidth.parse(400), ChatWidth.narrowest);
+    expect(ChatWidth.parse(720), 720);
+    expect(ChatWidth.parse(1200), 1200);
     expect(ChatWidth.parse('full'), double.infinity);
     expect(ChatWidth.setting(ChatWidth.fallback), isNull);
-    expect(ChatWidth.setting(1040), 1040);
+    expect(ChatWidth.setting(720), 720);
     expect(ChatWidth.setting(double.infinity), 'full');
     // A width set by hand shows at the step nearest it.
-    expect(ChatWidth.stepOf(ChatWidth.fallback), 0);
+    expect(ChatWidth.stepOf(ChatWidth.narrowest), 0);
+    expect(ChatWidth.stepOf(ChatWidth.fallback), 2);
     expect(ChatWidth.stepOf(1000), 2);
     expect(ChatWidth.stepOf(1600), 3);
     expect(ChatWidth.stepOf(double.infinity), 4);
@@ -49,7 +49,7 @@ void main() {
       ),
     );
     double width() => tester.getSize(find.byType(ChatComposer).last).width;
-    expect(width(), ChatWidth.fallback);
+    expect(width(), ChatWidth.narrowest);
     ChatWidth.current.value = 1200;
     await tester.pump();
     expect(width(), 1200);
@@ -123,6 +123,7 @@ void main() {
     tester.view.physicalSize = const Size(900, 2000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
+    ChatWidth.current.value = ChatWidth.fallback;
     final data = (await tester.runAsync(
       () => Directory.systemTemp.createTemp('baocode-chat-width'),
     ))!;
@@ -161,7 +162,8 @@ void main() {
     expect(find.text('Full width'), findsOneWidget);
     await settle(tester, () => settings[ChatWidth.settingKey] == 'full');
     expect(settings[ChatWidth.settingKey], 'full');
-    await tester.tapAt(tester.getTopLeft(slider) + const Offset(4, 10));
+    // The default, the middle step: not written.
+    await tester.tapAt(tester.getCenter(slider));
     await tester.pump();
     expect(ChatWidth.current.value, ChatWidth.fallback);
     await settle(
@@ -169,6 +171,10 @@ void main() {
       () => !settings.values.containsKey(ChatWidth.settingKey),
     );
     expect(settings.values.containsKey(ChatWidth.settingKey), isFalse);
+    await tester.tapAt(tester.getTopLeft(slider) + const Offset(4, 10));
+    await tester.pump();
+    expect(ChatWidth.current.value, ChatWidth.narrowest);
+    await settle(tester, () => settings[ChatWidth.settingKey] == 720);
     // Dragging the thumb with the mouse picks nothing: only a click does.
     final drag = await tester.startGesture(
       tester.getTopLeft(slider) + const Offset(14, 10),
@@ -178,11 +184,11 @@ void main() {
     for (var i = 1; i <= 8; i++) {
       await drag.moveTo(tester.getTopLeft(slider) + Offset(14 + i * 18.0, 10));
       await tester.pump();
-      expect(ChatWidth.current.value, ChatWidth.fallback);
+      expect(ChatWidth.current.value, ChatWidth.narrowest);
     }
     await drag.up();
     await tester.pump();
-    expect(ChatWidth.current.value, ChatWidth.fallback);
+    expect(ChatWidth.current.value, ChatWidth.narrowest);
     // Removed outside the test's fake clock, where its file IO can finish.
     await tester.runAsync(() => data.delete(recursive: true));
     // The settings page's code preview highlights on timers: leave it, and

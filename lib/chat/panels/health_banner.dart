@@ -38,7 +38,7 @@ class _HealthBannerState extends State<HealthBanner> {
   Widget build(BuildContext context) {
     final health = widget.health;
     if ((health.noModel, widget.onSetUpModel) case (true, final setUp?)) {
-      return _NoModel(onSetUp: setUp);
+      return _NoModel(onSetUp: setUp, note: health.noModelNote);
     }
     final detail = health.detail?.trim();
     return Container(
@@ -120,9 +120,12 @@ class _HealthBannerState extends State<HealthBanner> {
 
 /// No model to run on yet: a model to set up, in the accent's colors.
 class _NoModel extends StatelessWidget {
-  const _NoModel({required this.onSetUp});
+  const _NoModel({required this.onSetUp, this.note});
 
   final VoidCallback onSetUp;
+
+  /// Said in place of [AppLocalizations.healthNoModel].
+  final String? note;
 
   @override
   Widget build(BuildContext context) {
@@ -140,7 +143,7 @@ class _NoModel extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              context.l10n.healthNoModel,
+              note ?? context.l10n.healthNoModel,
               style: TextStyle(color: AppColors.textPrimary, fontSize: 12.5),
             ),
           ),

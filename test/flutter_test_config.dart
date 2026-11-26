@@ -10,6 +10,8 @@ import 'package:bao_editor/textmate/textmate_manifest.dart'
     show textMateAssetRoot;
 import 'package:bao_editor/textmate/textmate_syntax.dart';
 import 'package:bao_editor/textmate/textmate_worker.dart';
+import 'package:baocode/chat/chat_width.dart';
+import 'package:baocode/chat/edit_detail.dart';
 import 'package:baocode/chat/user_message_style.dart';
 import 'package:baocode/customize/customize_view.dart';
 import 'package:baocode/ide/ide_diff_options.dart';
@@ -33,9 +35,10 @@ import 'semantics_tree.dart';
 /// caches futures, which answer in the zone of the test that made them.
 /// Each test starts in [testColorTheme], from its data as the app keeps
 /// it, without reading assets, and with the user's
-/// messages [UserMessageStyle.sticky], which the chat's tests were written
-/// for, not the app's default. The `code` command and
-/// the context menu are stand-ins, never installed: none looks at the
+/// messages [UserMessageStyle.sticky], edits shown as [EditDetail.card] and
+/// the conversation [ChatWidth.narrowest], which the chat's tests were
+/// written for, not the app's defaults. The
+/// `code` command and the context menu are stand-ins, never installed: none looks at the
 /// machine's own. No MCP server is started to see whether it answers, and
 /// neither the upstreams Settings → Models lists nor the Codex CLI's
 /// version is got from baocode.dev.
@@ -54,6 +57,8 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
     rootBundle.clear();
     ClaudeCore.current = () => ClaudeCore.cli;
     UserMessageStyle.current.value = UserMessageStyle.sticky;
+    EditDetail.current.value = EditDetail.card;
+    ChatWidth.current.value = ChatWidth.narrowest;
     ShellCommand.debugInstaller = _NoShellCommand();
     ContextMenu.debugInstaller = _NoContextMenu();
     CustomizeView.mcpProber = null;

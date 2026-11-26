@@ -109,12 +109,12 @@ class _ActivityStripState extends State<ActivityStrip> {
   /// Past this many rows, tasks scroll within the strip.
   static const _maxTaskRows = 4;
 
-  /// Past this many tasks, they fold under a line counting them, as the
-  /// files changed do.
+  /// Past this many tasks, a line counting them comes first, to fold them
+  /// under, as the files changed do; they show till it is clicked.
   static const _maxUnfoldedTasks = 3;
 
   bool _filesExpanded = false;
-  bool _tasksExpanded = false;
+  bool _tasksExpanded = true;
   Timer? _ticker;
 
   /// The files' tree's height as dragged; null for its own.

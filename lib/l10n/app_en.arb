@@ -866,6 +866,14 @@
   "@agentImageUntitled": {
     "description": "The title of an agent first asked something with images alone, none from a file (pasted)."
   },
+  "welcomeDemoTitle": "Demo: a rate limiter, compared and rewritten",
+  "@welcomeDemoTitle": {
+    "description": "The title of the demo conversation a new user first sees: nothing in it ran; what they send starts a conversation of their own."
+  },
+  "welcomeDemoNoModel": "This is a demo. To start a real conversation, set up a model of your own.",
+  "@welcomeDemoNoModel": {
+    "description": "Above the composer of the demo conversation, beside the Set Up a Model button, while no model is set up."
+  },
   "chatTitleSummarize": "Summarize into a new title",
   "@chatTitleSummarize": {
     "description": "In the list under a chat's title being renamed: has a model title the conversation from what the user asked."
@@ -7629,6 +7637,7 @@
   "cmdBrowserWelcome": "Connect Your Browser...",
   "cmdStashWelcome": "Meet Stash...",
   "cmdModelWelcome": "Set Up a Model...",
+  "cmdWelcomeDemo": "Show the Demo Conversation",
   "modelWelcomeTitle": "Pick a Model to Start",
   "modelWelcomeLead": "BaoCode runs your agents on a model of your choosing. Add an upstream, a service with an API key, and its models are ready to use.",
   "modelWelcomeAnyTitle": "Any upstream",

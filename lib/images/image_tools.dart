@@ -33,8 +33,10 @@ abstract final class ImageTools {
   static ModelProviders? _providers;
 
   /// Gives the agents the tool while there is an image model to make
-  /// pictures with, its list of them kept as they change.
+  /// pictures with, its list of them kept as they change; its calls show
+  /// as pictures all the same (those made before, the welcome demo's).
   static void start() {
+    ClaudeSdkTools.show(tool(const []));
     if (Platform.environment.containsKey('FLUTTER_TEST')) return;
     _providers?.removeListener(_sync);
     _providers = ModelProviders.current..addListener(_sync);

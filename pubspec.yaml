@@ -142,6 +142,8 @@ flutter:
     # Emojibase's emoji, for project icons (tool/generate_emoji.mjs).
     - assets/emoji/
     - assets/network/
+    # The demo conversation new users first see (tool/welcome_demo/export_test.dart).
+    - assets/welcome/
     # VS Code TextMate grammars and color themes (tool/generate_textmate_assets.mjs).
 
   # VS Code's icon font (tool/generate_codicons.mjs; lib/theme/codicons.dart).

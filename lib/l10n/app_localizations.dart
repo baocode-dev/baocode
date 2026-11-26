@@ -3332,6 +3332,18 @@ abstract class AppLocalizations {
   /// **'Image'**
   String get agentImageUntitled;
 
+  /// The title of the demo conversation a new user first sees: nothing in it ran; what they send starts a conversation of their own.
+  ///
+  /// In en, this message translates to:
+  /// **'Demo: a rate limiter, compared and rewritten'**
+  String get welcomeDemoTitle;
+
+  /// Above the composer of the demo conversation, beside the Set Up a Model button, while no model is set up.
+  ///
+  /// In en, this message translates to:
+  /// **'This is a demo. To start a real conversation, set up a model of your own.'**
+  String get welcomeDemoNoModel;
+
   /// In the list under a chat's title being renamed: has a model title the conversation from what the user asked.
   ///
   /// In en, this message translates to:
@@ -17544,6 +17556,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Set Up a Model...'**
   String get cmdModelWelcome;
+
+  /// No description provided for @cmdWelcomeDemo.
+  ///
+  /// In en, this message translates to:
+  /// **'Show the Demo Conversation'**
+  String get cmdWelcomeDemo;
 
   /// No description provided for @modelWelcomeTitle.
   ///

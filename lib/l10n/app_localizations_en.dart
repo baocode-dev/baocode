@@ -1832,6 +1832,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get agentImageUntitled => 'Image';
 
   @override
+  String get welcomeDemoTitle => 'Demo: a rate limiter, compared and rewritten';
+
+  @override
+  String get welcomeDemoNoModel =>
+      'This is a demo. To start a real conversation, set up a model of your own.';
+
+  @override
   String get chatTitleSummarize => 'Summarize into a new title';
 
   @override
@@ -10774,6 +10781,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cmdModelWelcome => 'Set Up a Model...';
+
+  @override
+  String get cmdWelcomeDemo => 'Show the Demo Conversation';
 
   @override
   String get modelWelcomeTitle => 'Pick a Model to Start';
