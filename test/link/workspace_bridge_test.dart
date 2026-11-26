@@ -835,6 +835,28 @@ void main() {
       'path': pdf.path,
     }) as Map;
     expect(base64.decode(download['data'] as String), pdf.readAsBytesSync());
+    // In pieces, of any size: a stretch at a time from the disk.
+    final video = File('${folder.path}/clip.mp4')
+      ..writeAsBytesSync([
+        for (var i = 0; i < LinkLimits.download + 3; i++) i % 256,
+      ]);
+    final inPieces = await withBots.handle(LinkMethods.download, {
+      'bot': 'assistant',
+      'path': video.path,
+      'pieces': true,
+    }) as LinkPieces;
+    expect(inPieces.size, video.lengthSync());
+    final parts = await inPieces.bytes.toList();
+    expect(parts.every((p) => p.length <= LinkLimits.piece), isTrue);
+    expect([for (final p in parts) ...p], video.readAsBytesSync());
+    expect(
+      withBots.handle(LinkMethods.download, {
+        'bot': 'assistant',
+        'path': '${folder.path}/none.mp4',
+        'pieces': true,
+      }),
+      throwsA(isA<LinkRemoteException>()),
+    );
     expect(
       withBots.handle(LinkMethods.read, {'bot': 'nobody', 'path': pdf.path}),
       throwsA(
@@ -884,6 +906,64 @@ void main() {
         'data': base64.encode(Uint8List(LinkLimits.upload + 1)),
       }),
       containsPair('tooLarge', true),
+    );
+  });
+
+  test('a file from the phone in pieces: of any size', () async {
+    final workspace = Workspace();
+    addTearDown(workspace.dispose);
+    final bots = Bots(workspace: workspace, folders: MemoryBotFolders());
+    await bots.start();
+    addTearDown(bots.dispose);
+    final (phone, desktop) = await peers();
+    final uploads = Directory.systemTemp.createTempSync('phone_uploads');
+    addTearDown(() => uploads.deleteSync(recursive: true));
+    final withBots = WorkspaceBridge(
+      workspace: workspace,
+      peer: desktop,
+      device: () => const DeviceInfo(name: 'PC', kind: 'pc', system: 'Win'),
+      bots: bots,
+      uploadsOf: (_, _) => '${uploads.path}/phone',
+    );
+    addTearDown(withBots.dispose);
+    desktop.onRequest = withBots.handle;
+    final bytes = Uint8List.fromList([
+      for (var i = 0; i < LinkLimits.upload + 5; i++) i % 253,
+    ]);
+    final answer = await phone.callWithPieces(
+      LinkMethods.uploadPieces,
+      {'bot': 'assistant', 'name': '录屏.mov'},
+      bytes.length,
+      Stream.fromIterable([
+        Uint8List.sublistView(bytes, 0, 1000),
+        Uint8List.sublistView(bytes, 1000),
+      ]),
+    ) as Map;
+    final path = answer['path'] as String;
+    expect(path, startsWith('${uploads.path}/phone/'));
+    expect(path, endsWith('/录屏.mov'));
+    expect(File(path).readAsBytesSync(), bytes);
+    // Cut short: nothing of it left.
+    final folders = uploads.listSync(recursive: true).whereType<File>().length;
+    Stream<Uint8List> half() async* {
+      yield Uint8List(10);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      throw const FileSystemException('gone');
+    }
+
+    await expectLater(
+      phone.callWithPieces(
+        LinkMethods.uploadPieces,
+        {'bot': 'assistant', 'name': 'half.bin'},
+        100,
+        half(),
+      ),
+      throwsA(anything),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(
+      uploads.listSync(recursive: true).whereType<File>(),
+      hasLength(folders),
     );
   });
 

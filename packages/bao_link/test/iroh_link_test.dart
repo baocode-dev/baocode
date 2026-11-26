@@ -1,12 +1,32 @@
 // The link over real iroh endpoints: on the loopback always; through real
 // baocode-relay processes (dev mode) when BAOCODE_RELAY names its binary.
 import 'dart:io';
+import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:bao_link/bao_link_io.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// [info]'s port on the loopback.
 List<String> loopback(LinkNodeInfo info) => ['127.0.0.1:${info.port}'];
+
+/// A file larger than one message may be (32 MiB), sent in pieces.
+const hugeSize = 36 << 20;
+
+/// Bytes that do not deflate, as a video's.
+final noise = () {
+  final random = Random(7);
+  return Uint8List.fromList([
+    for (var i = 0; i < 3 << 20; i++) random.nextInt(256),
+  ]);
+}();
+
+Stream<Uint8List> hugePieces() async* {
+  for (var sent = 0; sent < hugeSize; sent += noise.length) {
+    final length = min(hugeSize - sent, noise.length);
+    yield Uint8List.sublistView(noise, 0, length);
+  }
+}
 
 /// A desktop's answers: a big file, and events while it goes.
 LinkRequestHandler desktopAnswers(LinkPeer Function() peer) =>
@@ -20,6 +40,14 @@ LinkRequestHandler desktopAnswers(LinkPeer Function() peer) =>
             peer().emit(LinkEvents.state, {'n': i});
           }
           return {'text': 'y' * (3 << 20)};
+        case LinkMethods.download:
+          return LinkPieces(hugeSize, hugePieces());
+        case LinkMethods.uploadPieces:
+          var got = 0;
+          await for (final piece in LinkPeer.piecesOf(params)!.bytes) {
+            got += piece.length;
+          }
+          return {'got': got};
       }
       throw const LinkRemoteException('unknown', 'no');
     };
@@ -64,6 +92,39 @@ Future<void> exercise(
   expect(((read! as Map)['text'] as String).length, 3 << 20);
   await Future<void>.delayed(const Duration(milliseconds: 200));
   expect(events, [for (var i = 0; i < 50; i++) i]);
+
+  // A file larger than a message, each way, the control stream answering
+  // while it goes.
+  final down = await phone.fetch(LinkMethods.download) as LinkPieces;
+  expect(down.size, hugeSize);
+  var got = 0;
+  final hello = phone.call(LinkMethods.hello);
+  await for (final piece in down.bytes) {
+    expect(piece.length, lessThanOrEqualTo(LinkLimits.piece));
+    got += piece.length;
+  }
+  expect(got, hugeSize);
+  expect(await hello, {'device': 'mac'});
+  expect(
+    await phone.callWithPieces(
+      LinkMethods.uploadPieces,
+      const {},
+      hugeSize,
+      hugePieces(),
+    ),
+    {'got': hugeSize},
+  );
+  // Turned down by one that reads none of them (a desktop before pieces):
+  // its answer at once, not a send held back by flow control till it
+  // times out.
+  final turnedDown = Stopwatch()..start();
+  await expectLater(
+    phone.callWithPieces('uploadLater', const {}, hugeSize, hugePieces()),
+    throwsA(
+      isA<LinkRemoteException>().having((e) => e.code, 'code', 'unknown'),
+    ),
+  );
+  expect(turnedDown.elapsed, lessThan(const Duration(seconds: 5)));
   await phone.close();
   await theirs.done;
 }

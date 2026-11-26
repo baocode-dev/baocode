@@ -27,11 +27,28 @@ class LinkEvent {
 }
 
 /// Answers a request: what it returns (as JSON) is the result; a
-/// [LinkRemoteException] thrown, the error.
+/// [LinkRemoteException] thrown, the error. A request on a stream of its
+/// own ([LinkMethods.bulk]) may be answered with [LinkPieces], and may
+/// have come with them ([LinkPeer.piecesOf]).
 typedef LinkRequestHandler = FutureOr<Object?> Function(
   String method,
   Map<String, Object?> params,
 );
+
+/// A file's bytes, of any size, on a stream of their own: after the
+/// request ([LinkPeer.callWithPieces]), or after the answer, `{"size",
+/// "pieces": true}` ([LinkPeer.fetch]); one message a piece, of at most
+/// [LinkLimits.piece], till the stream is finished.
+class LinkPieces {
+  const LinkPieces(this.size, this.bytes);
+
+  /// All the bytes there are, as said beforehand.
+  final int size;
+
+  /// The bytes, in pieces as they come; an error if fewer than [size]
+  /// came. Listened to once; cancelled, the stream is given up.
+  final Stream<Uint8List> bytes;
+}
 
 /// Requests, answers and events, as JSON, over a [LinkConnection]: the same
 /// on both ends.
@@ -189,6 +206,167 @@ class LinkPeer {
     }
   }
 
+  /// Asks the other end [method] on a stream of its own, an answer of any
+  /// size: [LinkPieces] when it comes in them (waiting [idle] at most for
+  /// each), else the result as [call]'s.
+  Future<Object?> fetch(
+    String method, [
+    Map<String, Object?> params = const {},
+    Duration timeout = const Duration(seconds: 30),
+    Duration idle = const Duration(seconds: 30),
+  ]) async {
+    if (isClosed) throw const LinkClosedException('closed');
+    final stream = await connection.open();
+    final messages = StreamIterator(stream.messages);
+    try {
+      _write(stream, {'id': 0, 'm': method, 'p': params});
+      unawaited(stream.finish().catchError((Object _) {}));
+      if (!await messages.moveNext().timeout(timeout)) {
+        throw const LinkClosedException('no answer');
+      }
+      final result = _result(messages.current);
+      if (result case {'pieces': true, 'size': final int size}) {
+        return LinkPieces(size, _pieces(stream, messages, size, idle));
+      }
+      unawaited(messages.cancel());
+      return result;
+    } on TimeoutException {
+      stream.reset();
+      throw TimeoutException('$method took too long', timeout);
+    } on Object {
+      stream.reset();
+      rethrow;
+    }
+  }
+
+  /// Asks the other end [method] on a stream of its own, [pieces] (a
+  /// file's bytes, [size] of them, in any pieces) sent after the request,
+  /// waiting [idle] at most for the other end to take each; its result.
+  /// The other end gets them as [piecesOf] its params.
+  Future<Object?> callWithPieces(
+    String method,
+    Map<String, Object?> params,
+    int size,
+    Stream<Uint8List> pieces, {
+    Duration timeout = const Duration(seconds: 30),
+    Duration idle = const Duration(seconds: 30),
+  }) async {
+    if (isClosed) throw const LinkClosedException('closed');
+    final stream = await connection.open();
+    final messages = StreamIterator(stream.messages);
+    // An answer before all is sent (turned down, a desktop before pieces,
+    // which reads none of them, its flow control holding a send back): no
+    // more of them.
+    final answered = messages.moveNext();
+    var done = false;
+    final settled = answered
+        .then((_) {}, onError: (Object _) {})
+        .whenComplete(() => done = true);
+    try {
+      _write(stream, {
+        'id': 0,
+        'm': method,
+        'p': {...params, 'size': size},
+        'pieces': true,
+      });
+      var sent = 0;
+      await for (final piece in pieces) {
+        for (final part in _parts(piece)) {
+          if (done) break;
+          final send = stream.send(part)..catchError((Object _) {});
+          await Future.any([send, settled]).timeout(idle);
+          if (done) break;
+          sent += part.length;
+        }
+        if (done) break;
+      }
+      if (!done && sent != size) {
+        throw StateError('$sent bytes of $size');
+      }
+      final early = done;
+      if (!early) await stream.finish().timeout(idle);
+      if (!await answered.timeout(timeout)) {
+        throw const LinkClosedException('no answer');
+      }
+      // Not all sent: the rest, queued, dropped.
+      if (early) stream.reset();
+      return _result(messages.current);
+    } on TimeoutException {
+      stream.reset();
+      throw TimeoutException('$method took too long', timeout);
+    } on Object {
+      stream.reset();
+      rethrow;
+    } finally {
+      unawaited(messages.cancel());
+    }
+  }
+
+  /// The pieces sent with the request [params] came in, if it came with
+  /// any ([callWithPieces]).
+  static LinkPieces? piecesOf(Map<String, Object?> params) =>
+      switch (params[_piecesKey]) {
+        final LinkPieces pieces => pieces,
+        _ => null,
+      };
+
+  /// Where [piecesOf] finds them: no key of JSON's, which a request could
+  /// only give a string or such, never [LinkPieces].
+  static const _piecesKey = r'$pieces';
+
+  /// [bytes] in parts of at most [LinkLimits.piece].
+  static Iterable<Uint8List> _parts(Uint8List bytes) sync* {
+    if (bytes.length <= LinkLimits.piece) {
+      yield bytes;
+      return;
+    }
+    for (var start = 0; start < bytes.length; start += LinkLimits.piece) {
+      final end = start + LinkLimits.piece;
+      yield Uint8List.sublistView(
+        bytes,
+        start,
+        end < bytes.length ? end : bytes.length,
+      );
+    }
+  }
+
+  /// What is left of [messages], [stream]'s, as the pieces of [size]
+  /// bytes; each waited on [idle] at most. Given up when no longer
+  /// listened to.
+  static Stream<Uint8List> _pieces(
+    LinkStream stream,
+    StreamIterator<Uint8List> messages,
+    int size,
+    Duration idle,
+  ) async* {
+    var got = 0;
+    var ended = false;
+    try {
+      while (await messages.moveNext().timeout(idle)) {
+        got += messages.current.length;
+        if (got > size) throw StateError('More than $size bytes');
+        yield messages.current;
+      }
+      ended = true;
+      if (got != size) {
+        throw LinkClosedException('$got bytes of $size');
+      }
+    } finally {
+      if (!ended) {
+        stream.reset();
+        unawaited(messages.cancel());
+      }
+    }
+  }
+
+  /// An answer's result; its error thrown.
+  static Object? _result(Uint8List message) => switch (_decode(message)) {
+    {'e': {'c': final String code, 'm': final String text}} =>
+      throw LinkRemoteException(code, text),
+    final Map<String, Object?> answer => answer['r'],
+    _ => throw const LinkRemoteException('failed', 'Bad answer'),
+  };
+
   /// Tells the other end [name].
   void emit(String name, [Object? data]) {
     if (!isClosed) _write(_control, {'ev': name, 'p': data});
@@ -216,7 +394,16 @@ class LinkPeer {
       case {'id': final int id, 'm': final String method}:
         unawaited(
           _answer(method, message['p']).then((answer) {
-            if (!isClosed) _write(_control, {'id': id, ...answer});
+            if (isClosed) return;
+            _write(_control, {
+              'id': id,
+              // Pieces go on a stream of their own, not this one.
+              ...answer['r'] is LinkPieces
+                  ? const {
+                      'e': {'c': 'failed', 'm': 'Pieces on the control stream'},
+                    }
+                  : answer,
+            });
           }),
         );
       case {
@@ -295,21 +482,60 @@ class LinkPeer {
   }
 
   Future<void> _serve(LinkStream stream) async {
+    final messages = StreamIterator(stream.messages);
     try {
-      final message = await stream.messages.first.timeout(
-        const Duration(seconds: 30),
-      );
-      final request = _decode(message);
-      final answer = request is Map<String, Object?> && request['m'] is String
-          ? await _answer(request['m']! as String, request['p'])
-          : const {
-              'e': {'c': 'failed', 'm': 'Bad request'},
-            };
+      if (!await messages.moveNext().timeout(const Duration(seconds: 30))) {
+        throw const LinkClosedException('no request');
+      }
+      final request = _decode(messages.current);
+      final Map<String, Object?> answer;
+      if (request is Map<String, Object?> && request['m'] is String) {
+        var params = switch (request['p']) {
+          final Map<String, Object?> params => params,
+          _ => const <String, Object?>{},
+        };
+        if (request['pieces'] == true) {
+          final size = params['size'];
+          if (size is! int || size < 0) {
+            throw const LinkRemoteException('bad', 'No size');
+          }
+          params = {
+            ...params,
+            _piecesKey: LinkPieces(
+              size,
+              _pieces(stream, messages, size, const Duration(seconds: 30)),
+            ),
+          };
+        }
+        answer = await _answer(request['m']! as String, params);
+      } else {
+        answer = const {
+          'e': {'c': 'failed', 'm': 'Bad request'},
+        };
+      }
       if (isClosed) return;
-      _write(stream, {'id': 0, ...answer});
+      if (answer['r'] case final LinkPieces pieces) {
+        _write(stream, {
+          'id': 0,
+          'r': {'size': pieces.size, 'pieces': true},
+        });
+        var sent = 0;
+        await for (final piece in pieces.bytes) {
+          for (final part in _parts(piece)) {
+            await stream.send(part);
+            sent += part.length;
+          }
+        }
+        // Fewer than said: given up, for the other end to see it cut short.
+        if (sent != pieces.size) throw StateError('$sent of ${pieces.size}');
+      } else {
+        _write(stream, {'id': 0, ...answer});
+      }
       await stream.finish();
     } on Object {
       stream.reset();
+    } finally {
+      unawaited(messages.cancel());
     }
   }
 

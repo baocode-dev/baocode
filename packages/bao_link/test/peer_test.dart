@@ -101,6 +101,109 @@ void main() {
     expect(await phone.call('state'), 'ok');
   });
 
+  group('pieces', () {
+    Uint8List bytesOf(int length) =>
+        Uint8List.fromList([for (var i = 0; i < length; i++) i % 251]);
+
+    Future<Uint8List> gather(Stream<Uint8List> pieces) async {
+      final all = BytesBuilder(copy: false);
+      await pieces.forEach(all.add);
+      return all.takeBytes();
+    }
+
+    test('an answer of any size comes in pieces', () async {
+      final file = bytesOf(LinkLimits.piece * 2 + 10);
+      final (phone, _, counting) = await pair(
+        onRequest: (method, params) => switch (method) {
+          // One piece too large for a message: sent in parts.
+          LinkMethods.download when params['pieces'] == true => LinkPieces(
+            file.length,
+            Stream.value(file),
+          ),
+          LinkMethods.download => {'tooLarge': true},
+          _ => 'ok',
+        },
+      );
+      final answer = await phone.fetch(LinkMethods.download, {'pieces': true});
+      expect(answer, isA<LinkPieces>());
+      final pieces = answer! as LinkPieces;
+      expect(pieces.size, file.length);
+      final parts = await pieces.bytes.toList();
+      expect(parts, hasLength(3));
+      expect(parts.every((p) => p.length <= LinkLimits.piece), isTrue);
+      expect(
+        Uint8List.fromList([for (final p in parts) ...p]),
+        orderedEquals(file),
+      );
+      expect(counting.opened, 2);
+      // An answer not in pieces (a desktop before them), as it is.
+      expect(await phone.fetch(LinkMethods.download), {'tooLarge': true});
+      expect(await phone.call('state'), 'ok');
+    });
+
+    test('fewer pieces than said is an error', () async {
+      final (phone, _, _) = await pair(
+        onRequest: (method, params) => LinkPieces(10, Stream.value(bytesOf(4))),
+      );
+      final pieces = await phone.fetch(LinkMethods.download) as LinkPieces;
+      await expectLater(gather(pieces.bytes), throwsA(anything));
+    });
+
+    test('a request comes with pieces', () async {
+      final file = bytesOf(LinkLimits.piece + 5);
+      Uint8List? got;
+      final (phone, _, _) = await pair(
+        onRequest: (method, params) async {
+          final pieces = LinkPeer.piecesOf(params);
+          if (pieces == null) return 'none';
+          got = await gather(pieces.bytes);
+          return {'path': params['name'], 'size': pieces.size};
+        },
+      );
+      final answer = await phone.callWithPieces(
+        LinkMethods.uploadPieces,
+        {'name': 'a.bin'},
+        file.length,
+        Stream.fromIterable([
+          Uint8List.sublistView(file, 0, 3),
+          Uint8List.sublistView(file, 3),
+        ]),
+      );
+      expect(answer, {'path': 'a.bin', 'size': file.length});
+      expect(got, orderedEquals(file));
+      // None sent with a plain request, whatever its params say.
+      expect(await phone.fetch(LinkMethods.upload, {r'$pieces': 'x'}), 'none');
+    });
+
+    test('a request with pieces turned down stops sending', () async {
+      final (phone, _, _) = await pair(
+        onRequest: (method, params) =>
+            throw const LinkRemoteException('unknown', 'No such request'),
+      );
+      var asked = 0;
+      Stream<Uint8List> endless() async* {
+        while (true) {
+          asked++;
+          await Future<void>.delayed(const Duration(milliseconds: 1));
+          yield bytesOf(1000);
+        }
+      }
+
+      await expectLater(
+        phone.callWithPieces(
+          LinkMethods.uploadPieces,
+          const {},
+          1 << 30,
+          endless(),
+        ),
+        throwsA(
+          isA<LinkRemoteException>().having((e) => e.code, 'code', 'unknown'),
+        ),
+      );
+      expect(asked, lessThan(1000));
+    });
+  });
+
   test('the end of the connection fails what waits on it', () async {
     final never = Completer<Object?>();
     final (phone, desktop, _) = await pair(
