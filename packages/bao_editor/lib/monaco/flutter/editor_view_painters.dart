@@ -1048,7 +1048,7 @@ class EditorCaretPainter extends CustomPainter {
     if (offset < contentEnd) {
       final unit = text.codeUnitAt(offset);
       final pair = unit >= 0xD800 && unit <= 0xDBFF && offset + 1 < contentEnd;
-      next = text.substring(offset, offset + (pair ? 2 : 1));
+      next = displayText(text.substring(offset, offset + (pair ? 2 : 1)));
     }
     var left = caret.left;
     var width = layout.spaceWidth;

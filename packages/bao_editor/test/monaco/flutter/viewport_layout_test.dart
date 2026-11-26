@@ -276,6 +276,42 @@ void main() {
     );
   });
 
+  test('control characters and unusual line terminators stay on one row', () {
+    // The paragraph would break at these (a vertical tab, form feed, NEL,
+    // line and paragraph separators), the model does not: like Monaco, they
+    // show as symbols, one code unit each.
+    const text = 'a\x0Bb\x0Cc\u0085d\u2028e\u2029f\x01g\x7Fh\uFEFFi';
+    final plain = layout('x');
+    final geometry = layout(text);
+    final styled = layout(
+      text,
+      styledLines: {
+        1: const [
+          TextSpan(
+            text: 'a\x0Bb\x0Cc\u0085',
+            style: TextStyle(color: Color(0xffff0000)),
+          ),
+          TextSpan(text: 'd\u2028e\u2029f\x01g\x7Fh\uFEFFi'),
+        ],
+      },
+    );
+    addTearDown(() {
+      plain.dispose();
+      geometry.dispose();
+      styled.dispose();
+    });
+    for (final shaped in [geometry, styled]) {
+      expect(shaped.rows.single.height, plain.rows.single.height);
+      expect(shaped.contentHeight, plain.contentHeight);
+      final y = shaped.caretRect(0).top;
+      for (var offset = 1; offset <= text.length; offset++) {
+        final caret = shaped.caretRect(offset);
+        expect(caret.top, y);
+        expect(caret.left, greaterThan(shaped.caretRect(offset - 1).left));
+      }
+    }
+  });
+
   test('text scaling changes measured advances, heights and wrapping', () {
     final plain = layout('WW WW WW', viewport: const Size(80, 180), wrap: true);
     final scaled = layout(

@@ -1481,6 +1481,39 @@ List<int> tabAdvances(String content, int tabSize) {
   return result;
 }
 
+/// Whether [content] has a character [displayText] shows as another.
+bool _hasControl(String content) {
+  for (var i = 0; i < content.length; i++) {
+    if (_displayUnit(content.codeUnitAt(i)) != null) return true;
+  }
+  return false;
+}
+
+/// What renderLine shows for [unit] in its place, or null for itself:
+/// control characters (bar the tab) as their Control Pictures, the
+/// unusual line terminators and the BOM as U+FFFD. The paragraph would
+/// break at a vertical tab, form feed or separator the model keeps in the
+/// line, and draw it over the lines below.
+int? _displayUnit(int unit) {
+  if (unit < 0x20) return unit == 0x09 ? null : 0x2400 + unit;
+  if (unit == 0x7F) return 0x2421;
+  if (unit == 0x85 || unit == 0x2028 || unit == 0x2029 || unit == 0xFEFF) {
+    return 0xFFFD;
+  }
+  return null;
+}
+
+/// [content] as the editor shows it ([_displayUnit]), one code unit for
+/// each: offsets stay the model's.
+String displayText(String content) {
+  if (!_hasControl(content)) return content;
+  final units = List<int>.of(content.codeUnits);
+  for (var i = 0; i < units.length; i++) {
+    units[i] = _displayUnit(units[i]) ?? units[i];
+  }
+  return String.fromCharCodes(units);
+}
+
 /// Measured, document-position-independent paragraph geometry. Only identical
 /// text, styled spans and injections can share it.
 ///
@@ -1556,6 +1589,14 @@ class _LineShape {
     child: SizedBox.shrink(),
   );
 
+  static TextSpan _displaySpan(TextSpan span) => TextSpan(
+    text: span.text == null ? null : displayText(span.text!),
+    style: span.style,
+    children: span.children
+        ?.map((child) => child is TextSpan ? _displaySpan(child) : child)
+        .toList(),
+  );
+
   static PlaceholderDimensions _dimensions(double width) =>
       PlaceholderDimensions(
         size: Size(width, 0),
@@ -1579,10 +1620,15 @@ class _LineShape {
     List<PlaceholderDimensions> dimensions,
   ) {
     final tabs = tabSize != null && content.contains('\t');
+    // As shown ([displayText]): the same length, so offsets hold.
+    final shown = displayText(content);
+    final shownSpans = spans == null || identical(shown, content)
+        ? spans
+        : [for (final span in spans!) _displaySpan(span)];
     if (!tabs && injections.isEmpty && overflow == 0) {
-      return spans == null
-          ? TextSpan(text: content, style: style)
-          : TextSpan(style: style, children: spans);
+      return shownSpans == null
+          ? TextSpan(text: shown, style: style)
+          : TextSpan(style: style, children: shownSpans);
     }
     final tabColumns = tabs ? tabAdvances(content, tabSize) : const <int>[];
     final runs = <(String, TextStyle?)>[];
@@ -1597,12 +1643,12 @@ class _LineShape {
       }
     }
 
-    if (spans case final spans?) {
+    if (shownSpans case final spans?) {
       for (final span in spans) {
         flatten(span, null);
       }
-    } else if (content.isNotEmpty) {
-      runs.add((content, null));
+    } else if (shown.isNotEmpty) {
+      runs.add((shown, null));
     }
     final kinds = <int>[];
     final children = <InlineSpan>[];
