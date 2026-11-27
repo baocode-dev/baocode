@@ -38,6 +38,8 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import '../../chat/composer/composer_files.dart';
+import '../../chat/composer/file_drop.dart';
 import '../../keybindings/keybinding_service.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/code_font.dart';
@@ -51,6 +53,7 @@ import 'shell_integration/decoration_addon.dart';
 import 'shell_integration/decoration_styles.dart';
 import 'shell_integration/shell_integration.dart';
 import 'terminal_clipboard.dart';
+import 'terminal_file_drop.dart';
 import 'terminal_find.dart';
 import 'terminal_instance.dart';
 import 'terminal_keyboard.dart';
@@ -123,7 +126,9 @@ class TerminalView extends StatefulWidget {
   State<TerminalView> createState() => _TerminalViewState();
 }
 
-class _TerminalViewState extends State<TerminalView> with TextInputClient {
+class _TerminalViewState extends State<TerminalView>
+    with TextInputClient
+    implements FileDropDelegate {
   final _render = TerminalRenderController();
   final _subscriptions = DisposableStore();
   final _findText = TextEditingController();
@@ -933,11 +938,31 @@ class _TerminalViewState extends State<TerminalView> with TextInputClient {
     );
   }
 
+  void _dropFiles(List<ComposerFile> files) {
+    if (widget.mirror || _instance.exited) return;
+    final text = terminalFileDropText(
+      files.map((file) => file.path),
+      shell: _instance.launch?.executable ?? '',
+    );
+    if (text == null) return;
+    _instance.sendText(text, bracketedPasteMode: true);
+    _instance.focus();
+  }
+
+  @override
+  void fileDragOver(Offset position, List<ComposerFile> files) {}
+
+  @override
+  void fileDragLeave() {}
+
+  @override
+  void fileDrop(Offset position, List<ComposerFile> files) => _dropFiles(files);
+
   @override
   Widget build(BuildContext context) {
     final instance = _instance;
     final mirror = widget.mirror;
-    return CallbackShortcuts(
+    final content = CallbackShortcuts(
       bindings: mirror ? const {} : _findKeys,
       child: LayoutBuilder(
         builder: (context, constraints) => Stack(
@@ -947,6 +972,16 @@ class _TerminalViewState extends State<TerminalView> with TextInputClient {
             if (!mirror && instance.find.isVisible) _findWidget(constraints),
           ],
         ),
+      ),
+    );
+    if (mirror) return content;
+    return FileDropRegion(
+      delegate: this,
+      child: DragTarget<FileDragData>(
+        onWillAcceptWithDetails: (details) =>
+            !instance.exited && details.data.files.isNotEmpty,
+        onAcceptWithDetails: (details) => _dropFiles(details.data.files),
+        builder: (context, candidates, rejected) => content,
       ),
     );
   }
