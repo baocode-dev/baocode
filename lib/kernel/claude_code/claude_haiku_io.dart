@@ -145,17 +145,17 @@ Future<(String, int)> _run(
   }
   final cli = await LocalClaude.locate(install: false);
   // In a file: it may hold a provider's key, and a shell (Windows') would
-  // mangle it on the command line.
+  // mangle it on the command line. Disable commit/PR attribution so auxiliary
+  // calls (such as Generate Commit Message) never pick up agent signatures.
   final settings = {
+    'attribution': const {'commit': '', 'pr': ''},
     'env': ?env,
     // A provider's model, not swapped for one of Claude's (#219).
     if (env != null && model != null)
       'availableModels': allowedModels(env, [model]),
     ...?tools?.settings,
   };
-  final settingsFile = settings.isEmpty
-      ? null
-      : await ClaudeSettingsFile.write(settings);
+  final settingsFile = await ClaudeSettingsFile.write(settings);
   final proxy = await NetworkProxy.instance.environment();
   // The machine's own certificates, as the app's requests trust them.
   final certificates = await nodeCertificatesEnvironment(cli.environment);
@@ -190,15 +190,13 @@ Future<(String, int)> _run(
       runInShell: cli.throughShell,
     );
   } on ProcessException catch (error) {
-    if (settingsFile != null) await ClaudeSettingsFile.delete(settingsFile);
+    await ClaudeSettingsFile.delete(settingsFile);
     throw ClaudeHaikuException('Claude Code could not start: ${error.message}');
   }
   onStart?.call();
-  if (settingsFile != null) {
-    unawaited(
-      process.exitCode.then((_) => ClaudeSettingsFile.delete(settingsFile)),
-    );
-  }
+  unawaited(
+    process.exitCode.then((_) => ClaudeSettingsFile.delete(settingsFile)),
+  );
   var cancelled = false;
   unawaited(
     cancel?.then((_) {
@@ -264,6 +262,7 @@ Future<(String, int)> _runBuiltin(
     permissionMode: 'dontAsk',
     persist: false,
     flagSettings: {
+      'attribution': const {'commit': '', 'pr': ''},
       'env': ?env,
       if (env != null && model != null)
         'availableModels': allowedModels(env, [model]),
