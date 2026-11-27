@@ -137,4 +137,4 @@ own licenses, found next to them in the source tree.
 BaoCode is an independent project, not affiliated with or endorsed by
 Anthropic.
 
-<img width="720" alt="Scan to join the BaoCode WeChat group" src="site/readme/wechat-group.jpg" />
+<img width="480" alt="Scan to join the BaoCode WeChat group" src="site/readme/wechat-group.jpg" />
