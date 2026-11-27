@@ -17,6 +17,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 
+import '../../settings/user_settings.dart';
 import 'git_model.dart';
 import 'git_service.dart';
 
@@ -32,6 +33,51 @@ bool isGitPushRejected(Object error) {
       message.contains('先获取') ||
       message.contains('非快进') ||
       message.contains('更新被拒绝');
+}
+
+/// `git.autofetchInterval`: seconds between background fetches of the current
+/// branch's remote, so incoming commits appear without a manual Fetch.
+/// Defaults to 3 minutes (180 s, matching VS Code's `git.autofetchPeriod`);
+/// 0 disables it.
+abstract final class GitAutoFetchSetting {
+  static const settingKey = 'git.autofetchInterval';
+  static const defaultInterval = Duration(minutes: 3);
+
+  /// The interval currently in force. Starts at [Duration.zero] until [follow]
+  /// is wired at startup, so tests do not run background timers unless they
+  /// opt in.
+  static final ValueNotifier<Duration> interval = ValueNotifier(Duration.zero);
+
+  static UserSettings? _settings;
+  static VoidCallback? _listener;
+
+  /// Parses [setting] as settings.json keeps it: unset or unrecognized falls
+  /// back to [defaultInterval]; 0, negative, or `false` disables auto-fetch.
+  static Duration parse(Object? setting) => switch (setting) {
+    null => defaultInterval,
+    false => Duration.zero,
+    final int seconds when seconds <= 0 => Duration.zero,
+    final int seconds => Duration(seconds: seconds),
+    _ => defaultInterval,
+  };
+
+  /// Value to store in settings.json; null removes the key for the default.
+  static int? setting(Duration duration) {
+    if (duration == defaultInterval) return null;
+    return duration <= Duration.zero ? 0 : duration.inSeconds;
+  }
+
+  /// Sets [interval] from [settings] now and whenever it changes.
+  static void follow(UserSettings settings) {
+    if (_listener case final previous?) {
+      _settings?.removeListener(previous);
+    }
+    _settings = settings;
+    void update() => interval.value = parse(settings[settingKey]);
+    _listener = update;
+    update();
+    settings.addListener(update);
+  }
 }
 
 /// [IdeGitRepository.graphBranch] for the current branch and its upstream.
@@ -58,6 +104,8 @@ class IdeGitRepository extends ChangeNotifier {
     this.refreshDelay = const Duration(milliseconds: 500),
   }) {
     unawaited(refresh());
+    _armAutoFetch();
+    GitAutoFetchSetting.interval.addListener(_onAutoFetchSettingChanged);
   }
 
   final IdeGitService service;
@@ -70,6 +118,8 @@ class IdeGitRepository extends ChangeNotifier {
   bool _loaded = false;
   bool _disposed = false;
   Timer? _refreshTimer;
+  Timer? _autoFetchTimer;
+  bool _autoFetching = false;
   StreamSubscription<void>? _watcher;
   Future<void> _queue = Future.value();
   Future<void>? _pendingRefresh;
@@ -150,6 +200,51 @@ class IdeGitRepository extends ChangeNotifier {
   void scheduleRefresh() {
     if (_disposed || (_refreshTimer?.isActive ?? false)) return;
     _refreshTimer = Timer(refreshDelay, () => unawaited(refresh()));
+  }
+
+  void _onAutoFetchSettingChanged() {
+    if (!_autoFetching) _armAutoFetch();
+  }
+
+  /// Arms the next one-shot background fetch when the user enabled a positive
+  /// interval. Re-armed only after each fetch finishes so slow networks cannot
+  /// queue up overlapping fetches.
+  void _armAutoFetch() {
+    _autoFetchTimer?.cancel();
+    _autoFetchTimer = null;
+    final interval = GitAutoFetchSetting.interval.value;
+    if (_disposed || _autoFetching || interval <= Duration.zero) return;
+    _autoFetchTimer = Timer(interval, () => unawaited(_runAutoFetch()));
+  }
+
+  /// Fetches the current branch's upstream remote in the background without
+  /// flipping [busy], overwriting [error], or throwing unhandled errors when
+  /// offline.
+  Future<void> _runAutoFetch() async {
+    if (_disposed || _autoFetching) return;
+    _autoFetching = true;
+    try {
+      if (_state?.head.upstream == null) return;
+      var fetched = false;
+      await _enqueue(background: true, () async {
+        if (_disposed) return;
+        final upstream = _state?.head.upstream;
+        if (upstream == null) return;
+        try {
+          final (remote, _) = splitUpstream(upstream, await service.remotes());
+          if (_disposed) return;
+          await service.fetch(remote: remote, tags: false);
+          fetched = true;
+        } catch (_) {
+          // Offline, auth failure, or unreachable remote: stay quiet and try
+          // again on the next interval.
+        }
+      });
+      if (fetched && !_disposed) await refresh(force: true);
+    } finally {
+      _autoFetching = false;
+      if (!_disposed) _armAutoFetch();
+    }
   }
 
   void _watch(String root) {
@@ -922,6 +1017,8 @@ class IdeGitRepository extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _refreshTimer?.cancel();
+    _autoFetchTimer?.cancel();
+    GitAutoFetchSetting.interval.removeListener(_onAutoFetchSettingChanged);
     unawaited(_watcher?.cancel());
     super.dispose();
   }

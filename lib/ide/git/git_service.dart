@@ -911,12 +911,17 @@ class IdeGitService {
     );
   }
 
-  /// `git fetch <remote> --tags` for one remote, or `git fetch --all
-  /// --tags` for every remote (`git.fetch`/`git.fetchAll`).
-  Future<void> fetch({String? remote}) async {
+  /// `git fetch <remote> [--tags]` for one remote, or `git fetch --all
+  /// [--tags]` for every remote (`git.fetch`/`git.fetchAll`).
+  Future<void> fetch({String? remote, bool tags = true}) async {
     await _requireRoot();
     _check(
-      await _git(['fetch', ?remote, if (remote == null) '--all', '--tags']),
+      await _git([
+        'fetch',
+        ?remote,
+        if (remote == null) '--all',
+        if (tags) '--tags',
+      ]),
       remote == null ? 'Cannot fetch from all remotes.' : 'Cannot fetch.',
     );
   }

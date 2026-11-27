@@ -575,8 +575,9 @@ void followSettingsFiles(SettingsFiles files) {
       ClaudePathSetting.parse(files.settings[ClaudePathSetting.settingKey]);
   // Settings → SSH Servers: whether local user-level skills are projected to
   // remote kernels on SSH/WSL hosts.
-  RemoteSkillsSetting.current = () =>
-      RemoteSkillsSetting.enabled(files.settings[RemoteSkillsSetting.settingKey]);
+  RemoteSkillsSetting.current = () => RemoteSkillsSetting.enabled(
+    files.settings[RemoteSkillsSetting.settingKey],
+  );
   // Settings → General → Claude Code: the core sessions run on (BaoCode's
   // own, or the CLI), read as each agent starts. Unset, the CLI where it
   // is installed (looked for on the app's PATH, then the shell's), else
@@ -699,6 +700,9 @@ void followSettingsFiles(SettingsFiles files) {
   EditorWordWrap.follow(files.settings);
   // Whether the code editors show their minimap.
   EditorMinimap.follow(files.settings);
+  // settings.json's git.autofetchInterval: seconds between background
+  // fetches of the current branch's remote (180 s by default, 0 for off).
+  GitAutoFetchSetting.follow(files.settings);
 }
 
 /// The app's updates (lib/update/): looked for as settings.json's
