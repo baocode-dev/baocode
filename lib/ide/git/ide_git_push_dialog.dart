@@ -124,18 +124,19 @@ class _IdeGitPushDialogState extends State<IdeGitPushDialog> {
 
   Future<void> _push({bool force = false}) async {
     final l10n = context.l10n;
+    final notifications = widget.notifications;
+    final tags = _tags;
     final pushes = [
       for (final push in _pushes)
-        if (push.included && push.target.text.trim().isNotEmpty) push,
+        if (push.included && push.target.text.trim().isNotEmpty)
+          (git: push.git, remote: push.remote, target: push.target.text.trim()),
     ];
     if (pushes.isEmpty) return;
     if (force) {
       final answer = await showIdeDialog(
         context,
         message: l10n.gitPushForceConfirm(
-          pushes
-              .map((push) => '${push.remote}/${push.target.text.trim()}')
-              .join(', '),
+          pushes.map((push) => '${push.remote}/${push.target}').join(', '),
         ),
         detail: l10n.gitPushForceDetail,
         buttons: [l10n.gitPushForce],
@@ -143,16 +144,43 @@ class _IdeGitPushDialogState extends State<IdeGitPushDialog> {
       if (answer != 0 || !mounted) return;
     }
     Navigator.of(context).pop();
+    Future<void> runSync(IdeGitRepository git) async {
+      try {
+        await git.sync();
+      } catch (error) {
+        notifications.notify(IdeSeverity.error, '$error');
+      }
+    }
+
     for (final push in pushes) {
       try {
         await push.git.pushTo(
           push.remote,
-          push.target.text.trim(),
+          push.target,
           force: force,
-          tags: _tags,
+          tags: tags,
         );
       } catch (error) {
-        widget.notifications.notify(IdeSeverity.error, '$error');
+        // Refused because the remote moved on: offer pull-then-push when
+        // pushing directly to the branch's upstream (same as SCM's Push).
+        final upstream = push.git.state?.head.upstream;
+        if (!force &&
+            !tags &&
+            upstream == '${push.remote}/${push.target}' &&
+            isGitPushRejected(error)) {
+          notifications.notify(
+            IdeSeverity.error,
+            '$error',
+            primary: [
+              IdeNotificationAction(
+                l10n.scmSyncChanges,
+                () => unawaited(runSync(push.git)),
+              ),
+            ],
+          );
+        } else {
+          notifications.notify(IdeSeverity.error, '$error');
+        }
       }
     }
   }

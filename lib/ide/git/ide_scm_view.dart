@@ -811,7 +811,28 @@ class IdeScmViewState extends State<IdeScmView>
   }
 
   void _report(Object error) {
-    if (mounted) widget.notifications.notify(IdeSeverity.error, '$error');
+    if (!mounted) return;
+    final git = _git;
+    // A push refused because the remote moved on: offer the pull-then-push
+    // [IdeGitRepository.sync] here, so the user need not hunt through the
+    // menus for Fetch/Pull and retry. Only when the branch has an upstream,
+    // since [IdeGitRepository.sync] is a no-op without one.
+    if (git != null &&
+        git.state?.head.upstream != null &&
+        isGitPushRejected(error)) {
+      widget.notifications.notify(
+        IdeSeverity.error,
+        '$error',
+        primary: [
+          IdeNotificationAction(
+            context.l10n.scmSyncChanges,
+            () => unawaited(_run(git.sync)),
+          ),
+        ],
+      );
+      return;
+    }
+    widget.notifications.notify(IdeSeverity.error, '$error');
   }
 
   Future<void> _run(Future<void> Function() operation) async {
