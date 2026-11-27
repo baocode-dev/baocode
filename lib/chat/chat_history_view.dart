@@ -513,11 +513,35 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
 
   /// The editor opening: its placeholder grows from the message's height
   /// to the editor's, and the editor shows as much of itself as it does.
-  late final AnimationController _editorReveal =
-      AnimationController(vsync: this, duration: _motionDuration, value: 1)
-        ..addStatusListener((status) {
-          if (status.isCompleted) _ensureEditorVisible();
-        });
+  late final AnimationController _editorReveal = AnimationController(
+    vsync: this,
+    duration: _motionDuration,
+    value: 1,
+  );
+
+  /// Whether the editor is kept in view during layout as it opens or grows:
+  /// cleared once it has settled in view, or as soon as the user scrolls.
+  bool _revealEditor = false;
+
+  /// Distance from the bubble's bottom to the viewport's bottom when editing
+  /// began: used during opening so a message with room below expands downward,
+  /// while one near the bottom anchors its bottom edge and expands upward.
+  double? _editorOpenBottomGap;
+
+  /// Whether [_SizeReporter] has reported the opened editor's initial height.
+  bool _editorHeightMeasured = false;
+
+  /// Whether the current editor opened upward (anchored at its bottom edge),
+  /// so closing it mirrors the motion downward from the same bottom edge.
+  bool _editorOpenedUpward = false;
+
+  /// While an upward-opened editor closes, the row whose bottom edge stays
+  /// anchored at [_closingBottomGap] from the viewport's bottom.
+  int? _closingAnchorIndex;
+  double? _closingBottomGap;
+
+  /// Whether to re-enable bottom following once the close animation finishes.
+  bool _followAfterClose = false;
 
   /// The message's height, where the placeholder grows from.
   double _editorFromHeight = 0;
@@ -543,6 +567,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
         ..addStatusListener((status) {
           if (status.isCompleted && _closingIndex != null) {
             setState(() => _closingIndex = null);
+            _finishClosingAfterMotion();
           }
         });
   int? _closingIndex;
@@ -982,6 +1007,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       _stickyIndices = const {};
       _editingIndex = null;
       _closingIndex = null;
+      _clearEditorScrollTracking();
       _foldOpen.clear();
       _unfoldedTurns.clear();
       // Another conversation's rows: the list takes them as it finds them.
@@ -1030,6 +1056,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   /// Scrolls by [delta], to either end at most: held to the bottom there.
   void _scrollBy(double delta) {
     if (!_scrollController.hasClients) return;
+    _clearEditorScrollTracking();
     final position = _scrollController.position;
     final target = (position.pixels + delta).clamp(
       position.minScrollExtent,
@@ -1344,11 +1371,15 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   }
 
   /// How far the list is to move once laid out: the row under a press held
-  /// to select kept where it was, if there is one ([_dragRow]); else the
-  /// row shown first, rows put before it ([_keepShown]).
+  /// to select kept where it was, if there is one ([_dragRow]); else an
+  /// opening, growing, or closing editor anchored in view; else the row shown
+  /// first, rows put before it ([_keepShown]).
   double _keepLaidOut() {
     final shown = _keepShownLaidOut();
-    return _keepDragRowLaidOut() ?? shown;
+    return _keepDragRowLaidOut() ??
+        _keepEditorVisibleLaidOut() ??
+        _keepEditorClosingLaidOut() ??
+        shown;
   }
 
   /// The row under a press held to select, the text in it under the
@@ -1665,6 +1696,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     // (Held to select, it follows nothing till let go: see
     // [_handlePointerUp].)
     if (_userScrolling && !(_dragFrom != null && _pointersDown > 0)) {
+      _clearEditorScrollTracking();
       final position =
           _scrollController.position as _BottomAnchoredScrollPosition;
       final end = position.maxScrollExtent - 1;
@@ -2565,6 +2597,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
             (editing >= _feed.itemCount ||
                 _feed.itemAt(editing) is! UserMessageItem))) {
       _editingIndex = null;
+      _clearEditorScrollTracking();
       _feed.editing = null;
     }
     // Sending a message always brings the live turn into view.
@@ -2610,9 +2643,24 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     // following while held, to follow again as it is let go, after this
     // (the message hears it first, see _handlePointerUp); it is this that
     // has it follow again now.
-    _followedBeforeEdit = _scrollController.anchored || _followedBeforePress;
+    final followedBeforeEdit =
+        _scrollController.anchored || _followedBeforePress;
     _followedBeforePress = false;
     _scrollController.anchored = false;
+    _clearEditorScrollTracking();
+    _followedBeforeEdit = followedBeforeEdit;
+    _revealEditor = true;
+    _editorHeightMeasured = false;
+    _editorOpenBottomGap = null;
+    if (laidOut.isNotEmpty && _scrollController.hasClients) {
+      final box = laidOut.first;
+      final viewport = RenderAbstractViewport.maybeOf(box);
+      if (viewport != null) {
+        _editorOpenBottomGap =
+            _scrollController.position.pixels -
+            viewport.getOffsetToReveal(box, 1).offset;
+      }
+    }
     setState(() {
       _closingIndex = null;
       _editingIndex = index;
@@ -2649,11 +2697,59 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   /// Whether the list followed its end when the editor opened.
   bool _followedBeforeEdit = false;
 
+  void _clearEditorScrollTracking() {
+    _revealEditor = false;
+    _editorOpenedUpward = false;
+    _followedBeforeEdit = false;
+    _closingAnchorIndex = null;
+    _closingBottomGap = null;
+    _followAfterClose = false;
+  }
+
+  /// Releases the close-animation bottom anchor and restores bottom following
+  /// once [_HeightMotion] finishes its final frame (one frame after
+  /// [_editorClose] because [_HeightMotion] starts in a post-frame callback).
+  void _finishClosingAfterMotion({int frames = 2}) {
+    final anchor = _closingAnchorIndex;
+    final follow = _followAfterClose;
+    void finish() {
+      if (!mounted || _editingIndex != null) return;
+      if (_closingAnchorIndex == anchor) {
+        _closingAnchorIndex = null;
+        _closingBottomGap = null;
+      }
+      if (follow && _followAfterClose) {
+        _followAfterClose = false;
+        _scrollController.anchored = true;
+        _listKey.currentContext?.findRenderObject()?.markNeedsLayout();
+      }
+    }
+
+    void step(int remaining) {
+      if (remaining <= 0) {
+        finish();
+        return;
+      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _editingIndex != null) return;
+        step(remaining - 1);
+      });
+    }
+
+    step(frames);
+  }
+
   void _cancelEditing() {
     _feed.editing = null;
-    if (_editingIndex != null && _followedBeforeEdit) {
-      _scrollController.anchored = true;
-    }
+    _revealEditor = false;
+    // A click on text below the editor closes it on pointer down, right after
+    // [_handlePointerDown] remembered [_dragRow]: keeping that anchor while the
+    // button is still held would scroll the list backward as the editor shrinks
+    // above it, then snap back when closing finishes.
+    _dragRow = null;
+    final followAfter = _editingIndex != null && _followedBeforeEdit;
+    final openedUpward = _editorOpenedUpward;
+    _editorOpenedUpward = false;
     if (_editingIndex case final index?) {
       // Back to the message: from the editor's height to its own, the
       // editor's frame shrinking back into the message's (stuck to the top,
@@ -2664,58 +2760,157 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
           animate &&
           _editorFrom != null &&
           !MediaQuery.disableAnimationsOf(context);
+      _closingAnchorIndex = null;
+      _closingBottomGap = null;
+      if (animate && openedUpward && _scrollController.hasClients) {
+        final placeholder = _editorPlaceholderKey.currentContext
+            ?.findRenderObject();
+        final viewport = placeholder == null
+            ? null
+            : RenderAbstractViewport.maybeOf(placeholder);
+        if (placeholder != null && viewport != null) {
+          _closingAnchorIndex = index;
+          _closingBottomGap =
+              _scrollController.position.pixels -
+              viewport.getOffsetToReveal(placeholder, 1).offset;
+        }
+      }
+      _followAfterClose = followAfter;
       _editorReveal.stop();
       setState(() {
         _editingIndex = null;
         _closingIndex = close ? index : null;
         _closingFrom = _editorOpened;
       });
-      if (close) _editorClose.forward(from: 0);
+      if (close) {
+        _editorClose.forward(from: 0);
+      } else {
+        // Without a close animation, let the single shrunk layout settle with
+        // the bottom anchor (if any) before restoring bottom following.
+        if (_closingAnchorIndex != null) {
+          _finishClosingAfterMotion(frames: 1);
+        } else if (followAfter) {
+          _followAfterClose = false;
+          _scrollController.anchored = true;
+        }
+      }
     }
   }
 
   void _setEditorHeight(double height) {
     if (height == _editorHeight || _editingIndex == null) return;
+    if (_editorHeightMeasured && _editorReveal.isCompleted) {
+      _editorOpenBottomGap = null;
+    }
+    _editorHeightMeasured = true;
+    _revealEditor = true;
     setState(() => _editorHeight = height);
     _editorMoved.value++;
-    if (_editorReveal.isCompleted) _ensureEditorVisible();
   }
 
-  /// Once the placeholder has its full height, reveal only what of it is out
-  /// of view: what extends below the history, then what is above it (its top
-  /// first, where it is taller than the view), but for one stuck to the top.
-  /// The editor is painted above the list, so its own scrollable cannot
-  /// bring it into view there.
-  void _ensureEditorVisible() {
+  /// Room below the last item of the history list.
+  static const _chatBottomPadding = 24.0;
+
+  /// Bottom margin preserved under the editor while revealing it:
+  /// - When opening with enough room below the bubble for the full editor plus
+  ///   [_chatBottomPadding], keep [_chatBottomPadding] so the list stays still
+  ///   and the editor opens purely downward.
+  /// - Otherwise anchor the editor's bottom at the bubble's original bottom
+  ///   (smoothly lifting to at least [_chatBottomPadding] if it started closer),
+  ///   so the editor opens purely upward instead of dipping toward the composer.
+  double _editorRevealBottomInset() {
+    final gap = _editorOpenBottomGap;
+    if (gap == null) return _chatBottomPadding;
+    final grow = math.max(0.0, _editorHeight - _editorFromHeight);
+    if (gap >= grow + _chatBottomPadding) {
+      _editorOpenedUpward = false;
+      return _chatBottomPadding;
+    }
+    _editorOpenedUpward = true;
+    final target = math.max(gap, _chatBottomPadding);
+    return lerpDouble(gap, target, _editorOpened)!;
+  }
+
+  /// How far the list is to move during layout so an opening or growing editor
+  /// stays in view each frame without dipping under the composer or snapping
+  /// once the reveal animation finishes. Capped so the editor's top never
+  /// leaves the view (or scrolls past its sticky position when stuck).
+  double? _keepEditorVisibleLaidOut() {
+    if (!_revealEditor) return null;
     final index = _editingIndex;
-    if (index == null) return;
-    final key = _editComposerKey;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted ||
-          _editingIndex != index ||
-          _editComposerKey != key ||
-          !_scrollController.hasClients) {
-        return;
-      }
-      final placeholder = _editorPlaceholderKey.currentContext
-          ?.findRenderObject();
-      if (placeholder == null || !placeholder.attached) return;
-      final viewport = RenderAbstractViewport.maybeOf(placeholder);
-      if (viewport == null) return;
-      final position = _scrollController.position;
-      var target = math.max(
-        position.pixels,
-        viewport.getOffsetToReveal(placeholder, 1).offset,
-      );
-      if (!_sticks) {
-        target = math.min(
-          target,
-          viewport.getOffsetToReveal(placeholder, 0).offset - _editorInset,
+    if (index == null || !_scrollController.hasClients) {
+      _revealEditor = false;
+      return null;
+    }
+    final sliver = _findSliver();
+    if (sliver == null) return null;
+    final placeholder =
+        (_editorPlaceholderKey.currentContext as Element?)?.renderObject
+            as RenderBox?;
+    if (placeholder == null || !placeholder.attached) {
+      return null;
+    }
+    for (var child = sliver.firstChild; child != null;) {
+      final data = child.parentData! as SliverMultiBoxAdaptorParentData;
+      final offset = data.layoutOffset;
+      if (offset != null && _indexOf(child) == index) {
+        final inRow = _laidOutTopIn(placeholder, child);
+        if (inRow == null) return null;
+        final position = _scrollController.position;
+        final top = sliver.constraints.precedingScrollExtent + offset + inRow;
+        final bottom = top + _editorShownHeight;
+        final revealBottom =
+            bottom + _editorRevealBottomInset() - position.viewportDimension;
+        final revealTop = top - _editorInset;
+        var target = math.max(position.pixels, revealBottom);
+        target = _sticks
+            ? math.min(target, math.max(position.pixels, revealTop))
+            : math.min(target, revealTop);
+        target = target.clamp(
+          position.minScrollExtent,
+          position.maxScrollExtent,
         );
+        final move = target - position.pixels;
+        if (move.abs() < 0.5) {
+          if (_editorReveal.isCompleted) _revealEditor = false;
+          return null;
+        }
+        return move;
       }
-      target = target.clamp(position.minScrollExtent, position.maxScrollExtent);
-      if ((target - position.pixels).abs() >= 0.5) position.jumpTo(target);
-    });
+      child = sliver.childAfter(child);
+    }
+    return null;
+  }
+
+  /// While an upward-opened editor closes, keeps its row's bottom edge
+  /// anchored at [_closingBottomGap] so it shrinks downward into its bubble
+  /// rather than pulling the bubble upward.
+  double? _keepEditorClosingLaidOut() {
+    final index = _closingAnchorIndex;
+    final gap = _closingBottomGap;
+    if (index == null || gap == null || !_scrollController.hasClients) {
+      return null;
+    }
+    final sliver = _findSliver();
+    if (sliver == null) return null;
+    for (var child = sliver.firstChild; child != null;) {
+      final data = child.parentData! as SliverMultiBoxAdaptorParentData;
+      final offset = data.layoutOffset;
+      if (offset != null && _indexOf(child) == index) {
+        final position = _scrollController.position;
+        final extent = _listController.extentForIndex(_rowOf(index)).$1;
+        final bottom =
+            sliver.constraints.precedingScrollExtent + offset + extent;
+        final target = (bottom + gap - position.viewportDimension).clamp(
+          position.minScrollExtent,
+          position.maxScrollExtent,
+        );
+        final move = target - position.pixels;
+        return move.abs() < 0.5 ? null : move;
+      }
+      child = sliver.childAfter(child);
+    }
+    return null;
   }
 
   /// Room above the editor stuck to the top of the list: as above the
@@ -3129,6 +3324,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
 
   void _wheelList(PointerSignalEvent event) {
     if (event is! PointerScrollEvent || !_scrollController.hasClients) return;
+    _clearEditorScrollTracking();
     GestureBinding.instance.pointerSignalResolver.register(event, (event) {
       _scrollController.position.pointerScroll(
         (event as PointerScrollEvent).scrollDelta.dy,
@@ -3150,6 +3346,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
 
   void _panList(PointerPanZoomUpdateEvent event) {
     if (!_scrollController.hasClients) return;
+    _clearEditorScrollTracking();
     // Fingers moving down reveal what is above: the offset goes down.
     final delta = -event.panDelta.dy;
     if (delta == 0) return;
@@ -3197,6 +3394,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     // Turned down: still being edited.
     if (revertFiles == null || !mounted || _editingIndex != index) return;
     _feed.editing = null;
+    _clearEditorScrollTracking();
     if (!_scrolledPast(index)) _animateItem(index);
     setState(() {
       _editingIndex = null;
@@ -3543,6 +3741,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   void _seek(int index, double fraction) {
     if (!_scrollController.hasClients || !_listController.isAttached) return;
     if (index >= _feed.itemCount || _rows.isEmpty) return;
+    _clearEditorScrollTracking();
     _setAnchored(false);
     final row = _rowOf(index);
     final (extent, _) = _listController.extentForIndex(row);
@@ -3806,7 +4005,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                                                     ? _earlierBarHeight
                                                     : 0),
                                             _gutter,
-                                            24,
+                                            _chatBottomPadding,
                                           ),
                                           itemBuilder: (context, row) {
                                             final index = _rows[row];
@@ -3864,7 +4063,11 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                                 bottom: 12,
                                 child: Center(
                                   child: _JumpToBottomButton(
-                                    visible: !_shownAtBottom,
+                                    visible:
+                                        _editingIndex == null &&
+                                        _closingIndex == null &&
+                                        !_shownAtBottom &&
+                                        _contentBelow,
                                     onTap: _jumpToBottom,
                                   ),
                                 ),

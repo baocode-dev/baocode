@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
+import 'package:baocode/chat/chat_find.dart';
 import 'package:baocode/chat/chat_history_view.dart';
 import 'package:baocode/chat/chat_screen.dart';
 import 'package:baocode/chat/chat_session.dart';
@@ -174,7 +175,7 @@ void main() {
   });
 
   for (final style in UserMessageStyle.values) {
-    testWidgets('editing a bottom message reveals only its hidden part '
+    testWidgets('editing a bottom message reveals it upward with bottom room '
         '($style)', (tester) async {
       await _stopped(tester, style);
       final before = tester.getRect(_bubble());
@@ -183,12 +184,24 @@ void main() {
       _visible(tester);
       final editor = tester.getRect(_editor());
       final history = tester.getRect(find.byType(ChatHistoryView));
-      final hidden = before.top + editor.height - history.bottom;
+      const bottomInset = 24.0;
+      final hidden = before.top + editor.height + bottomInset - history.bottom;
       expect(hidden, greaterThan(0));
       expect(_position(tester).pixels - offset, closeTo(hidden, 0.5));
       expect(
-        _position(tester).pixels,
-        lessThan(_position(tester).maxScrollExtent),
+        editor.bottom,
+        closeTo(history.bottom - bottomInset, 0.5),
+      );
+      expect(
+        tester
+            .widget<AnimatedOpacity>(
+              find.ancestor(
+                of: find.byIcon(Icons.arrow_downward_rounded),
+                matching: find.byType(AnimatedOpacity),
+              ),
+            )
+            .opacity,
+        0,
       );
 
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
@@ -198,13 +211,160 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     }, variant: platforms);
 
-    testWidgets('an already visible message editor leaves history in place '
-        '($style)', (tester) async {
+    testWidgets('opening a bottom editor expands upward from its bottom edge '
+        'without dipping toward the composer ($style)', (tester) async {
+      await _stopped(tester, style, following: true);
+      final before = tester.getRect(_bubble());
+      await tester.tap(
+        find.descendant(
+          of: _bubble(),
+          matching: find.text(_message, findRichText: true),
+        ),
+      );
+      await tester.pump();
+      final history = tester.getRect(find.byType(ChatHistoryView));
+      final composer = tester.getRect(find.byType(ChatComposer).last);
+      final position = _position(tester);
+      var previousPixels = position.pixels;
+      var previousTop = before.top;
+      var maxStep = 0.0;
+      var movedDuringAnimation = false;
+      // Step frame-by-frame through the 220ms reveal animation.
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+        final pixels = position.pixels;
+        final delta = pixels - previousPixels;
+        if (i < 13 && delta > 0.5) movedDuringAnimation = true;
+        if (delta > maxStep) maxStep = delta;
+        previousPixels = pixels;
+        final editorTop = tester.getRect(_editor()).top;
+        // Expanding upward: the top moves monotonically up (never drops).
+        expect(editorTop, lessThanOrEqualTo(previousTop + 0.5));
+        previousTop = editorTop;
+        final placeholder = find.descendant(
+          of: find.byType(SuperListView),
+          matching: find.byWidgetPredicate(
+            (w) => w is SizedBox && w.key != null && w.height != null,
+          ),
+        );
+        if (placeholder.evaluate().isNotEmpty) {
+          final shownBottom =
+              editorTop + tester.getSize(placeholder.first).height;
+          // Bottom edge stays anchored where the bubble's bottom was.
+          expect(shownBottom, closeTo(before.bottom, 1.0));
+          expect(shownBottom, lessThanOrEqualTo(history.bottom - 24.0 + 1.0));
+          expect(shownBottom, lessThanOrEqualTo(composer.top - 24.0 + 1.0));
+        }
+      }
+      await tester.pumpAndSettle();
+      // Final settle should not snap sharply after the animation ends.
+      expect(position.pixels - previousPixels, lessThan(1.0));
+      expect(movedDuringAnimation, isTrue);
+      expect(maxStep, lessThan(20.0));
+      _visible(tester);
+
+      // Closing an upward-opened editor mirrors the motion: the row's bottom
+      // stays anchored while its top moves monotonically back down to the
+      // bubble.
+      final openedTop = tester.getRect(_editor()).top;
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      var closingTop = openedTop;
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+        if (_bubble().evaluate().isNotEmpty) {
+          final bubbleRect = tester.getRect(_bubble());
+          final rowRect = tester.getRect(
+            find.ancestor(of: _bubble(), matching: find.byType(ChatFindRow)),
+          );
+          expect(bubbleRect.top, greaterThanOrEqualTo(closingTop - 0.5));
+          closingTop = bubbleRect.top;
+          expect(rowRect.bottom, closeTo(before.bottom, 1.5));
+        }
+      }
+      await tester.pumpAndSettle();
+      expect(_editor(), findsNothing);
+      expect(tester.getRect(_bubble()).bottom, closeTo(before.bottom, 0.5));
+      expect(tester.getRect(_bubble()).top, closeTo(before.top, 0.5));
+      await tester.pumpWidget(const SizedBox());
+    }, variant: platforms);
+
+    testWidgets('closing an unanchored bottom editor still shrinks downward '
+        'to its original bottom edge ($style)', (tester) async {
+      await _stopped(tester, style, following: false);
+      final before = tester.getRect(_bubble());
+      await _edit(tester);
+      final opened = tester.getRect(_editor());
+      final openedBottom = opened.bottom;
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      var closingTop = opened.top;
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+        if (_bubble().evaluate().isNotEmpty) {
+          final bubbleRect = tester.getRect(_bubble());
+          final rowRect = tester.getRect(
+            find.ancestor(of: _bubble(), matching: find.byType(ChatFindRow)),
+          );
+          expect(bubbleRect.top, greaterThanOrEqualTo(closingTop - 0.5));
+          closingTop = bubbleRect.top;
+          expect(rowRect.bottom, closeTo(openedBottom, 1.5));
+        }
+      }
+      await tester.pumpAndSettle();
+      expect(_editor(), findsNothing);
+      expect(tester.getRect(_bubble()).bottom, closeTo(openedBottom, 0.5));
+      expect(tester.getRect(_bubble()).top, greaterThan(opened.top + 10));
+      expect(before.bottom, greaterThan(opened.top));
+      await tester.pumpWidget(const SizedBox());
+    }, variant: platforms);
+
+    testWidgets('an already visible message editor opens downward and closes '
+        'upward while leaving history in place ($style)', (tester) async {
       await _stopped(tester, style, partialReply: true);
+      final before = tester.getRect(_bubble());
       final offset = _position(tester).pixels;
       await _edit(tester);
       _visible(tester);
       expect(_position(tester).pixels, closeTo(offset, 0.5));
+      expect(tester.getRect(_editor()).top, closeTo(before.top, 0.5));
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(_position(tester).pixels, closeTo(offset, 0.5));
+      expect(tester.getRect(_bubble()).top, closeTo(before.top, 0.5));
+      await tester.pumpWidget(const SizedBox());
+    }, variant: platforms);
+
+    testWidgets('clicking text below a downward-opened editor closes smoothly '
+        'without dragging or snapping the list ($style)', (tester) async {
+      await _stopped(tester, style, partialReply: true, following: true);
+      final before = tester.getRect(_bubble());
+      final offset = _position(tester).pixels;
+      await _edit(tester, kind: PointerDeviceKind.mouse);
+      expect(_position(tester).pixels, closeTo(offset, 0.5));
+      // Press and briefly hold on reply text below the editor (like a real
+      // mouse click), then release: the list must stay steady throughout the
+      // close animation and settle without jumping.
+      final reply = find.textContaining('Some reply text.', findRichText: true);
+      final gesture = await tester.startGesture(
+        tester.getCenter(reply.first),
+        kind: PointerDeviceKind.mouse,
+        buttons: kPrimaryMouseButton,
+      );
+      await tester.pump();
+      for (var i = 0; i < 4; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(_position(tester).pixels, closeTo(offset, 0.5));
+      }
+      await gesture.up();
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(_position(tester).pixels, closeTo(offset, 0.5));
+      }
+      await tester.pumpAndSettle();
+      expect(_editor(), findsNothing);
+      expect(_position(tester).pixels, closeTo(offset, 0.5));
+      expect(tester.getRect(_bubble()).top, closeTo(before.top, 0.5));
       await tester.pumpWidget(const SizedBox());
     }, variant: platforms);
 
@@ -240,12 +400,17 @@ void main() {
 
     testWidgets('clicked with a mouse, the editor no more follows the end than '
         'tapped ($style)', (tester) async {
-      await _stopped(tester, style, following: true);
+      await _stopped(
+        tester,
+        style,
+        size: const Size(1040, 280),
+        following: true,
+        toolRunning: true,
+      );
       await _edit(tester, kind: PointerDeviceKind.mouse);
       _visible(tester);
       final position = _position(tester);
-      // The editor's bottom at the view's: the list's own room under it is
-      // left out of view.
+      // In a short window, following the end would push the editor's top out.
       expect(position.pixels, lessThan(position.maxScrollExtent));
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pumpAndSettle();
