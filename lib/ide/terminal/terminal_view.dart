@@ -53,6 +53,7 @@ import 'shell_integration/decoration_addon.dart';
 import 'shell_integration/decoration_styles.dart';
 import 'shell_integration/shell_integration.dart';
 import 'terminal_clipboard.dart';
+import 'terminal_colors.dart';
 import 'terminal_file_drop.dart';
 import 'terminal_find.dart';
 import 'terminal_instance.dart';
@@ -162,6 +163,8 @@ class _TerminalViewState extends State<TerminalView>
   // mirror), and whether it is to focus it once it does (pressed).
   bool _owning = false;
   bool _focusOnOwning = false;
+  bool _exited = false;
+  bool _fileDragOver = false;
 
   IBufferRange? _linkRange() => _link?.range;
 
@@ -256,6 +259,7 @@ class _TerminalViewState extends State<TerminalView>
     _subscriptions.add(
       instance.terminal.buffers.onBufferActivate((_) => _gutterChanged()),
     );
+    _exited = instance.exited;
     instance.addListener(_instanceChanged);
     _attachShellIntegration();
     _subscriptions.add(
@@ -289,6 +293,7 @@ class _TerminalViewState extends State<TerminalView>
     _lookUp++;
     _link = null;
     _hover = null;
+    _fileDragOver = false;
     if (!_owning) return;
     _owning = false;
     instance.focusNode.removeListener(_focusChanged);
@@ -624,6 +629,11 @@ class _TerminalViewState extends State<TerminalView>
   /// The shell integration comes with the launch.
   void _instanceChanged() {
     if (_instance.shellIntegration != _integration) _attachShellIntegration();
+    if (_instance.exited != _exited) {
+      _exited = _instance.exited;
+      if (_exited) _fileDragOver = false;
+      if (mounted) setState(() {});
+    }
   }
 
   void _attachShellIntegration() {
@@ -949,39 +959,61 @@ class _TerminalViewState extends State<TerminalView>
     _instance.focus();
   }
 
-  @override
-  void fileDragOver(Offset position, List<ComposerFile> files) {}
+  void _setFileDragOver(bool value) {
+    if (_fileDragOver == value) return;
+    if (mounted) setState(() => _fileDragOver = value);
+  }
 
   @override
-  void fileDragLeave() {}
+  void fileDragOver(Offset position, List<ComposerFile> files) {
+    if (widget.mirror || _instance.exited) return;
+    _setFileDragOver(true);
+  }
 
   @override
-  void fileDrop(Offset position, List<ComposerFile> files) => _dropFiles(files);
+  void fileDragLeave() => _setFileDragOver(false);
+
+  @override
+  void fileDrop(Offset position, List<ComposerFile> files) {
+    _setFileDragOver(false);
+    _dropFiles(files);
+  }
 
   @override
   Widget build(BuildContext context) {
     final instance = _instance;
     final mirror = widget.mirror;
-    final content = CallbackShortcuts(
+    Widget buildContent({required bool dropHighlight}) => CallbackShortcuts(
       bindings: mirror ? const {} : _findKeys,
       child: LayoutBuilder(
         builder: (context, constraints) => Stack(
           children: [
             Positioned.fill(child: _terminal(instance)),
             Positioned.fill(child: _commandMarks(instance)),
+            if (dropHighlight)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: ColoredBox(
+                    color:
+                        terminalColorTheme.value.dropBackground ??
+                        TerminalColors.dropBackground,
+                  ),
+                ),
+              ),
             if (!mirror && instance.find.isVisible) _findWidget(constraints),
           ],
         ),
       ),
     );
-    if (mirror) return content;
+    if (mirror || instance.exited) return buildContent(dropHighlight: false);
     return FileDropRegion(
       delegate: this,
       child: DragTarget<FileDragData>(
         onWillAcceptWithDetails: (details) =>
             !instance.exited && details.data.files.isNotEmpty,
         onAcceptWithDetails: (details) => _dropFiles(details.data.files),
-        builder: (context, candidates, rejected) => content,
+        builder: (context, candidates, rejected) =>
+            buildContent(dropHighlight: _fileDragOver || candidates.isNotEmpty),
       ),
     );
   }

@@ -16,6 +16,7 @@ import 'package:baocode/chat/composer/file_drag.dart';
 import 'package:baocode/chat/composer/file_drop.dart';
 import 'package:baocode/ide/ide_find_widget.dart';
 import 'package:baocode/ide/terminal/links/terminal_links.dart';
+import 'package:baocode/ide/terminal/terminal_colors.dart';
 import 'package:baocode/ide/terminal/terminal_instance.dart';
 import 'package:baocode/ide/terminal/terminal_view.dart';
 import 'package:baocode/ide/terminal/terminal_widget.dart';
@@ -270,12 +271,12 @@ void main() {
           tester.getCenter(find.byType(FileDraggable)),
     );
     await tester.pump();
-    expect(pty.written, r"/project/a.txt $'/project/中文 空格\U0001f4c1' ");
+    expect(pty.written, r'/project/a.txt /project/中文\ 空格📁 ');
     expect(terminal.focusNode.hasFocus, isTrue);
   });
 
   testWidgets('system file drops paste paths without executing, with brackets '
-      'when requested', (tester) async {
+      'when requested, and highlight while hovering', (tester) async {
     final (:terminal, :pty) = await _show(tester);
     pty.emitText('\x1b[?2004h');
     await _parsed(tester);
@@ -288,10 +289,21 @@ void main() {
         {'path': "/project/it's.txt", 'directory': false},
       ],
     };
+    final dropOverlay = find.byWidgetPredicate(
+      (widget) =>
+          widget is ColoredBox &&
+          widget.color ==
+              (terminalColorTheme.value.dropBackground ??
+                  TerminalColors.dropBackground),
+    );
+    expect(dropOverlay, findsNothing);
     expect(await FileDrops.handle(MethodCall('dragUpdate', args)), isTrue);
+    await tester.pump();
+    expect(dropOverlay, findsOneWidget);
     expect(pty.written, isEmpty);
     expect(await FileDrops.handle(MethodCall('drop', args)), isTrue);
     await tester.pump();
+    expect(dropOverlay, findsNothing);
     expect(
       pty.written,
       '\x1b[200~'
@@ -301,7 +313,9 @@ void main() {
     expect(terminal.focusNode.hasFocus, isTrue);
   });
 
-  testWidgets('cancelled file drags do not type paths', (tester) async {
+  testWidgets('cancelled file drags do not type paths and clear highlight', (
+    tester,
+  ) async {
     final (:pty, :terminal) = await _show(tester);
     final at = tester.getCenter(find.byType(TerminalWidget));
     await FileDrops.handle(
@@ -313,7 +327,39 @@ void main() {
         ],
       }),
     );
+    await tester.pump();
     await FileDrops.handle(const MethodCall('dragExit'));
+    await tester.pump();
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is ColoredBox &&
+            widget.color ==
+                (terminalColorTheme.value.dropBackground ??
+                    TerminalColors.dropBackground),
+      ),
+      findsNothing,
+    );
+    expect(pty.written, isEmpty);
+    expect(terminal.focusNode.hasFocus, isFalse);
+  });
+
+  testWidgets('an exited terminal does not accept system file drops', (
+    tester,
+  ) async {
+    final (:pty, :terminal) = await _show(tester);
+    final at = tester.getCenter(find.byType(TerminalWidget));
+    pty.exit(1);
+    await _parsed(tester);
+    final args = {
+      'x': at.dx,
+      'y': at.dy,
+      'files': [
+        {'path': '/project/a.txt'},
+      ],
+    };
+    expect(await FileDrops.handle(MethodCall('dragUpdate', args)), isFalse);
+    expect(await FileDrops.handle(MethodCall('drop', args)), isFalse);
     expect(pty.written, isEmpty);
     expect(terminal.focusNode.hasFocus, isFalse);
   });

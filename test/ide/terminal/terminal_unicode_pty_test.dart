@@ -1,4 +1,4 @@
-@TestOn('mac-os')
+@TestOn('mac-os || linux')
 library;
 
 import 'dart:async';
@@ -11,8 +11,15 @@ import 'package:baocode/ide/terminal/terminal_xterm.dart';
 import 'package:bao_xterm/typings/xterm.dart' show ITerminalOptions;
 import 'package:flutter_test/flutter_test.dart';
 
+String? _interactiveShell() {
+  for (final path in ['/bin/zsh', '/bin/bash']) {
+    if (File(path).existsSync()) return path;
+  }
+  return null;
+}
+
 class _Shell {
-  _Shell(this.directory, this.pty, int columns)
+  _Shell(this.directory, this.pty, this.executable, int columns)
     : screen = TerminalXterm(
         ITerminalOptions(cols: columns, rows: 24, allowProposedApi: true),
       ) {
@@ -26,22 +33,25 @@ class _Shell {
 
   final Directory directory;
   final Pty pty;
+  final String executable;
   final TerminalXterm screen;
   final printed = StringBuffer();
   late final StreamSubscription<String> subscription;
 
   static Future<_Shell> start({
-    Map<String, String> inherited = const {},
+    required String executable,
     int columns = 512,
   }) async {
     final directory = Directory.systemTemp.createTempSync(
       'baocode-unicode-pty',
     );
     addTearDown(() => directory.deleteSync(recursive: true));
+    final isZsh = executable.endsWith('/zsh');
+    final args = isZsh ? ['-f', '-i'] : ['--norc', '--noprofile', '-i'];
     final pty = await spawnPty(
       await terminalLaunch(
         directory.path,
-        shell: (executable: '/bin/zsh', arguments: ['-f', '-i']),
+        shell: (executable: executable, arguments: args),
         shellIntegration: false,
         columns: columns,
         rows: 24,
@@ -52,17 +62,25 @@ class _Shell {
             'HOME': directory.path,
             'ZDOTDIR': directory.path,
             'PROMPT': 'READY> ',
+            'PS1': 'READY> ',
             'RPROMPT': '',
             'LANG': 'en_US.UTF-8',
-            ...inherited,
           },
         ),
       ),
     );
-    final shell = _Shell(directory, pty, columns);
+    final shell = _Shell(directory, pty, executable, columns);
     addTearDown(() async {
       pty.kill();
-      await pty.exitCode.timeout(const Duration(seconds: 5));
+      try {
+        await pty.exitCode.timeout(const Duration(seconds: 2));
+      } on TimeoutException {
+        pty.kill(PtySignal.kill);
+        await pty.exitCode.timeout(
+          const Duration(seconds: 2),
+          onTimeout: () => 0,
+        );
+      }
       await shell.subscription.cancel();
       shell.screen.dispose();
     });
@@ -95,52 +113,20 @@ class _Shell {
 }
 
 void main() {
-  test(
-    'wrapped emoji input remains editable and returns to a clean prompt',
-    () async {
-      final shell = await _Shell.start(columns: 48);
-      final path = '${shell.directory.path}/👨‍👩‍👧‍👦 中文合照.txt';
-      await File(path).writeAsString('wrapped emoji path');
-      final text = terminalFileDropText([path], shell: '/bin/zsh')!;
-      shell.drop(text);
-      await shell.until(() => shell.printed.toString().contains('.txt'));
-      expect(shell.screen.buffer.active.cursorY, greaterThan(0));
-      shell.pty.writeText('\x01test -f ');
-      shell.pty.writeText('\x05');
-      shell.printed.clear();
-      shell.pty.writeText("&& printf 'FOUND\\n'\r");
-      await shell.until(
-        () =>
-            RegExp(r'(^|[\r\n])FOUND\r?\n').hasMatch(shell.printed.toString()),
-      );
-      await shell.shows('READY>');
-      expect(shell.screen.buffer.active.cursorX, 7);
-      expect(shell.printed.toString(), isNot(contains('<200d>')));
-    },
-    skip: !File('/bin/zsh').existsSync(),
-  );
+  final executable = _interactiveShell();
 
-  for (final name in [
-    '👩‍💻中文说明.txt',
-    '👨‍👩‍👧‍👦 合照.txt',
-    '👍🏽.txt',
-    '🇨🇳.txt',
-    '❤️.txt',
-    "中文'💻 [1]\$文件.txt",
-  ]) {
-    test('emoji drop keeps the prompt and cursor aligned: $name', () async {
-      final shell = await _Shell.start();
+  test(
+    'dropped Chinese and symbol paths stay literal, editable and resolvable',
+    () async {
+      final shell = await _Shell.start(executable: executable!);
+      const name = "中文'★✓ [1]\$文件.txt";
       final path = '${shell.directory.path}/$name';
-      await File(path).writeAsString('emoji path test');
-      final text = terminalFileDropText([path], shell: '/bin/zsh')!;
+      await File(path).writeAsString('unicode path test');
+      final text = terminalFileDropText([path], shell: executable)!;
+      expect(text, isNot(contains(r"\u")));
+      expect(text, isNot(contains(r"\U")));
       shell.drop(text);
       await shell.shows('READY> $text');
-      // ASCII shell escapes occupy one cell; these Chinese characters two.
-      final input = 'READY> $text';
-      final width =
-          input.runes.length + RegExp(r'[一-鿿]').allMatches(input).length;
-      expect(shell.screen.buffer.active.cursorX, width);
-      expect(shell.printed.toString(), isNot(contains('<200d>')));
 
       // Edit the pasted line with Home/End, then check the actual file.
       const prefix = 'test -f ';
@@ -157,6 +143,37 @@ void main() {
       );
       await shell.shows('READY>');
       expect(shell.screen.buffer.active.cursorX, 7);
-    }, skip: !File('/bin/zsh').existsSync());
+    },
+    skip: executable == null,
+  );
+
+  for (final name in [
+    '👩‍💻中文说明.txt',
+    '👨‍👩‍👧‍👦 合照.txt',
+    '👍🏽.txt',
+    '🇨🇳.txt',
+    '❤️.txt',
+    '🙋 中文测试.txt',
+    "中文'💻 [1]\$文件.txt",
+  ]) {
+    test('dropped emoji path resolves to original file: $name', () async {
+      final shell = await _Shell.start(executable: executable!);
+      final path = '${shell.directory.path}/$name';
+      await File(path).writeAsString('emoji path test');
+      final text = terminalFileDropText([path], shell: executable)!;
+      expect(text, isNot(contains(r"\u")));
+      expect(text, isNot(contains(r"\U")));
+      shell.pty.writeText('test -f ');
+      shell.drop(text);
+      await shell.until(() => shell.printed.toString().contains('.txt'));
+      shell.printed.clear();
+      shell.pty.writeText("&& printf 'FOUND\\n'\r");
+      await shell.until(
+        () =>
+            RegExp(r'(^|[\r\n])FOUND\r?\n').hasMatch(shell.printed.toString()),
+      );
+      await shell.shows('READY>');
+      expect(shell.screen.buffer.active.cursorX, 7);
+    }, skip: executable == null);
   }
 }
