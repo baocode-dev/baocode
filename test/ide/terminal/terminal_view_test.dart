@@ -260,7 +260,7 @@ void main() {
       tester,
       dragged: const [
         ComposerFile('/project/a.txt'),
-        ComposerFile('/project/My Docs', directory: true),
+        ComposerFile('/project/中文 空格📁', directory: true),
       ],
     );
     pty.writes.clear();
@@ -270,7 +270,7 @@ void main() {
           tester.getCenter(find.byType(FileDraggable)),
     );
     await tester.pump();
-    expect(pty.written, r'/project/a.txt /project/My\ Docs ');
+    expect(pty.written, r"/project/a.txt $'/project/中文 空格\U0001f4c1' ");
     expect(terminal.focusNode.hasFocus, isTrue);
   });
 
@@ -295,7 +295,7 @@ void main() {
     expect(
       pty.written,
       '\x1b[200~'
-      r"/project/\文\档 /project/it\'s.txt "
+      r"/project/文档 /project/it\'s.txt "
       '\x1b[201~',
     );
     expect(terminal.focusNode.hasFocus, isTrue);

@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:baocode/ide/terminal/terminal_file_drop.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -10,14 +13,61 @@ void main() {
           '/project/My Docs',
           "/project/it's (new);\$x`id`[1].txt",
           r'/project/a\b',
-          '/project/文档📁',
+          '/project/文档',
         ], shell: shell),
         '/project/a.txt /project/My\\ Docs '
         r"/project/it\'s\ \(new\)\;\$x\`id\`\[1\].txt "
-        r'/project/a\\b /project/\文\档\📁 ',
+        r'/project/a\\b /project/文档 ',
       );
     }
   });
+
+  test('keeps CJK literal and uses printable shell escapes for emoji', () {
+    expect(
+      terminalFileDropText([
+        '/项目/中文目录/说明.txt',
+        '/项目/中文 空格/你好.txt',
+        "/项目/中文'引号.txt",
+        '/项目/👩‍💻开发/说明📁.txt',
+        '/项目/café.txt',
+      ], shell: '/bin/zsh'),
+      '/项目/中文目录/说明.txt /项目/中文\\ 空格/你好.txt '
+      "/项目/中文\\'引号.txt "
+      r"$'/项目/\U0001f469"
+      r'\u'
+      '200d'
+      r"\U0001f4bb开发/说明\U0001f4c1.txt' "
+      '/项目/café.txt ',
+    );
+  });
+
+  for (final shell in ['/bin/zsh', '/bin/bash', '/bin/sh']) {
+    test('real $shell reads the original Unicode paths as arguments', () async {
+      const paths = [
+        '/项目/中文目录/说明.txt',
+        '/项目/中文 空格/你好.txt',
+        "/项目/中文'引号.txt",
+        '/项目/👩‍💻开发/说明📁.txt',
+        '/项目/café.txt',
+        r'/项目/$(printf unexpected);`printf unexpected`[1]*?.txt',
+        r'/项目/反斜杠\文件.txt',
+        '/项目/全角　空格.txt',
+      ];
+      final text = terminalFileDropText(paths, shell: shell)!;
+      final result = await Process.run(
+        shell,
+        ['-f', '-c', "printf '%s\\0' $text"],
+        stdoutEncoding: null,
+        stderrEncoding: utf8,
+        environment: {'LC_ALL': 'en_US.UTF-8'},
+      );
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(
+        utf8.decode(result.stdout as List<int>),
+        '${paths.join('\x00')}\x00',
+      );
+    }, skip: !File(shell).existsSync());
+  }
 
   test('uses PowerShell literal strings and cmd double quotes', () {
     for (final shell in [
