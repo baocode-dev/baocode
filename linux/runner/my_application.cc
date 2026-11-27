@@ -309,7 +309,71 @@ static void title_double_click(GtkWindow* window) {
   }
 }
 
-// Tells the app whether the window is maximized, for its maximize button.
+// The window's corners, rounded as the system's windows are: GTK draws the
+// frame (its shadow) round by the CSS below, the app clips what it draws to
+// the same corners (see WindowControls.roundCornersOf), the view's
+// background left clear under them. Only where the screen is composited:
+// without, what is clear would be black.
+static const int kCornerRadius = 8;
+
+static const GdkWindowState kEdgeStates = static_cast<GdkWindowState>(
+    GDK_WINDOW_STATE_MAXIMIZED | GDK_WINDOW_STATE_FULLSCREEN |
+    GDK_WINDOW_STATE_TILED | GDK_WINDOW_STATE_TOP_TILED |
+    GDK_WINDOW_STATE_RIGHT_TILED | GDK_WINDOW_STATE_BOTTOM_TILED |
+    GDK_WINDOW_STATE_LEFT_TILED);
+
+static void style_window_frame(GtkWindow* window) {
+  GdkScreen* screen = gtk_widget_get_screen(GTK_WIDGET(window));
+  GdkVisual* visual = gdk_screen_get_rgba_visual(screen);
+  if (visual == nullptr || !gdk_screen_is_composited(screen)) return;
+  gtk_widget_set_visual(GTK_WIDGET(window), visual);
+  gtk_style_context_add_class(gtk_widget_get_style_context(GTK_WIDGET(window)),
+                              "baocode-frame");
+  g_autofree gchar* css = g_strdup_printf(
+      "window.baocode-frame { background-color: transparent; }"
+      "window.baocode-frame decoration { border-radius: %dpx; }"
+      "window.baocode-frame.maximized decoration,"
+      "window.baocode-frame.fullscreen decoration,"
+      "window.baocode-frame.tiled decoration,"
+      "window.baocode-frame.tiled-top decoration,"
+      "window.baocode-frame.tiled-right decoration,"
+      "window.baocode-frame.tiled-bottom decoration,"
+      "window.baocode-frame.tiled-left decoration { border-radius: 0; }",
+      kCornerRadius);
+  g_autoptr(GtkCssProvider) provider = gtk_css_provider_new();
+  gtk_css_provider_load_from_data(provider, css, -1, nullptr);
+  gtk_style_context_add_provider_for_screen(
+      screen, GTK_STYLE_PROVIDER(provider),
+      GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+}
+
+// How round the app draws the window's corners now: not at all while it
+// fills the screen or sits against its edges, nor where the frame isn't
+// round (above).
+static int corner_radius(GtkWindow* window) {
+  GtkWidget* widget = GTK_WIDGET(window);
+  if (!gtk_style_context_has_class(gtk_widget_get_style_context(widget),
+                                   "baocode-frame") ||
+      !gdk_screen_is_composited(gtk_widget_get_screen(widget))) {
+    return 0;
+  }
+  GdkWindow* gdk_window = gtk_widget_get_window(widget);
+  if (gdk_window != nullptr &&
+      (gdk_window_get_state(gdk_window) & kEdgeStates) != 0) {
+    return 0;
+  }
+  return kCornerRadius;
+}
+
+static void send_corners(MyApplication* self) {
+  if (self->window == nullptr || self->window_channel == nullptr) return;
+  g_autoptr(FlValue) radius = fl_value_new_int(corner_radius(self->window));
+  fl_method_channel_invoke_method(self->window_channel, "corners", radius,
+                                  nullptr, nullptr, nullptr);
+}
+
+// Tells the app whether the window is maximized, for its maximize button,
+// and how round its corners are.
 static gboolean window_state_cb(GtkWidget* widget, GdkEventWindowState* event,
                                 gpointer user_data) {
   (void)widget;
@@ -321,7 +385,13 @@ static gboolean window_state_cb(GtkWidget* widget, GdkEventWindowState* event,
     fl_method_channel_invoke_method(self->window_channel, "maximized",
                                     maximized, nullptr, nullptr, nullptr);
   }
+  if ((event->changed_mask & kEdgeStates) != 0) send_corners(self);
   return FALSE;
+}
+
+static void composited_changed_cb(GdkScreen* screen, gpointer user_data) {
+  (void)screen;
+  send_corners(MY_APPLICATION(user_data));
 }
 
 static void reveal_path(const char* path) {
@@ -507,6 +577,10 @@ static void window_method_call_cb(FlMethodChannel* channel, FlMethodCall* call,
       }
     }
     response = FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr));
+  } else if (strcmp(name, "corners") == 0) {
+    g_autoptr(FlValue) radius = fl_value_new_int(
+        self->window == nullptr ? 0 : corner_radius(self->window));
+    response = FL_METHOD_RESPONSE(fl_method_success_response_new(radius));
   } else if (strcmp(name, "dragWindow") == 0) {
     drag_window(self, static_cast<guint32>(map_number(args, "time")));
     response = FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr));
@@ -557,8 +631,13 @@ static void my_application_activate(GApplication* application) {
   // is never shown makes GTK draw the window's frame itself: its shadow and
   // resize edges, with no caption of the system's over the view.
   gtk_window_set_titlebar(window, gtk_drawing_area_new());
+  style_window_frame(window);
   g_signal_connect(window, "window-state-event", G_CALLBACK(window_state_cb),
                    self);
+  g_signal_connect_object(gtk_widget_get_screen(GTK_WIDGET(window)),
+                          "composited-changed",
+                          G_CALLBACK(composited_changed_cb), self,
+                          static_cast<GConnectFlags>(0));
   gtk_window_set_title(window, "BaoCode");
   gtk_window_set_default_size(window, kDefaultWidth, kDefaultHeight);
   GdkGeometry geometry = {};
@@ -574,8 +653,11 @@ static void my_application_activate(GApplication* application) {
   self->view = GTK_WIDGET(view);
   g_object_add_weak_pointer(G_OBJECT(view), (gpointer*)&self->view);
   g_signal_connect(view, "key-press-event", G_CALLBACK(on_key_press), self);
+  // Clear: what the app leaves undrawn at the window's round corners (see
+  // style_window_frame) shows what is behind the window.
   GdkRGBA background_color;
-  gdk_rgba_parse(&background_color, "#000000");
+  gdk_rgba_parse(&background_color,
+                 corner_radius(window) > 0 ? "rgba(0,0,0,0)" : "#000000");
   fl_view_set_background_color(view, &background_color);
   gtk_widget_show(GTK_WIDGET(view));
   gtk_container_add(GTK_CONTAINER(window), GTK_WIDGET(view));

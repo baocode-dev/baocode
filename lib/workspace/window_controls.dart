@@ -216,6 +216,7 @@ abstract final class WindowControls {
 
   static final Map<int, ValueNotifier<WindowButton?>> _hovered = {};
   static final Map<int, ValueNotifier<bool>> _maximized = {};
+  static final Map<int, ValueNotifier<double>> _corners = {};
 
   /// [hoveredWindowButton] of [viewId]'s window.
   static ValueNotifier<WindowButton?> hoveredButtonOf(int viewId) =>
@@ -225,12 +226,29 @@ abstract final class WindowControls {
   static ValueNotifier<bool> maximizedOf(int viewId) =>
       _maximized.putIfAbsent(viewId, () => ValueNotifier(false));
 
+  /// How round [viewId]'s window's corners are, for what the app draws to
+  /// keep inside them: GTK draws the frame round on Linux, the view under
+  /// it square (see linux/runner/my_application.cc); 0 while the window
+  /// fills the screen or sits against its edges, and everywhere else.
+  static ValueNotifier<double> roundCornersOf(int viewId) =>
+      _corners.putIfAbsent(viewId, () => ValueNotifier(0));
+
   /// Starts taking what [viewId]'s window reports back: which button the
   /// pointer is over, whether it is maximized (Windows); the menu bar's
   /// commands (macOS). One handler takes both (see [handleEditCommands]).
   static void handleWindowEvents([int viewId = 0]) {
     if (!drawsHeader) return;
     _listen(viewId);
+    if (AppPlatform.isLinux) _askCorners(viewId);
+  }
+
+  static Future<void> _askCorners(int viewId) async {
+    try {
+      final radius = await channelFor(viewId).invokeMethod<num>('corners');
+      roundCornersOf(viewId).value = radius?.toDouble() ?? 0;
+    } on MissingPluginException {
+      // A host without the channel (e.g. tests).
+    }
   }
 
   static void _listen(int viewId) {
@@ -240,6 +258,9 @@ abstract final class WindowControls {
           hoveredButtonOf(viewId).value = _buttonNamed('${call.arguments}');
         case 'maximized':
           maximizedOf(viewId).value = call.arguments == true;
+        case 'corners':
+          roundCornersOf(viewId).value =
+              (call.arguments as num?)?.toDouble() ?? 0;
         case 'editCommand':
           activeViewId = viewId;
           runEditCommand('${call.arguments}');
@@ -259,6 +280,7 @@ abstract final class WindowControls {
     _menuCommands.remove(viewId);
     _hovered.remove(viewId)?.dispose();
     _maximized.remove(viewId)?.dispose();
+    _corners.remove(viewId)?.dispose();
     _channels.remove(viewId);
     _titleBarDrops.remove(viewId);
   }
