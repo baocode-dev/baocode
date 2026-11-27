@@ -64,9 +64,6 @@ dependencies:
   clock: ^1.1.2
   crypto: ^3.0.6
   csslib: ^1.0.2
-  # The Windows Credential Manager, where agy keeps its sign-in
-  # (lib/kernel/antigravity/agy_quota_io.dart).
-  ffi: ^2.1.0
   flutter:
     sdk: flutter
   flutter_localizations:

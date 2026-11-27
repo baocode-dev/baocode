@@ -5629,6 +5629,56 @@ void main() {
           kernel.dispose();
         },
       );
+
+      test(
+        'on Antigravity ACP, no quota is fetched and Claude limits are hidden',
+        () async {
+          final cli = FakeCli(answers: {'get_usage': usage});
+          final claudeSession = claude(cli);
+          await claudeSession.kernel.refreshUsage();
+          await pumpEventQueue();
+          expect(claudeSession.kernel.accountLimits, isNotEmpty);
+
+          final providers = ModelProviders.memory(
+            providers: [
+              ModelProvider.fromJson({
+                'id': 'agy',
+                'name': 'Antigravity',
+                'protocol': 'antigravity-cli',
+                'models': [
+                  {'id': 'gemini-3-pro'},
+                ],
+              })!,
+            ],
+          );
+          final launches = <ClaudeLaunch>[];
+          final agyKernel = ClaudeCodeKernel(
+            MockKernels.claudeCode,
+            const KernelContext(
+              cwd: '/p',
+              settings: {'model': '@agy/gemini-3-pro'},
+            ),
+            providers: providers,
+            start: (launch) async {
+              launches.add(launch);
+              return FakeCli();
+            },
+          );
+          final transcript = Transcript();
+          agyKernel.events.listen(transcript.apply);
+
+          expect(agyKernel.accountLimits, isEmpty);
+          await agyKernel.refreshUsage();
+          await pumpEventQueue();
+          expect(launches, isEmpty);
+          expect(agyKernel.accountLimits, isEmpty);
+          expect(transcript.stats!.limits, isEmpty);
+          expect(transcript.stats!.limitsState, LimitsState.idle);
+
+          agyKernel.dispose();
+          claudeSession.kernel.dispose();
+        },
+      );
     });
 
     test('one that exits while starting says what it printed', () async {
