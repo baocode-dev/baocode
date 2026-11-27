@@ -45,7 +45,7 @@ class IdeDiffOriginal {
 }
 
 class IdeDocument {
-  IdeDocument(this.path, String text)
+  IdeDocument(this.path, String text, {this.forced = false})
     : model = EditorDocumentModel(text),
       openError = null,
       label = null,
@@ -65,7 +65,8 @@ class IdeDocument {
       diff = null,
       isMedia = false,
       view = null,
-      isUntitled = true;
+      isUntitled = true,
+      forced = false;
 
   /// An image, shown in VS Code's image preview rather than the text
   /// editor, or a file of a [FileView] ([view], its id), shown as that:
@@ -77,7 +78,8 @@ class IdeDocument {
       readRevision = null,
       diff = null,
       isMedia = true,
-      isUntitled = false;
+      isUntitled = false,
+      forced = false;
 
   /// A file the editor could not open: its tab shows [openError] in VS
   /// Code's placeholder editor, and it has no text.
@@ -88,7 +90,8 @@ class IdeDocument {
       diff = null,
       isMedia = false,
       view = null,
-      isUntitled = false;
+      isUntitled = false,
+      forced = false;
 
   /// [path]'s text at a revision (Git's), read-only, titled with [label]
   /// (`Deleted`, `Index`): VS Code's editor of a `git:` document.
@@ -102,7 +105,8 @@ class IdeDocument {
        diff = null,
        isMedia = false,
        view = null,
-       isUntitled = false;
+       isUntitled = false,
+       forced = false;
 
   /// A diff tab: [diff]'s original against [model], [path]'s file (then
   /// shared with its other tabs) or, with [readRevision], its text at a
@@ -116,7 +120,8 @@ class IdeDocument {
   }) : openError = null,
        isMedia = false,
        view = null,
-       isUntitled = false;
+       isUntitled = false,
+       forced = false;
 
   /// [path]'s own tab of the [model] its diff tab has.
   IdeDocument._shared(this.path, this.model)
@@ -126,7 +131,8 @@ class IdeDocument {
       diff = null,
       isMedia = false,
       view = null,
-      isUntitled = false;
+      isUntitled = false,
+      forced = false;
 
   /// [document], new, saved to [path]: the same text and history.
   IdeDocument._saved(this.path, IdeDocument document)
@@ -137,7 +143,8 @@ class IdeDocument {
       diff = null,
       isMedia = false,
       view = null,
-      isUntitled = false;
+      isUntitled = false,
+      forced = false;
 
   /// [document] at [path], after its file moved: the same text, history
   /// and unsaved changes.
@@ -149,7 +156,9 @@ class IdeDocument {
       diff = document.diff,
       isMedia = document.isMedia,
       view = document.view,
-      isUntitled = document.isUntitled;
+      isUntitled = document.isUntitled,
+      forced = document.forced,
+      tailing = document.tailing;
 
   final String path;
   final EditorDocumentModel model;
@@ -179,9 +188,16 @@ class IdeDocument {
   /// Whether it is a new file not saved yet ([IdeDocument.untitled]).
   final bool isUntitled;
 
+  /// Whether the file was opened past the binary / size checks (Open Anyway).
+  final bool forced;
+
   /// Whether its file was deleted while open: the tab says so, and saving
   /// makes the file again (VS Code's orphaned editors).
   bool deleted = false;
+
+  /// Whether Notepad++-style tail (`tail -f`) monitoring is active on this
+  /// tab: read-only, periodically polled, and auto-scrolled to the bottom.
+  bool tailing = false;
 
   /// Tells the tab apart from [path]'s others.
   String get key => label == null ? path : '$path\u0000$label';
@@ -190,7 +206,11 @@ class IdeDocument {
   /// servers.
   bool get isFile =>
       readRevision == null && openError == null && !isMedia && !isUntitled;
-  bool get readOnly => readRevision != null;
+
+  /// Whether this document can be tailed (a real text file tab, not a diff
+  /// or revision).
+  bool get canTail => isFile && diff == null;
+  bool get readOnly => readRevision != null || tailing;
 
   String get text => model.text;
   set text(String value) => model.replaceText(value);
@@ -225,11 +245,17 @@ class IdeWorkspace extends ChangeNotifier
     IdeRepositoryDetection? repositoryDetection,
     this.openWorktree,
     p.Context? paths,
+    Duration? tailPollInterval,
   }) : _detection = repositoryDetection,
        paths = paths == null
            ? p.context
            : p.Context(style: paths.style, current: root),
        files = files ?? IdeFileService(root),
+       _tailPollInterval =
+           tailPollInterval ??
+           (files is IdeHostFiles
+               ? const Duration(milliseconds: 1500)
+               : const Duration(milliseconds: 600)),
        _watchDirectory =
            watch ??
            switch (files) {
@@ -597,6 +623,9 @@ class IdeWorkspace extends ChangeNotifier
   final Map<String, StreamSubscription<void>> _watches = {};
   final Set<String> _changedDirectories = {};
   Timer? _changesTimer;
+  final Duration _tailPollInterval;
+  Timer? _tailTimer;
+  bool _tailReloading = false;
   Future<void> _saves = Future.value();
   String? _activeKey;
   int _selection = 0;
@@ -876,6 +905,7 @@ class IdeWorkspace extends ChangeNotifier
       replacement = IdeDocument(
         doc.path,
         await files.read(doc.path, force: force),
+        forced: force,
       );
     } catch (error) {
       replacement = IdeDocument.unopenable(doc.path, error);
@@ -905,7 +935,7 @@ class IdeWorkspace extends ChangeNotifier
       try {
         // A modified document's too, for whether its file is there: the
         // read's baseline does not let a save write over the change.
-        text = await files.read(doc.path);
+        text = await files.read(doc.path, force: doc.forced || doc.tailing);
       } on IdeFileNotFoundException {
         if (_disposed || !_documents.contains(doc) || doc.deleted) continue;
         doc.deleted = true;
@@ -927,9 +957,25 @@ class IdeWorkspace extends ChangeNotifier
     if (changed && !_disposed) notifyListeners();
   }
 
+  /// Turns Notepad++-style monitoring (`tail -f`) on or off for [doc].
+  /// Ignored if [doc] cannot be tailed or has unsaved changes.
+  void setTailing(IdeDocument doc, bool tailing) {
+    if (_disposed || !_documents.contains(doc) || !doc.canTail) return;
+    if (tailing && doc.dirty) return;
+    if (doc.tailing == tailing) return;
+    doc.tailing = tailing;
+    _syncTailPolling();
+    if (tailing) unawaited(reload([doc.path]));
+    notifyListeners();
+  }
+
+  /// Toggles tail (`tail -f`) monitoring on [doc].
+  void toggleTailing(IdeDocument doc) => setTailing(doc, !doc.tailing);
+
   /// Watches the folders of the open files, and no others.
   void _watchOpenFiles() {
     if (_disposed) return;
+    _syncTailPolling();
     final directories = {
       for (final doc in _documents)
         if (doc.isFile) paths.dirname(doc.path),
@@ -942,9 +988,18 @@ class IdeWorkspace extends ChangeNotifier
     for (final directory in directories) {
       _watches[directory] ??= _watchDirectory(directory).listen((_) {
         _changedDirectories.add(directory);
-        // A write comes as several events; read once they settle.
-        _changesTimer?.cancel();
-        _changesTimer = Timer(_changesDelay, _reloadChanged);
+        final hasTail = _documents.any(
+          (d) => d.tailing && paths.dirname(d.path) == directory,
+        );
+        if (hasTail) {
+          // Throttle rather than trailing-edge debounce so continuously written
+          // log files do not starve reloads.
+          _changesTimer ??= Timer(_changesDelay, _reloadChanged);
+        } else {
+          // A write comes as several events; read once they settle.
+          _changesTimer?.cancel();
+          _changesTimer = Timer(_changesDelay, _reloadChanged);
+        }
       });
     }
   }
@@ -952,6 +1007,7 @@ class IdeWorkspace extends ChangeNotifier
   static const _changesDelay = Duration(milliseconds: 100);
 
   void _reloadChanged() {
+    _changesTimer = null;
     final directories = {..._changedDirectories};
     _changedDirectories.clear();
     unawaited(
@@ -959,6 +1015,34 @@ class IdeWorkspace extends ChangeNotifier
         for (final doc in _documents)
           if (directories.contains(paths.dirname(doc.path))) doc.path,
       ]),
+    );
+  }
+
+  void _syncTailPolling() {
+    final anyTailing = !_disposed && _documents.any((d) => d.tailing);
+    if (anyTailing) {
+      _tailTimer ??= Timer.periodic(_tailPollInterval, (_) => _pollTailed());
+    } else {
+      _tailTimer?.cancel();
+      _tailTimer = null;
+    }
+  }
+
+  void _pollTailed() {
+    if (_disposed || _tailReloading) return;
+    final tailedPaths = [
+      for (final doc in _documents)
+        if (doc.tailing && doc.isFile) doc.path,
+    ];
+    if (tailedPaths.isEmpty) {
+      _syncTailPolling();
+      return;
+    }
+    _tailReloading = true;
+    unawaited(
+      reload(tailedPaths).whenComplete(() {
+        _tailReloading = false;
+      }),
     );
   }
 
@@ -1020,7 +1104,7 @@ class IdeWorkspace extends ChangeNotifier
   void edit(String path, String text) {
     if (_disposed) return;
     final doc = _fileDocument(path);
-    if (doc == null || doc.text == text) return;
+    if (doc == null || doc.readOnly || doc.text == text) return;
     doc.text = text;
     notifyListeners();
   }
@@ -1067,7 +1151,7 @@ class IdeWorkspace extends ChangeNotifier
   void applyEdits(String path, List<EditorDocumentEdit> edits) {
     if (_disposed) return;
     final doc = _fileDocument(path);
-    if (doc == null) return;
+    if (doc == null || doc.readOnly) return;
     final previous = doc.text;
     doc.model.applyEdits(edits);
     if (doc.text != previous) notifyListeners();
@@ -1368,6 +1452,8 @@ class IdeWorkspace extends ChangeNotifier
   void dispose() {
     _disposed = true;
     _changesTimer?.cancel();
+    _tailTimer?.cancel();
+    _tailTimer = null;
     navigation.dispose();
     for (final watch in _watches.values) {
       unawaited(watch.cancel());

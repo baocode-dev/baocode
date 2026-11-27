@@ -1862,33 +1862,47 @@ class EditorSurfaceController extends ValueNotifier<TextEditingValue> {
     }
   }
 
+  /// True only during a [syncFromDocument] call with `reveal: false`, so the
+  /// surface does not scroll back to the caret after an external reload.
+  bool get suppressReveal => _suppressReveal;
+  bool _suppressReveal = false;
+
   /// Refresh after an external edit to the supplied document. Callers of an
   /// injected document must explicitly sync because it has no notifications.
   /// Restores the cursors recorded by the latest undo/redo when it is the
   /// newest change; otherwise clamps the current cursors.
-  void syncFromDocument() {
+  ///
+  /// When [reveal] is false, the surface keeps its current scroll position
+  /// instead of scrolling to reveal the caret.
+  void syncFromDocument({bool reveal = true}) {
     if (_disposed) return;
-    if (super.value.text != document.text) _snippet = null;
-    final restored = document.restoredSelections;
-    if (restored != null &&
-        restored.isNotEmpty &&
-        super.value.text != document.text) {
-      _lastEditVersion = -1;
-      _autoClosed = const [];
-      _eolCache = null;
-      _setSelections(
-        restored,
-        reveal: restored.first.extentOffset,
-        keepUndoGroup: true,
-      );
-      return;
+    final previousSuppress = _suppressReveal;
+    if (!reveal) _suppressReveal = true;
+    try {
+      if (super.value.text != document.text) _snippet = null;
+      final restored = document.restoredSelections;
+      if (restored != null &&
+          restored.isNotEmpty &&
+          super.value.text != document.text) {
+        _lastEditVersion = -1;
+        _autoClosed = const [];
+        _eolCache = null;
+        _setSelections(
+          restored,
+          reveal: restored.first.extentOffset,
+          keepUndoGroup: true,
+        );
+        return;
+      }
+      if (super.value.text != document.text) {
+        _autoClosed = const [];
+        _eolCache = null;
+      }
+      // Another's edit shown: its step of Undo not ended by it.
+      _setSelections(selections, keepUndoGroup: true);
+    } finally {
+      _suppressReveal = previousSuppress;
     }
-    if (super.value.text != document.text) {
-      _autoClosed = const [];
-      _eolCache = null;
-    }
-    // Another's edit shown: its step of Undo not ended by it.
-    _setSelections(selections, keepUndoGroup: true);
   }
 
   Future<void> copy() async {

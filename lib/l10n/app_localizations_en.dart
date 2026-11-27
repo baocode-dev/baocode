@@ -14606,4 +14606,23 @@ class AppLocalizationsEn extends AppLocalizations {
   String remoteBrowserReplace(String name) {
     return '“$name” already exists. Replace it?';
   }
+
+  @override
+  String get tailStart => 'Tail File (Follow Changes)';
+
+  @override
+  String get tailStop => 'Stop Tailing';
+
+  @override
+  String get tailSaveFirst => 'Save changes to start tailing';
+
+  @override
+  String get tailResume => 'Scroll to Bottom & Resume Tail';
+
+  @override
+  String get cmdToggleTail => 'Toggle Tail (Follow File)';
+
+  @override
+  String get tailReadOnlyHint =>
+      'Read-only while tailing (tail -f). Stop tailing to edit.';
 }

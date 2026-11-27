@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
 import 'package:bao_editor/monaco/flutter/diff_editor_model.dart'
@@ -30,6 +31,7 @@ import 'ide_find_widget.dart';
 import 'ide_menu.dart';
 import 'ide_notifications.dart';
 import 'ide_status_bar.dart' show IdeLanguageNames;
+import 'ide_tail_button.dart';
 import 'ide_workspace.dart' show IdeFormatOutcome, IdeWorkspace;
 import 'lsp/lsp_protocol.dart';
 import 'lsp_ui/lsp_convert.dart';
@@ -122,6 +124,9 @@ class IdeCodeEditor extends StatefulWidget {
     this.agent,
     this.background,
     this.glyphMargin = true,
+    this.onViewChanged,
+    this.readOnlyHint,
+    this.extraMenuActions = const [],
   });
 
   final EditorSurfaceController controller;
@@ -177,6 +182,16 @@ class IdeCodeEditor extends StatefulWidget {
   /// icons); none where nothing goes there.
   final bool glyphMargin;
 
+  /// Called when the editor scrolls or its viewport changes.
+  final VoidCallback? onViewChanged;
+
+  /// Inline tooltip shown at the caret when editing is attempted while
+  /// [readOnly] is true.
+  final String? readOnlyHint;
+
+  /// Extra actions appended to the view options group in the context menu.
+  final List<IdeMenuAction> extraMenuActions;
+
   @override
   State<IdeCodeEditor> createState() => IdeCodeEditorState();
 }
@@ -206,6 +221,9 @@ class IdeCodeEditorState extends State<IdeCodeEditor> {
 
   /// Bumped as the text scrolls: what is placed by its lines follows.
   final ValueNotifier<int> _viewTick = ValueNotifier(0);
+
+  int? _readOnlyHintOffset;
+  Timer? _readOnlyHintTimer;
 
   /// The editor, once laid out.
   EditorSurfaceView? get view => switch (_surfaceKey.currentState) {
@@ -242,6 +260,9 @@ class IdeCodeEditorState extends State<IdeCodeEditor> {
     _find
       ..controller = widget.controller
       ..readOnly = widget.readOnly;
+    if (!widget.readOnly || widget.readOnlyHint == null) {
+      _hideReadOnlyHint();
+    }
     if (!identical(oldWidget.agent, widget.agent)) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _highlightAgent());
     }
@@ -260,6 +281,8 @@ class IdeCodeEditorState extends State<IdeCodeEditor> {
 
   @override
   void dispose() {
+    _readOnlyHintTimer?.cancel();
+    _readOnlyHintTimer = null;
     _language++;
     _themes.removeListener(_themeChanged);
     widget.controller.removeListener(_textChanged);
@@ -372,6 +395,19 @@ class IdeCodeEditorState extends State<IdeCodeEditor> {
     WidgetsBinding.instance.scheduleFrame();
   }
 
+  /// Scrolls so the last line sits at the bottom of the viewport.
+  void scrollToBottom() {
+    final current = view;
+    if (current != null) {
+      current.scrollToBottom();
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) view?.scrollToBottom();
+    });
+    WidgetsBinding.instance.scheduleFrame();
+  }
+
   void _highlighted() {
     if (mounted) setState(() {});
   }
@@ -417,9 +453,36 @@ class IdeCodeEditorState extends State<IdeCodeEditor> {
     'editor.action.replaceAll',
   };
 
+  void _showReadOnlyHint() {
+    if (!mounted || !widget.readOnly || widget.readOnlyHint == null) return;
+    final selection = widget.controller.value.selection;
+    final offset = selection.isValid ? selection.extentOffset : 0;
+    _readOnlyHintTimer?.cancel();
+    _readOnlyHintTimer = Timer(const Duration(seconds: 3), _hideReadOnlyHint);
+    if (_readOnlyHintOffset != offset) {
+      setState(() => _readOnlyHintOffset = offset);
+    }
+  }
+
+  void _hideReadOnlyHint() {
+    _readOnlyHintTimer?.cancel();
+    _readOnlyHintTimer = null;
+    if (_readOnlyHintOffset != null && mounted) {
+      setState(() => _readOnlyHintOffset = null);
+    } else {
+      _readOnlyHintOffset = null;
+    }
+  }
+
   /// Find and replace, Format Document, Format Selection and Toggle Word
   /// Wrap by their keybindings.
   KeyEventResult _onKey(KeyEvent event) {
+    if (_readOnlyHintOffset != null &&
+        event is KeyDownEvent &&
+        event.logicalKey == LogicalKeyboardKey.escape) {
+      _hideReadOnlyHint();
+      return KeyEventResult.handled;
+    }
     final found = KeybindingService.instance.resolveEvent(
       event,
       context: (key) => switch (key) {
@@ -604,7 +667,7 @@ class IdeCodeEditorState extends State<IdeCodeEditor> {
             editorItem('editor.action.clipboardCopyAction'),
             editorItem('editor.action.clipboardPasteAction', enabled: editable),
           ],
-          [wordWrapMenuAction(l10n)],
+          [wordWrapMenuAction(l10n), ...widget.extraMenuActions],
         ]),
       ),
     );
@@ -614,6 +677,7 @@ class IdeCodeEditorState extends State<IdeCodeEditor> {
   void _viewChanged() {
     if (!mounted) return;
     _viewTick.value++;
+    widget.onViewChanged?.call();
     final highlight = _highlight;
     final view = _surfaceKey.currentState;
     if (!mounted || highlight == null || view is! EditorSurfaceView) return;
@@ -708,6 +772,9 @@ class IdeCodeEditorState extends State<IdeCodeEditor> {
           codeLensColors: EditorCodeLensColors.from(colors.get),
           gutterIconBuilder: widget.gutterIconBuilder,
           onViewChanged: _viewChanged,
+          onReadOnlyEdit: widget.readOnlyHint != null
+              ? _showReadOnlyHint
+              : null,
           onKeyEvent: widget.bare ? null : _onKey,
           onContextMenu: widget.bare ? null : _showContextMenu,
           style: style,
@@ -722,6 +789,16 @@ class IdeCodeEditorState extends State<IdeCodeEditor> {
         Positioned.fill(child: text),
         if (_agentHunkActions(agent) case final hunks?)
           Positioned.fill(child: hunks),
+        if (widget.readOnly &&
+            widget.readOnlyHint != null &&
+            _readOnlyHintOffset != null)
+          Positioned.fill(
+            child: IdeEditorCaretTooltip(
+              text: widget.readOnlyHint!,
+              view: view,
+              offset: _readOnlyHintOffset!,
+            ),
+          ),
         if (_find.visible)
           Positioned.fill(
             child: LayoutBuilder(

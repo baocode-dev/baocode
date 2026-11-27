@@ -9218,5 +9218,29 @@
   "remoteBrowserSaveName": "Save As:",
   "remoteBrowserSave": "Save",
   "remoteBrowserReplace": "“{name}” already exists. Replace it?",
-  "@remoteBrowserReplace": {"placeholders": {"name": {"type": "String"}}}
+  "@remoteBrowserReplace": {"placeholders": {"name": {"type": "String"}}},
+  "tailStart": "Tail File (Follow Changes)",
+  "@tailStart": {
+    "description": "Tooltip for the eye icon button that starts Notepad++-style tailing on the active file."
+  },
+  "tailStop": "Stop Tailing",
+  "@tailStop": {
+    "description": "Tooltip for the eye icon button when tailing is active."
+  },
+  "tailSaveFirst": "Save changes to start tailing",
+  "@tailSaveFirst": {
+    "description": "Tooltip for the disabled tail button when the file has unsaved changes."
+  },
+  "tailResume": "Scroll to Bottom & Resume Tail",
+  "@tailResume": {
+    "description": "Tooltip for the floating button shown when tailing is paused by scrolling up."
+  },
+  "cmdToggleTail": "Toggle Tail (Follow File)",
+  "@cmdToggleTail": {
+    "description": "Command palette title for toggling tail mode on the active file."
+  },
+  "tailReadOnlyHint": "Read-only while tailing (tail -f). Stop tailing to edit.",
+  "@tailReadOnlyHint": {
+    "description": "Inline tooltip shown at the caret when trying to edit a file while tail mode is active."
+  }
 }

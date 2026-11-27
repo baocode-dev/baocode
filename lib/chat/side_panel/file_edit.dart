@@ -45,19 +45,20 @@ class SidePanelFileEdit extends ChangeNotifier {
   }
 
   /// [text] in place of what it had, not to be undone.
-  void _load(String text) {
+  void _load(String text, {bool reveal = true}) {
     controller.document.replaceText(text);
     controller
-      ..syncFromDocument()
+      ..syncFromDocument(reveal: reveal)
       ..detectIndentation();
   }
 
   /// The file read anew (the agent wrote it again, say): in place of the
-  /// text, unless that was changed.
-  void reload(String text) {
-    if (_dirty || text == _saved) return;
+  /// text, unless that was changed. Returns whether the text changed.
+  bool reload(String text, {bool reveal = true}) {
+    if (_dirty || text == _saved) return false;
     _saved = text;
-    _load(text);
+    _load(text, reveal: reveal);
+    return true;
   }
 
   Future<void> save() async {

@@ -13801,4 +13801,22 @@ class AppLocalizationsZh extends AppLocalizations {
   String remoteBrowserReplace(String name) {
     return '“$name”已存在，要替换它吗？';
   }
+
+  @override
+  String get tailStart => '实时追踪(tail -f)';
+
+  @override
+  String get tailStop => '停止实时追踪(tail -f)';
+
+  @override
+  String get tailSaveFirst => '请先保存更改后再开启实时追踪';
+
+  @override
+  String get tailResume => '滚动到底部并继续追踪';
+
+  @override
+  String get cmdToggleTail => '切换实时追踪(tail -f)';
+
+  @override
+  String get tailReadOnlyHint => '实时追踪(tail -f)中为只读，关闭追踪后可编辑';
 }

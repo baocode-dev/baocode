@@ -32,6 +32,7 @@ String localizedCommandLabel(AppLocalizations l10n, String id, String english) {
     toggleAutoSaveCommandId => l10n.cmdToggleAutoSave,
     EditorWordWrap.commandId => l10n.cmdToggleWordWrap,
     EditorMinimap.commandId => l10n.cmdToggleMinimap,
+    'baocode.ide.toggleTail' => l10n.cmdToggleTail,
     'markdown.showPreview' => l10n.cmdMarkdownShowPreview,
     'markdown.showSource' => l10n.cmdMarkdownShowSource,
     'workbench.action.files.newUntitledFile' => l10n.cmdNewUntitledFile,

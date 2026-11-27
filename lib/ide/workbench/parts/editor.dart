@@ -114,6 +114,7 @@ class EditorPart extends StatelessWidget {
                     : null,
                 onMarkdownPreview: (preview) =>
                     unawaited(markdown.setPreview(preview)),
+                onToggleTail: workspace.toggleTailing,
                 page: page == null
                     ? null
                     : ExtensionPageTab(service: extensions),

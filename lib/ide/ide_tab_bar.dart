@@ -15,6 +15,7 @@ import 'editor_minimap_setting.dart';
 import 'host_paths.dart';
 import 'ide_hover.dart';
 import 'ide_menu.dart';
+import 'ide_tail_button.dart';
 import 'ide_workspace.dart';
 import 'save_copy.dart';
 import 'tab_reorder.dart';
@@ -103,6 +104,7 @@ class IdeTabBar extends StatefulWidget {
     this.local = true,
     this.markdownPreview,
     this.onMarkdownPreview,
+    this.onToggleTail,
     this.page,
     this.actions,
     this.onMove,
@@ -132,6 +134,9 @@ class IdeTabBar extends StatefulWidget {
 
   /// Shows the active markdown file's preview (true) or source (false).
   final ValueChanged<bool>? onMarkdownPreview;
+
+  /// Toggles Notepad++-style tail monitoring on the active file tab.
+  final ValueChanged<IdeDocument>? onToggleTail;
 
   /// After the tabs, before the active tab's switch and More Actions (an
   /// agent's change to its file: Undo and Keep).
@@ -284,10 +289,24 @@ class _IdeTabBarState extends State<IdeTabBar>
             item(IdeTabAction.openInDefaultApp, l10n.openInDefaultApp),
           item(IdeTabAction.revealInExplorer, l10n.tabRevealInExplorerView),
         ],
-        // A code tab's: one choice for every editor (EditorMinimap). Not a
-        // diff's, whose editors have none.
+        // A code tab's: one choice for every editor (EditorMinimap), plus
+        // per-tab Tail monitoring. Not a diff's, whose editors have none.
         if (!doc.isMedia && doc.openError == null && doc.diff == null)
-          [minimapMenuAction(l10n)],
+          [
+            minimapMenuAction(l10n),
+            if (widget.onToggleTail case final onToggleTail? when doc.canTail)
+              IdeMenuAction(
+                l10n.tailStart,
+                checked: doc.tailing,
+                enabled: doc.tailing || !doc.dirty,
+                keybinding: KeybindingService.instance.labelFor(
+                  'baocode.ide.toggleTail',
+                ),
+                onSelected: () {
+                  if (mounted) onToggleTail(doc);
+                },
+              ),
+          ],
       ]),
     );
   }
@@ -370,6 +389,17 @@ class _IdeTabBarState extends State<IdeTabBar>
             final onChanged?,
           ))
             MarkdownSwitch(preview: preview, onChanged: onChanged),
+          if ((widget.active, widget.onToggleTail) case (
+            final active?,
+            final onToggleTail?,
+          ) when active.tailing && widget.markdownPreview != true)
+            Padding(
+              padding: const EdgeInsets.only(left: 4),
+              child: IdeTailActionButton(
+                tailing: true,
+                onPressed: () => onToggleTail(active),
+              ),
+            ),
           if (widget.active case final active?)
             Builder(
               builder: (context) => _TabBarAction(
