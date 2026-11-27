@@ -126,11 +126,38 @@ Future<List<RemoteModel>> listUpstreamModels(
     _Refused? refusedFirst;
     var answered = false;
     for (final (i, url) in urls.indexed) {
+      // For Gemini providers, fallback URLs after the first are OpenAI-style
+      // `/v1/models` endpoints on multi-protocol relays, which authenticate
+      // with Bearer tokens and do not take Gemini's `pageSize` query param.
+      final listProvider = provider.protocol == ProviderProtocol.gemini && i > 0
+          ? provider.copyWith(protocol: ProviderProtocol.openaiChat)
+          : provider;
       try {
-        final models = await _listModels(client, url, provider, key);
+        final models = await _listModels(client, url, listProvider, key);
         if (models.isNotEmpty) return models;
         answered = true;
       } on UpstreamException catch (failed) {
+        // A custom `/v1/models` URL set on a Gemini provider (e.g. a relay
+        // without `/v1beta/models`) may require Bearer instead of
+        // `x-goog-api-key`.
+        if (failed is _Refused &&
+            listProvider.protocol == ProviderProtocol.gemini &&
+            url.path.endsWith('/v1/models') &&
+            !url.host.toLowerCase().endsWith('googleapis.com')) {
+          try {
+            final models = await _listModels(
+              client,
+              url,
+              provider.copyWith(protocol: ProviderProtocol.openaiChat),
+              key,
+            );
+            if (models.isNotEmpty) return models;
+            answered = true;
+            continue;
+          } on UpstreamException {
+            // Fall through to report the original failure.
+          }
+        }
         if (i == 0 && failed is _Refused) refusedFirst = failed;
         if (error == null || error is _NotFound && failed is! _NotFound) {
           error = failed;

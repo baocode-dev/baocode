@@ -925,9 +925,25 @@ void main() {
       expect(UpstreamUrls.geminiModelPath('a//b'), 'a%2F%2Fb');
 
       final bare = at('https://relay.example', ProviderProtocol.gemini);
-      expect(
-        UpstreamUrls.models(bare).join(' '),
+      expect(UpstreamUrls.models(bare).map((u) => '$u'), [
         'https://relay.example/v1beta/models',
+        'https://relay.example/v1/models',
+      ]);
+      expect(
+        UpstreamUrls.models(
+          at('https://relay.example/proxy/v1beta', ProviderProtocol.gemini),
+        ).map((u) => '$u'),
+        [
+          'https://relay.example/proxy/v1beta/models',
+          'https://relay.example/proxy/v1/models',
+          'https://relay.example/v1/models',
+        ],
+      );
+      expect(
+        UpstreamUrls.models(
+          at('https://relay.example/v1', ProviderProtocol.gemini),
+        ).map((u) => '$u'),
+        ['https://relay.example/v1/models'],
       );
       expect(
         '${UpstreamUrls.geminiEndpoint(bare, model: 'gemini-4-carbon')}',
@@ -2048,6 +2064,87 @@ void main() {
         }
       },
     );
+
+    test('Gemini falls back to /v1/models with Bearer auth when a relay '
+        'returns 404 for /v1beta/models', () async {
+      final relayServer = await HttpServer.bind(
+        InternetAddress.loopbackIPv4,
+        0,
+      );
+      final seen = <(String, String?, String?)>[];
+      relayServer.listen((request) async {
+        seen.add((
+          '${request.uri.path}${request.uri.hasQuery ? '?${request.uri.query}' : ''}',
+          request.headers.value('x-goog-api-key'),
+          request.headers.value('authorization'),
+        ));
+        if (request.uri.path == '/v1beta/models') {
+          request.response
+            ..statusCode = 404
+            ..write(
+              jsonEncode({
+                'error': {'message': 'Invalid URL (GET /v1beta/models)'},
+              }),
+            );
+        } else if (request.uri.path == '/v1/models') {
+          if (request.headers.value('authorization') != 'Bearer relay-key') {
+            request.response
+              ..statusCode = 401
+              ..write(
+                jsonEncode({
+                  'error': {'message': 'missing token'},
+                }),
+              );
+          } else {
+            request.response.write(
+              jsonEncode({
+                'data': [
+                  {'id': 'gemini-2.5-pro'},
+                  {'id': 'gemini-3-flash'},
+                ],
+              }),
+            );
+          }
+        } else {
+          request.response.statusCode = 404;
+        }
+        await request.response.close();
+      });
+      try {
+        final base = 'http://127.0.0.1:${relayServer.port}/v1beta';
+        final models = await listUpstreamModels(
+          ModelProvider(
+            id: 'gm-relay',
+            name: 'Gemini Relay',
+            protocol: ProviderProtocol.gemini,
+            baseUrl: base,
+          ),
+          'relay-key',
+        );
+        expect(models.map((m) => m.id), ['gemini-2.5-pro', 'gemini-3-flash']);
+        expect(seen, [
+          ('/v1beta/models?pageSize=1000', 'relay-key', null),
+          ('/v1/models', null, 'Bearer relay-key'),
+        ]);
+
+        // Also works when the user enters /v1/models directly as custom URL.
+        seen.clear();
+        final custom = await listUpstreamModels(
+          ModelProvider(
+            id: 'gm-relay-custom',
+            name: 'Gemini Relay Custom',
+            protocol: ProviderProtocol.gemini,
+            baseUrl: base,
+            modelsUrl: 'http://127.0.0.1:${relayServer.port}/v1/models',
+          ),
+          'relay-key',
+        );
+        expect(custom.map((m) => m.id), ['gemini-2.5-pro', 'gemini-3-flash']);
+        expect(seen.last, ('/v1/models', null, 'Bearer relay-key'));
+      } finally {
+        await relayServer.close(force: true);
+      }
+    });
   });
 
   group('ClaudeEntrypoint', () {

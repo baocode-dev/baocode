@@ -145,7 +145,7 @@ abstract final class UpstreamUrls {
           null => const [],
         },
         ProviderProtocol.gemini => switch (geminiBase(provider.baseUrl)) {
-          final base? => [_appendPath(Uri.parse(base), '/models')],
+          final base? => _geminiModels(Uri.parse(base)),
           null => const [],
         },
         _ => switch (openaiBase(provider.baseUrl)) {
@@ -153,6 +153,23 @@ abstract final class UpstreamUrls {
           null => const [],
         },
       };
+
+  /// Gemini's own `/models` under [base] first, then OpenAI-style `/v1/models`
+  /// above it: multi-protocol relays often serve Gemini's `generateContent`
+  /// under `/v1beta/models/…` while listing every model only at `/v1/models`.
+  static List<Uri> _geminiModels(Uri base) {
+    final segments = base.pathSegments.where((s) => s.isNotEmpty).toList();
+    return {
+      _appendPath(base, '/models'),
+      for (var length = segments.length; length >= 0; length--)
+        if (length == 0 || !_version.hasMatch(segments[length - 1]))
+          Uri.parse(
+            length == 0
+                ? '${base.origin}/v1/models'
+                : '${base.origin}/${segments.take(length).map(Uri.encodeComponent).join('/')}/v1/models',
+          ),
+    }.toList();
+  }
 
   static Uri _appendPath(
     Uri base,
