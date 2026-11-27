@@ -3,7 +3,11 @@
 
 import 'dart:convert';
 
+import 'package:bao_remote/client.dart' show SshCore;
+
+import '../../channel/channel_setup.dart';
 import '../../chat/chat_models.dart' show ImageAttachment;
+import '../../models/model_provider.dart' show ProviderProtocol;
 import '../../models/model_providers.dart';
 import '../../models/model_runtime.dart';
 import '../../remote/remote_claude.dart';
@@ -53,9 +57,24 @@ Future<String> askClaudeHaiku(
 }) async {
   final host = location == null ? null : RemoteLocation.hostOf(location);
   final providers = ModelProviders.current;
+  final builtinAvailable = host != null
+      ? !ChannelSetup.channelBuild && remoteCoreOf(host) != SshCore.builtin
+      : providers.builtinAvailable;
   var custom = providers.resolve(model);
-  if (custom == null && !providers.builtinAvailable) {
-    custom = providers.resolve(providers.firstModel);
+  if (custom != null &&
+      custom.$1.protocolOf(custom.$2) == ProviderProtocol.agy) {
+    custom = null;
+  }
+  if (custom == null && !builtinAvailable) {
+    for (final provider in providers.enabled) {
+      if (provider.protocol == ProviderProtocol.agy) continue;
+      for (final info in provider.enabledModels) {
+        if (provider.protocolOf(info) == ProviderProtocol.agy) continue;
+        custom = (provider, info);
+        break;
+      }
+      if (custom != null) break;
+    }
     if (custom == null) throw const ClaudeHaikuException(ClaudeCore.noModel);
     exact = false;
   }
