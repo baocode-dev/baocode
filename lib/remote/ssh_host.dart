@@ -299,7 +299,8 @@ class SshHost extends ChangeNotifier implements ProjectHost {
         if (wasLost ||
             _closed ||
             attempt >= _firstAttempts ||
-            error.failure != SshFailure.unreachable) {
+            error.failure != SshFailure.unreachable ||
+            error.prompted) {
           rethrow;
         }
         _progress = null;

@@ -64,8 +64,10 @@ done
 dest="$1"; shift
 if [ -n "$config" ]; then
   # What ssh -G says: the config, the user's strictness as FAKE_STRICT.
-  printf 'hostname %s\nport %s\nstricthostkeychecking %s\nuserknownhostsfile %s %s\n' \
-    "$dest" "${FAKE_PORT:-22}" "${FAKE_STRICT:-ask}" "$HOME/.ssh/known_hosts" "$HOME/.ssh/known_hosts2"
+  printf 'hostname %s\nport %s\nstricthostkeychecking %s\nuserknownhostsfile %s %s\nconnecttimeout %s\n' \
+    "$dest" "${FAKE_PORT:-22}" "${FAKE_STRICT:-ask}" "$HOME/.ssh/known_hosts" "$HOME/.ssh/known_hosts2" "${FAKE_CONNECT_TIMEOUT:-none}"
+  [ -n "${FAKE_PROXY_JUMP:-}" ] && printf 'proxyjump %s\n' "$FAKE_PROXY_JUMP"
+  [ -n "${FAKE_PROXY_COMMAND:-}" ] && printf 'proxycommand %s\n' "$FAKE_PROXY_COMMAND"
   exit 0
 fi
 printf '%s\n' "$all" >> "$FAKE_LOG.args"
@@ -175,11 +177,11 @@ exec '$dartExecutable' '${p.absolute('packages', 'bao_remote', 'bin', 'baocode_s
     expect(installed.readAsBytesSync(), serverScript());
     expect(binaries.reads, ['linux-x64']);
     expect(progress.any((line) => line.contains('Installing')), isTrue);
+    // Probe, install and launch all run over a single ssh connection.
     expect(commands(), [
-      'sh -s',
-      startsWith("sh -c 'mkdir -p .baocode-server/1-abc && gzip -dc >"),
-      matches(
-        r'^\.baocode-server/1-abc/baocode-server --session [0-9a-f]{32}$',
+      allOf(
+        startsWith("sh -c '"),
+        contains('.baocode-server/1-abc/baocode-server --session '),
       ),
     ]);
 
@@ -192,13 +194,15 @@ exec '$dartExecutable' '${p.absolute('packages', 'bao_remote', 'bin', 'baocode_s
     await connection.close();
     await connection.done;
 
-    // Again: already there, so not sent again.
+    // Again: already there, so not sent again; still one ssh connection.
     log.deleteSync();
     final again = await launcher.connect(SshTarget.parse('dev'));
     expect(binaries.reads, ['linux-x64']);
     expect(commands(), [
-      'sh -s',
-      startsWith('.baocode-server/1-abc/baocode-server --session '),
+      allOf(
+        startsWith("sh -c '"),
+        contains('.baocode-server/1-abc/baocode-server --session '),
+      ),
     ]);
     await again.close();
   }, timeout: const Timeout(Duration(minutes: 2)));
@@ -224,57 +228,59 @@ exec '$dartExecutable' '${p.absolute('packages', 'bao_remote', 'bin', 'baocode_s
     expect(await failure('strict'), SshFailure.hostKey);
   });
 
-  test('a password is asked for each ssh, again when refused', () async {
-    final binaries = FakeBinaries('1-abc', {'linux-x64': serverScript()});
-    final asked = <SshPrompt>[];
-    var answers = ['wrong', 'hunter2'];
-    final launcher = SshLauncher(
-      ssh: fakeSsh,
-      binaries: binaries,
-      start: starter(),
-      prompter: (prompt) async {
-        asked.add(prompt);
-        if (answers.isEmpty) return 'hunter2';
-        return answers.removeAt(0);
-      },
-    );
-    expect(
-      launcher.arguments(SshTarget.parse('dev'), 'cmd'),
-      contains('BatchMode=no'),
-    );
-    final connection = await launcher.connect(SshTarget.parse('secret'));
-    expect(connection.hello.home, home.path);
-    // The probe twice (the first refused), the upload, the server.
-    expect(
-      [for (final prompt in asked) prompt.retry],
-      [false, true, false, false],
-    );
-    expect(asked.first.text, "me@secret's password: ");
-    expect(asked.first.target.text, 'secret');
-    await connection.close();
+  test(
+    'a password is asked once per connect (single ssh), again when refused',
+    () async {
+      final binaries = FakeBinaries('1-abc', {'linux-x64': serverScript()});
+      final asked = <SshPrompt>[];
+      var answers = ['wrong', 'hunter2'];
+      final launcher = SshLauncher(
+        ssh: fakeSsh,
+        binaries: binaries,
+        start: starter(),
+        prompter: (prompt) async {
+          asked.add(prompt);
+          if (answers.isEmpty) return 'hunter2';
+          return answers.removeAt(0);
+        },
+      );
+      expect(
+        launcher.arguments(SshTarget.parse('dev'), 'cmd'),
+        contains('BatchMode=no'),
+      );
+      final connection = await launcher.connect(SshTarget.parse('secret'));
+      expect(connection.hello.home, home.path);
+      // One ssh does probe, upload and launch: only the refused first try and
+      // its retry are asked.
+      expect([for (final prompt in asked) prompt.retry], [false, true]);
+      expect(asked.first.text, "me@secret's password: ");
+      expect(asked.first.target.text, 'secret');
+      await connection.close();
 
-    // Cancelled: said so, nothing more asked.
-    asked.clear();
-    answers = [];
-    final cancelling = SshLauncher(
-      ssh: fakeSsh,
-      binaries: binaries,
-      start: starter(),
-      prompter: (prompt) async {
-        asked.add(prompt);
-        return null;
-      },
-    );
-    await expectLater(
-      cancelling.connect(SshTarget.parse('secret')),
-      throwsA(
-        isA<SshConnectException>()
-            .having((e) => e.failure, 'failure', SshFailure.authentication)
-            .having((e) => e.message, 'message', contains('cancelled')),
-      ),
-    );
-    expect(asked, hasLength(1));
-  }, timeout: const Timeout(Duration(minutes: 2)));
+      // Cancelled: said so, nothing more asked.
+      asked.clear();
+      answers = [];
+      final cancelling = SshLauncher(
+        ssh: fakeSsh,
+        binaries: binaries,
+        start: starter(),
+        prompter: (prompt) async {
+          asked.add(prompt);
+          return null;
+        },
+      );
+      await expectLater(
+        cancelling.connect(SshTarget.parse('secret')),
+        throwsA(
+          isA<SshConnectException>()
+              .having((e) => e.failure, 'failure', SshFailure.authentication)
+              .having((e) => e.message, 'message', contains('cancelled')),
+        ),
+      );
+      expect(asked, hasLength(1));
+    },
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
 
   test('cancelled, ssh is ended rather than left asking again', () async {
     final asked = <SshPrompt>[];
@@ -449,7 +455,7 @@ exec '$dartExecutable' '${p.absolute('packages', 'bao_remote', 'bin', 'baocode_s
             .having((e) => e.message, 'message', contains('macOS x64')),
       ),
     );
-    expect(commands(), ['sh -s']);
+    expect(commands(), [startsWith("sh -c '")]);
   }, timeout: const Timeout(Duration(minutes: 2)));
 
   test('platforms as the builds are named', () {
@@ -530,8 +536,6 @@ exec '$dartExecutable' '${p.absolute('packages', 'bao_remote', 'bin', 'baocode_s
       'ServerAliveInterval=15',
       '-o',
       'ServerAliveCountMax=3',
-      '-o',
-      'ConnectTimeout=20',
     ];
     final session = launcher.windowsSessionScript('0123456789abcdef');
     expect(session, contains('Win32_Process'));
@@ -624,7 +628,36 @@ exec '$dartExecutable' '${p.absolute('packages', 'bao_remote', 'bin', 'baocode_s
         ),
       ),
     );
-    expect(commands(), ['sh -s']);
+    expect(commands(), [startsWith("sh -c '")]);
+  });
+
+  test('ConnectTimeout is added for direct hosts only, respecting config and '
+      'omitted for ProxyJump / ProxyCommand', () async {
+    Future<List<String>> optionsFor(Map<String, String> env) {
+      final launcher = SshLauncher(
+        ssh: fakeSsh,
+        binaries: FakeBinaries('1', const {}),
+        start: starter(extra: env),
+      );
+      return launcher.connectionOptions(SshTarget.parse('dev'));
+    }
+
+    expect(
+      await optionsFor(const {}),
+      containsAllInOrder(['-o', 'ConnectTimeout=20']),
+    );
+    expect(
+      await optionsFor(const {'FAKE_CONNECT_TIMEOUT': '60'}),
+      isNot(contains('ConnectTimeout=20')),
+    );
+    expect(
+      await optionsFor(const {'FAKE_PROXY_JUMP': 'login'}),
+      isNot(contains('ConnectTimeout=20')),
+    );
+    expect(
+      await optionsFor(const {'FAKE_PROXY_COMMAND': 'ssh -W %h:%p login'}),
+      isNot(contains('ConnectTimeout=20')),
+    );
   });
 
   test('targets: aliases, users and ports', () {
@@ -672,9 +705,10 @@ exec /bin/sh -c "$6"
     await connection.close();
     expect(log.existsSync(), isFalse, reason: 'ssh never ran');
     expect(File('${log.path}.wsl').readAsLinesSync(), [
-      '--distribution Ubuntu --exec sh -c cd && sh -s',
-      startsWith('--distribution Ubuntu --exec sh -c cd && sh -c '),
-      startsWith('--distribution Ubuntu --exec sh -c cd && .baocode-server/'),
+      allOf(
+        startsWith("--distribution Ubuntu --exec sh -c cd && sh -c '"),
+        contains('.baocode-server/1-abc/baocode-server --session '),
+      ),
     ]);
 
     // No WSL here.

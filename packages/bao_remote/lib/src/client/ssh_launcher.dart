@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
+import 'dart:typed_data';
 
 import '../protocol.dart';
 import '../rpc/resumable_channel.dart';
@@ -125,13 +126,22 @@ enum SshFailure {
 }
 
 class SshConnectException implements Exception {
-  const SshConnectException(this.failure, this.message, {this.detail});
+  const SshConnectException(
+    this.failure,
+    this.message, {
+    this.detail,
+    this.prompted = false,
+  });
 
   final SshFailure failure;
   final String message;
 
   /// What `ssh` or the server said.
   final String? detail;
+
+  /// Whether `ssh` asked to sign in during this attempt (a password, a
+  /// one-time code): retrying automatically would ask again.
+  final bool prompted;
 
   @override
   String toString() => detail == null ? message : '$message\n$detail';
@@ -288,9 +298,20 @@ class _SessionKeeper {
             '-W',
             '127.0.0.1:${windows.port}',
           ]);
-    _process = process;
     if (windows != null) process.stdin.add(utf8.encode('${windows.token}\n'));
     final said = <String>[];
+    listenStderr(process, said);
+    final gone = attachProcess(
+      process,
+      windows == null ? process.stdout : _windowsInput(process, said),
+      askpass,
+    );
+    return (process, askpass, said, gone);
+  }
+
+  /// Collects [process]'s stderr into [said] (this attempt) and [stderr]
+  /// (the session's log).
+  void listenStderr(Process process, List<String> said) {
     process.stderr
         .transform(const Utf8Decoder(allowMalformed: true))
         .transform(const LineSplitter())
@@ -301,9 +322,19 @@ class _SessionKeeper {
           if (said.length > 50) said.removeAt(0);
         }, onError: (Object _) {});
     process.stdin.done.then<void>((_) {}, onError: (Object _) {});
-    final gone = channel.attach(
+  }
+
+  /// Attaches an already-started [process] and its [input] stream (after any
+  /// bootstrap header) to [channel].
+  Future<void> attachProcess(
+    Process process,
+    Stream<List<int>> input,
+    AskpassRun? askpass,
+  ) {
+    _process = process;
+    return channel.attach(
       ChannelLink(
-        input: windows == null ? process.stdout : _windowsInput(process, said),
+        input: input,
         write: (bytes) => process.stdin.add(bytes),
         close: process.kill,
         // Signing in: the user is being asked (or just answered).
@@ -312,7 +343,6 @@ class _SessionKeeper {
             (askpass?.busy(const Duration(seconds: 30)) ?? false),
       ),
     );
-    return (process, askpass, said, gone);
   }
 
   /// [process]'s stdout, `ssh -W`'s: where the daemon is gone (nothing
@@ -379,6 +409,8 @@ class _SessionKeeper {
       return;
     }
     await Future.any([linked, gone]);
+    final waiting = askpass?.waiting ?? false;
+    final prompted = askpass?.prompted ?? false;
     await askpass?.close();
     if (channel.linked || channel.isClosed || closing) return;
     final code = await process.exitCode.timeout(
@@ -394,22 +426,26 @@ class _SessionKeeper {
         code,
         said.join('\n'),
         cancelled: askpass?.cancelled ?? false,
+        prompted: prompted,
         fallback: 'The connection could not be made again (exit $code).',
         wsl: target.wslDistro != null,
       ),
+      waiting: waiting,
     );
   }
 
-  void _failed(SshConnectException error) {
+  void _failed(SshConnectException error, {bool waiting = false}) {
     lastError = error;
     _failures++;
-    stalled = switch (error.failure) {
-      SshFailure.authentication ||
-      SshFailure.hostKey ||
-      SshFailure.hostKeyChanged ||
-      SshFailure.noSsh => true,
-      _ => false,
-    };
+    stalled =
+        waiting ||
+        switch (error.failure) {
+          SshFailure.authentication ||
+          SshFailure.hostKey ||
+          SshFailure.hostKeyChanged ||
+          SshFailure.noSsh => true,
+          _ => false,
+        };
     _changed();
   }
 
@@ -547,6 +583,8 @@ class SshLauncher {
   /// No prompts (a password fails instead), keepalives
   /// that notice a dead connection, and no escape character on the binary
   /// stream. With a [prompter], `BatchMode` is off for it to be asked.
+  /// `ConnectTimeout` is added per-target by [connectionOptions] so it
+  /// respects `~/.ssh/config` and is omitted when jumping through a proxy.
   static const defaultOptions = [
     '-T',
     '-o',
@@ -555,8 +593,6 @@ class SshLauncher {
     'ServerAliveInterval=15',
     '-o',
     'ServerAliveCountMax=3',
-    '-o',
-    'ConnectTimeout=20',
     '-e',
     'none',
   ];
@@ -666,6 +702,35 @@ class SshLauncher {
     return strict == null || strict == 'ask'
         ? const ['-o', 'StrictHostKeyChecking=accept-new']
         : const [];
+  }
+
+  /// The per-target options for [target], from `ssh -G`:
+  /// - `StrictHostKeyChecking=accept-new` unless the user's config says
+  ///   what to do with unknown host keys (not `ask`);
+  /// - `ConnectTimeout=20` for a direct host whose config sets none;
+  ///   omitted when going through a `ProxyJump` or `ProxyCommand`, where
+  ///   OpenSSH's `ConnectTimeout` also ticks while the jump host waits for
+  ///   a password or one-time verification code.
+  Future<List<String>> connectionOptions(SshTarget target) async {
+    if (target.wslDistro != null) return const [];
+    final config = await configOf(target);
+    bool configured(String? value) =>
+        value != null && value.isNotEmpty && value != 'none';
+    final strict = config['stricthostkeychecking'];
+    final proxied =
+        configured(config['proxyjump']) || configured(config['proxycommand']);
+    final hasTimeout =
+        configured(config['connecttimeout']) ||
+        options.any(
+          (option) => option.toLowerCase().startsWith('connecttimeout='),
+        );
+    return [
+      if (strict == null || strict == 'ask') ...[
+        '-o',
+        'StrictHostKeyChecking=accept-new',
+      ],
+      if (!proxied && !hasTimeout) ...['-o', 'ConnectTimeout=20'],
+    ];
   }
 
   /// Forgets the key known for [target]'s host, in the user's known_hosts
@@ -832,6 +897,37 @@ class SshLauncher {
     ],
   ].join(' ');
 
+  /// One-line POSIX `sh` command that probes the host, installs the server
+  /// from stdin when missing (given `gz <bytes>` or `raw <bytes>` after
+  /// `BAOCODE-NEED`), and `exec`s the session bridge — all over a single
+  /// SSH connection so a jump host or one-time code is signed in only once.
+  /// Contains no single quotes, backslashes, exclamation marks or newlines,
+  /// so any remote login shell (`sh`, `bash`, `zsh`, `fish`, `csh`, `tcsh`)
+  /// passes it intact to `sh -c`.
+  String bootstrapCommand(String id, String nonce) {
+    final session = sessionCommand(id);
+    final temporary = '$_folder/.upload-$nonce';
+    final body = [
+      r's=$(uname -s); m=$(uname -m)',
+      r'echo "BAOCODE-PROBE $s $m"',
+      r'case "$s" in Windows*|MINGW*|MSYS*|CYGWIN*) exit 0;; esac',
+      'if [ -x $serverPath ]; then echo BAOCODE-READY; exec $session; fi',
+      'if command -v gzip >/dev/null 2>&1; then echo BAOCODE-GZIP; fi',
+      'if echo x | head -c 1 >/dev/null 2>&1; then echo BAOCODE-HEADC; fi',
+      'echo BAOCODE-NEED',
+      'read -r mode size || exit 1',
+      r'case "$mode" in gz|raw) ;; *) exit 0;; esac',
+      'mkdir -p $_folder || exit 1',
+      'echo BAOCODE-SEND',
+      'if [ "\$mode" = gz ]; then head -c "\$size" | gzip -dc > $temporary || exit 1; '
+          'else head -c "\$size" > $temporary || exit 1; fi',
+      'chmod 755 $temporary && mv -f $temporary $serverPath || exit 1',
+      'echo BAOCODE-READY',
+      'exec $session',
+    ].join('; ');
+    return "sh -c '$body'";
+  }
+
   /// What the host is asked first: its system and architecture, whether
   /// this build of the server is there, and whether it can unpack gzip.
   String get probeScript =>
@@ -985,49 +1081,276 @@ exit 2
   }) async {
     final progress = onProgress ?? (_) {};
     progress('Connecting to ${target.name}');
-    final extra = await hostKeyOptions(target);
-    final probe = await _run(
+    final extra = await connectionOptions(target);
+    final wsl = target.wslDistro != null;
+    final id = _nonce(16);
+    final keeper = _SessionKeeper(this, target, extra, id);
+    final (process, askpass) = await _startSsh(
       target,
-      'sh -s',
+      bootstrapCommand(id, _nonce()),
       extra,
-      stdin: utf8.encode(probeScript),
     );
-    var lines = const LineSplitter().convert(probe.stdout);
-    List<String> partsOf(List<String> lines) => lines
+    final said = <String>[];
+    keeper.listenStderr(process, said);
+    final stream = _BootstrapStream(process.stdout);
+    final probeLines = <String>[];
+    List<String> probeParts = const [];
+    var hasGzip = false;
+    var hasHeadC = false;
+    String? state;
+
+    Future<void> abortProcess() async {
+      try {
+        process.stdin.add(utf8.encode('abort 0\n'));
+        await process.stdin.close();
+      } on Object {
+        // Already closed.
+      }
+      process.kill();
+      await process.exitCode.timeout(
+        const Duration(seconds: 2),
+        onTimeout: () => -1,
+      );
+      await stream.cancel();
+      await keeper.close();
+    }
+
+    try {
+      while (true) {
+        final String? line;
+        try {
+          line = await _readLine(stream, askpass);
+        } on TimeoutException {
+          final prompted = askpass?.prompted ?? false;
+          final cancelled = askpass?.cancelled ?? false;
+          await askpass?.close();
+          process.kill();
+          final code = await process.exitCode.timeout(
+            const Duration(seconds: 2),
+            onTimeout: () => -1,
+          );
+          await stream.cancel();
+          await keeper.close();
+          throw _failure(
+            code,
+            said.join('\n'),
+            cancelled: cancelled,
+            prompted: prompted,
+            timedOut: true,
+            wsl: wsl,
+          );
+        }
+        if (line == null) break;
+        probeLines.add(line);
+        if (line.startsWith('BAOCODE-PROBE ')) {
+          probeParts = line.split(' ');
+        } else if (line == 'BAOCODE-GZIP') {
+          hasGzip = true;
+        } else if (line == 'BAOCODE-HEADC') {
+          hasHeadC = true;
+        } else if (line == 'BAOCODE-READY' || line == 'BAOCODE-NEED') {
+          state = line;
+          break;
+        }
+      }
+
+      if (state == null) {
+        final prompted = askpass?.prompted ?? false;
+        final cancelled = askpass?.cancelled ?? false;
+        await askpass?.close();
+        final code = await process.exitCode.timeout(
+          const Duration(seconds: 10),
+          onTimeout: () {
+            process.kill();
+            return -1;
+          },
+        );
+        await stream.cancel();
+        await keeper.close();
+        if ((wsl ? code < 0 : code == 255) || cancelled) {
+          throw _failure(
+            code,
+            said.join('\n'),
+            cancelled: cancelled,
+            prompted: prompted,
+            wsl: wsl,
+          );
+        }
+        // No sh there (Windows' shells), or a Unix shell of Windows': asked
+        // as Windows is.
+        if (!wsl && (probeParts.length < 3 || isWindowsSystem(probeParts[1]))) {
+          return await _connectWindows(
+            target,
+            extra,
+            probeLines.join('\n'),
+            said.join('\n'),
+            progress,
+          );
+        }
+        throw SshConnectException(
+          SshFailure.server,
+          'The host gave no answer the app understands',
+          detail: _tail('${probeLines.join('\n')}\n${said.join('\n')}'),
+        );
+      }
+
+      // SSH authentication already succeeded: no further prompts on this run.
+      await askpass?.close();
+
+      if (probeParts.length < 3) {
+        await abortProcess();
+        throw SshConnectException(
+          SshFailure.server,
+          'The host gave no answer the app understands',
+          detail: _tail('${probeLines.join('\n')}\n${said.join('\n')}'),
+        );
+      }
+      final (system, machine) = (probeParts[1], probeParts[2]);
+      final platform = SshLauncher.platform(system, machine);
+      if (platform == null) {
+        await abortProcess();
+        throw SshConnectException(
+          SshFailure.unsupported,
+          'Only Linux (x64, arm64, riscv64), macOS and Windows (x64, arm64) '
+          'hosts are supported, not $system $machine',
+        );
+      }
+
+      if (state == 'BAOCODE-NEED') {
+        progress('Installing the BaoCode server on ${target.name}');
+        final binary = await binaries.read(platform);
+        if (binary == null) {
+          await abortProcess();
+          throw SshConnectException(
+            SshFailure.server,
+            'This build of the app has no server for ${describe(platform)}',
+          );
+        }
+        final payload = hasGzip ? GZipCodec(level: 6).encode(binary) : binary;
+        if (!hasHeadC) {
+          // Rare fallback for hosts without `head -c`.
+          await abortProcess();
+          final upload = await _run(
+            target,
+            uploadCommand(_nonce(), gzip: hasGzip),
+            extra,
+            stdin: payload,
+          );
+          if (upload.exitCode != 0) {
+            throw SshConnectException(
+              SshFailure.server,
+              'The server could not be installed on ${target.name}',
+              detail: _tail(upload.stderr),
+            );
+          }
+          progress('Starting the BaoCode server on ${target.name}');
+          return await _launch(target, extra);
+        }
+        try {
+          process.stdin.add(
+            utf8.encode('${hasGzip ? 'gz' : 'raw'} ${payload.length}\n'),
+          );
+          await process.stdin.flush();
+        } on Object {
+          // Reported below once ssh exits.
+        }
+        String? ack;
+        while (true) {
+          final line = await stream.nextLine().timeout(
+            const Duration(seconds: 30),
+            onTimeout: () => null,
+          );
+          if (line == null || line == 'BAOCODE-SEND') {
+            ack = line;
+            break;
+          }
+        }
+        if (ack != 'BAOCODE-SEND') {
+          process.kill();
+          final code = await process.exitCode.timeout(
+            const Duration(seconds: 2),
+            onTimeout: () => -1,
+          );
+          await stream.cancel();
+          await keeper.close();
+          if (code == 255) throw _failure(code, said.join('\n'), wsl: wsl);
+          throw SshConnectException(
+            SshFailure.server,
+            'The server could not be installed on ${target.name}',
+            detail: _tail(said.join('\n')),
+          );
+        }
+        try {
+          process.stdin.add(payload);
+          await process.stdin.flush();
+        } on Object {
+          // Reported below once ssh exits.
+        }
+        String? ready;
+        while (true) {
+          final line = await stream.nextLine().timeout(
+            const Duration(minutes: 10),
+            onTimeout: () => null,
+          );
+          if (line == null || line == 'BAOCODE-READY') {
+            ready = line;
+            break;
+          }
+        }
+        if (ready != 'BAOCODE-READY') {
+          process.kill();
+          final code = await process.exitCode.timeout(
+            const Duration(seconds: 2),
+            onTimeout: () => -1,
+          );
+          await stream.cancel();
+          await keeper.close();
+          if (code == 255) throw _failure(code, said.join('\n'), wsl: wsl);
+          throw SshConnectException(
+            SshFailure.server,
+            'The server could not be installed on ${target.name}',
+            detail: _tail(said.join('\n')),
+          );
+        }
+      }
+
+      progress('Starting the BaoCode server on ${target.name}');
+      stream.handoff();
+      final gone = keeper.attachProcess(process, stream.rest, null);
+      return await _initializeKeeper(keeper, process, null, said, gone);
+    } on Object {
+      await askpass?.close();
+      rethrow;
+    }
+  }
+
+  /// Probes, installs (if needed) and launches the server on a Windows host.
+  Future<SshConnection> _connectWindows(
+    SshTarget target,
+    List<String> extra,
+    String shStdout,
+    String shStderr,
+    void Function(String message) progress,
+  ) async {
+    final windows = await _run(
+      target,
+      powershellCommand(windowsProbeScript),
+      extra,
+    );
+    final lines = const LineSplitter().convert(windows.stdout);
+    final parts = lines
         .firstWhere(
           (line) => line.startsWith('BAOCODE-PROBE '),
           orElse: () => '',
         )
         .split(' ');
-    var parts = partsOf(lines);
-    // No sh there (Windows' shells), or a Unix shell of Windows': asked
-    // as Windows is.
-    if (target.wslDistro == null &&
-        (parts.length < 3 || isWindowsSystem(parts[1]))) {
-      final windows = await _run(
-        target,
-        powershellCommand(windowsProbeScript),
-        extra,
-      );
-      final windowsLines = const LineSplitter().convert(windows.stdout);
-      if (partsOf(windowsLines) case final found when found.length >= 3) {
-        (lines, parts) = (windowsLines, found);
-      } else if (parts.length < 3) {
-        throw SshConnectException(
-          SshFailure.server,
-          'The host gave no answer the app understands',
-          detail: _tail(
-            '${probe.stdout}\n${probe.stderr}\n'
-            '${windows.stdout}\n${windows.stderr}',
-          ),
-        );
-      }
-    }
     if (parts.length < 3) {
       throw SshConnectException(
         SshFailure.server,
         'The host gave no answer the app understands',
-        detail: _tail('${probe.stdout}\n${probe.stderr}'),
+        detail: _tail(
+          '$shStdout\n$shStderr\n${windows.stdout}\n${windows.stderr}',
+        ),
       );
     }
     final (system, machine) = (parts[1], parts[2]);
@@ -1039,7 +1362,6 @@ exit 2
         'hosts are supported, not $system $machine',
       );
     }
-    final windows = platform.startsWith('windows-');
     if (!lines.contains('BAOCODE-PRESENT')) {
       progress('Installing the BaoCode server on ${target.name}');
       final binary = await binaries.read(platform);
@@ -1049,28 +1371,25 @@ exit 2
           'This build of the app has no server for ${describe(platform)}',
         );
       }
-      if (windows) {
-        await _uploadWindows(target, extra, binary);
-        progress('Starting the BaoCode server on ${target.name}');
-        return _launchWindows(target, extra);
-      }
-      final gzip = lines.contains('BAOCODE-GZIP');
-      final upload = await _run(
-        target,
-        uploadCommand(_nonce(), gzip: gzip),
-        extra,
-        stdin: gzip ? GZipCodec(level: 6).encode(binary) : binary,
-      );
-      if (upload.exitCode != 0) {
-        throw SshConnectException(
-          SshFailure.server,
-          'The server could not be installed on ${target.name}',
-          detail: _tail(upload.stderr),
-        );
-      }
+      await _uploadWindows(target, extra, binary);
     }
     progress('Starting the BaoCode server on ${target.name}');
-    return windows ? _launchWindows(target, extra) : _launch(target, extra);
+    return _launchWindows(target, extra);
+  }
+
+  Future<String?> _readLine(
+    _BootstrapStream stream,
+    AskpassRun? askpass, {
+    Duration wait = const Duration(seconds: 30),
+  }) async {
+    final line = stream.nextLine();
+    while (true) {
+      try {
+        return await line.timeout(wait);
+      } on TimeoutException {
+        if (!(askpass?.busy(wait) ?? false)) rethrow;
+      }
+    }
   }
 
   /// Puts [binary] at [windowsServerPath] on a Windows host by `sftp`, its
@@ -1127,7 +1446,12 @@ exit 2
       if (code != 0) {
         final said = await stderr;
         if (code == 255 || (askpass?.cancelled ?? false)) {
-          throw _failure(code, said, cancelled: askpass?.cancelled ?? false);
+          throw _failure(
+            code,
+            said,
+            cancelled: askpass?.cancelled ?? false,
+            prompted: askpass?.prompted ?? false,
+          );
         }
         throw SshConnectException(
           SshFailure.server,
@@ -1182,8 +1506,18 @@ exit 2
       _connectKeeper(_SessionKeeper(this, target, extra, _nonce(16)));
 
   Future<SshConnection> _connectKeeper(_SessionKeeper keeper) async {
-    final target = keeper.target;
     final (process, askpass, said, gone) = await keeper.dial(resume: false);
+    return _initializeKeeper(keeper, process, askpass, said, gone);
+  }
+
+  Future<SshConnection> _initializeKeeper(
+    _SessionKeeper keeper,
+    Process process,
+    AskpassRun? askpass,
+    List<String> said,
+    Future<void> gone,
+  ) async {
+    final target = keeper.target;
     final peer = RpcPeer(keeper.channel.messages, keeper.channel.send);
     final client = RemoteClient(peer);
     try {
@@ -1212,6 +1546,7 @@ exit 2
         said.join('\n'),
         fallback: 'The server on ${target.name} did not start: $error',
         cancelled: askpass?.cancelled ?? false,
+        prompted: askpass?.prompted ?? false,
         wsl: target.wslDistro != null,
       );
     } finally {
@@ -1251,12 +1586,19 @@ exit 2
     }
     final result = (exitCode: code, stdout: await stdout, stderr: await stderr);
     final cancelled = askpass?.cancelled ?? false;
+    final prompted = askpass?.prompted ?? false;
     // ssh's own failure: the connection, not the command; or ended, the
     // signing in cancelled. wsl.exe's own ends in -1 (no such
     // distribution, WSL not set up).
     final wsl = target.wslDistro != null;
     if ((wsl ? code < 0 : code == 255) || cancelled) {
-      throw _failure(code, result.stderr, cancelled: cancelled, wsl: wsl);
+      throw _failure(
+        code,
+        result.stderr,
+        cancelled: cancelled,
+        prompted: prompted,
+        wsl: wsl,
+      );
     }
     return result;
   }
@@ -1283,6 +1625,8 @@ exit 2
     String stderr, {
     String? fallback,
     bool cancelled = false,
+    bool prompted = false,
+    bool timedOut = false,
     bool wsl = false,
   }) {
     final detail = _tail(stderr.replaceAll('\u0000', ''));
@@ -1308,6 +1652,7 @@ exit 2
               stderr.contains('No ED25519 host key is known') ||
               stderr.contains('host key is known') =>
         SshFailure.hostKey,
+      _ when timedOut => SshFailure.unreachable,
       _
           when stderr.contains('Could not resolve hostname') ||
               stderr.contains('Connection refused') ||
@@ -1343,7 +1688,136 @@ exit 2
       failure,
       message,
       detail: detail.isEmpty ? null : detail,
+      prompted: prompted,
     );
+  }
+}
+
+/// Reads lines from [source] (`process.stdout`) during the bootstrap phase
+/// (`BAOCODE-PROBE`, `BAOCODE-NEED`, `BAOCODE-SEND`, `BAOCODE-READY`), then
+/// hands the remaining raw bytes of the same stream directly to
+/// [ResumableChannel] once [handoff] is called — with no bytes lost.
+class _BootstrapStream {
+  _BootstrapStream(Stream<List<int>> source) {
+    _subscription = source.listen(
+      _onData,
+      onError: _onError,
+      onDone: _onDone,
+      cancelOnError: true,
+    );
+  }
+
+  late final StreamSubscription<List<int>> _subscription;
+  final List<String> _lines = [];
+  final BytesBuilder _partial = BytesBuilder(copy: false);
+  final StreamController<List<int>> _rest = StreamController();
+  Completer<String?>? _waiting;
+  bool _handedOff = false;
+  bool _done = false;
+  Object? _error;
+
+  Stream<List<int>> get rest => _rest.stream;
+
+  /// The next line from the bootstrap phase, or null once stdout ended.
+  Future<String?> nextLine() {
+    if (_lines.isNotEmpty) return Future.value(_lines.removeAt(0));
+    if (_done) return Future.value(null);
+    return (_waiting ??= Completer<String?>()).future;
+  }
+
+  /// Hands the remaining bytes (anything already buffered after the last
+  /// consumed line, and all future chunks) straight to [rest].
+  void handoff() {
+    if (_handedOff) return;
+    _handedOff = true;
+    for (final line in _lines) {
+      _rest.add(utf8.encode('$line\n'));
+    }
+    _lines.clear();
+    if (_partial.isNotEmpty) {
+      _rest.add(_partial.takeBytes());
+    }
+    if (_done) {
+      if (_error case final error?) _rest.addError(error);
+      unawaited(_rest.close());
+    }
+  }
+
+  void _onData(List<int> data) {
+    if (_handedOff) {
+      _rest.add(data);
+      return;
+    }
+    var start = 0;
+    for (var i = 0; i < data.length; i++) {
+      if (data[i] != 0x0A) continue;
+      final Uint8List raw;
+      if (_partial.isEmpty) {
+        raw = Uint8List.sublistView(
+          data is Uint8List ? data : Uint8List.fromList(data),
+          start,
+          i,
+        );
+      } else {
+        _partial.add(data.sublist(start, i));
+        raw = _partial.takeBytes();
+      }
+      start = i + 1;
+      var line = utf8.decode(raw, allowMalformed: true);
+      if (line.endsWith('\r')) line = line.substring(0, line.length - 1);
+      final waiting = _waiting;
+      if (waiting != null) {
+        _waiting = null;
+        waiting.complete(line);
+      } else {
+        _lines.add(line);
+      }
+      if (_handedOff) {
+        if (start < data.length) _rest.add(data.sublist(start));
+        return;
+      }
+    }
+    if (start < data.length) _partial.add(data.sublist(start));
+  }
+
+  void _onError(Object error) {
+    _error = error;
+    _done = true;
+    if (_handedOff) {
+      _rest.addError(error);
+      unawaited(_rest.close());
+    } else if (_waiting case final waiting?) {
+      _waiting = null;
+      waiting.complete(null);
+    }
+  }
+
+  void _onDone() {
+    _done = true;
+    if (_handedOff) {
+      unawaited(_rest.close());
+    } else {
+      if (_partial.isNotEmpty) {
+        var line = utf8.decode(_partial.takeBytes(), allowMalformed: true);
+        if (line.endsWith('\r')) line = line.substring(0, line.length - 1);
+        final waiting = _waiting;
+        if (waiting != null) {
+          _waiting = null;
+          waiting.complete(line);
+        } else {
+          _lines.add(line);
+        }
+      }
+      if (_waiting case final waiting?) {
+        _waiting = null;
+        waiting.complete(null);
+      }
+    }
+  }
+
+  Future<void> cancel() async {
+    await _subscription.cancel();
+    if (!_rest.isClosed) unawaited(_rest.close());
   }
 }
 

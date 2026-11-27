@@ -178,6 +178,13 @@ class AskpassRun {
   bool get cancelled => _cancelled;
   bool _cancelled = false;
 
+  /// Whether `ssh` asked a sign-in question (not a host key) during this run.
+  bool get prompted => _prompted;
+  bool _prompted = false;
+
+  /// Whether a sign-in prompt is still waiting for an answer.
+  bool get waiting => _answering.isNotEmpty;
+
   /// Told once, when the user cancels: `ssh` would take the cancel as a
   /// wrong answer and ask again, so its run is ended (see SshLauncher).
   void Function()? onCancelled;
@@ -214,11 +221,14 @@ class AskpassRun {
       _last = text;
       // Cancelled once, the user is not asked again in this run; a host
       // key is not accepted here: refused, as BatchMode would.
-      answer = _cancelled
-          ? null
-          : asked.isHostKey
-          ? 'no'
-          : await _prompter(asked);
+      if (_cancelled) {
+        answer = null;
+      } else if (asked.isHostKey) {
+        answer = 'no';
+      } else {
+        _prompted = true;
+        answer = await _prompter(asked);
+      }
     } on Object {
       answer = null;
     } finally {

@@ -98,6 +98,19 @@ void main() {
         identityFile: key,
         jump: 'bastion',
       ),
+      'otp-bastion': SshServer(
+        hostName: address,
+        port: 2225,
+        user: 'ops',
+        auth: SshAuth.password,
+      ),
+      'inner-otp': SshServer(
+        hostName: 'inner',
+        user: 'fresh',
+        auth: SshAuth.key,
+        identityFile: key,
+        jump: 'otp-bastion',
+      ),
     };
   });
 
@@ -140,6 +153,38 @@ void main() {
     final known = knownHosts.readAsStringSync();
     expect(known, contains('[$address]:2223'));
     expect(known, contains('inner'));
+  }, timeout: const Timeout(Duration(minutes: 5)));
+
+  test('through a jump host with password + single-use OTP taking over 20s: '
+      'probe, install and launch ask for the code once', () async {
+    await hosts.passwords.keep(
+      SshPasswords.serverId('otp-bastion'),
+      'bastion-secret',
+    );
+    var nextCode = 100001;
+    var otpAsks = 0;
+    hosts.passwords.ask = (prompt, {required keepable}) async {
+      asked.add(prompt);
+      if (prompt.text.toLowerCase().contains('verification code')) {
+        expect(keepable, isFalse);
+        otpAsks++;
+        // Exceeds the old ConnectTimeout=20 on the outer ssh.
+        if (otpAsks == 1) {
+          await Future<void>.delayed(const Duration(seconds: 23));
+        }
+        return (answer: '${nextCode++}', remember: false);
+      }
+      return null;
+    };
+    // First connect: fresh user has no server installed yet; probe + upload +
+    // start must all share one ssh connection and ask for OTP exactly once.
+    expect(await home('inner-otp'), '/home/fresh');
+    expect(otpAsks, 1);
+
+    // Close and connect again (server already installed): still one OTP.
+    await hosts['inner-otp'].close();
+    expect(await home('inner-otp'), '/home/fresh');
+    expect(otpAsks, 2);
   }, timeout: const Timeout(Duration(minutes: 5)));
 
   test('a changed host key refused; forgotten, connected again', () async {

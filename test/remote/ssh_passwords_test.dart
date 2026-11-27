@@ -102,6 +102,12 @@ void main() {
     test('a one-time code is asked each time, never kept', () async {
       final code = SshPrompt(host, 'Verification code: ');
       expect(SshPasswords.keepable(code), isFalse);
+      expect(
+        SshPasswords.keepable(SshPrompt(host, 'Dynamic password: ')),
+        isFalse,
+      );
+      expect(SshPasswords.keepable(SshPrompt(host, 'MFA password: ')), isFalse);
+      expect(SshPasswords.keepable(SshPrompt(host, '请输入动态密码: ')), isFalse);
       expect(SshPasswords.keepable(SshPrompt(host, 'Password: ')), isTrue);
       expect(
         SshPasswords.keepable(

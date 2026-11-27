@@ -44,7 +44,9 @@ class SshPasswords {
   static bool keepable(SshPrompt prompt) {
     final text = prompt.text.toLowerCase();
     return (text.contains('password') || text.contains('passphrase')) &&
-        !RegExp(r'one-time|otp|verification|token|code').hasMatch(text);
+        !RegExp(
+          r'one-time|otp|verification|token|code|dynamic|passcode|mfa|2fa|totp|authenticator|动态|验证',
+        ).hasMatch(text);
   }
 
   /// The keychain's name for [prompt]'s answer: the host's, and the
