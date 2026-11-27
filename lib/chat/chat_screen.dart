@@ -98,6 +98,7 @@ class ChatScreen extends StatefulWidget {
     this.onOpenChange,
     this.onOpenCode,
     this.fileLinks,
+    this.followPlan,
     this.onOpenTerminalTask,
     this.colorizeCode,
     this.colorizeCodeBlock,
@@ -232,6 +233,11 @@ class ChatScreen extends StatefulWidget {
   /// cites and the files it changed (in place of [onOpenCode] and
   /// [onOpenChange]). None: only those two open.
   final FileLinkTarget? fileLinks;
+
+  /// Whether the agent writing its plan should open it beside the chat
+  /// automatically: checked as it is written (e.g. false for a window behind
+  /// another). Null means always, while on screen.
+  final bool Function()? followPlan;
 
   final ValueChanged<KernelTask>? onOpenTerminalTask;
 
@@ -517,6 +523,12 @@ class _ChatScreenState extends State<ChatScreen>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _shown = TickerMode.valuesOf(context).enabled;
+  }
+
+  @override
   void didUpdateWidget(ChatScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     _wasStarting = _starting;
@@ -553,11 +565,17 @@ class _ChatScreenState extends State<ChatScreen>
   /// The sequence of the plan writing last shown.
   int? _planShown;
 
+  /// Whether this chat is on screen (not kept offstage in an inactive IDE
+  /// chat tab, a hidden IDE chat panel, or under an aside).
+  bool _shown = true;
+
   /// Shows the plan beside the chat as the agent writes it: the file read
-  /// anew each time.
+  /// anew each time, only while this chat is on screen and allowed to follow
+  /// (not from a background window).
   void _followPlan() {
     if (_session.plan case final plan? when plan.seq != _planShown) {
       _planShown = plan.seq;
+      if (!_shown || !(widget.followPlan?.call() ?? true)) return;
       _openFile(FileOpenRequest(plan.path, plan: true));
     }
   }

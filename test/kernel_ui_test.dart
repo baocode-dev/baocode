@@ -789,6 +789,124 @@ void main() {
     );
   });
 
+  testWidgets('a plan written is not opened automatically while the chat is '
+      'offstage or followPlan is false, while clicking its card still opens it', (
+    tester,
+  ) async {
+    final cli = FakeCli();
+    late final KernelDescriptor descriptor;
+    descriptor = KernelDescriptor(
+      id: 'claude-code',
+      label: 'Claude Code',
+      icon: Icons.auto_awesome_rounded,
+      description: '',
+      create: (context) =>
+          ClaudeCodeKernel(descriptor, context, start: (_) async => cli),
+    );
+    final session = ChatSession(
+      kernel: descriptor,
+      kernels: [descriptor],
+      historyCount: 0,
+      kernelContext: const KernelContext(cwd: '/p'),
+      openReview: (root, {session}) async => null,
+    );
+    addTearDown(session.dispose);
+    final opened = <FileOpenRequest>[];
+    var allowFollow = false;
+    var ticking = false;
+    late StateSetter rebuild;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: StatefulBuilder(
+          builder: (context, setState) {
+            rebuild = setState;
+            return TickerMode(
+              enabled: ticking,
+              child: ChatScreen(
+                session: session,
+                fileLinks: FileLinkTarget(open: opened.add),
+                followPlan: () => allowFollow,
+              ),
+            );
+          },
+        ),
+      ),
+    );
+    await tester.pump();
+    session.send(const ComposerMessage(text: 'plan the input box'));
+    await tester.pump(const Duration(milliseconds: 100));
+
+    const plan = '/home/me/.claude/plans/tall-input.md';
+    void write(String id) {
+      cli
+        ..push({
+          'type': 'assistant',
+          'parent_tool_use_id': null,
+          'message': {
+            'role': 'assistant',
+            'content': [
+              {
+                'type': 'tool_use',
+                'id': id,
+                'name': 'Write',
+                'input': {
+                  'file_path': plan,
+                  'content': '# Grow the input\n\nLet it grow with its text.',
+                },
+              },
+            ],
+          },
+        })
+        ..push({
+          'type': 'user',
+          'parent_tool_use_id': null,
+          'message': {
+            'role': 'user',
+            'content': [
+              {'type': 'tool_result', 'tool_use_id': id, 'content': 'ok'},
+            ],
+          },
+          'tool_use_result': {'type': 'create', 'filePath': plan},
+        });
+    }
+
+    // Offstage and followPlan false: does not auto-open.
+    write('w1');
+    await tester.pump();
+    expect(opened, isEmpty);
+
+    // Onstage, but followPlan false (e.g. background window): does not auto-open.
+    rebuild(() => ticking = true);
+    await tester.pump();
+    write('w2');
+    await tester.pump();
+    expect(opened, isEmpty);
+
+    // Clicking the PlanCard still opens it explicitly.
+    await tester.tap(find.byType(PlanCard));
+    expect(opened.map((r) => r.path), [plan]);
+
+    // Offstage again even with followPlan true: does not auto-open.
+    rebuild(() {
+      allowFollow = true;
+      ticking = false;
+    });
+    await tester.pump();
+    write('w3');
+    await tester.pump();
+    expect(opened, hasLength(1));
+
+    // Both onstage and followPlan true: auto-opens.
+    rebuild(() => ticking = true);
+    await tester.pump();
+    write('w4');
+    await tester.pump();
+    expect(opened.map((r) => r.path), [plan, plan]);
+    cli.push({'type': 'result', 'subtype': 'success', 'is_error': false});
+    await tester.pump(const Duration(milliseconds: 300));
+  });
+
   testWidgets('after a turn, its suggested replies show over the composer: '
       'Tab takes the first, a click puts one in, ⌘ more, a double click '
       'sends one', (tester) async {

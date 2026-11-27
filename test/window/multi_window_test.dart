@@ -1,10 +1,15 @@
+import 'dart:io';
+
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/chat/chat_screen.dart';
+import 'package:baocode/chat/chat_session.dart';
 import 'package:baocode/ide/ide_chat_title.dart';
 import 'package:baocode/ide/ide_welcome.dart';
 import 'package:baocode/ide/ide_workbench.dart';
+import 'package:baocode/kernel/agent_kernel.dart';
+import 'package:baocode/kernel/claude_code/claude_code_kernel.dart';
 import 'package:baocode/l10n/l10n.dart';
 import 'package:baocode/main.dart';
 import 'package:baocode/search/search_palette.dart';
@@ -16,6 +21,7 @@ import 'package:baocode/workbench.dart';
 import 'package:baocode/workspace/open_in_editor_button.dart';
 import 'package:baocode/workspace/workspace.dart';
 
+import '../kernel_test.dart' show FakeCli;
 import 'fake_window_host.dart';
 
 /// The app with windows of its own, each a view of the test's engine: the
@@ -23,6 +29,7 @@ import 'fake_window_host.dart';
 Future<(AppWindows, FakeWindowHost, Workspace)> _pumpApp(
   WidgetTester tester, {
   WindowSettings Function()? settings,
+  Workspace? workspace,
 }) async {
   tester.view.physicalSize = const Size(1400, 900);
   tester.view.devicePixelRatio = 1;
@@ -41,10 +48,10 @@ Future<(AppWindows, FakeWindowHost, Workspace)> _pumpApp(
     );
   }
   final host = FakeWindowHost(tester.view);
-  final workspace = Workspace.mock();
+  final resolved = workspace ?? Workspace.mock();
   final windows = AppWindows(
     host: host,
-    workspace: workspace,
+    workspace: resolved,
     l10n: () => englishLocalizations,
     settings:
         settings ?? () => const WindowSettings(ideWindows: IdeWindows.separate),
@@ -53,11 +60,11 @@ Future<(AppWindows, FakeWindowHost, Workspace)> _pumpApp(
   );
   await windows.start();
   await tester.pumpWidget(
-    BaoCodeApp(workspace: workspace, windows: windows),
+    BaoCodeApp(workspace: resolved, windows: windows),
     wrapWithView: false,
   );
   await tester.pump();
-  return (windows, host, workspace);
+  return (windows, host, resolved);
 }
 
 /// Opens [folder]'s window, the frames it takes drawn.
@@ -407,5 +414,148 @@ void main() {
     );
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pump(const Duration(milliseconds: 200));
+  });
+
+  _testWindows('writing a plan in the chat window does not switch to or open '
+      'the plan file in an open IDE window behind it', (tester) async {
+    final temp = Directory.systemTemp.createTempSync('baocode_plan_window_');
+    addTearDown(() => temp.deleteSync(recursive: true));
+    final planFile = File('${temp.path}/.claude/plans/grow-input.md')
+      ..createSync(recursive: true)
+      ..writeAsStringSync('# Grow the input\n\nLet it grow.');
+    final projectDir = Directory('${temp.path}/proj')..createSync();
+
+    final cli = FakeCli();
+    late final KernelDescriptor descriptor;
+    descriptor = KernelDescriptor(
+      id: 'claude-code',
+      label: 'Claude Code',
+      icon: Codicons.sparkle,
+      description: '',
+      create: (context) =>
+          ClaudeCodeKernel(descriptor, context, start: (_) async => cli),
+    );
+    final project = Project.at(projectDir.path);
+    final custom = Workspace(projects: [project], kernels: [descriptor]);
+    final thread = custom.startAgent(project);
+    custom.select(thread);
+
+    final (windows, host, workspace) = await _pumpApp(
+      tester,
+      workspace: custom,
+    );
+
+    // Open the IDE window with this thread as its chat tab, then go back to
+    // the chat window (IDE stays open behind it).
+    final ideWindow = await _open(
+      tester,
+      windows,
+      project.path,
+      thread: thread,
+    );
+    windows.showChat();
+    await tester.pump();
+    await tester.pump();
+    expect(windows.active, same(windows.chat));
+    expect(host.focused, windows.chat.viewId);
+    final ideSpace = ideWindow.delegate!.ideSpace!;
+    expect(ideSpace.documents, isEmpty);
+
+    Future<void> flushIo() async {
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 50)),
+      );
+      await tester.pump();
+    }
+
+    // Start a turn in plan mode and emit a plan write while the chat window is
+    // in front.
+    thread.session.send(const ComposerMessage(text: 'plan this'));
+    await flushIo();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    void writePlan(String id) {
+      cli
+        ..push({
+          'type': 'assistant',
+          'parent_tool_use_id': null,
+          'message': {
+            'role': 'assistant',
+            'content': [
+              {
+                'type': 'tool_use',
+                'id': id,
+                'name': 'Write',
+                'input': {
+                  'file_path': planFile.path,
+                  'content': '# Grow the input\n\nLet it grow.',
+                },
+              },
+            ],
+          },
+        })
+        ..push({
+          'type': 'user',
+          'parent_tool_use_id': null,
+          'message': {
+            'role': 'user',
+            'content': [
+              {'type': 'tool_result', 'tool_use_id': id, 'content': 'ok'},
+            ],
+          },
+          'tool_use_result': {'type': 'create', 'filePath': planFile.path},
+        });
+    }
+
+    final logBefore = host.log.length;
+    writePlan('p1');
+    await flushIo();
+    expect(thread.session.plan?.path, planFile.path);
+
+    // Must stay in the chat window and NOT open the plan file in the IDE.
+    expect(windows.active, same(windows.chat));
+    expect(
+      host.log.sublist(logBefore),
+      isNot(contains('focus ${ideWindow.viewId}')),
+    );
+    expect(ideSpace.documents, isEmpty);
+
+    // When the IDE window is in front but its chat panel is hidden, writing a
+    // plan still must not open the plan file in the IDE.
+    host.events!.windowFocused(ideWindow.viewId);
+    ideSpace.layout.chat = false;
+    await tester.pump();
+    await tester.pump();
+    final logWhenHidden = host.log.length;
+    writePlan('p2');
+    await flushIo();
+    expect(ideSpace.documents, isEmpty);
+    expect(host.log.sublist(logWhenHidden), isEmpty);
+
+    // When the IDE window is in front and its chat panel shows this thread,
+    // writing a plan opens it directly in the IDE without stealing window focus.
+    ideSpace.layout.chat = true;
+    await tester.pump();
+    await tester.pump();
+    final logWhenShown = host.log.length;
+    final ideChat = tester.widget<ChatScreen>(
+      _inView(ideWindow.viewId, find.byType(ChatScreen)),
+    );
+    expect(ideChat.followPlan?.call(), isTrue);
+    writePlan('p3');
+    await flushIo();
+    // Wait until the real file read completes.
+    for (var i = 0; i < 20 && ideSpace.documents.isEmpty; i++) {
+      await flushIo();
+    }
+    expect(
+      ideSpace.documents.map((doc) => doc.path),
+      contains(planFile.path),
+    );
+    expect(host.log.sublist(logWhenShown), isEmpty);
+    expect(workspace.current, same(thread));
+    cli.push({'type': 'result', 'subtype': 'success', 'is_error': false});
+    await tester.pump(const Duration(milliseconds: 300));
   });
 }

@@ -447,6 +447,15 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         : keyboard.isControlPressed;
   }
 
+  /// Whether this window is the one in front of the app's windows.
+  bool get _windowInFront {
+    if (!_multi) return true;
+    if (widget.window case final window?) {
+      return identical(_windows?.active, window);
+    }
+    return WindowControls.activeViewId == _viewId;
+  }
+
   /// Whether the keyboard is in this window (each window's workbench sees
   /// every key).
   bool get _hasKeyboard {
@@ -5230,6 +5239,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
             _openChange(thread, change, original),
         onOpenCode: (path, start, end) => _openCode(thread, path, start, end),
         fileLinks: _fileLinks(thread, embedded: embedded),
+        followPlan: () => _windowInFront,
         onOpenTerminalTask: embedded
             ? (task) => _ide?.showTerminalTask(task.id)
             : (task) => _sidePanel.openTerminal(thread.session, task.id),
@@ -5548,10 +5558,17 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
 
   /// Shows [thread] in the IDE (its project's window, with the IDE's
   /// windows), the tab of its chat there, then [open]s in its workspace.
+  /// Already in that IDE here, opens directly without switching windows or
+  /// stealing focus.
   void _inIdeOf(
     AgentThread thread,
     Future<Object?> Function(IdeWorkspace ide) open,
   ) {
+    if (_showsIde &&
+        (_ideFolder == thread.project.path || _ideFolder == _noFolder)) {
+      unawaited(open(_ideSpace(_ideFolder)));
+      return;
+    }
     if (_windows case final windows? when _multi) {
       unawaited(() async {
         final window = await windows.showFolder(
