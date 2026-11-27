@@ -255,8 +255,13 @@ String _cut(String text, int length) {
   return '$kept[$left more lines not shown]\n';
 }
 
-/// A reply as a message: without code fences, quotes around it, or blank
-/// lines at its ends.
+final _attributionLine = RegExp(
+  r'^(?:co-authored-by:\s.*|(?:🤖\s*)?generated\s+with\s+.+)$',
+  caseSensitive: false,
+);
+
+/// A reply as a message: without code fences, quotes around it, stray
+/// attribution trailers, or blank lines at its ends.
 String ideCleanCommitMessage(String reply) {
   var text = reply.trim();
   final fence = RegExp(r'^```[\w-]*\n([\s\S]*?)\n```$');
@@ -266,5 +271,14 @@ String ideCleanCommitMessage(String reply) {
           text.startsWith("'") && text.endsWith("'"))) {
     text = text.substring(1, text.length - 1).trim();
   }
-  return text;
+  final lines = text.split('\n');
+  while (lines.isNotEmpty) {
+    final trimmed = lines.last.trim();
+    if (trimmed.isEmpty || _attributionLine.hasMatch(trimmed)) {
+      lines.removeLast();
+      continue;
+    }
+    break;
+  }
+  return lines.join('\n').trim();
 }

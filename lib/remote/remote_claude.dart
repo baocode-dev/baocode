@@ -302,7 +302,10 @@ Future<String> askRemoteHaiku(
       start: (core) => client.startClaude(
         cwd: client.hello?.home ?? '/',
         arguments: claudeHaikuArguments(system, model: model),
-        settings: remoteEnv == null ? null : {'env': remoteEnv},
+        settings: {
+          'attribution': const {'commit': '', 'pr': ''},
+          'env': ?remoteEnv,
+        },
         cleared: [if (remoteEnv != null) ...ClaudeModelVariables.inherited],
         core: core,
       ),

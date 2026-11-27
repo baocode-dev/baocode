@@ -97,10 +97,23 @@ void main() {
       expect(diffPart.length, lessThan(ideCommitDiffBudget + 10));
     });
 
-    test('a reply without fences or quotes', () {
+    test('a reply without fences, quotes, or stray attribution trailers', () {
       expect(ideCleanCommitMessage('```\nFix it\n```'), 'Fix it');
       expect(ideCleanCommitMessage('"Fix it"\n'), 'Fix it');
       expect(ideCleanCommitMessage('Fix it\n\n- more'), 'Fix it\n\n- more');
+      expect(
+        ideCleanCommitMessage(
+          'Fix it\n\n- more\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n'
+          '🤖 Generated with [BaoCode](https://baocode.dev)',
+        ),
+        'Fix it\n\n- more',
+      );
+      expect(
+        ideCleanCommitMessage(
+          'Fix it\n\nCo-Authored-By: BaoCode <noreply@baocode.dev>',
+        ),
+        'Fix it',
+      );
     });
   });
 

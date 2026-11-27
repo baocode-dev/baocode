@@ -185,9 +185,21 @@ String attributionReminder({required String commit, required String pr}) {
     'own instructions on them, in CLAUDE.md or memory, come first, but add '
     'none that are not here):\n',
   );
-  if (commit.isNotEmpty) out.write('- A commit message ends with:\n$commit\n');
+  if (commit.isNotEmpty) {
+    out.write('- A commit message ends with:\n$commit\n');
+  } else {
+    out.write(
+      '- Do not add any Co-Authored-By trailer or attribution line to commit '
+      'messages.\n',
+    );
+  }
   if (pr.isNotEmpty) {
     out.write('- A pull request description ends with:\n$pr\n');
+  } else {
+    out.write(
+      '- Do not add any attribution or "Generated with" line to pull request '
+      'descriptions.\n',
+    );
   }
   out.write('</system-reminder>\n');
   return out.toString();

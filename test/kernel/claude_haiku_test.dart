@@ -217,6 +217,10 @@ void main() {
       expect(await askClaudeHaiku('Be brief.', 'hi'), 'Short answer');
       expect(api.model.requests.map((r) => r.body['model']).toSet(), {'small'});
       expect(api.headers.map((h) => h['x-api-key']).toSet(), {'sk-up'});
+      // Auxiliary calls must not inject commit/PR attribution reminders (#765).
+      final payload = jsonEncode([for (final r in api.model.requests) r.body]);
+      expect(payload, isNot(contains('Co-Authored-By')));
+      expect(payload, isNot(contains('Generated with')));
     }, timeout: const Timeout(Duration(minutes: 1)));
   });
 }

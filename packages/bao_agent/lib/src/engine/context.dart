@@ -245,7 +245,12 @@ class SessionContext {
                 ...extra,
               ].join('\n\n'),
             ],
-      reminders: [?_instructions(), ?_gitStatus(), ?_attribution(), ...notes],
+      reminders: [
+        ?_instructions(),
+        ?_gitStatus(),
+        if (own == null) _attribution(),
+        ...notes,
+      ],
       context: _context(model, tools),
     );
   }
@@ -276,7 +281,7 @@ class SessionContext {
             budgetNote(AgentPrompt.budget),
           ].join('\n\n'),
         ],
-        reminders: [if (!omitsMemory(agent)) ?_instructions(), ?_attribution()],
+        reminders: [if (!omitsMemory(agent)) ?_instructions(), _attribution()],
         context: _context(model, tools),
       );
 
@@ -326,9 +331,8 @@ class SessionContext {
     );
   }
 
-  String? _attribution() {
+  String _attribution() {
     final (:commit, :pr) = session.attribution;
-    if (commit.isEmpty && pr.isEmpty) return null;
     return attributionReminder(commit: commit, pr: pr);
   }
 
