@@ -810,6 +810,10 @@ void main() {
         find.textContaining(ReplySuggestions.tag, findRichText: true),
         findsNothing,
       );
+      expect(
+        find.textContaining(ReplySuggestions.buttonTag, findRichText: true),
+        findsNothing,
+      );
       await tester.pump(const Duration(milliseconds: 100));
     }
     await tester.pump(const Duration(milliseconds: 300));
@@ -828,6 +832,10 @@ void main() {
     );
     expect(
       find.textContaining(ReplySuggestions.tag, findRichText: true),
+      findsNothing,
+    );
+    expect(
+      find.textContaining(ReplySuggestions.buttonTag, findRichText: true),
       findsNothing,
     );
 

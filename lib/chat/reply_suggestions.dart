@@ -1,9 +1,14 @@
 /// What the agent suggests the user send next, written by itself at the
-/// end of its reply, each in a [tag]: no request of its own. Shown over the
-/// composer, apart from what it said (see [AssistantTextItem.text]), while
-/// the user has them on (`chat.promptSuggestions`, [PromptSuggestions]).
+/// end of its reply, each as `[$buttonTag:…]` (or legacy `<$tag>…</$tag>`):
+/// no request of its own. Shown over the composer, apart from what it said
+/// (see [AssistantTextItem.text]), while the user has them on
+/// (`chat.promptSuggestions`, [PromptSuggestions]).
 abstract final class ReplySuggestions {
+  /// Legacy XML tag, still parsed for earlier conversations and models.
   static const tag = 'reply_suggestion';
+
+  /// Current button marker name: `[next-button:…]`.
+  static const buttonTag = 'next-button';
 
   /// The most shown.
   static const max = 4;
@@ -14,9 +19,9 @@ abstract final class ReplySuggestions {
   /// What the agent is told, with the user's message, when they turn them
   /// on (or with the first message, on).
   ///
-  /// Shown what is right and what is not: told only in words, some models
-  /// wrote them as a tool call's parameters, in a list or in code, and the
-  /// app showed them as text (#1276).
+  /// Uses plain `[next-button:…]` tokens on a clean final line rather than
+  /// XML tags, which many models turned into tool calls or varied markup
+  /// (#1276).
   static const on =
       '<system-reminder>Reply suggestions are on: the user turned them on '
       'in BaoCode. When you finish your turn and hand back to them, end your '
@@ -27,33 +32,34 @@ abstract final class ReplySuggestions {
       'send it. The app shows them apart from your message: do not speak of '
       'them. None while you are still working.\n'
       '\n'
-      'Write them as plain text in your reply, not as a tool call: each on a '
-      'line of its own, between exactly <$tag> and </$tag>, with nothing '
-      'after the last one.\n'
+      'Write them as plain text on the very last line, not as a tool call: '
+      'space-separated as [$buttonTag:…], with nothing else at the start or '
+      'end of the line and nothing after the last one.\n'
       '\n'
-      'Right:\n'
-      '<$tag>Run the tests first</$tag>\n'
-      '<$tag>Why did the filter not apply?</$tag>\n'
+      'Right (no other characters at the start or end of the line):\n'
+      '[$buttonTag:Run the tests first] '
+      '[$buttonTag:Why did the filter not apply?]\n'
       '\n'
       'Wrong:\n'
-      '- <parameter name="suggestion">Run the tests</parameter> (a tool '
-      "call's tags: only <$tag>)\n"
-      '- <$tag name="1">Run the tests</$tag> (no attributes)\n'
-      '- a list marker, a number or a code block around them\n'
-      '- <$tag>Want me to run the tests?</$tag> (your voice: write what the '
-      'user would say)\n'
+      '- [$buttonTag:Run the tests first] [$buttonTag:Commit it] '
+      '(no list marker, number, or text before the first one)\n'
+      'Next: [$buttonTag:Run the tests first] '
+      '(nothing else on the line)\n'
+      '- a code block or tool call around them\n'
+      '- [$buttonTag:Want me to run the tests?] '
+      '(your voice: write what the user would say)\n'
       '- more text after them</system-reminder>';
 
   /// With each message after, a word.
   static const stillOn =
       '<system-reminder>Reply suggestions still on: end your turn with two '
-      'to four short ones, as plain text, each on its own line: '
-      '<$tag>…</$tag>.</system-reminder>';
+      'to four short ones as plain text on the very last line (nothing else '
+      'on the line): [$buttonTag:…] [$buttonTag:…].</system-reminder>';
 
   /// Once, when they turn them off.
   static const off =
       '<system-reminder>Reply suggestions are off: the user turned them off '
-      'in BaoCode. Write no more <$tag>.</system-reminder>';
+      'in BaoCode. Write no more [$buttonTag:…].</system-reminder>';
 
   /// What to tell the agent with a message, suggestions [wanted] or not:
   /// [told], what it was last told this run (none yet); [suggested],
@@ -79,13 +85,15 @@ abstract final class ReplySuggestions {
   };
 
   /// The suggestions at the end of [text], each whole; at most [max], none
-  /// too long. Each line of a tag is one: some models put them all in one.
+  /// too long. Accepts both `[next-button:…]` and legacy
+  /// `<reply_suggestion>…</reply_suggestion>` (where each line of a tag is
+  /// one, as some models put them all in one).
   static List<String> of(String text) {
     final at = _tailAt(text);
     if (at == null) return const [];
     return [
       for (final match in _whole.allMatches(text, at))
-        for (final line in match[1]!.split('\n'))
+        for (final line in (match[1] ?? match[2]!).split('\n'))
           if (line.trim() case final said
               when said.isNotEmpty && said.length <= maxLength)
             said,
@@ -94,37 +102,70 @@ abstract final class ReplySuggestions {
 
   /// [text] with [suggestions] at its end, as the agent writes them.
   static String write(String text, List<String> suggestions) =>
-      [text, for (final said in suggestions) '<$tag>$said</$tag>'].join('\n');
+      suggestions.isEmpty
+      ? text
+      : '$text\n${suggestions.map((said) => '[$buttonTag:$said]').join(' ')}';
 
   static const _open = '<$tag>';
+  static const _buttonPrefix = '[$buttonTag';
+  static const _buttonOpen = '[$buttonTag:';
 
-  /// What one says: any text but a tag, code in it too (`npm test`).
-  static final _whole = RegExp('<$tag>([^<]*)</$tag>');
+  /// What one says: a `[next-button:…]` token (also tolerating a full-width
+  /// colon), or a legacy `<reply_suggestion>…</reply_suggestion>` tag.
+  static final _whole = RegExp(
+    '\\[$buttonTag[:：]([^\\]\\r\\n]*)\\]|<$tag>([^<]*)</$tag>',
+  );
 
   /// Before each, a list's marker some models put there.
   static const _marker = r'(?:(?:[-*•]|\d+[.)])[ \t]*)?';
 
-  /// Whole ones; then perhaps one under way, its end tag not yet whole
-  /// (not one in code, its tag the last of it: `` `<tag>` ``); or the start
-  /// of its tag.
+  static const _completeButton = '(?<!`)\\[$buttonTag[:：][^\\]\\r\\n]*\\]';
+  static const _completeXml = '<$tag>[^<]*</$tag>';
+  static const _complete = '(?:$_completeButton|$_completeXml)';
+
+  /// Whole ones (button or legacy XML); then perhaps one under way, its end
+  /// not yet whole (not one in code, e.g. `` `[next-button:…]` `` or
+  /// `` `<tag>` ``); or the start of its marker/tag.
   static final _tail = RegExp(
-    '(?:\\s*$_marker<$tag>[^<]*</$tag>)*\\s*'
-    '(?:$_marker<$tag>(?:[^<`][^<]*)?(?:</?[a-z_]*)?|(<[a-z_]*))?\$',
+    '(?:\\s*$_marker$_complete)*'
+    '(?:'
+    '\\s*$_marker(?<!`)\\[$buttonTag[:：][^\\]\\r\\n]*'
+    '|\\s*(?<=^|\\s)$_marker(\\[[a-z-]*)'
+    '|\\s*$_marker<$tag>(?:[^<`][^<]*)?(?:</?[a-z_]*)?'
+    '|\\s*(<[a-z_]*)'
+    '|\\s*'
+    ')\$',
   );
+
+  static bool _mightHaveTail(String text) {
+    final lb = text.lastIndexOf('[');
+    if (lb >= 0 &&
+        (text.contains(_buttonPrefix) ||
+            _buttonOpen.startsWith(text.substring(lb)))) {
+      return true;
+    }
+    final lt = text.lastIndexOf('<');
+    if (lt >= 0 &&
+        (text.contains(_open) || _open.startsWith(text.substring(lt)))) {
+      return true;
+    }
+    return false;
+  }
 
   /// Where the suggestions at the end of [text] start (the space before
   /// them too); null when there are none.
   static int? _tailAt(String text) {
-    final lt = text.lastIndexOf('<');
-    if (lt < 0) return null;
-    // Cheap first: no tag of them, nor the start of one at the end.
-    if (!text.contains(_open) && !_open.startsWith(text.substring(lt))) {
-      return null;
-    }
+    // Cheap first: neither format's opener, nor the start of one at the end.
+    if (!_mightHaveTail(text)) return null;
     final match = _tail.firstMatch(text);
     if (match == null || match.start == match.end) return null;
-    // A tag's start at the end that is not theirs: none.
-    if (match[1] case final start? when !_open.startsWith(start)) return null;
+    // A bracket/tag start at the end that is not theirs: none.
+    if (match[1] case final start? when !_buttonOpen.startsWith(start)) {
+      return null;
+    }
+    if (match[2] case final start? when !_open.startsWith(start)) {
+      return null;
+    }
     final at = match.start;
     // Only space before: nothing said.
     if (text.substring(at).trim().isEmpty) return null;

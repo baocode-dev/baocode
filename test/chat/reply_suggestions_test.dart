@@ -12,11 +12,109 @@ import 'package:flutter_test/flutter_test.dart';
 import '../kernel_test.dart' show FakeCli;
 
 const _t = ReplySuggestions.tag;
+const _b = ReplySuggestions.buttonTag;
 
 String _said(String text) => '<$_t>$text</$_t>';
+String _btn(String text) => '[$_b:$text]';
 
 void main() {
-  group('in the text', () {
+  group('in the text (next-button)', () {
+    test('space-separated buttons on the last line are extracted', () {
+      final raw = '改好了，测试都过了。\n\n${_btn('帮我看看xxx')} ${_btn('创建一个xxx')}\n';
+      expect(ReplySuggestions.strip(raw), '改好了，测试都过了。');
+      expect(ReplySuggestions.of(raw), ['帮我看看xxx', '创建一个xxx']);
+      final item = AssistantTextItem(raw);
+      expect(item.raw, raw);
+      expect(item.text, '改好了，测试都过了。');
+      expect(item.suggestions, ['帮我看看xxx', '创建一个xxx']);
+    });
+
+    test('one still being written is hidden, its bracket prefix too', () {
+      for (final tail in [
+        '[',
+        '[n',
+        '[next-',
+        '[$_b',
+        '[$_b:',
+        '[$_b:提交',
+        '[$_b:Run tests',
+      ]) {
+        expect(ReplySuggestions.strip('好了\n${_btn('a')} $tail'), '好了');
+        expect(ReplySuggestions.strip('好了\n$tail'), '好了');
+      }
+      expect(ReplySuggestions.of('好了\n${_btn('a')} [$_b:提交'), ['a']);
+    });
+
+    test('ordinary brackets, code and mid-text buttons stay', () {
+      final middle = '写 ${_btn('x')} 就行，然后接着说。';
+      expect(ReplySuggestions.strip(middle), middle);
+      expect(ReplySuggestions.of(middle), isEmpty);
+      const code = '格式是 `[$_b:跑测试]`';
+      expect(ReplySuggestions.strip(code), code);
+      const openCode = '格式是 `[$_b:跑测试';
+      expect(ReplySuggestions.strip(openCode), openCode);
+      const array = 'arr[';
+      expect(ReplySuggestions.strip(array), array);
+      const other = 'a [b';
+      expect(ReplySuggestions.strip(other), other);
+      const spaced = '好了\n[n ';
+      expect(ReplySuggestions.strip(spaced), spaced);
+      expect(
+        ReplySuggestions.strip('好了\n${_btn('a')} 后面还有字'),
+        '好了\n${_btn('a')} 后面还有字',
+      );
+      expect(ReplySuggestions.of('好了\n${_btn('a')} 后面还有字'), isEmpty);
+    });
+
+    test(
+      'multiline, list markers, code, and full-width colon are tolerated',
+      () {
+        final raw = [
+          '改好了。',
+          '',
+          '- ${_btn('跑 `npm test`')}',
+          '2. [$_b：查看 diff]',
+          '* ${_btn('先别动（等我看看）')}',
+        ].join('\n');
+        expect(ReplySuggestions.strip(raw), '改好了。');
+        expect(ReplySuggestions.of(raw), [
+          '跑 `npm test`',
+          '查看 diff',
+          '先别动（等我看看）',
+        ]);
+      },
+    );
+
+    test('at most four, none empty or too long', () {
+      final raw = [
+        'ok',
+        '${_btn('a')} ${_btn('')} ${_btn('x' * (ReplySuggestions.maxLength + 1))} '
+            '${_btn('b')} ${_btn('c')} ${_btn('d')} ${_btn('e')}',
+      ].join('\n');
+      expect(ReplySuggestions.strip(raw), 'ok');
+      expect(ReplySuggestions.of(raw), ['a', 'b', 'c', 'd']);
+    });
+
+    test('write produces button format and empty list leaves text as is', () {
+      expect(ReplySuggestions.write('ok', const []), 'ok');
+      final written = ReplySuggestions.write('ok', ['跑测试', '提交吧']);
+      expect(written, 'ok\n[$_b:跑测试] [$_b:提交吧]');
+      expect(ReplySuggestions.strip(written), 'ok');
+      expect(ReplySuggestions.of(written), ['跑测试', '提交吧']);
+    });
+
+    test('a phone is sent the text without them, and they apart', () {
+      final raw = 'ok\n${_btn('a')} ${_btn('b')}';
+      final json = ChatCodec.encode(AssistantTextItem(raw));
+      expect(json['text'], 'ok');
+      expect(json['suggest'], ['a', 'b']);
+      final back = ChatCodec.decode(json) as AssistantTextItem;
+      expect(back.text, 'ok');
+      expect(back.suggestions, ['a', 'b']);
+    });
+  });
+
+  group('in the text (legacy XML tag compatibility)', () {
     test('those at the end are taken out of what it said', () {
       final raw = '改好了，测试都过了。\n\n${_said('提交吧')}\n${_said('再跑一遍')}\n';
       expect(ReplySuggestions.strip(raw), '改好了，测试都过了。');
