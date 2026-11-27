@@ -84,28 +84,36 @@ class SessionStore {
     } on FileSystemException {
       return;
     }
-    for (final entry in entries) {
-      if (entry['uuid'] case final String uuid) _byUuid[uuid] = entry;
-      if (!_kept(entry)) extras.add(entry);
-    }
-    Map<String, Object?>? last;
-    for (final entry in entries.reversed) {
-      if (_kept(entry) &&
-          (sidechain || entry['isSidechain'] != true) &&
-          entry['uuid'] is String) {
-        last = entry;
-        break;
+    final indexByUuid = <String, int>{};
+    for (var i = 0; i < entries.length; i++) {
+      final entry = entries[i];
+      if (entry['uuid'] case final String uuid) {
+        _byUuid[uuid] = entry;
+        indexByUuid[uuid] = i;
       }
+      if (!_kept(entry)) extras.add(entry);
     }
     final branch = <Map<String, Object?>>[];
     final seen = <String>{};
-    for (var entry = last; entry != null;) {
+    int? previousKept(int before) {
+      for (var i = before - 1; i >= 0; i--) {
+        final entry = entries[i];
+        if (_kept(entry) && (sidechain || entry['isSidechain'] != true)) {
+          final uuid = entry['uuid'];
+          if (uuid is String && !seen.contains(uuid)) return i;
+        }
+      }
+      return null;
+    }
+
+    for (var row = previousKept(entries.length); row != null;) {
+      final entry = entries[row];
       final uuid = entry['uuid'] as String;
       if (!seen.add(uuid)) break;
       branch.add(entry);
       final parent =
           (entry['parentUuid'] ?? entry['logicalParentUuid']) as String?;
-      entry = parent == null ? null : _byUuid[parent];
+      row = parent == null ? null : (indexByUuid[parent] ?? previousKept(row));
     }
     chain.addAll(branch.reversed.where(_kept));
   }

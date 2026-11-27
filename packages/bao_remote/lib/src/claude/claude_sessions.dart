@@ -327,36 +327,47 @@ String _fork(
     for (final line in const LineSplitter().convert(file.readAsStringSync()))
       ?_decode(line),
   ];
-  final byId = <String, Map<String, Object?>>{
-    for (final entry in entries)
-      if (entry['uuid'] case final String uuid) uuid: entry,
+  final byId = <String, int>{
+    for (var i = 0; i < entries.length; i++)
+      if (entries[i]['uuid'] case final String uuid) uuid: i,
   };
   String? parentOf(Map<String, Object?> entry) =>
       (entry['parentUuid'] ?? entry['logicalParentUuid']) as String?;
-  final Map<String, Object?>? leaf;
+  final seen = <String>{};
+  int? previousKept(int before) {
+    for (var i = before - 1; i >= 0; i--) {
+      final entry = entries[i];
+      if (_kept(entry) && entry['isSidechain'] != true) {
+        final uuid = entry['uuid'];
+        if (uuid is String && !seen.contains(uuid)) return i;
+      }
+    }
+    return null;
+  }
+
+  final int? leaf;
   if (before != null) {
     final cut = byId[before];
     if (cut == null) throw StateError('No message $before in session $id');
-    leaf = switch (parentOf(cut)) {
-      final parent? => byId[parent],
+    leaf = switch (parentOf(entries[cut])) {
+      final parent? => byId[parent] ?? previousKept(cut),
       null => null,
     };
   } else {
-    leaf = entries.reversed
-        .where(
-          (e) => _kept(e) && e['isSidechain'] != true && e['uuid'] is String,
-        )
-        .firstOrNull;
+    leaf = previousKept(entries.length);
   }
   // The chain to it, every line of it as written (attachments, compaction
   // boundaries): what the CLI makes of the original, it makes of this.
   final chain = <Map<String, Object?>>[];
-  final seen = <String>{};
-  for (var entry = leaf; entry != null;) {
+  for (var row = leaf; row != null;) {
+    final entry = entries[row];
     if (!seen.add(entry['uuid'] as String)) break;
     chain.add(entry);
-    entry = switch (parentOf(entry)) {
-      final parent? => byId[parent],
+    row = switch (parentOf(entry)) {
+      // The CLI sometimes writes a dangling `logicalParentUuid` (or
+      // `parentUuid`) whose target is missing from the file, e.g. at a
+      // compaction boundary: fall back to the nearest earlier kept line.
+      final parent? => byId[parent] ?? previousKept(row),
       null => null,
     };
   }
@@ -996,28 +1007,31 @@ List<Map<String, Object?>> _branch(String path) {
       continue;
     }
   }
-  final byId = <String, Map<String, Object?>>{
-    for (final entry in entries)
-      if (entry['uuid'] case final String id) id: entry,
+  final byId = <String, int>{
+    for (var i = 0; i < entries.length; i++)
+      if (entries[i]['uuid'] case final String id) id: i,
   };
-  Map<String, Object?>? leaf;
-  for (final entry in entries.reversed) {
-    if (_kept(entry) &&
-        entry['isSidechain'] != true &&
-        entry['uuid'] is String) {
-      leaf = entry;
-      break;
-    }
-  }
   final branch = <Map<String, Object?>>[];
   final seen = <String>{};
-  for (var entry = leaf; entry != null;) {
+  int? previousKept(int before) {
+    for (var i = before - 1; i >= 0; i--) {
+      final entry = entries[i];
+      if (_kept(entry) && entry['isSidechain'] != true) {
+        final id = entry['uuid'];
+        if (id is String && !seen.contains(id)) return i;
+      }
+    }
+    return null;
+  }
+
+  for (var row = previousKept(entries.length); row != null;) {
+    final entry = entries[row];
     final id = entry['uuid'] as String;
     if (!seen.add(id)) break;
     branch.add(entry);
     final parent =
         (entry['parentUuid'] ?? entry['logicalParentUuid']) as String?;
-    entry = parent == null ? null : byId[parent];
+    row = parent == null ? null : (byId[parent] ?? previousKept(row));
   }
   return [
     for (final entry in branch.reversed)
@@ -1171,20 +1185,27 @@ class _Lines {
   /// first, as [_branch] has them.
   List<int> branch() {
     final byId = <String, int>{for (var i = 0; i < ids.length; i++) ?ids[i]: i};
-    int? leaf;
-    for (var i = kinds.length - 1; i >= 0; i--) {
-      if (kinds[i] & (_keptLine | _sidechain) == _keptLine && ids[i] != null) {
-        leaf = i;
-        break;
-      }
-    }
     final rows = <int>[];
     final seen = <String>{};
-    for (var row = leaf; row != null;) {
+    int? previousKept(int before) {
+      for (var i = before - 1; i >= 0; i--) {
+        if (kinds[i] & (_keptLine | _sidechain) == _keptLine &&
+            ids[i] != null &&
+            !seen.contains(ids[i])) {
+          return i;
+        }
+      }
+      return null;
+    }
+
+    for (var row = previousKept(kinds.length); row != null;) {
       if (!seen.add(ids[row]!)) break;
       rows.add(row);
       row = switch (parents[row]) {
-        final parent? => byId[parent],
+        // The CLI sometimes writes a dangling `logicalParentUuid` (or
+        // `parentUuid`) whose target is missing from the file, e.g. at a
+        // compaction boundary: fall back to the nearest earlier kept line.
+        final parent? => byId[parent] ?? previousKept(row),
         null => null,
       };
     }
