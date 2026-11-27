@@ -11,8 +11,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:baocode/chat/composer/composer_files.dart';
+import 'package:baocode/chat/composer/file_drag.dart';
+import 'package:baocode/chat/composer/file_drop.dart';
 import 'package:baocode/ide/ide_find_widget.dart';
 import 'package:baocode/ide/terminal/links/terminal_links.dart';
+import 'package:baocode/ide/terminal/terminal_colors.dart';
 import 'package:baocode/ide/terminal/terminal_instance.dart';
 import 'package:baocode/ide/terminal/terminal_view.dart';
 import 'package:baocode/ide/terminal/terminal_widget.dart';
@@ -30,6 +34,8 @@ Future<({TerminalInstance terminal, FakePty pty})> _show(
   ValueChanged<TerminalLink>? onOpenLink,
   Map<String, bool> files = const {},
   GlobalKey? boundary,
+  List<ComposerFile>? dragged,
+  bool mirror = false,
 }) async {
   final started = <FakePty>[];
   final terminal = TerminalInstance(
@@ -39,20 +45,35 @@ Future<({TerminalInstance terminal, FakePty pty})> _show(
   );
   await tester.pumpWidget(
     MaterialApp(
-      home: Center(
-        child: RepaintBoundary(
-          key: boundary,
-          child: SizedBox(
-            width: 600,
-            height: 300,
-            child: TerminalView(
-              terminal,
-              skipShell: skipShell,
-              onKill: onKill,
-              onOpenLink: onOpenLink,
+      home: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (dragged != null)
+            FileDraggable(
+              files: dragged,
+              child: const SizedBox(
+                width: 100,
+                height: 40,
+                child: Text('file'),
+              ),
+            ),
+          Center(
+            child: RepaintBoundary(
+              key: boundary,
+              child: SizedBox(
+                width: 600,
+                height: 300,
+                child: TerminalView(
+                  terminal,
+                  skipShell: skipShell,
+                  onKill: onKill,
+                  onOpenLink: onOpenLink,
+                  mirror: mirror,
+                ),
+              ),
             ),
           ),
-        ),
+        ],
       ),
     ),
   );
@@ -233,6 +254,135 @@ class _WindowsInput {
 }
 
 void main() {
+  testWidgets('files and folders dragged from the explorer reach the prompt', (
+    tester,
+  ) async {
+    final (:terminal, :pty) = await _show(
+      tester,
+      dragged: const [
+        ComposerFile('/project/a.txt'),
+        ComposerFile('/project/中文 空格📁', directory: true),
+      ],
+    );
+    pty.writes.clear();
+    await tester.dragFrom(
+      tester.getCenter(find.byType(FileDraggable)),
+      tester.getCenter(find.byType(TerminalWidget)) -
+          tester.getCenter(find.byType(FileDraggable)),
+    );
+    await tester.pump();
+    expect(pty.written, r'/project/a.txt /project/中文\ 空格📁 ');
+    expect(terminal.focusNode.hasFocus, isTrue);
+  });
+
+  testWidgets('system file drops paste paths without executing, with brackets '
+      'when requested, and highlight while hovering', (tester) async {
+    final (:terminal, :pty) = await _show(tester);
+    pty.emitText('\x1b[?2004h');
+    await _parsed(tester);
+    final at = tester.getCenter(find.byType(TerminalWidget));
+    final args = {
+      'x': at.dx,
+      'y': at.dy,
+      'files': [
+        {'path': '/project/文档', 'directory': true},
+        {'path': "/project/it's.txt", 'directory': false},
+      ],
+    };
+    final dropOverlay = find.byWidgetPredicate(
+      (widget) =>
+          widget is ColoredBox &&
+          widget.color ==
+              (terminalColorTheme.value.dropBackground ??
+                  TerminalColors.dropBackground),
+    );
+    expect(dropOverlay, findsNothing);
+    expect(await FileDrops.handle(MethodCall('dragUpdate', args)), isTrue);
+    await tester.pump();
+    expect(dropOverlay, findsOneWidget);
+    expect(pty.written, isEmpty);
+    expect(await FileDrops.handle(MethodCall('drop', args)), isTrue);
+    await tester.pump();
+    expect(dropOverlay, findsNothing);
+    expect(
+      pty.written,
+      '\x1b[200~'
+      r"/project/文档 /project/it\'s.txt "
+      '\x1b[201~',
+    );
+    expect(terminal.focusNode.hasFocus, isTrue);
+  });
+
+  testWidgets('cancelled file drags do not type paths and clear highlight', (
+    tester,
+  ) async {
+    final (:pty, :terminal) = await _show(tester);
+    final at = tester.getCenter(find.byType(TerminalWidget));
+    await FileDrops.handle(
+      MethodCall('dragUpdate', {
+        'x': at.dx,
+        'y': at.dy,
+        'files': [
+          {'path': '/project/a.txt'},
+        ],
+      }),
+    );
+    await tester.pump();
+    await FileDrops.handle(const MethodCall('dragExit'));
+    await tester.pump();
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is ColoredBox &&
+            widget.color ==
+                (terminalColorTheme.value.dropBackground ??
+                    TerminalColors.dropBackground),
+      ),
+      findsNothing,
+    );
+    expect(pty.written, isEmpty);
+    expect(terminal.focusNode.hasFocus, isFalse);
+  });
+
+  testWidgets('an exited terminal does not accept system file drops', (
+    tester,
+  ) async {
+    final (:pty, :terminal) = await _show(tester);
+    final at = tester.getCenter(find.byType(TerminalWidget));
+    pty.exit(1);
+    await _parsed(tester);
+    final args = {
+      'x': at.dx,
+      'y': at.dy,
+      'files': [
+        {'path': '/project/a.txt'},
+      ],
+    };
+    expect(await FileDrops.handle(MethodCall('dragUpdate', args)), isFalse);
+    expect(await FileDrops.handle(MethodCall('drop', args)), isFalse);
+    expect(pty.written, isEmpty);
+    expect(terminal.focusNode.hasFocus, isFalse);
+  });
+
+  testWidgets('a mirror does not accept file drops', (tester) async {
+    final (:pty, :terminal) = await _show(tester, mirror: true);
+    final at = tester.getCenter(find.byType(TerminalWidget));
+    expect(
+      await FileDrops.handle(
+        MethodCall('drop', {
+          'x': at.dx,
+          'y': at.dy,
+          'files': [
+            {'path': '/project/a.txt'},
+          ],
+        }),
+      ),
+      isFalse,
+    );
+    expect(pty.written, isEmpty);
+    expect(terminal.focusNode.hasFocus, isFalse);
+  });
+
   testWidgets('the emulator draws what the process prints, and the grid it '
       'fits is the process\'s size', (tester) async {
     final (:terminal, :pty) = await _show(tester);

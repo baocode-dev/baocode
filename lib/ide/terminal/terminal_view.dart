@@ -38,6 +38,8 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import '../../chat/composer/composer_files.dart';
+import '../../chat/composer/file_drop.dart';
 import '../../keybindings/keybinding_service.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/code_font.dart';
@@ -51,6 +53,8 @@ import 'shell_integration/decoration_addon.dart';
 import 'shell_integration/decoration_styles.dart';
 import 'shell_integration/shell_integration.dart';
 import 'terminal_clipboard.dart';
+import 'terminal_colors.dart';
+import 'terminal_file_drop.dart';
 import 'terminal_find.dart';
 import 'terminal_instance.dart';
 import 'terminal_keyboard.dart';
@@ -123,7 +127,9 @@ class TerminalView extends StatefulWidget {
   State<TerminalView> createState() => _TerminalViewState();
 }
 
-class _TerminalViewState extends State<TerminalView> with TextInputClient {
+class _TerminalViewState extends State<TerminalView>
+    with TextInputClient
+    implements FileDropDelegate {
   final _render = TerminalRenderController();
   final _subscriptions = DisposableStore();
   final _findText = TextEditingController();
@@ -157,6 +163,8 @@ class _TerminalViewState extends State<TerminalView> with TextInputClient {
   // mirror), and whether it is to focus it once it does (pressed).
   bool _owning = false;
   bool _focusOnOwning = false;
+  bool _exited = false;
+  bool _fileDragOver = false;
 
   IBufferRange? _linkRange() => _link?.range;
 
@@ -251,6 +259,7 @@ class _TerminalViewState extends State<TerminalView> with TextInputClient {
     _subscriptions.add(
       instance.terminal.buffers.onBufferActivate((_) => _gutterChanged()),
     );
+    _exited = instance.exited;
     instance.addListener(_instanceChanged);
     _attachShellIntegration();
     _subscriptions.add(
@@ -284,6 +293,7 @@ class _TerminalViewState extends State<TerminalView> with TextInputClient {
     _lookUp++;
     _link = null;
     _hover = null;
+    _fileDragOver = false;
     if (!_owning) return;
     _owning = false;
     instance.focusNode.removeListener(_focusChanged);
@@ -619,6 +629,11 @@ class _TerminalViewState extends State<TerminalView> with TextInputClient {
   /// The shell integration comes with the launch.
   void _instanceChanged() {
     if (_instance.shellIntegration != _integration) _attachShellIntegration();
+    if (_instance.exited != _exited) {
+      _exited = _instance.exited;
+      if (_exited) _fileDragOver = false;
+      if (mounted) setState(() {});
+    }
   }
 
   void _attachShellIntegration() {
@@ -933,20 +948,72 @@ class _TerminalViewState extends State<TerminalView> with TextInputClient {
     );
   }
 
+  void _dropFiles(List<ComposerFile> files) {
+    if (widget.mirror || _instance.exited) return;
+    final text = terminalFileDropText(
+      files.map((file) => file.path),
+      shell: _instance.launch?.executable ?? '',
+    );
+    if (text == null) return;
+    _instance.sendText(text, bracketedPasteMode: true);
+    _instance.focus();
+  }
+
+  void _setFileDragOver(bool value) {
+    if (_fileDragOver == value) return;
+    if (mounted) setState(() => _fileDragOver = value);
+  }
+
+  @override
+  void fileDragOver(Offset position, List<ComposerFile> files) {
+    if (widget.mirror || _instance.exited) return;
+    _setFileDragOver(true);
+  }
+
+  @override
+  void fileDragLeave() => _setFileDragOver(false);
+
+  @override
+  void fileDrop(Offset position, List<ComposerFile> files) {
+    _setFileDragOver(false);
+    _dropFiles(files);
+  }
+
   @override
   Widget build(BuildContext context) {
     final instance = _instance;
     final mirror = widget.mirror;
-    return CallbackShortcuts(
+    Widget buildContent({required bool dropHighlight}) => CallbackShortcuts(
       bindings: mirror ? const {} : _findKeys,
       child: LayoutBuilder(
         builder: (context, constraints) => Stack(
           children: [
             Positioned.fill(child: _terminal(instance)),
             Positioned.fill(child: _commandMarks(instance)),
+            if (dropHighlight)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: ColoredBox(
+                    color:
+                        terminalColorTheme.value.dropBackground ??
+                        TerminalColors.dropBackground,
+                  ),
+                ),
+              ),
             if (!mirror && instance.find.isVisible) _findWidget(constraints),
           ],
         ),
+      ),
+    );
+    if (mirror || instance.exited) return buildContent(dropHighlight: false);
+    return FileDropRegion(
+      delegate: this,
+      child: DragTarget<FileDragData>(
+        onWillAcceptWithDetails: (details) =>
+            !instance.exited && details.data.files.isNotEmpty,
+        onAcceptWithDetails: (details) => _dropFiles(details.data.files),
+        builder: (context, candidates, rejected) =>
+            buildContent(dropHighlight: _fileDragOver || candidates.isNotEmpty),
       ),
     );
   }
