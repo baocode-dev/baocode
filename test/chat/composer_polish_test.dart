@@ -7,6 +7,10 @@ import 'package:baocode/chat/composer/composer_controller.dart';
 import 'package:baocode/chat/composer/composer_embeds.dart';
 import 'package:baocode/chat/composer/composer_polish.dart';
 import 'package:baocode/ide/ide_hover.dart';
+import 'package:baocode/ide/ide_notifications.dart';
+import 'package:baocode/ide/ide_spinning.dart';
+import 'package:baocode/kernel/claude_code/claude_haiku.dart'
+    show ClaudeHaikuCancelled;
 import 'package:baocode/l10n/l10n.dart';
 import 'package:baocode/theme/app_theme.dart';
 import 'package:flutter/foundation.dart';
@@ -98,6 +102,7 @@ void main() {
       composerPolishAsker = (
         system,
         prompt, {
+        cancel,
         model,
         exact = false,
         location,
@@ -112,7 +117,7 @@ void main() {
         'past the limit', () async {
       final prompts = <String>[];
       composerPolishAsker =
-          (system, prompt, {model, exact = false, location}) async {
+          (system, prompt, {cancel, model, exact = false, location}) async {
             prompts.add(prompt);
             return 'Do option 2.';
           };
@@ -142,6 +147,7 @@ void main() {
       composerPolishAsker = (
         system,
         prompt, {
+        cancel,
         model,
         exact = false,
         location,
@@ -153,6 +159,7 @@ void main() {
       composerPolishAsker = (
         system,
         prompt, {
+        cancel,
         model,
         exact = false,
         location,
@@ -167,6 +174,7 @@ void main() {
       composerPolishAsker = (
         system,
         prompt, {
+        cancel,
         model,
         exact = false,
         location,
@@ -182,6 +190,24 @@ void main() {
         ),
       );
     });
+
+    test('cancellation passes cancel through and rethrows cancelled', () async {
+      final signal = Completer<void>();
+      Future<void>? passed;
+      composerPolishAsker =
+          (system, prompt, {cancel, model, exact = false, location}) async {
+            passed = cancel;
+            await cancel;
+            throw const ClaudeHaikuCancelled();
+          };
+      final pending = polishComposerText(
+        composerPolishText('fix it'),
+        cancel: signal.future,
+      );
+      expect(passed, same(signal.future));
+      signal.complete();
+      await expectLater(pending, throwsA(isA<ClaudeHaikuCancelled>()));
+    });
   });
 
   group('the composer', () {
@@ -190,15 +216,29 @@ void main() {
       ComposerPolishSetting.current = () => true;
     });
 
-    Future<ComposerController> pumpComposer(WidgetTester tester) async {
+    Future<ComposerController> pumpComposer(
+      WidgetTester tester, {
+      IdeNotifications? notifications,
+      void Function(ComposerMessage)? onSubmit,
+    }) async {
       final session = ChatSession(historyCount: 0);
       addTearDown(session.dispose);
+      final body = ChatComposer(
+        session: session,
+        draft: session.draft,
+        onSubmit: onSubmit,
+      );
       await tester.pumpWidget(
         MaterialApp(
           theme: buildAppTheme(),
           localizationsDelegates: const [AppLocalizations.delegate],
           home: Scaffold(
-            body: ChatComposer(session: session, draft: session.draft),
+            body: notifications == null
+                ? body
+                : IdeNotificationsScope(
+                    notifications: notifications,
+                    child: body,
+                  ),
           ),
         ),
       );
@@ -213,17 +253,18 @@ void main() {
       (widget) =>
           widget is IdeHover &&
           (widget.message == englishLocalizations.composerPolishHint ||
-              widget.message == englishLocalizations.composerPolishing),
+              widget.message == englishLocalizations.composerCancelPolish),
     );
 
     testWidgets('Polish puts the reply in, its tag as it was; Undo takes '
         'it back', (tester) async {
       final reply = Completer<String>();
       String? prompt;
-      composerPolishAsker = (system, asked, {model, exact = false, location}) {
-        prompt = asked;
-        return reply.future;
-      };
+      composerPolishAsker =
+          (system, asked, {cancel, model, exact = false, location}) {
+            prompt = asked;
+            return reply.future;
+          };
       final controller = await pumpComposer(tester);
       controller.replace(
         0,
@@ -237,11 +278,12 @@ void main() {
       await tester.tap(polishButton());
       await tester.pump();
       expect(prompt, contains('fix teh bug in ⟦1⟧ plz'));
+      expect(find.byType(IdeStopSpinner), findsOneWidget);
       expect(
         find.byWidgetPredicate(
           (widget) =>
               widget is IdeHover &&
-              widget.message == englishLocalizations.composerPolishing,
+              widget.message == englishLocalizations.composerCancelPolish,
         ),
         findsOneWidget,
       );
@@ -261,8 +303,14 @@ void main() {
 
     testWidgets('Undo and Redo keys take the polish back and put it in '
         'again', (tester) async {
-      composerPolishAsker = (system, asked, {model, exact = false, location}) =>
-          Future.value('Please fix the bug.');
+      composerPolishAsker = (
+        system,
+        asked, {
+        cancel,
+        model,
+        exact = false,
+        location,
+      }) => Future.value('Please fix the bug.');
       final controller = await pumpComposer(tester);
       await tester.tap(find.byType(MarkdownEditor));
       await tester.pump();
@@ -299,8 +347,14 @@ void main() {
 
     testWidgets('typed on meanwhile, the reply is not taken', (tester) async {
       final reply = Completer<String>();
-      composerPolishAsker = (system, asked, {model, exact = false, location}) =>
-          reply.future;
+      composerPolishAsker = (
+        system,
+        asked, {
+        cancel,
+        model,
+        exact = false,
+        location,
+      }) => reply.future;
       final controller = await pumpComposer(tester);
       controller.replace(0, 0, 'fix it');
       await tester.pump();
@@ -310,6 +364,141 @@ void main() {
       reply.complete('Fix it.');
       await tester.pumpAndSettle();
       expect(controller.text, 'fix it now');
+    });
+
+    testWidgets('clicking while enhancing cancels at once without replacing '
+        'or notifying', (tester) async {
+      final reply = Completer<String>();
+      var cancelled = false;
+      composerPolishAsker =
+          (system, asked, {cancel, model, exact = false, location}) {
+            unawaited(cancel?.then((_) => cancelled = true));
+            return reply.future;
+          };
+      final notifications = IdeNotifications();
+      addTearDown(notifications.dispose);
+      final controller = await pumpComposer(
+        tester,
+        notifications: notifications,
+      );
+      controller.replace(0, 0, 'fix teh bug');
+      await tester.pump();
+
+      await tester.tap(polishButton());
+      await tester.pump();
+      expect(find.byType(IdeStopSpinner), findsOneWidget);
+
+      await tester.tap(polishButton());
+      await tester.pump();
+      expect(cancelled, isTrue);
+      expect(find.byType(IdeStopSpinner), findsNothing);
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is IdeHover &&
+              widget.message == englishLocalizations.composerPolishHint,
+        ),
+        findsOneWidget,
+      );
+
+      // A late answer after cancellation must neither replace text nor notify.
+      reply.complete('Fix the bug.');
+      await tester.pumpAndSettle();
+      expect(controller.text, 'fix teh bug');
+      expect(notifications.notifications, isEmpty);
+    });
+
+    testWidgets('a late error or answer from a cancelled polish does not '
+        'affect an immediate retry', (tester) async {
+      final first = Completer<String>();
+      final second = Completer<String>();
+      var calls = 0;
+      composerPolishAsker = (
+        system,
+        asked, {
+        cancel,
+        model,
+        exact = false,
+        location,
+      }) => ++calls == 1 ? first.future : second.future;
+      final notifications = IdeNotifications();
+      addTearDown(notifications.dispose);
+      final controller = await pumpComposer(
+        tester,
+        notifications: notifications,
+      );
+      controller.replace(0, 0, 'fix teh bug');
+      await tester.pump();
+
+      // Start, cancel, and start again right away.
+      await tester.tap(polishButton());
+      await tester.pump();
+      await tester.tap(polishButton());
+      await tester.pump();
+      await tester.tap(polishButton());
+      await tester.pump();
+      expect(calls, 2);
+      expect(find.byType(IdeStopSpinner), findsOneWidget);
+
+      // The first request fails late: retry keeps running with no error toast.
+      first.completeError(Exception('stale failure'));
+      await tester.pump();
+      expect(find.byType(IdeStopSpinner), findsOneWidget);
+      expect(notifications.notifications, isEmpty);
+
+      second.complete('Fix the bug cleanly.');
+      await tester.pumpAndSettle();
+      expect(controller.text, 'Fix the bug cleanly.');
+      expect(find.byType(IdeStopSpinner), findsNothing);
+      expect(notifications.notifications, isEmpty);
+    });
+
+    testWidgets('disposing cancels an in-flight polish', (tester) async {
+      final reply = Completer<String>();
+      var cancelled = false;
+      composerPolishAsker =
+          (system, asked, {cancel, model, exact = false, location}) {
+            unawaited(cancel?.then((_) => cancelled = true));
+            return reply.future;
+          };
+      final controller = await pumpComposer(tester);
+      controller.replace(0, 0, 'fix teh bug');
+      await tester.pump();
+
+      await tester.tap(polishButton());
+      await tester.pump();
+      expect(cancelled, isFalse);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+      expect(cancelled, isTrue);
+    });
+
+    testWidgets('submitting cancels an in-flight polish', (tester) async {
+      final reply = Completer<String>();
+      var cancelled = false;
+      ComposerMessage? sent;
+      composerPolishAsker =
+          (system, asked, {cancel, model, exact = false, location}) {
+            unawaited(cancel?.then((_) => cancelled = true));
+            return reply.future;
+          };
+      final controller = await pumpComposer(
+        tester,
+        onSubmit: (message) => sent = message,
+      );
+      controller.replace(0, 0, 'fix teh bug');
+      await tester.pump();
+
+      await tester.tap(polishButton());
+      await tester.pump();
+      expect(find.byType(IdeStopSpinner), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.arrow_upward_rounded));
+      await tester.pump();
+      expect(sent?.text, 'fix teh bug');
+      expect(cancelled, isTrue);
+      expect(find.byType(IdeStopSpinner), findsNothing);
     });
 
     testWidgets('turned off in the settings, no button', (tester) async {

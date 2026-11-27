@@ -1,7 +1,10 @@
 import 'dart:async';
 
 import 'package:bao_markdown/bao_markdown.dart';
+import 'package:baocode/ide/ide_hover.dart';
+import 'package:baocode/ide/ide_spinning.dart';
 import 'package:baocode/l10n/l10n.dart';
+import 'package:baocode/stash/stash_ai.dart' show StashAiException;
 import 'package:baocode/stash/stash_disk.dart';
 import 'package:baocode/stash/stash_editor.dart';
 import 'package:baocode/theme/codicons.dart';
@@ -36,7 +39,7 @@ void main() {
               ensureNote: () async => 1,
               focusNode: focus,
               autofocus: true,
-              onPolish: (text) => answer.future,
+              onPolish: (text, {cancel}) => answer.future,
             ),
           ),
         ),
@@ -75,6 +78,139 @@ void main() {
     },
   );
 
+  testWidgets('clicking Polishing… in the bar cancels at once and allows an '
+      'immediate retry', (tester) async {
+    final previous = ModelProviders.current;
+    addTearDown(() => ModelProviders.current = previous);
+    await (ModelProviders.current = ModelProviders.memory()).setActionsModel(
+      ModelProviders.followAuxiliary,
+    );
+    final controller = StashEditor.controllerFor('321321\n321\n3123');
+    final focus = FocusNode();
+    addTearDown(focus.dispose);
+    final first = Completer<String?>();
+    final second = Completer<String?>();
+    var calls = 0;
+    var firstCancelled = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: const [AppLocalizations.delegate],
+        home: Scaffold(
+          body: StashEditor(
+            controller: controller,
+            store: StashStore(MemoryStashDisk()),
+            ensureNote: () async => 1,
+            focusNode: focus,
+            autofocus: true,
+            onPolish: (text, {cancel}) {
+              final call = ++calls;
+              if (call == 1) {
+                unawaited(cancel?.then((_) => firstCancelled = true));
+                return first.future;
+              }
+              return second.future;
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    focus.requestFocus();
+    controller.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: controller.length,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Polish'), findsOneWidget);
+
+    await tester.tap(find.text('Polish'));
+    await tester.pump();
+    expect(find.text('Polishing…'), findsOneWidget);
+    expect(find.byType(IdeStopSpinner), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is IdeHover &&
+            widget.message == englishLocalizations.stashCancelPolish,
+      ),
+      findsOneWidget,
+    );
+
+    // Click while polishing: cancels immediately without losing selection.
+    await tester.tap(find.text('Polishing…'));
+    await tester.pump();
+    expect(firstCancelled, isTrue);
+    expect(find.text('Polish'), findsOneWidget);
+    expect(find.byType(IdeStopSpinner), findsNothing);
+    expect(focus.hasFocus, isTrue);
+    expect(controller.selection.isCollapsed, isFalse);
+
+    // Immediately retry while the first request has not settled yet.
+    await tester.tap(find.text('Polish'));
+    await tester.pump();
+    expect(calls, 2);
+    expect(find.text('Polishing…'), findsOneWidget);
+
+    // Late error from the cancelled first request must not show an error
+    // dialog or clear the retry's busy state.
+    first.completeError(const StashAiException('stale error'));
+    await tester.pump();
+    expect(find.text('Polishing…'), findsOneWidget);
+    expect(find.textContaining('stale error'), findsNothing);
+
+    second.complete('Better text');
+    await tester.pumpAndSettle();
+    expect(controller.text, 'Better text');
+    expect(find.text('Polish'), findsOneWidget);
+  });
+
+  testWidgets('disposing the editor cancels an in-flight bar polish', (
+    tester,
+  ) async {
+    final previous = ModelProviders.current;
+    addTearDown(() => ModelProviders.current = previous);
+    await (ModelProviders.current = ModelProviders.memory()).setActionsModel(
+      ModelProviders.followAuxiliary,
+    );
+    final controller = StashEditor.controllerFor('hello world');
+    final focus = FocusNode();
+    addTearDown(focus.dispose);
+    final answer = Completer<String?>();
+    var cancelled = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: const [AppLocalizations.delegate],
+        home: Scaffold(
+          body: StashEditor(
+            controller: controller,
+            store: StashStore(MemoryStashDisk()),
+            ensureNote: () async => 1,
+            focusNode: focus,
+            autofocus: true,
+            onPolish: (text, {cancel}) {
+              unawaited(cancel?.then((_) => cancelled = true));
+              return answer.future;
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    focus.requestFocus();
+    controller.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: controller.length,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Polish'));
+    await tester.pump();
+    expect(cancelled, isFalse);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    expect(cancelled, isTrue);
+  });
+
   testWidgets('the bar\'s model menu, open, keeps the bar where it stands', (
     tester,
   ) async {
@@ -95,7 +231,7 @@ void main() {
             ensureNote: () async => 1,
             focusNode: focus,
             autofocus: true,
-            onPolish: (text) async => 'POLISHED',
+            onPolish: (text, {cancel}) async => 'POLISHED',
           ),
         ),
       ),
@@ -188,7 +324,7 @@ void main() {
             store: StashStore(MemoryStashDisk()),
             ensureNote: () async => 1,
             focusNode: focus,
-            onPolish: (text) async => text,
+            onPolish: (text, {cancel}) async => text,
           ),
         ),
       ),

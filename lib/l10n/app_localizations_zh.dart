@@ -9184,6 +9184,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get stashPolishing => '润色中…';
 
   @override
+  String get stashCancelPolish => '停止润色';
+
+  @override
   String get stashPolishHint => '让 AI 把选中的文字理顺，保持你的原意，不加结构';
 
   @override
@@ -9191,6 +9194,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get composerPolishing => '增强中…';
+
+  @override
+  String get composerCancelPolish => '停止增强';
 
   @override
   String get composerPolishHint =>

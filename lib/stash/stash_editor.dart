@@ -191,7 +191,7 @@ class StashEditor extends StatefulWidget {
   final EdgeInsets padding;
 
   /// [text] made clearer (see StashAi.polish); none hides the bar's AI.
-  final Future<String?> Function(String text)? onPolish;
+  final MarkdownPolish? onPolish;
   final bool readOnly;
 
   @override

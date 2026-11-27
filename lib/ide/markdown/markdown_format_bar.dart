@@ -10,6 +10,7 @@ import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../kernel/claude_code/claude_haiku.dart' show ClaudeHaikuCancelled;
 import '../../l10n/l10n.dart';
 import '../../models/auxiliary_model_menu.dart';
 import '../../models/model_providers.dart';
@@ -23,11 +24,19 @@ import '../ide_dialog.dart';
 import '../ide_input.dart';
 import '../ide_menu.dart';
 import '../ide_motion.dart';
+import '../ide_spinning.dart';
 import '../selection_bubble.dart';
 
 /// [markdown] (the selection's) as a model is given it, and a reply to it
 /// as markdown again.
 typedef MarkdownForModel = ({String text, String Function(String reply) back});
+
+/// Proofreads [text]; completing [cancel] stops it (throwing
+/// [ClaudeHaikuCancelled]).
+typedef MarkdownPolish = Future<String?> Function(
+  String text, {
+  Future<void>? cancel,
+});
 
 /// A link the caret is in: where it goes, its text, where that shows; in
 /// a table's [cell] (its editor), of the cell's text.
@@ -64,7 +73,7 @@ class MarkdownFormatBar extends StatefulWidget {
   final bool readOnly;
 
   /// [text] proofread (see polishStashText); none hides the bar's AI.
-  final Future<String?> Function(String text)? onPolish;
+  final MarkdownPolish? onPolish;
 
   /// What the model is given of the selection's markdown, and how its reply
   /// goes back; the markdown as it is by default.
@@ -99,7 +108,9 @@ class MarkdownFormatBarState extends State<MarkdownFormatBar> {
 
   /// What the bar was by as it was painted last: where it fades out.
   Rect? _barPainted;
-  bool _polishing = false;
+  Completer<void>? _polishCancel;
+
+  bool get _polishing => _polishCancel != null;
 
   /// A menu opened from the bar (the model picker, the marks under "…") is
   /// showing: it takes the keyboard, and the bar stays where it is.
@@ -151,6 +162,7 @@ class MarkdownFormatBarState extends State<MarkdownFormatBar> {
       oldWidget.controller.removeListener(_barSoon);
       widget.controller.addListener(_barSoon);
       // Another text: what was edited of the last one's goes.
+      _stopPolish();
       _linking = false;
       _applyLink = null;
       _caretLink = null;
@@ -160,11 +172,15 @@ class MarkdownFormatBarState extends State<MarkdownFormatBar> {
       oldWidget.focusNode.removeListener(_barSoon);
       widget.focusNode.addListener(_barSoon);
     }
+    if (widget.readOnly || widget.onPolish == null) {
+      _stopPolish();
+    }
     if (oldWidget.readOnly != widget.readOnly) _barSoon();
   }
 
   @override
   void dispose() {
+    _stopPolish();
     _controller.removeListener(_barSoon);
     _focus.removeListener(_barSoon);
     _cellsOf?.tableCellChanges.removeListener(_barSoon);
@@ -771,6 +787,19 @@ class MarkdownFormatBarState extends State<MarkdownFormatBar> {
 
   // --- Proofreading -------------------------------------------------------------
 
+  void _stopPolish() {
+    final cancel = _polishCancel;
+    if (cancel == null) return;
+    _polishCancel = null;
+    if (!cancel.isCompleted) cancel.complete();
+  }
+
+  void _cancelPolish() {
+    if (!_polishing) return;
+    _stopPolish();
+    if (mounted) setState(() {});
+  }
+
   Future<void> _polish() async {
     final polish = widget.onPolish;
     final selection = _controller.selection;
@@ -778,13 +807,19 @@ class MarkdownFormatBarState extends State<MarkdownFormatBar> {
     final slice = _controller.substring(selection.start, selection.end);
     final asked = widget.forModel?.call(slice) ?? _asIs(slice);
     if (asked.text.trim().isEmpty) return;
-    setState(() => _polishing = true);
+    final cancel = Completer<void>();
+    bool current() => identical(_polishCancel, cancel);
+    setState(() => _polishCancel = cancel);
     try {
       final String? better;
       try {
-        better = await polish(asked.text);
+        better = await polish(asked.text, cancel: cancel.future);
+      } on ClaudeHaikuCancelled {
+        return;
       } on StashAiException catch (error) {
-        if (!mounted) return;
+        if (!mounted || !current()) return;
+        _polishCancel = null;
+        setState(() {});
         final l10n = context.l10n;
         await showIdeDialog(
           context,
@@ -797,7 +832,7 @@ class MarkdownFormatBarState extends State<MarkdownFormatBar> {
         );
         return;
       }
-      if (better == null || !mounted) return;
+      if (better == null || !mounted || !current()) return;
       // Only if the text is as it was when asked.
       if (selection.end > _controller.length ||
           _controller.substring(selection.start, selection.end) != slice) {
@@ -816,7 +851,10 @@ class MarkdownFormatBarState extends State<MarkdownFormatBar> {
       );
       _controller.breakUndo();
     } finally {
-      if (mounted) setState(() => _polishing = false);
+      if (current()) {
+        _polishCancel = null;
+        if (mounted) setState(() {});
+      }
     }
   }
 
@@ -922,13 +960,18 @@ class MarkdownFormatBarState extends State<MarkdownFormatBar> {
         Builder(
           builder: (context) => SelectionBubbleButton(
             icon: Codicons.sparkle,
+            leading: _polishing
+                ? IdeStopSpinner(size: 15, color: AppColors.accent)
+                : null,
             label: _polishing ? l10n.stashPolishing : l10n.stashPolish,
-            tooltip: l10n.stashPolishHint,
-            onTap: () {
-              if (anchorOf(context) case final anchor?) {
-                unawaited(withActionsModel(context, anchor, _polish));
-              }
-            },
+            tooltip: _polishing ? l10n.stashCancelPolish : l10n.stashPolishHint,
+            onTap: _polishing
+                ? _cancelPolish
+                : () {
+                    if (anchorOf(context) case final anchor?) {
+                      unawaited(withActionsModel(context, anchor, _polish));
+                    }
+                  },
             busy: _polishing,
           ),
         ),

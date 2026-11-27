@@ -6950,9 +6950,11 @@
   "stashFormatClear": "Clear formatting",
   "stashPolish": "Polish",
   "stashPolishing": "Polishing…",
+  "stashCancelPolish": "Stop polishing",
   "stashPolishHint": "Has AI make the selection clearer, in your words, without adding structure",
   "composerPolish": "Enhance prompt",
   "composerPolishing": "Enhancing…",
+  "composerCancelPolish": "Stop enhancing",
   "composerPolishHint": "Enhance prompt: the auxiliary model makes the message a clearer, more specific prompt for the agent, filling in what you left vague; pictures, files, code and links stay as they are; Undo takes it back",
   "composerPolishFailed": "Could not enhance the prompt: {error}",
   "@composerPolishFailed": {

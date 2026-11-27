@@ -57,8 +57,12 @@ Future<String?> _ask(
   ClaudeHaikuTools? tools,
   bool action = false,
   StashClarifyCancellation? cancellation,
+  Future<void>? cancel,
 }) async {
   cancellation?.check();
+  var cancelled = false;
+  final stop = cancel ?? cancellation?.future;
+  unawaited(stop?.then((_) => cancelled = true));
   final models = ModelProviders.current;
   final model = action ? models.actions : models.auxiliary(null);
   try {
@@ -73,9 +77,10 @@ Future<String?> _ask(
             (name: picture.path, image: image),
       ],
       tools: tools,
-      cancel: cancellation?.future,
+      cancel: stop,
     );
     cancellation?.check();
+    if (cancelled) throw const ClaudeHaikuCancelled();
     final text = reply.trim();
     if (text.isNotEmpty) return text;
     if (action) throw const StashAiException();
@@ -85,6 +90,8 @@ Future<String?> _ask(
   } on ClaudeHaikuCancelled {
     rethrow;
   } on Object catch (error) {
+    cancellation?.check();
+    if (cancelled) throw const ClaudeHaikuCancelled();
     if (action) throw StashAiException('$error');
     return null;
   }
@@ -113,9 +120,14 @@ const _polishSystem =
 
 /// [text] (a passage of [note]) proofread: its mistakes corrected, its
 /// meaning, words and length kept, nothing added (see [_polishSystem]);
-/// throws [StashAiException] when there is no answer, or one much longer
-/// than it (written on, not proofread).
-Future<String> polishStashText(String text, {String? note}) async {
+/// completing [cancel] stops it and throws [ClaudeHaikuCancelled]. Throws
+/// [StashAiException] when there is no answer, or one much longer than it
+/// (written on, not proofread).
+Future<String> polishStashText(
+  String text, {
+  String? note,
+  Future<void>? cancel,
+}) async {
   final context = note == null || note.trim() == text.trim()
       ? ''
       : '<note>\n${_clip(note, _noteBudget)}\n</note>\n\n';
@@ -123,6 +135,7 @@ Future<String> polishStashText(String text, {String? note}) async {
     _polishSystem,
     '$context<text>\n$text\n</text>',
     action: true,
+    cancel: cancel,
   ))!;
   final cleaned = reply
       .replaceFirst(RegExp(r'^<text>\s*'), '')

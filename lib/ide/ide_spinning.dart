@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/widgets.dart';
 
 import '../base/step_clock.dart';
+import '../theme/codicons.dart';
 
 /// A codicon turning as `codicon-modifier-spin` turns one: once in 1.5s;
 /// still where motion is turned down.
@@ -52,4 +53,47 @@ class _IdeSpinningState extends State<IdeSpinning> {
     ),
     child: widget.child,
   );
+}
+
+/// A spinning loading ring with a centered stop square, showing an in-flight
+/// action that can be cancelled with a click.
+class IdeStopSpinner extends StatelessWidget {
+  const IdeStopSpinner({
+    super.key,
+    required this.size,
+    required this.color,
+    this.ringColor,
+  });
+
+  final double size;
+  final Color color;
+  final Color? ringColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final stop = ((size * 0.3125 * 2).round() / 2).clamp(4.0, 8.0);
+    return SizedBox.square(
+      dimension: size,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          IdeSpinning(
+            Icon(
+              Codicons.loading,
+              size: size,
+              color: ringColor ?? color.withValues(alpha: 0.72),
+            ),
+          ),
+          Container(
+            width: stop,
+            height: stop,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(1.2),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

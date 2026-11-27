@@ -4,6 +4,8 @@
 // images, code and links are each a marker it is told to keep, put back as
 // they were; a reply that loses or makes up one is not taken.
 
+import 'dart:async';
+
 import 'package:bao_markdown/bao_markdown.dart' show MdAtoms;
 import 'package:flutter/foundation.dart';
 
@@ -161,6 +163,7 @@ const _system =
 Future<String> Function(
   String system,
   String prompt, {
+  Future<void>? cancel,
   String? model,
   bool exact,
   String? location,
@@ -175,7 +178,8 @@ const composerPolishReplyLimit = 30000;
 /// session's), through Claude Code where the session runs ([location]),
 /// told what the agent said last ([reply], its last
 /// [composerPolishReplyLimit] characters) to know what [asked] refers to:
-/// the composer's new content. Throws [ComposerPolishException] when there
+/// the composer's new content. Completing [cancel] stops the request and
+/// throws [ClaudeHaikuCancelled]. Throws [ComposerPolishException] when there
 /// is none, or the reply lost what it was to keep, or ran on far longer
 /// than a prompt made more specific does (written on, not polished).
 Future<String> polishComposerText(
@@ -183,7 +187,10 @@ Future<String> polishComposerText(
   String? reply,
   String? model,
   String? location,
+  Future<void>? cancel,
 }) async {
+  var cancelled = false;
+  unawaited(cancel?.then((_) => cancelled = true));
   final auxiliary = ModelProviders.current.auxiliary(model);
   final said = switch (reply?.trim()) {
     null || '' => null,
@@ -199,13 +206,18 @@ Future<String> polishComposerText(
         if (said != null) '<agent_reply>\n$said\n</agent_reply>\n',
         '<message>\n${asked.text}\n</message>',
       ].join('\n'),
+      cancel: cancel,
       model: auxiliary.model,
       exact: auxiliary.exact,
       location: location,
     );
+  } on ClaudeHaikuCancelled {
+    rethrow;
   } on Object catch (error) {
+    if (cancelled) throw const ClaudeHaikuCancelled();
     throw ComposerPolishException('$error');
   }
+  if (cancelled) throw const ClaudeHaikuCancelled();
   final cleaned = answer
       .trim()
       .replaceFirst(RegExp(r'^<message>\s*'), '')
