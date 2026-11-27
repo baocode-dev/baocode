@@ -161,19 +161,28 @@ Future<List<RemoteModel>> _listModels(
   String? key,
 ) async {
   final models = <RemoteModel>[];
-  // Anthropic's list comes in pages.
+  // Anthropic's (`after_id`) and Gemini's (`pageToken`) lists come in pages.
   String? after;
+  String? pageToken;
   for (var page = 0; page < 20; page++) {
     // Its own query kept (magpie's `kind`).
-    final pageUrl = provider.protocol == ProviderProtocol.anthropic
-        ? url.replace(
-            queryParameters: {
-              ...url.queryParameters,
-              'limit': '1000',
-              'after_id': ?after,
-            },
-          )
-        : url;
+    final pageUrl = switch (provider.protocol) {
+      ProviderProtocol.anthropic => url.replace(
+        queryParameters: {
+          ...url.queryParameters,
+          'limit': '1000',
+          'after_id': ?after,
+        },
+      ),
+      ProviderProtocol.gemini => url.replace(
+        queryParameters: {
+          ...url.queryParameters,
+          'pageSize': '1000',
+          'pageToken': ?pageToken,
+        },
+      ),
+      _ => url,
+    };
     final request = await client.getUrl(pageUrl);
     upstreamHeaders(provider, key).forEach(request.headers.set);
     // The provider's own headers too, so a listing an upstream gates on
@@ -205,6 +214,13 @@ Future<List<RemoteModel>> _listModels(
     if (json case {'has_more': true, 'last_id': final String last}) {
       after = last;
       continue;
+    }
+    if (provider.protocol == ProviderProtocol.gemini) {
+      if (json case {'nextPageToken': final String next}
+          when next.trim().isNotEmpty) {
+        pageToken = next.trim();
+        continue;
+      }
     }
     break;
   }

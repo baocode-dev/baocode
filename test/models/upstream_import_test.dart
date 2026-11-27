@@ -135,6 +135,18 @@ void main() {
     )!;
     expect(chat.existingIn(const [anthropic, openai])?.id, 'b');
     expect(chat.existingIn(const [anthropic]), isNull);
+
+    const gemini = ModelProvider(
+      id: 'g',
+      name: 'G',
+      protocol: ProviderProtocol.gemini,
+      baseUrl: 'https://g.example.com',
+    );
+    final geminiImport = UpstreamImport.parse(
+      _link({'url': 'https://g.example.com/v1beta', 'protocol': 'gemini'}),
+    )!;
+    expect(geminiImport.protocol, ProviderProtocol.gemini);
+    expect(geminiImport.existingIn(const [anthropic, gemini])?.id, 'g');
   });
 
   group('FeaturedUpstream', () {

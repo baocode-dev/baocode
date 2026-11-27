@@ -11391,6 +11391,12 @@ abstract class AppLocalizations {
   /// **'Anthropic-compatible'**
   String get modelsProtocolAnthropic;
 
+  /// No description provided for @modelsProtocolGemini.
+  ///
+  /// In en, this message translates to:
+  /// **'Gemini-compatible'**
+  String get modelsProtocolGemini;
+
   /// No description provided for @modelsConnection.
   ///
   /// In en, this message translates to:
@@ -11430,7 +11436,7 @@ abstract class AppLocalizations {
   /// No description provided for @modelsProtocolDescription.
   ///
   /// In en, this message translates to:
-  /// **'OpenAI\'s APIs go through the local proxy, which translates Claude Code\'s requests and the answers.'**
+  /// **'OpenAI and Gemini APIs go through the local proxy, which translates Claude Code\'s requests and the answers.'**
   String get modelsProtocolDescription;
 
   /// No description provided for @modelsBaseUrl.
@@ -11450,6 +11456,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'As the upstream documents it; without a version in its path (…/v1), /v1 is added.'**
   String get modelsBaseUrlOpenAIHint;
+
+  /// No description provided for @modelsBaseUrlGeminiHint.
+  ///
+  /// In en, this message translates to:
+  /// **'As the upstream documents it (usually ending in /v1beta); a bare host gets /v1beta.'**
+  String get modelsBaseUrlGeminiHint;
 
   /// No description provided for @modelsCustomUrls.
   ///
@@ -12252,7 +12264,7 @@ abstract class AppLocalizations {
   /// No description provided for @modelsEndpointDescription.
   ///
   /// In en, this message translates to:
-  /// **'Which API this model\'s requests go to, at the upstream\'s base URL and with its key: on a relay that serves several, its Claude models at the Anthropic one and its GPT at Responses, say.'**
+  /// **'Which API this model\'s requests go to, at the upstream\'s base URL and with its key: on a relay that serves several, its Claude models at the Anthropic one, its GPT at Responses and its Gemini at Gemini-compatible, say.'**
   String get modelsEndpointDescription;
 
   /// No description provided for @modelsModelEndpointUrlDescription.

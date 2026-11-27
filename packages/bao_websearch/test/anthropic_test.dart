@@ -232,6 +232,17 @@ void main() {
       isTrue,
     );
     expect(refusesWebSearchTool(422, 'Unsupported tool'), isTrue);
+    expect(
+      refusesWebSearchTool(
+        400,
+        '{"error":{"message":"googleSearch is not enabled"}}',
+      ),
+      isTrue,
+    );
+    expect(
+      refusesWebSearchTool(400, 'Search grounding is not supported'),
+      isTrue,
+    );
     expect(refusesWebSearchTool(400, 'max_tokens too large'), isFalse);
     expect(refusesWebSearchTool(429, 'tool rate limit'), isFalse);
     expect(refusesWebSearchTool(500, 'web_search failed'), isFalse);

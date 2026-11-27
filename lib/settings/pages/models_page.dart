@@ -133,6 +133,7 @@ class ModelsSettingsPage extends StatefulWidget {
       ProviderProtocol.anthropic => l10n.modelsProtocolAnthropic,
       ProviderProtocol.openaiChat => 'OpenAI Chat Completions',
       ProviderProtocol.openaiResponses => 'OpenAI Responses',
+      ProviderProtocol.gemini => l10n.modelsProtocolGemini,
       ProviderProtocol.codex => 'ChatGPT (Codex)',
       ProviderProtocol.antigravity => 'Antigravity',
       ProviderProtocol.agy => 'Antigravity ACP',
@@ -1806,15 +1807,20 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
           provider.protocol != ProviderProtocol.agy) ...[
         SettingsRow(
           label: l10n.modelsBaseUrl,
-          description: provider.protocol.proxied
-              ? l10n.modelsBaseUrlOpenAIHint
-              : l10n.modelsBaseUrlAnthropicHint,
+          description: switch (provider.protocol) {
+            ProviderProtocol.gemini => l10n.modelsBaseUrlGeminiHint,
+            ProviderProtocol.anthropic => l10n.modelsBaseUrlAnthropicHint,
+            _ => l10n.modelsBaseUrlOpenAIHint,
+          },
           trailing: _Field(
             value: provider.baseUrl,
             label: l10n.modelsBaseUrl,
-            placeholder: provider.protocol.proxied
-                ? 'https://api.openai.com/v1'
-                : 'https://api.anthropic.com',
+            placeholder: switch (provider.protocol) {
+              ProviderProtocol.gemini =>
+                'https://generativelanguage.googleapis.com/v1beta',
+              ProviderProtocol.anthropic => 'https://api.anthropic.com',
+              _ => 'https://api.openai.com/v1',
+            },
             onCommit: (url) =>
                 unawaited(_save(_providerNow.copyWith(baseUrl: url.trim()))),
           ),
@@ -1968,7 +1974,10 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
           trailing: _Field(
             value: provider.endpointUrl ?? '',
             label: l10n.modelsEndpointUrl,
-            placeholder: '${UpstreamUrls.endpointByBase(provider) ?? ''}',
+            placeholder: UpstreamUrls.endpointPlaceholder(
+              provider,
+              byBase: true,
+            ),
             onCommit: (url) =>
                 unawaited(_save(_providerNow.copyWith(endpointUrl: () => url))),
           ),
@@ -2274,7 +2283,12 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
           onChanged: (value) =>
               unawaited(_save(_providerNow.copyWith(preserveThinking: value))),
         ),
-      if (protocols.any((protocol) => protocol.proxied))
+      if (protocols.any(
+        (protocol) =>
+            protocol == ProviderProtocol.openaiChat ||
+            protocol == ProviderProtocol.openaiResponses ||
+            protocol == ProviderProtocol.codex,
+      ))
         SettingsSwitchRow(
           label: l10n.modelsPromptCacheKey,
           description: l10n.modelsPromptCacheKeyDescription,
@@ -2453,6 +2467,7 @@ class _ModelRow extends StatelessWidget {
                         switch (endpoint) {
                           ProviderProtocol.openaiChat => 'Chat Completions',
                           ProviderProtocol.openaiResponses => 'Responses',
+                          ProviderProtocol.gemini => 'Gemini',
                           _ => 'Anthropic',
                         },
                         tooltip:

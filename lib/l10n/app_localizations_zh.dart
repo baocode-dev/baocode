@@ -6653,6 +6653,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get modelsProtocolAnthropic => 'Anthropic 兼容';
 
   @override
+  String get modelsProtocolGemini => 'Gemini 兼容';
+
+  @override
   String get modelsConnection => '连接';
 
   @override
@@ -6673,7 +6676,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get modelsProtocolDescription =>
-      'OpenAI 接口经本地代理转换 Claude Code 的请求和响应。';
+      'OpenAI 与 Gemini 接口经本地代理转换 Claude Code 的请求和响应。';
 
   @override
   String get modelsBaseUrl => 'Base URL';
@@ -6684,6 +6687,10 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get modelsBaseUrlOpenAIHint => '按上游文档填写；路径里没有版本号（…/v1）时自动加 /v1。';
+
+  @override
+  String get modelsBaseUrlGeminiHint =>
+      '按上游文档填写（通常以 /v1beta 结尾）；只填域名时自动补 /v1beta。';
 
   @override
   String get modelsCustomUrls => '自定义地址';
@@ -7144,7 +7151,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get modelsEndpointDescription =>
-      '这个模型的请求发往哪种接口，Base URL 和 Key 与上游相同。中转站同时提供多种接口时，可以让 Claude 模型走 Anthropic 接口、GPT 模型走 Responses。';
+      '这个模型的请求发往哪种接口，Base URL 和 Key 与上游相同。中转站同时提供多种接口时，可以让 Claude 模型走 Anthropic 接口、GPT 模型走 Responses、Gemini 模型走 Gemini 兼容。';
 
   @override
   String get modelsModelEndpointUrlDescription =>

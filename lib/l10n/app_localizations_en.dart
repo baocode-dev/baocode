@@ -7073,6 +7073,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get modelsProtocolAnthropic => 'Anthropic-compatible';
 
   @override
+  String get modelsProtocolGemini => 'Gemini-compatible';
+
+  @override
   String get modelsConnection => 'Connection';
 
   @override
@@ -7093,7 +7096,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get modelsProtocolDescription =>
-      'OpenAI\'s APIs go through the local proxy, which translates Claude Code\'s requests and the answers.';
+      'OpenAI and Gemini APIs go through the local proxy, which translates Claude Code\'s requests and the answers.';
 
   @override
   String get modelsBaseUrl => 'Base URL';
@@ -7105,6 +7108,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get modelsBaseUrlOpenAIHint =>
       'As the upstream documents it; without a version in its path (…/v1), /v1 is added.';
+
+  @override
+  String get modelsBaseUrlGeminiHint =>
+      'As the upstream documents it (usually ending in /v1beta); a bare host gets /v1beta.';
 
   @override
   String get modelsCustomUrls => 'Custom URLs';
@@ -7579,7 +7586,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get modelsEndpointDescription =>
-      'Which API this model\'s requests go to, at the upstream\'s base URL and with its key: on a relay that serves several, its Claude models at the Anthropic one and its GPT at Responses, say.';
+      'Which API this model\'s requests go to, at the upstream\'s base URL and with its key: on a relay that serves several, its Claude models at the Anthropic one, its GPT at Responses and its Gemini at Gemini-compatible, say.';
 
   @override
   String get modelsModelEndpointUrlDescription =>
