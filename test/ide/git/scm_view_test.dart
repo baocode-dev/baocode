@@ -523,4 +523,37 @@ void main() {
     final input = tester.widget<TextField>(message);
     expect(input.controller!.text, 'Oops\n\nDetails');
   });
+
+  testWidgets('Commit and Push offers Sync Changes when push is rejected', (
+    tester,
+  ) async {
+    git.answers['push'] = const IdeGitOutput(
+      1,
+      '',
+      ' ! [rejected] main -> main (fetch first)\n'
+      'error: failed to push some refs to origin\n',
+    );
+    final workspace = await pumpWorkbench(
+      tester,
+      const {'lib/a.dart': 'a', 'lib/staged.dart': 's', 'notes.md': 'n'},
+      git: git.repository(),
+    );
+    await tester.pumpAndSettle();
+    await showScm(tester);
+    await tester.enterText(message, 'Ship it');
+    await tester.tap(button('Commit and Push'));
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pumpAndSettle();
+
+    final note = workspace.notifications.notifications.single;
+    expect(note.message, contains('fetch first'));
+    expect(note.primary.single.label, 'Sync Changes');
+
+    git.answers.remove('push');
+    note.primary.single.run();
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pumpAndSettle();
+    expect(git.callsTo('pull'), isNotEmpty);
+    expect(git.callsTo('push'), hasLength(2));
+  });
 }

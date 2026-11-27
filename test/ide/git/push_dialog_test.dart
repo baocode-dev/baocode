@@ -120,6 +120,39 @@ void main() {
     await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     await tester.pumpAndSettle();
     expect(git.callsTo('pull'), isNotEmpty);
-    expect(git.callsTo('push'), isNotEmpty);
+    expect(git.callsTo('push'), hasLength(2));
   });
+
+  testWidgets(
+    'a rejected push to a different branch than upstream does not offer Sync Changes',
+    (tester) async {
+      git.answers['push'] = const IdeGitOutput(
+        1,
+        '',
+        ' ! [rejected] main -> release (fetch first)\n',
+      );
+      final workspace = await pumpWorkbench(
+        tester,
+        const {'lib/a.dart': 'a'},
+        git: git.repository(),
+        size: const Size(1800, 900),
+      );
+      await tester.pumpAndSettle();
+      await chord(tester, LogicalKeyboardKey.keyG, control: true, shift: true);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Push (2)'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        inDialog(find.byType(EditableText)).first,
+        'release',
+      );
+      await tester.tap(inDialog(find.text('Push')));
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pumpAndSettle();
+
+      final note = workspace.notifications.notifications.single;
+      expect(note.message, contains('fetch first'));
+      expect(note.primary, isEmpty);
+    },
+  );
 }

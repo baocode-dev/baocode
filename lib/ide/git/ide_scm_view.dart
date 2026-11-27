@@ -815,8 +815,11 @@ class IdeScmViewState extends State<IdeScmView>
     final git = _git;
     // A push refused because the remote moved on: offer the pull-then-push
     // [IdeGitRepository.sync] here, so the user need not hunt through the
-    // menus for Fetch/Pull and retry.
-    if (git != null && isGitPushRejected(error)) {
+    // menus for Fetch/Pull and retry. Only when the branch has an upstream,
+    // since [IdeGitRepository.sync] is a no-op without one.
+    if (git != null &&
+        git.state?.head.upstream != null &&
+        isGitPushRejected(error)) {
       widget.notifications.notify(
         IdeSeverity.error,
         '$error',

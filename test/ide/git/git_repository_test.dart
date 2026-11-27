@@ -127,6 +127,14 @@ void main() {
         ),
         isTrue,
       );
+      expect(
+        isGitPushRejected('Cannot push.\n! [rejected] main -> main (先获取)'),
+        isTrue,
+      );
+      expect(
+        isGitPushRejected('Cannot push.\n提示：更新被拒绝，因为您当前分支的最新提交落后于其对应的远程分支。'),
+        isTrue,
+      );
       expect(isGitPushRejected('Cannot push. No such remote.'), isFalse);
     });
   });

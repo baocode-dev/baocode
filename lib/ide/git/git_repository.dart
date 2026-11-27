@@ -28,7 +28,10 @@ bool isGitPushRejected(Object error) {
   final message = '$error'.toLowerCase();
   return message.contains('fetch first') ||
       message.contains('non-fast-forward') ||
-      message.contains('updates were rejected');
+      message.contains('updates were rejected') ||
+      message.contains('先获取') ||
+      message.contains('非快进') ||
+      message.contains('更新被拒绝');
 }
 
 /// [IdeGitRepository.graphBranch] for the current branch and its upstream.
