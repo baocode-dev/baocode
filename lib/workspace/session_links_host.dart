@@ -19,9 +19,9 @@ class WorkspaceSessionLinks extends ChangeNotifier implements SessionLinkHost {
   /// What each conversation's strip shows, by conversation.
   final Map<ChatSession, _Handed> _handed = Map.identity();
 
-  /// How each stood, and on which model, when last told: [statuses] told
-  /// only as one changes.
-  Map<AgentThread, (HandedStatus, String?)> _was = const {};
+  /// How each stood, its model, and its title when last told: [statuses]
+  /// told only as one changes.
+  Map<AgentThread, (HandedStatus, String?, String)> _was = const {};
 
   @override
   Listenable get statuses => this;
@@ -64,7 +64,11 @@ class WorkspaceSessionLinks extends ChangeNotifier implements SessionLinkHost {
     final now = {
       for (final thread in workspace.threads)
         if (thread.isOpen)
-          thread: (_status(thread), SessionTools.modelOf(thread)?.label),
+          thread: (
+            _status(thread),
+            SessionTools.modelOf(thread)?.label,
+            thread.title,
+          ),
     };
     if (!mapEquals(now, _was)) {
       _was = now;
