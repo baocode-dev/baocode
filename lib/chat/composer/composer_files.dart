@@ -399,7 +399,7 @@ abstract final class CopiedCode {
     return normalized(last.code) == normalized(text) ? last : null;
   }
 
-  @visibleForTesting
+  /// A copy that does not refer to a host file supersedes the old reference.
   static void clear() => _last = null;
 }
 

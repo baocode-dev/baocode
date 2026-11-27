@@ -50,6 +50,7 @@ class IdeDocument {
       openError = null,
       label = null,
       readRevision = null,
+      virtualDocument = null,
       diff = null,
       isMedia = false,
       view = null,
@@ -62,6 +63,7 @@ class IdeDocument {
       openError = null,
       label = null,
       readRevision = null,
+      virtualDocument = null,
       diff = null,
       isMedia = false,
       view = null,
@@ -75,6 +77,7 @@ class IdeDocument {
       openError = null,
       label = null,
       readRevision = null,
+      virtualDocument = null,
       diff = null,
       isMedia = true,
       isUntitled = false;
@@ -85,6 +88,7 @@ class IdeDocument {
     : model = EditorDocumentModel(''),
       label = null,
       readRevision = null,
+      virtualDocument = null,
       diff = null,
       isMedia = false,
       view = null,
@@ -99,10 +103,27 @@ class IdeDocument {
     required Future<String> Function() this.readRevision,
   }) : model = EditorDocumentModel(text),
        openError = null,
+       virtualDocument = null,
        diff = null,
        isMedia = false,
        view = null,
        isUntitled = false;
+
+  /// Library source read from its language server, not from the file service.
+  IdeDocument.virtual(
+    LspVirtualDocument source,
+    LspVirtualDocumentContent content,
+  ) : path = source.path,
+      model = EditorDocumentModel(content.text),
+      virtualDocument = source,
+      virtualVersion = content.version,
+      openError = null,
+      label = null,
+      readRevision = null,
+      diff = null,
+      isMedia = false,
+      view = null,
+      isUntitled = false;
 
   /// A diff tab: [diff]'s original against [model], [path]'s file (then
   /// shared with its other tabs) or, with [readRevision], its text at a
@@ -114,6 +135,7 @@ class IdeDocument {
     required IdeDiffOriginal this.diff,
     this.readRevision,
   }) : openError = null,
+       virtualDocument = null,
        isMedia = false,
        view = null,
        isUntitled = false;
@@ -123,6 +145,7 @@ class IdeDocument {
     : openError = null,
       label = null,
       readRevision = null,
+      virtualDocument = null,
       diff = null,
       isMedia = false,
       view = null,
@@ -134,6 +157,7 @@ class IdeDocument {
       openError = null,
       label = null,
       readRevision = null,
+      virtualDocument = null,
       diff = null,
       isMedia = false,
       view = null,
@@ -146,6 +170,7 @@ class IdeDocument {
       openError = document.openError,
       label = document.label,
       readRevision = document.readRevision,
+      virtualDocument = document.virtualDocument,
       diff = document.diff,
       isMedia = document.isMedia,
       view = document.view,
@@ -153,6 +178,8 @@ class IdeDocument {
 
   final String path;
   final EditorDocumentModel model;
+  final LspVirtualDocument? virtualDocument;
+  int virtualVersion = -1;
 
   /// Why the file is not shown ([IdeBinaryFileException],
   /// [IdeFileTooLargeException], or the read's error); null when it is.
@@ -189,15 +216,19 @@ class IdeDocument {
   /// Whether the text is the file's: saved to it, and given to language
   /// servers.
   bool get isFile =>
-      readRevision == null && openError == null && !isMedia && !isUntitled;
-  bool get readOnly => readRevision != null;
+      readRevision == null &&
+      virtualDocument == null &&
+      openError == null &&
+      !isMedia &&
+      !isUntitled;
+  bool get readOnly => readRevision != null || virtualDocument != null;
 
   String get text => model.text;
   set text(String value) => model.replaceText(value);
   String get savedText => model.savedText;
   set savedText(String value) => model.markSaved(value);
 
-  String get name => hostBasename(path);
+  String get name => virtualDocument?.name ?? hostBasename(path);
 
   /// The tab's title: the name, and the [label].
   String get title => label?.isNotEmpty ?? false ? '$name ($label)' : name;
@@ -237,6 +268,7 @@ class IdeWorkspace extends ChangeNotifier
              _ => watchDirectory,
            } {
     addListener(_watchOpenFiles);
+    _virtualChanges = _virtuals?.virtualDocumentChanges.listen(_sourceChanged);
     _setRoots(roots);
   }
 
@@ -567,6 +599,15 @@ class IdeWorkspace extends ChangeNotifier
     _ => null,
   };
 
+  LanguageVirtualDocuments? get _virtuals => switch (languages) {
+    final LanguageVirtualDocuments sources => sources,
+    _ => null,
+  };
+  StreamSubscription<String>? _virtualChanges;
+
+  /// The workbench reports source refresh failures in its current locale.
+  void Function(Object error)? onSourceError;
+
   /// Which of the workbench's parts show, for the window's header to toggle
   /// as well (see [IdeLayout]).
   final IdeLayout layout = IdeLayout();
@@ -632,6 +673,9 @@ class IdeWorkspace extends ChangeNotifier
   /// ([IdeDocument.openError]).
   Future<void> open(String path) async {
     if (_disposed) return;
+    if (_virtuals?.virtualDocumentFor(path) case final source?) {
+      return openVirtualDocument(source);
+    }
     path = paths.normalize(paths.absolute(path));
     _dropReveal(path);
     final request = ++_selection;
@@ -658,6 +702,75 @@ class IdeWorkspace extends ChangeNotifier
       }
     }
     _add(doc, select: request == _selection);
+  }
+
+  /// Reads source into a dedicated read-only model. Failures are propagated,
+  /// leaving the current editor intact rather than creating an empty tab.
+  Future<void> openVirtualDocument(LspVirtualDocument source) async {
+    final provider = _virtuals;
+    if (_disposed || provider == null) return;
+    final path = source.path;
+    _dropReveal(path);
+    final request = ++_selection;
+    final existing = _documents.where((d) => d.key == path).firstOrNull;
+    if (existing != null) {
+      await _refreshSource(existing);
+      if (!_disposed &&
+          request == _selection &&
+          _documents.contains(existing)) {
+        select(path);
+      }
+      return;
+    }
+    final content = await provider.readVirtualDocument(path);
+    if (_disposed) return;
+    if (content.version != provider.virtualDocumentVersion(path)) {
+      return openVirtualDocument(source);
+    }
+    _add(IdeDocument.virtual(source, content), select: request == _selection);
+  }
+
+  Future<void> _refreshSource(IdeDocument doc) async {
+    final provider = _virtuals;
+    if (provider == null ||
+        doc.virtualVersion == provider.virtualDocumentVersion(doc.path)) {
+      return;
+    }
+    final content = await provider.readVirtualDocument(doc.path);
+    if (_disposed || !_documents.contains(doc)) return;
+    if (content.version != provider.virtualDocumentVersion(doc.path)) return;
+    if (doc.virtualVersion == content.version) return;
+    doc.virtualVersion = content.version;
+    if (content.text != doc.text) {
+      doc.text = content.text;
+      doc.savedText = content.text;
+    }
+    provider.openVirtualDocument(doc.path, content);
+    notifyListeners();
+  }
+
+  void _sourceChanged(String path) {
+    final doc = _documents.where((d) => d.path == path).firstOrNull;
+    if (_disposed || doc == null) return;
+    unawaited(
+      _refreshSource(doc).catchError((Object error) {
+        if (!_disposed && _documents.contains(doc)) onSourceError?.call(error);
+      }),
+    );
+  }
+
+  /// Source previews and navigation share the opened model when current.
+  /// Never pass a virtual source identity to the host file service.
+  Future<String> readDocumentText(String path) async {
+    final doc = _documents.where((d) => d.path == path).firstOrNull;
+    if (doc != null) {
+      if (doc.virtualDocument != null) await _refreshSource(doc);
+      return doc.text;
+    }
+    if (_virtuals?.virtualDocumentFor(path) != null) {
+      return (await _virtuals!.readVirtualDocument(path)).text;
+    }
+    return files.read(path);
   }
 
   /// Opens [path] as [open] does, for the workbench to reveal and select
@@ -1075,6 +1188,13 @@ class IdeWorkspace extends ChangeNotifier
 
   void _startSync(IdeDocument doc) {
     final sync = _sync;
+    if (doc.virtualDocument != null) {
+      _virtuals?.openVirtualDocument(
+        doc.path,
+        LspVirtualDocumentContent(doc.text, doc.virtualVersion),
+      );
+      return;
+    }
     if (sync == null || !doc.isFile || _syncing.containsKey(doc.model)) return;
     // Lent to [formatOutside]: the tab's text from now on.
     if (_lent.remove(doc.path)) sync.closeDocument(doc.path);
@@ -1101,6 +1221,10 @@ class IdeWorkspace extends ChangeNotifier
   /// Stops syncing [doc]'s file, once no other tab has it, or [force]d.
   void _stopSync(IdeDocument doc, {bool force = false}) {
     if (!force && _documents.any((d) => identical(d.model, doc.model))) {
+      return;
+    }
+    if (doc.virtualDocument != null) {
+      _virtuals?.closeVirtualDocument(doc.path);
       return;
     }
     final subscription = _syncing.remove(doc.model);
@@ -1367,6 +1491,7 @@ class IdeWorkspace extends ChangeNotifier
   @override
   void dispose() {
     _disposed = true;
+    unawaited(_virtualChanges?.cancel());
     _changesTimer?.cancel();
     navigation.dispose();
     for (final watch in _watches.values) {

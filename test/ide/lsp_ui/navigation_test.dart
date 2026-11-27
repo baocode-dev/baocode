@@ -5,6 +5,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:bao_editor/monaco/flutter/editor_document_model.dart';
 import 'package:bao_editor/monaco/flutter/editor_surface.dart';
+import 'package:baocode/chat/composer/composer_files.dart' show CopiedCode;
+import 'package:baocode/ide/ide_breadcrumbs.dart';
+import 'package:baocode/ide/git/ide_timeline_view.dart';
 import 'package:baocode/ide/lsp/language_features.dart';
 import 'package:baocode/ide/lsp/lsp_protocol.dart';
 import 'package:baocode/ide/lsp_ui/language_widgets.dart';
@@ -24,6 +27,176 @@ const _files = {
 };
 
 void main() {
+  testWidgets('virtual source keeps navigation and language reads without '
+      'disk-file UI or edit commands', (tester) async {
+    const source = LspVirtualDocument(
+      path: 'baocode-lsp://jdtls/library/Foo.java',
+      uri: 'jdt://contents/library/Foo.class',
+      name: 'Foo.java',
+    );
+    const text = 'class Foo {\n  void bar() {}\n}\n';
+    final languages = FakeVirtualLanguageFeatures({source: text});
+    languages.onDefinition = (path, position) => path == inRoot(_a)
+        ? [LspLocation(source.uri, lspRange(0, 6, 9), virtualDocument: source)]
+        : [LspLocation(uriOf(_b), lspRange(0, 4, 7))];
+    languages.onHover = (path, position) => const LspHover('Library **Foo**');
+    languages.onDocumentSymbols = (path) => [
+      LspDocumentSymbol(
+        name: 'Foo',
+        kind: LspSymbolKind.klass,
+        range: lspRange(0, 0, 1, endLine: 2),
+        selectionRange: lspRange(0, 6, 9),
+      ),
+    ];
+    languages.onSemanticTokens = (path) => const [
+      LspSemanticToken(0, 6, 3, 'class', {}),
+    ];
+    final workspace = await pumpLanguageWorkbench(
+      tester,
+      _files,
+      languages,
+      open: [_a],
+    );
+    await caretAt(tester, offsetOf(tester, 'foo'));
+    await press(tester, LogicalKeyboardKey.f12);
+    await settle(tester, const Duration(milliseconds: 400));
+    await settle(tester);
+
+    expect(workspace.active!.path, source.path);
+    expect(workspace.active!.virtualDocument, same(source));
+    final surface = tester.widget<EditorSurface>(find.byType(EditorSurface));
+    expect(surface.readOnly, isTrue);
+    final session = languageSession(tester);
+    expect(session.document, same(workspace.active));
+    expect(session.languageId, 'java');
+    expect(find.byType(IdeBreadcrumbs), findsNothing);
+    await tester.tap(find.text('Timeline'));
+    await settle(tester, const Duration(milliseconds: 250));
+    final timelines = tester.widgetList<IdeTimelineView>(
+      find.byType(IdeTimelineView, skipOffstage: false),
+    );
+    expect(timelines, isNotEmpty);
+    expect(timelines.every((view) => view.activePath == null), isTrue);
+    expect(languages.requests, contains('documentSymbols ${source.path}'));
+    expect(languages.requests, contains('semanticTokens ${source.path}'));
+    expect(session.semanticSource?.$2, hasLength(1));
+    await session.showHoverAtCaret();
+    await settle(tester);
+    expect(find.textContaining('Library'), findsOneWidget);
+
+    for (final id in const [
+      'editor.action.rename',
+      'editor.action.triggerSuggest',
+      'editor.action.formatDocument',
+      'editor.action.formatSelection',
+      'editor.action.quickFix',
+      'editor.action.refactor',
+      'editor.action.sourceAction',
+    ]) {
+      expect(
+        editorState(tester).editorCommands
+            .firstWhere((c) => c.id == id)
+            .enabled,
+        isFalse,
+        reason: id,
+      );
+    }
+    await press(tester, LogicalKeyboardKey.f2);
+    await press(tester, LogicalKeyboardKey.space, primary: true);
+    await press(tester, LogicalKeyboardKey.period, primary: true);
+    expect(session.rename, isNull);
+    expect(session.suggest.visible, isFalse);
+    expect(session.codeActionMenu, isNull);
+    expect(workspace.active!.text, text);
+
+    CopiedCode.clear();
+    addTearDown(CopiedCode.clear);
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (_) async => null,
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+    // Copying the same text as a previous file copy must not reuse its path.
+    CopiedCode.record(path: inRoot(_b), start: 1, end: 1, code: 'Foo');
+    surfaceController(tester).select(6, 9);
+    expect(editorState(tester).selectedCode(), isEmpty);
+    await surfaceController(tester).copy();
+    expect(CopiedCode.matching('Foo'), isNull);
+
+    await press(tester, LogicalKeyboardKey.f12);
+    await settle(tester);
+    expect(workspace.active!.path, inRoot(_b));
+    runCommand(tester, 'workbench.action.navigateBack');
+    await settle(tester);
+    expect(workspace.active!.path, source.path);
+    expect(languageSession(tester).document, same(workspace.active));
+
+    // A Git revision still has no language session.
+    await workspace.openRevision(
+      inRoot(_a),
+      label: 'HEAD',
+      read: () async => _files[_a]!,
+    );
+    await settle(tester);
+    expect(editorState(tester).languageSession, isNull);
+  });
+
+  testWidgets('references preview unopened virtual source and open the row', (
+    tester,
+  ) async {
+    const source = LspVirtualDocument(
+      path: 'baocode-lsp://jdtls/library/Foo.java',
+      uri: 'jdt://contents/library/Foo.class',
+      name: 'Foo.java',
+    );
+    final languages =
+        FakeVirtualLanguageFeatures({
+            source: 'class Foo {\n  void libraryMethod() {}\n}\n',
+          })
+          ..onReferences = (path, position) => [
+            LspLocation(
+              source.uri,
+              lspRange(1, 7, 20),
+              virtualDocument: source,
+            ),
+          ];
+    final workspace = await pumpLanguageWorkbench(
+      tester,
+      _files,
+      languages,
+      open: [_a],
+    );
+    await caretAt(tester, offsetOf(tester, 'foo'));
+    await press(tester, LogicalKeyboardKey.f12, shift: true);
+    await settle(tester);
+    await settle(tester);
+    expect(workspace.documents, hasLength(1));
+    final panel = find.byType(IdeBottomPanel);
+    expect(
+      find.descendant(of: panel, matching: find.text('Foo.java')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: panel,
+        matching: find.textContaining('libraryMethod'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('baocode-lsp:'), findsNothing);
+    await tester.tap(find.textContaining('libraryMethod'));
+    await settle(tester);
+    await settle(tester);
+    expect(workspace.active!.path, source.path);
+    final selection = surfaceController(tester).value.selection;
+    expect(selection.textInside(workspace.active!.text), 'libraryMethod');
+  });
+
   testWidgets('diagnostics squiggle, count in the status bar and list in '
       'the problems panel', (tester) async {
     final languages = FakeLanguageFeatures();

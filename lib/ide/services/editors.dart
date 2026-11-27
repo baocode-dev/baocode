@@ -195,10 +195,18 @@ class EditorService extends ChangeNotifier
       case IdeTabAction.closeAll:
         unawaited(closeAll(docs));
       case IdeTabAction.copyPath:
-        unawaited(Clipboard.setData(ClipboardData(text: doc.path)));
+        unawaited(
+          Clipboard.setData(
+            ClipboardData(text: doc.virtualDocument?.uri ?? doc.path),
+          ),
+        );
       case IdeTabAction.copyRelativePath:
         unawaited(
-          Clipboard.setData(ClipboardData(text: relativePath(doc.path))),
+          Clipboard.setData(
+            ClipboardData(
+              text: doc.virtualDocument?.uri ?? relativePath(doc.path),
+            ),
+          ),
         );
       case IdeTabAction.saveAs:
         unawaited(saveAs(doc));
@@ -318,7 +326,8 @@ class EditorService extends ChangeNotifier
     VoidCallback? afterReveal,
   }) async {
     if (record) _history()?.recordHere();
-    if (_ws.active?.path == location.path) {
+    if (_ws.active?.path == location.path &&
+        _ws.active?.virtualDocument == null) {
       revealRange(location.range, select: select, center: center);
       afterReveal?.call();
       notifyListeners();
@@ -462,7 +471,7 @@ class EditorService extends ChangeNotifier
   Future<void> saveAs([IdeDocument? doc]) async {
     final workspace = _ws;
     doc ??= workspace.active;
-    if (doc == null) return;
+    if (doc == null || doc.virtualDocument != null) return;
     try {
       if (!doc.isFile && !doc.isUntitled) {
         await saveFileCopyAs(workspace.files, doc.path, context: host.context);

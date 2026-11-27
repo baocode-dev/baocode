@@ -6,6 +6,7 @@ import 'package:bao_remote/search.dart';
 import 'package:path/path.dart' as p;
 
 import '../l10n/app_localizations.dart';
+import 'lsp/lsp_protocol.dart' show LspSourceException;
 import 'file_service_stub.dart'
     if (dart.library.io) 'file_service_io.dart'
     as platform;
@@ -104,6 +105,8 @@ String localizedFileError(
   AppLocalizations l10n,
   Object error,
 ) => switch (error) {
+  LspSourceException(:final name, :final cause) =>
+    '${l10n.langSourceReadFailed(name)}\n${cause ?? l10n.langSourceUnavailable}',
   IdeFileConflictException(:final path) => l10n.fileErrorConflict(path),
   IdeFileNotFoundException(:final path) => l10n.fileErrorNotFound(path),
   IdeBinaryFileException(:final path) => l10n.fileErrorBinary(path),

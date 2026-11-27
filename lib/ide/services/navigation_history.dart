@@ -334,7 +334,7 @@ class NavigationHistoryService extends ChangeNotifier {
     }
     _file = path;
     _here = null;
-    recentFiles.add(path);
+    if (doc.virtualDocument == null) recentFiles.add(path);
   }
 
   /// Tells the title bar's arrows (see [IdeWorkspace.navigation]) where

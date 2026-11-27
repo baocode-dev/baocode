@@ -295,6 +295,38 @@ class FakeLanguageFeatures extends ChangeNotifier implements LanguageFeatures {
   }
 }
 
+/// A language server with read-only library source, without host file reads.
+class FakeVirtualLanguageFeatures extends FakeLanguageFeatures
+    implements LanguageVirtualDocuments {
+  FakeVirtualLanguageFeatures(this.sources, {super.supported});
+
+  final Map<LspVirtualDocument, String> sources;
+
+  @override
+  LspVirtualDocument? virtualDocumentFor(String path) =>
+      sources.keys.where((source) => source.path == path).firstOrNull;
+
+  @override
+  int virtualDocumentVersion(String path) => 0;
+
+  @override
+  Future<LspVirtualDocumentContent> readVirtualDocument(String path) async {
+    _record('readVirtualDocument', path);
+    final source = virtualDocumentFor(path);
+    if (source == null) throw StateError('Unknown source: $path');
+    return LspVirtualDocumentContent(sources[source]!, 0);
+  }
+
+  @override
+  Stream<String> get virtualDocumentChanges => const Stream.empty();
+
+  @override
+  void openVirtualDocument(String path, LspVirtualDocumentContent content) {}
+
+  @override
+  void closeVirtualDocument(String path) {}
+}
+
 /// A zero-based range on one line.
 LspRange lspRange(int line, int start, int end, {int? endLine}) =>
     LspRange(LspPosition(line, start), LspPosition(endLine ?? line, end));

@@ -952,9 +952,13 @@ class _FileHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final paths = hostContext(path);
-    final name = paths.basename(path);
-    final folder = paths.isWithin(root, path)
+    final uri = Uri.tryParse(path);
+    final virtual = uri?.scheme == 'baocode-lsp';
+    final paths = virtual ? null : hostContext(path);
+    final name = virtual ? uri!.pathSegments.last : paths!.basename(path);
+    final folder = paths == null
+        ? '.'
+        : paths.isWithin(root, path)
         ? paths.dirname(paths.relative(path, from: root))
         : paths.dirname(path);
     final colors = themeColors;

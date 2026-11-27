@@ -100,10 +100,12 @@ List<EditorOffsetEdit>? lspOffsetEdits(
 class IdeLocation {
   const IdeLocation(this.path, this.range);
 
-  /// The `file:` target of [location], spelled as [paths] (see
-  /// [lspPathOfUri]); null for other schemes.
+  /// A file target spelled as [paths], or the stable editor identity of a
+  /// source registered by its language server. Unknown schemes remain null.
   static IdeLocation? of(LspLocation location, {p.Context? paths}) {
-    final path = lspPathOfUri(location.uri, paths: paths);
+    final path =
+        location.virtualDocument?.path ??
+        lspPathOfUri(location.uri, paths: paths);
     return path == null ? null : IdeLocation(path, location.revealRange);
   }
 
