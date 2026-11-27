@@ -9,6 +9,8 @@
 #include <cstring>
 #include <cwchar>
 #include <cwctype>
+#include <deque>
+#include <map>
 #include <utility>
 
 #include "app_windows.h"
@@ -69,7 +71,7 @@ std::wstring SaveTemporaryWav(const std::vector<uint8_t>& bytes) {
   }
   std::wstring path(temporary);
   path.replace(path.size() - 4, 4, L".wav");
-  if (!::MoveFileW(temporary, path.c_str())) {
+  if (!::MoveFileExW(temporary, path.c_str(), MOVEFILE_REPLACE_EXISTING)) {
     ::DeleteFileW(temporary);
     return L"";
   }
@@ -291,6 +293,347 @@ const flutter::EncodableValue* Argument(
 
 }  // namespace
 
+class Attention::SoundPlayer
+    : public std::enable_shared_from_this<Attention::SoundPlayer> {
+ public:
+  SoundPlayer() = default;
+  ~SoundPlayer() {
+    if (wake_event_ != nullptr) {
+      ::CloseHandle(wake_event_);
+    }
+  }
+
+  SoundPlayer(const SoundPlayer&) = delete;
+  SoundPlayer& operator=(const SoundPlayer&) = delete;
+
+  void PlayFile(std::wstring path) {
+    if (path.empty()) {
+      return;
+    }
+    Request request;
+    request.path = std::move(path);
+    Enqueue(std::move(request));
+  }
+
+  void PlayBytes(std::vector<uint8_t> bytes) {
+    if (bytes.empty()) {
+      return;
+    }
+    Request request;
+    request.bytes = std::move(bytes);
+    Enqueue(std::move(request));
+  }
+
+  // Tells the worker to close active sounds and exit without blocking the UI
+  // thread (which would stall shutdown if an audio driver call is stuck).
+  void Stop() {
+    HANDLE event = nullptr;
+    ::AcquireSRWLockExclusive(&lock_);
+    stopping_ = true;
+    queue_.clear();
+    event = wake_event_;
+    ::ReleaseSRWLockExclusive(&lock_);
+    if (event != nullptr) {
+      ::SetEvent(event);
+    }
+  }
+
+ private:
+  static constexpr size_t kMaxQueuedSounds = 4;
+  static constexpr size_t kMaxActiveSounds = 4;
+  static constexpr DWORD kReapIntervalMs = 5000;
+  static constexpr ULONGLONG kMinReapAgeMs = 500;
+  static constexpr ULONGLONG kMaxSoundLifetimeMs = 60000;
+  static constexpr wchar_t kNotifyWindowClass[] = L"BaoCodeSoundNotify";
+
+  struct Request {
+    std::wstring path;
+    std::vector<uint8_t> bytes;
+  };
+
+  struct ActiveSound {
+    std::wstring alias;
+    std::wstring temporary_path;
+    ULONGLONG started_at = 0;
+  };
+
+  void Enqueue(Request request) {
+    HANDLE event = nullptr;
+    ::AcquireSRWLockExclusive(&lock_);
+    if (stopping_) {
+      ::ReleaseSRWLockExclusive(&lock_);
+      return;
+    }
+    while (queue_.size() >= kMaxQueuedSounds) {
+      queue_.pop_front();
+    }
+    queue_.push_back(std::move(request));
+    if (!started_) {
+      if (wake_event_ == nullptr) {
+        wake_event_ = ::CreateEventW(nullptr, FALSE, FALSE, nullptr);
+      }
+      if (wake_event_ != nullptr) {
+        auto* self = new std::shared_ptr<SoundPlayer>(shared_from_this());
+        const HANDLE thread =
+            ::CreateThread(nullptr, 0, &SoundPlayer::ThreadEntry, self, 0,
+                           nullptr);
+        if (thread != nullptr) {
+          started_ = true;
+          ::CloseHandle(thread);
+        } else {
+          delete self;
+          queue_.clear();
+        }
+      } else {
+        queue_.clear();
+      }
+    }
+    if (started_) {
+      event = wake_event_;
+    }
+    ::ReleaseSRWLockExclusive(&lock_);
+    if (event != nullptr) {
+      ::SetEvent(event);
+    }
+  }
+
+  static DWORD WINAPI ThreadEntry(LPVOID param) {
+    std::unique_ptr<std::shared_ptr<SoundPlayer>> holder(
+        static_cast<std::shared_ptr<SoundPlayer>*>(param));
+    (*holder)->Run();
+    return 0;
+  }
+
+  static LRESULT CALLBACK NotifyWindowProc(HWND hwnd, UINT message,
+                                           WPARAM wparam, LPARAM lparam) {
+    if (message == WM_NCCREATE) {
+      const auto* create = reinterpret_cast<const CREATESTRUCTW*>(lparam);
+      ::SetWindowLongPtrW(
+          hwnd, GWLP_USERDATA,
+          reinterpret_cast<LONG_PTR>(create->lpCreateParams));
+      return TRUE;
+    }
+    auto* player = reinterpret_cast<SoundPlayer*>(
+        ::GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+    if (message == MM_MCINOTIFY && player != nullptr) {
+      player->CloseSound(static_cast<UINT>(lparam));
+      return 0;
+    }
+    if (message == WM_NCDESTROY) {
+      ::SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
+    }
+    return ::DefWindowProcW(hwnd, message, wparam, lparam);
+  }
+
+  HWND CreateNotifyWindow() {
+    const HINSTANCE instance = ::GetModuleHandleW(nullptr);
+    WNDCLASSEXW window_class = {};
+    window_class.cbSize = sizeof(window_class);
+    window_class.lpfnWndProc = &SoundPlayer::NotifyWindowProc;
+    window_class.hInstance = instance;
+    window_class.lpszClassName = kNotifyWindowClass;
+    if (::RegisterClassExW(&window_class) == 0 &&
+        ::GetLastError() != ERROR_CLASS_ALREADY_EXISTS) {
+      return nullptr;
+    }
+    return ::CreateWindowExW(0, kNotifyWindowClass, L"", 0, 0, 0, 0, 0,
+                             HWND_MESSAGE, nullptr, instance, this);
+  }
+
+  void PumpMessages() {
+    MSG msg = {};
+    while (::PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {
+      ::TranslateMessage(&msg);
+      ::DispatchMessageW(&msg);
+    }
+  }
+
+  bool IsStopping() {
+    ::AcquireSRWLockShared(&lock_);
+    const bool stopping = stopping_;
+    ::ReleaseSRWLockShared(&lock_);
+    return stopping;
+  }
+
+  void Run() {
+    const HRESULT co = ::CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    notify_window_ = CreateNotifyWindow();
+
+    for (;;) {
+      PumpMessages();
+
+      std::deque<Request> pending;
+      bool stopping = false;
+      ::AcquireSRWLockExclusive(&lock_);
+      stopping = stopping_;
+      if (!stopping) {
+        pending.swap(queue_);
+      }
+      ::ReleaseSRWLockExclusive(&lock_);
+      if (stopping) {
+        break;
+      }
+
+      for (const Request& request : pending) {
+        if (IsStopping()) {
+          break;
+        }
+        PumpMessages();
+        ReapFinishedSounds();
+        PlayRequest(request);
+      }
+
+      if (IsStopping()) {
+        break;
+      }
+      PumpMessages();
+      ReapFinishedSounds();
+
+      const DWORD timeout = active_.empty() ? INFINITE : kReapIntervalMs;
+      const DWORD waited = ::MsgWaitForMultipleObjects(1, &wake_event_, FALSE,
+                                                       timeout, QS_ALLINPUT);
+      if (waited == WAIT_FAILED) {
+        break;
+      }
+    }
+
+    CloseAllSounds();
+    if (notify_window_ != nullptr) {
+      ::DestroyWindow(notify_window_);
+      notify_window_ = nullptr;
+    }
+    if (SUCCEEDED(co)) {
+      ::CoUninitialize();
+    }
+  }
+
+  void PlayRequest(const Request& request) {
+    std::wstring path;
+    bool temporary = false;
+    if (!request.bytes.empty()) {
+      path = SaveTemporaryWav(request.bytes);
+      temporary = true;
+    } else {
+      path = request.path;
+    }
+    if (path.empty()) {
+      return;
+    }
+    // Cap concurrent MCI devices so broken/missing notifications can never
+    // accumulate mciwave threads indefinitely.
+    while (active_.size() >= kMaxActiveSounds) {
+      auto oldest = active_.begin();
+      for (auto it = active_.begin(); it != active_.end(); ++it) {
+        if (it->second.started_at < oldest->second.started_at) {
+          oldest = it;
+        }
+      }
+      CloseSound(oldest->first);
+    }
+
+    std::wstring extension;
+    const size_t dot = path.find_last_of(L'.');
+    if (dot != std::wstring::npos) {
+      extension = path.substr(dot);
+      std::transform(extension.begin(), extension.end(), extension.begin(),
+                     [](wchar_t c) {
+                       return static_cast<wchar_t>(std::towlower(c));
+                     });
+    }
+    const std::wstring alias =
+        L"baocode_sound_" + std::to_wstring(::GetCurrentThreadId()) + L"_" +
+        std::to_wstring(++next_id_);
+    const std::wstring type =
+        extension == L".wav" ? L"waveaudio" : L"mpegvideo";
+    const std::wstring open =
+        L"open \"" + path + L"\" type " + type + L" alias " + alias;
+    if (::mciSendStringW(open.c_str(), nullptr, 0, nullptr) != 0) {
+      if (temporary) {
+        ::DeleteFileW(path.c_str());
+      }
+      return;
+    }
+    const UINT device = ::mciGetDeviceIDW(alias.c_str());
+    if (device == 0) {
+      ::mciSendStringW((L"close " + alias).c_str(), nullptr, 0, nullptr);
+      if (temporary) {
+        ::DeleteFileW(path.c_str());
+      }
+      return;
+    }
+    active_.emplace(
+        device,
+        ActiveSound{alias, temporary ? path : L"", ::GetTickCount64()});
+    const std::wstring play =
+        notify_window_ != nullptr ? (L"play " + alias + L" notify")
+                                  : (L"play " + alias);
+    if (::mciSendStringW(play.c_str(), nullptr, 0, notify_window_) != 0) {
+      CloseSound(device);
+    }
+  }
+
+  void CloseSound(UINT device) {
+    const auto found = active_.find(device);
+    if (found == active_.end()) {
+      return;
+    }
+    ActiveSound sound = std::move(found->second);
+    active_.erase(found);
+    ::mciSendStringW((L"close " + sound.alias).c_str(), nullptr, 0, nullptr);
+    if (!sound.temporary_path.empty()) {
+      ::DeleteFileW(sound.temporary_path.c_str());
+    }
+  }
+
+  void CloseAllSounds() {
+    while (!active_.empty()) {
+      CloseSound(active_.begin()->first);
+    }
+  }
+
+  // Fallback sweep in case a stalled or disconnected audio driver never posts
+  // MM_MCINOTIFY: closes stopped or overly old devices and deletes temp files.
+  void ReapFinishedSounds() {
+    if (active_.empty()) {
+      return;
+    }
+    const ULONGLONG now = ::GetTickCount64();
+    std::vector<UINT> finished;
+    for (const auto& [device, sound] : active_) {
+      const ULONGLONG age = now - sound.started_at;
+      if (age >= kMaxSoundLifetimeMs) {
+        finished.push_back(device);
+        continue;
+      }
+      if (age < kMinReapAgeMs) {
+        continue;
+      }
+      wchar_t mode[32] = {};
+      const std::wstring status = L"status " + sound.alias + L" mode";
+      if (::mciSendStringW(status.c_str(), mode,
+                           static_cast<UINT>(sizeof(mode) / sizeof(mode[0])),
+                           nullptr) != 0 ||
+          _wcsicmp(mode, L"playing") != 0) {
+        finished.push_back(device);
+      }
+    }
+    for (const UINT device : finished) {
+      CloseSound(device);
+    }
+  }
+
+  SRWLOCK lock_ = SRWLOCK_INIT;
+  HANDLE wake_event_ = nullptr;
+  std::deque<Request> queue_;
+  bool started_ = false;
+  bool stopping_ = false;
+
+  // Accessed on the worker thread only.
+  HWND notify_window_ = nullptr;
+  std::map<UINT, ActiveSound> active_;
+  uint64_t next_id_ = 0;
+};
+
 Attention::Attention(flutter::BinaryMessenger* messenger, HWND window,
                      AppWindows* windows)
     : window_(window),
@@ -298,6 +641,7 @@ Attention::Attention(flutter::BinaryMessenger* messenger, HWND window,
       channel_(std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
           messenger, "baocode/attention",
           &flutter::StandardMethodCodec::GetInstance())),
+      sound_player_(std::make_shared<SoundPlayer>()),
       taskbar_created_(::RegisterWindowMessageW(L"TaskbarCreated")),
       taskbar_button_created_(
           ::RegisterWindowMessageW(L"TaskbarButtonCreated")) {
@@ -316,7 +660,9 @@ Attention::Attention(flutter::BinaryMessenger* messenger, HWND window,
 Attention::~Attention() {
   channel_->SetMethodCallHandler(nullptr);
   RemoveIcon();
-  StopSounds();
+  if (sound_player_ != nullptr) {
+    sound_player_->Stop();
+  }
   if (icon_ != nullptr) {
     ::DestroyIcon(icon_);
   }
@@ -389,13 +735,6 @@ void Attention::HandleMethodCall(
 
 std::optional<LRESULT> Attention::HandleMessage(HWND window, UINT message,
                                                 WPARAM wparam, LPARAM lparam) {
-  if (message == MM_MCINOTIFY) {
-    const UINT device = static_cast<UINT>(lparam);
-    if (sounds_.find(device) != sounds_.end()) {
-      CloseSound(device);
-      return 0;
-    }
-  }
   if (message == kTrayMessage) {
     // NOTIFYICON_VERSION_4: the event in the low word.
     switch (LOWORD(lparam)) {
@@ -713,62 +1052,15 @@ void Attention::Notify(const std::string& id, const std::wstring& title,
   ::Shell_NotifyIconW(NIM_MODIFY, &data);
 }
 
-void Attention::CloseSound(UINT device) {
-  const auto found = sounds_.find(device);
-  if (found == sounds_.end()) {
-    return;
-  }
-  Sound sound = std::move(found->second);
-  sounds_.erase(found);
-  ::mciSendStringW((L"close " + sound.alias).c_str(), nullptr, 0, nullptr);
-  if (!sound.temporary_path.empty()) {
-    ::DeleteFileW(sound.temporary_path.c_str());
+void Attention::PlaySoundBytes(std::vector<uint8_t> bytes) {
+  if (sound_player_ != nullptr) {
+    sound_player_->PlayBytes(std::move(bytes));
   }
 }
 
-void Attention::StopSounds() {
-  while (!sounds_.empty()) {
-    CloseSound(sounds_.begin()->first);
-  }
-}
-
-void Attention::PlaySoundBytes(const std::vector<uint8_t>& bytes) {
-  const std::wstring path = SaveTemporaryWav(bytes);
-  if (!path.empty()) {
-    PlaySoundFile(path, true);
-  }
-}
-
-void Attention::PlaySoundFile(const std::wstring& path, bool temporary) {
-  if (path.empty()) {
-    return;
-  }
-  std::wstring extension;
-  const size_t dot = path.find_last_of(L'.');
-  if (dot != std::wstring::npos) {
-    extension = path.substr(dot);
-    std::transform(extension.begin(), extension.end(), extension.begin(),
-                   [](wchar_t c) { return static_cast<wchar_t>(std::towlower(c)); });
-  }
-  const std::wstring alias =
-      L"baocode_sound_" + std::to_wstring(++next_sound_id_);
-  const std::wstring type = extension == L".wav" ? L"waveaudio" : L"mpegvideo";
-  const std::wstring open =
-      L"open \"" + path + L"\" type " + type + L" alias " + alias;
-  if (::mciSendStringW(open.c_str(), nullptr, 0, nullptr) != 0) {
-    if (temporary) ::DeleteFileW(path.c_str());
-    return;
-  }
-  const UINT device = ::mciGetDeviceIDW(alias.c_str());
-  if (device == 0) {
-    ::mciSendStringW((L"close " + alias).c_str(), nullptr, 0, nullptr);
-    if (temporary) ::DeleteFileW(path.c_str());
-    return;
-  }
-  sounds_.emplace(device, Sound{alias, temporary ? path : L""});
-  const std::wstring play = L"play " + alias + L" notify";
-  if (::mciSendStringW(play.c_str(), nullptr, 0, window_) != 0) {
-    CloseSound(device);
+void Attention::PlaySoundFile(std::wstring path) {
+  if (sound_player_ != nullptr) {
+    sound_player_->PlayFile(std::move(path));
   }
 }
 

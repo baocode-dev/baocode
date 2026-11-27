@@ -12,7 +12,6 @@
 #include <wrl/client.h>
 
 #include <cstdint>
-#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -84,13 +83,13 @@ class Attention {
     std::wstring quit;
   };
 
+  class SoundPlayer;
+
   void SetTray(const flutter::EncodableValue* state);
   void Notify(const std::string& id, const std::wstring& title,
               const std::wstring& body);
-  void PlaySoundFile(const std::wstring& path, bool temporary = false);
-  void PlaySoundBytes(const std::vector<uint8_t>& bytes);
-  void CloseSound(UINT device);
-  void StopSounds();
+  void PlaySoundFile(std::wstring path);
+  void PlaySoundBytes(std::vector<uint8_t> bytes);
   void SetBadge(int count);
   std::optional<std::string> PickSound();
 
@@ -131,13 +130,9 @@ class Attention {
   // The agent the notification shown last is about.
   std::string notified_id_;
 
-  // Each MCI device plays independently until it notifies the window.
-  struct Sound {
-    std::wstring alias;
-    std::wstring temporary_path;
-  };
-  std::map<UINT, Sound> sounds_;
-  uint64_t next_sound_id_ = 0;
+  // Plays sounds on a worker thread so MCI / audio driver waits never stall
+  // the UI thread, and cleans up finished devices and temporary files there.
+  std::shared_ptr<SoundPlayer> sound_player_;
 
   // The count over the taskbar button, put back when the button is made
   // again (the window hidden and shown).
