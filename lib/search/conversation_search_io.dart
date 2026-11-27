@@ -147,13 +147,36 @@ String _conversationText(File file) {
       _ => const <String>[],
     };
     for (final part in parts) {
-      final trimmed = part.trim();
-      // Command wrappers and the CLI's own notes, not what was said.
-      if (trimmed.isEmpty || type == 'user' && trimmed.startsWith('<')) {
-        continue;
+      var trimmed = part.trim();
+      if (trimmed.isEmpty) continue;
+      if (type == 'user') {
+        if (_agentMessage.firstMatch(trimmed) case final match?) {
+          trimmed = match[1]!.trim();
+          if (trimmed.isEmpty) continue;
+        } else if (_cliWrapper(trimmed)) {
+          // Command wrappers and the CLI's own notes, not what was said.
+          continue;
+        }
       }
       buffer.writeln(trimmed);
     }
   }
   return buffer.toString();
 }
+
+final _agentMessage = RegExp(
+  r'^<agent-message\b[^>]*>([\s\S]*)</agent-message>$',
+);
+
+bool _cliWrapper(String trimmed) =>
+    trimmed.startsWith('<command-name>') ||
+    trimmed.startsWith('<command-message>') ||
+    trimmed.startsWith('<command-args>') ||
+    trimmed.startsWith('<local-command-') ||
+    trimmed.startsWith('<system-reminder>') ||
+    trimmed.startsWith('<task-notification>') ||
+    trimmed.startsWith('<bash-input>') ||
+    trimmed.startsWith('<bash-stdout>') ||
+    trimmed.startsWith('<bash-stderr>') ||
+    trimmed.startsWith('<ide_opened_file>') ||
+    trimmed.startsWith('<ide_selection>');

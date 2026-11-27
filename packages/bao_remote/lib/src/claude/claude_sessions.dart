@@ -562,7 +562,7 @@ class _SummaryCache {
   _SummaryCache._(this._path, this._root, this._old);
 
   /// Raise it whenever [_Summary] makes something else of a file.
-  static const _version = 5;
+  static const _version = 6;
 
   factory _SummaryCache.load(String path, String root) {
     var old = const <String, Object?>{};
@@ -657,6 +657,8 @@ class _Summary {
   const _Summary({
     this.cwd,
     this.prompt,
+    this.command,
+    this.replied = false,
     this.named,
     this.generated,
     this.said,
@@ -675,6 +677,8 @@ class _Summary {
       'mark': final String mark,
       'cwd': final String? cwd,
       'prompt': final String? prompt,
+      'command': final String? command,
+      'replied': final bool replied,
       'named': final String? named,
       'generated': final String? generated,
       'said': final int? said,
@@ -682,6 +686,8 @@ class _Summary {
       return _Summary(
         cwd: cwd,
         prompt: prompt,
+        command: command,
+        replied: replied,
         named: named,
         generated: generated,
         said: said,
@@ -700,6 +706,14 @@ class _Summary {
   /// The first line of the first thing the user typed, cut to 120
   /// characters: its title until it has one.
   final String? prompt;
+
+  /// The first argument-less slash command the user ran (e.g. `/review`):
+  /// used as a fallback title when the assistant actually replied and no
+  /// prompt or title was recorded.
+  final String? command;
+
+  /// Whether a non-synthetic assistant message appeared in the file.
+  final bool replied;
 
   /// The last title the user gave it (`/rename`), and the last Claude Code
   /// generated: as written, blank too (then it is not titled so).
@@ -724,6 +738,8 @@ class _Summary {
   _Summary at({required int size, required int modified}) => _Summary(
     cwd: cwd,
     prompt: prompt,
+    command: command,
+    replied: replied,
     named: named,
     generated: generated,
     said: said,
@@ -740,24 +756,31 @@ class _Summary {
     'mark': mark,
     'cwd': cwd,
     'prompt': prompt,
+    'command': command,
+    'replied': replied,
     'named': named,
     'generated': generated,
     'said': said,
   };
 
   /// The session it is; null for one with no conversation (e.g. only a
-  /// failed start).
+  /// failed start or an isolated local command).
   ClaudeSessionSummary? session(String path) {
     final cwd = this.cwd;
-    final prompt = this.prompt;
-    if (cwd == null || prompt == null) return null;
+    if (cwd == null) return null;
     String? titled(String? title) =>
         title == null || title.isEmpty ? null : title;
+    final title =
+        titled(named) ??
+        titled(generated) ??
+        prompt ??
+        (replied ? command : null);
+    if (title == null) return null;
     final name = p.basename(path);
     return ClaudeSessionSummary(
       id: name.substring(0, name.length - '.jsonl'.length),
       // The user's before the one Claude Code generated.
-      title: titled(named) ?? titled(generated) ?? prompt,
+      title: title,
       // When it was last talked in: the file is written to besides
       // (titles, the last prompt), by the CLI resuming it too.
       updatedAt: DateTime.fromMicrosecondsSinceEpoch(said ?? modified ?? 0),
@@ -803,6 +826,8 @@ class _Summary {
     }
     var cwd = kept.cwd;
     var prompt = kept.prompt;
+    var command = kept.command;
+    var replied = kept.replied;
     // Where the lines that may tell the rest are, read once all are seen:
     // only the last that does counts.
     (int, int)? named;
@@ -818,9 +843,16 @@ class _Summary {
               prompt = first.length > 120
                   ? '${first.substring(0, 120)}…'
                   : first;
+            } else {
+              command ??= _commandOnly(entry);
             }
           }
         }
+      }
+      if (!replied &&
+          _has(bytes, _assistantType) &&
+          !_has(bytes, _syntheticModel)) {
+        replied = true;
       }
       if (_has(bytes, _customTitleType)) named = (start, end);
       if (_has(bytes, _aiTitleType)) generated = (start, end);
@@ -897,6 +929,8 @@ class _Summary {
     return _Summary(
       cwd: cwd,
       prompt: prompt,
+      command: command,
+      replied: replied,
       named: title(named, 'customTitle') ?? kept.named,
       generated: title(generated, 'aiTitle') ?? kept.generated,
       said: lastSaid() ?? kept.said,
@@ -907,6 +941,7 @@ class _Summary {
 
   static final _userType = utf8.encode('"type":"user"');
   static final _assistantType = utf8.encode('"type":"assistant"');
+  static final _syntheticModel = utf8.encode('"<synthetic>"');
   static final _customTitleType = utf8.encode('"type":"custom-title"');
   static final _aiTitleType = utf8.encode('"type":"ai-title"');
   static final _timestamp = utf8.encode('"timestamp"');
@@ -973,21 +1008,85 @@ String? _promptText(Map<String, Object?> entry) {
   if (_botEvent.firstMatch(trimmed) case final event?) {
     return event[1]!.trim();
   }
-  if (trimmed.startsWith('<')) {
+  // A message handed from another conversation or subagent
+  // (`SessionTools.agentMessage`): a conversation started by another agent
+  // may have nothing else, so unwrap its body as the prompt.
+  if (_unwrapAgentMessage(trimmed) case final body?) {
+    return body;
+  }
+  if (_isCommandWrapper(trimmed)) {
     final name = _commandName.firstMatch(trimmed)?[1]?.trim();
     final args = _commandArgs.firstMatch(trimmed)?[1]?.trim();
     if (name == null || args == null || args.isEmpty) return null;
     return '${name.startsWith('/') ? name : '/$name'} $args';
   }
+  if (_isCliNote(trimmed)) return null;
   if (trimmed.startsWith('[Request interrupted')) return null;
   return trimmed;
 }
+
+/// The command name of an argument-less slash command (e.g. `/review`), or
+/// null when [entry] is not one.
+String? _commandOnly(Map<String, Object?> entry) {
+  final message = entry['message'];
+  if (message is! Map) return null;
+  final content = message['content'];
+  final text = switch (content) {
+    final String text => text,
+    final List<Object?> blocks => [
+      for (final block in blocks)
+        if (block is Map && block['type'] == 'text')
+          block['text'] as String? ?? '',
+    ].join('\n'),
+    _ => '',
+  };
+  final trimmed = text.trim();
+  if (!_isCommandWrapper(trimmed)) return null;
+  final name = _commandName.firstMatch(trimmed)?[1]?.trim();
+  if (name == null || name.isEmpty) return null;
+  return name.startsWith('/') ? name : '/$name';
+}
+
+String? _unwrapAgentMessage(String trimmed) {
+  if (!trimmed.startsWith('<agent-message')) return null;
+  if (_agentMessage.firstMatch(trimmed) case final match?) {
+    final body = match[1]!.trim();
+    final tail = match[2]?.trim() ?? '';
+    if (tail.isEmpty) return body;
+    return body.isEmpty ? tail : '$body\n$tail';
+  }
+  if (_agentMessageOpen.firstMatch(trimmed) case final match?) {
+    return match[1]!.trim();
+  }
+  return null;
+}
+
+bool _isCommandWrapper(String trimmed) =>
+    trimmed.startsWith('<command-name>') ||
+    trimmed.startsWith('<command-message>') ||
+    trimmed.startsWith('<command-args>');
+
+bool _isCliNote(String trimmed) =>
+    trimmed.startsWith('<local-command-') ||
+    trimmed.startsWith('<system-reminder>') ||
+    trimmed.startsWith('<task-notification>') ||
+    trimmed.startsWith('<bash-input>') ||
+    trimmed.startsWith('<bash-stdout>') ||
+    trimmed.startsWith('<bash-stderr>') ||
+    trimmed.startsWith('<ide_opened_file>') ||
+    trimmed.startsWith('<ide_selection>');
 
 /// A text block that is only an image's name, as the CLI puts ahead of it.
 final _imageName = RegExp(r'^\s*\[Image #\d+\]\s*$');
 
 /// A note of the app's to a bot (`bot_prompt.dart`'s `botEventMessage`).
 final _botEvent = RegExp(r'^<bao-event>([\s\S]*?)(?:</bao-event>|$)');
+
+/// A message handed from another conversation or subagent.
+final _agentMessage = RegExp(
+  r'^<agent-message\b[^>]*>([\s\S]*)</agent-message>(?:\s*([\s\S]*))?$',
+);
+final _agentMessageOpen = RegExp(r'^<agent-message\b[^>]*>([\s\S]*)$');
 
 /// A command the CLI ran, as it keeps it.
 final _commandName = RegExp(r'<command-name>([\s\S]*?)</command-name>');

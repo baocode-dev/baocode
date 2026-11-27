@@ -49,6 +49,10 @@ void main() {
       ]),
       user('<command-name>/clear</command-name>'),
       user('caveat only in a note', meta: true),
+      user(
+        '<agent-message from="Coordinator">Inspect telemetry pipeline</agent-message>',
+      ),
+      user('<component>SidebarHeader</component>'),
     ]);
     session('s2', [user('Unrelated question about CSS grids')]);
 
@@ -65,6 +69,8 @@ void main() {
     expect(await search.search('grep output'), isEmpty);
     expect(await search.search('caveat'), isEmpty);
     expect(await search.search('/clear'), isEmpty);
+    expect((await search.search('telemetry pipeline')).single.sessionId, 's1');
+    expect((await search.search('SidebarHeader')).single.sessionId, 's1');
     expect((await search.search('css')).single.sessionId, 's2');
 
     // A file written since is read again; one removed, forgotten.

@@ -192,13 +192,26 @@ class SessionStore {
       return false;
     }
     final content = asMap(entry['message'])['content'];
-    if (content is String) return !content.trimLeft().startsWith('<');
+    if (content is String) return !_isInternalTag(content);
     return asList(content).any(
       (block) =>
           asMap(block)['type'] == 'image' ||
           (asMap(block)['type'] == 'text' &&
-              !'${asMap(block)['text']}'.trimLeft().startsWith('<')),
+              !_isInternalTag('${asMap(block)['text']}')),
     );
+  }
+
+  static bool _isInternalTag(String text) {
+    final trimmed = text.trimLeft();
+    return trimmed.startsWith('<system-reminder>') ||
+        trimmed.startsWith('<command-name>') ||
+        trimmed.startsWith('<command-message>') ||
+        trimmed.startsWith('<command-args>') ||
+        trimmed.startsWith('<local-command-') ||
+        trimmed.startsWith('<task-notification>') ||
+        trimmed.startsWith('<bash-input>') ||
+        trimmed.startsWith('<bash-stdout>') ||
+        trimmed.startsWith('<bash-stderr>');
   }
 
   /// The title the session goes by: the user's, else the one made for it.

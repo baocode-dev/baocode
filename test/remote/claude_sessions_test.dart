@@ -160,4 +160,156 @@ void main() {
     final page = await ClaudeSessions.readPage(file.path, turns: 10);
     expect([for (final e in page.entries) e['uuid']], ['u2', 'a2']);
   });
+
+  test('lists sessions started with agent-message, angle-bracket text, '
+      'custom titles, or argument-less commands with replies', () async {
+    final cwd = Directory(p.join(temp.path, 'workspace'))..createSync();
+    final cachePath = p.join(temp.path, 'cache.json');
+
+    Map<String, Object?> userAt(
+      String uuid,
+      Object content, {
+      String? parent,
+    }) => {
+      'type': 'user',
+      'uuid': uuid,
+      'parentUuid': parent,
+      'cwd': cwd.path,
+      'timestamp': '2026-11-27T08:00:00.000Z',
+      'message': {'role': 'user', 'content': content},
+    };
+    Map<String, Object?> assistantAt(
+      String uuid,
+      String text, {
+      String? parent,
+      String model = 'claude-sonnet-4-6',
+    }) => {
+      'type': 'assistant',
+      'uuid': uuid,
+      'parentUuid': parent,
+      'cwd': cwd.path,
+      'timestamp': '2026-11-27T08:01:00.000Z',
+      'message': {
+        'role': 'assistant',
+        'model': model,
+        'content': [
+          {'type': 'text', 'text': text},
+        ],
+      },
+    };
+
+    // 1. Handed from another conversation with <agent-message> + reminder.
+    final handedFile = writeSession('handed', [
+      userAt('u1', [
+        {
+          'type': 'text',
+          'text':
+              '<system-reminder>This message comes from another conversation.'
+              '</system-reminder>',
+        },
+        {
+          'type': 'text',
+          'text':
+              '<agent-message from="Coordinator" session="s0">\n'
+              'Audit the cache layer\nDetails follow\n'
+              '</agent-message>',
+        },
+      ]),
+      assistantAt('a1', 'Starting audit.', parent: 'u1'),
+      userAt(
+        'u2',
+        '<agent-message from="Coordinator">Follow up</agent-message>',
+        parent: 'a1',
+      ),
+      assistantAt('a2', 'Done.', parent: 'u2'),
+    ]);
+
+    // 2. Plain user text starting with angle brackets (not a CLI wrapper).
+    writeSession('xml-text', [userAt('u1', '<task>Check the build</task>')]);
+
+    // 3. Command caveat / argument-less command with a manual custom-title.
+    writeSession('named-caveat', [
+      userAt('u1', '<local-command-caveat>Caveat</local-command-caveat>'),
+      userAt(
+        'u2',
+        '<command-message>review</command-message>\n'
+            '<command-name>/review</command-name>\n'
+            '<command-args></command-args>',
+      ),
+      {'type': 'custom-title', 'customTitle': 'My renamed session'},
+    ]);
+
+    // 4. Argument-less slash command with a real assistant reply, no title.
+    final cmdFile = writeSession('cmd-replied', [
+      userAt(
+        'u1',
+        '<command-message>review</command-message>\n'
+            '<command-name>/review</command-name>\n'
+            '<command-args></command-args>',
+      ),
+    ]);
+
+    // 5. Isolated local command with only a synthetic reply: still omitted.
+    writeSession('local-only', [
+      userAt(
+        'u1',
+        '<command-name>/context</command-name>\n<command-args></command-args>',
+      ),
+      assistantAt('a1', 'Context usage', model: '<synthetic>'),
+    ]);
+
+    // Pre-populate a stale v5 cache where handed had prompt: null to verify
+    // the version bump forces a rescan.
+    final stat = handedFile.statSync();
+    File(cachePath).writeAsStringSync(
+      jsonEncode({
+        'version': 5,
+        'root': p.join(temp.path, 'projects'),
+        'files': {
+          handedFile.path: {
+            'size': stat.size,
+            'modified': stat.modified.microsecondsSinceEpoch,
+            'scanned': stat.size,
+            'mark': '',
+            'cwd': cwd.path,
+            'prompt': null,
+            'named': null,
+            'generated': null,
+            'said': null,
+          },
+        },
+      }),
+    );
+
+    final sessions = ClaudeSessions(cacheFile: cachePath, configDir: temp.path);
+
+    Future<Map<String, String>> titles() async {
+      final projects = await sessions.projects();
+      return {for (final s in projects.single.sessions) s.id: s.title};
+    }
+
+    // Before cmd-replied receives an assistant reply, it is not listed yet.
+    expect(await titles(), {
+      'handed': 'Audit the cache layer',
+      'xml-text': '<task>Check the build</task>',
+      'named-caveat': 'My renamed session',
+    });
+
+    // Once an assistant reply is appended, incremental readOn surfaces it.
+    cmdFile.writeAsStringSync(
+      '\n${jsonEncode(assistantAt('a1', 'Looks good.'))}',
+      mode: FileMode.append,
+    );
+    expect(await titles(), {
+      'handed': 'Audit the cache layer',
+      'xml-text': '<task>Check the build</task>',
+      'named-caveat': 'My renamed session',
+      'cmd-replied': '/review',
+    });
+
+    // <agent-message> turns count as turn boundaries when paging.
+    final lastTurn = await ClaudeSessions.readPage(handedFile.path, turns: 1);
+    expect([for (final e in lastTurn.entries) e['uuid']], ['u2', 'a2']);
+    expect(lastTurn.earlier, 'u2');
+  });
 }
