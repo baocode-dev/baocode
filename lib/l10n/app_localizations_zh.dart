@@ -5800,6 +5800,26 @@ class AppLocalizationsZh extends AppLocalizations {
       '例如 .git, node_modules, *.log';
 
   @override
+  String get gitAutoFetchSetting => 'Git 自动获取';
+
+  @override
+  String get gitAutoFetchSettingDescription =>
+      '定期在后台获取当前分支的远端更新，无需手动获取即可看到落后提交数。（git.autofetchInterval）';
+
+  @override
+  String get gitAutoFetchOff => '关闭';
+
+  @override
+  String gitAutoFetchMinutes(int minutes) {
+    return '每 $minutes 分钟';
+  }
+
+  @override
+  String gitAutoFetchSeconds(int seconds) {
+    return '每 $seconds 秒';
+  }
+
+  @override
   String get claudePathSetting => '路径';
 
   @override

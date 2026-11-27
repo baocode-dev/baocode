@@ -6176,6 +6176,32 @@ class AppLocalizationsEn extends AppLocalizations {
       'e.g. .git, node_modules, *.log';
 
   @override
+  String get gitAutoFetchSetting => 'Git auto-fetch';
+
+  @override
+  String get gitAutoFetchSettingDescription =>
+      'Periodically fetch the current branch\'s remote in the background so incoming commits appear without a manual Fetch. (git.autofetchInterval)';
+
+  @override
+  String get gitAutoFetchOff => 'Off';
+
+  @override
+  String gitAutoFetchMinutes(int minutes) {
+    String _temp0 = intl.Intl.pluralLogic(
+      minutes,
+      locale: localeName,
+      other: 'Every $minutes minutes',
+      one: 'Every 1 minute',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String gitAutoFetchSeconds(int seconds) {
+    return 'Every $seconds seconds';
+  }
+
+  @override
   String get claudePathSetting => 'Path';
 
   @override

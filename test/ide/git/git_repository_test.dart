@@ -141,14 +141,31 @@ void main() {
 
   group('automatic fetch', () {
     tearDown(() {
-      GitAutoFetchSetting.current = () => Duration.zero;
-      GitAutoFetchSetting.changes = null;
+      GitAutoFetchSetting.interval.value = Duration.zero;
     });
 
-    test('fetches a tracking branch on the interval and refreshes behind',
-        () async {
-      GitAutoFetchSetting.current = () => const Duration(milliseconds: 40);
-      git.status = '## main...origin/main\x00';
+    test('parses and serializes git.autofetchInterval settings', () {
+      expect(
+        GitAutoFetchSetting.parse(null),
+        GitAutoFetchSetting.defaultInterval,
+      );
+      expect(GitAutoFetchSetting.parse(0), Duration.zero);
+      expect(GitAutoFetchSetting.parse(-10), Duration.zero);
+      expect(GitAutoFetchSetting.parse(false), Duration.zero);
+      expect(GitAutoFetchSetting.parse(60), const Duration(seconds: 60));
+      expect(
+        GitAutoFetchSetting.setting(GitAutoFetchSetting.defaultInterval),
+        isNull,
+      );
+      expect(GitAutoFetchSetting.setting(Duration.zero), 0);
+      expect(GitAutoFetchSetting.setting(const Duration(minutes: 5)), 300);
+    });
+
+    test('fetches only the tracking remote without flipping busy and refreshes behind', () async {
+      GitAutoFetchSetting.interval.value = const Duration(milliseconds: 40);
+      git.remotes = 'origin\nupstream\n';
+      git.status = '## main...upstream/main\x00';
+      var sawBusy = false;
       final auto = IdeGitRepository(
         IdeGitService(
           git.root,
@@ -158,18 +175,23 @@ void main() {
         refreshDelay: const Duration(milliseconds: 10),
       );
       addTearDown(auto.dispose);
+      auto.addListener(() {
+        if (auto.busy) sawBusy = true;
+      });
       await auto.refresh();
       git.calls.clear();
 
-      git.status = '## main...origin/main [behind 1]\x00';
+      git.status = '## main...upstream/main [behind 1]\x00';
       await Future<void>.delayed(const Duration(milliseconds: 140));
 
       expect(git.callsTo('fetch'), isNotEmpty);
+      expect(git.callsTo('fetch').first, ['fetch', 'upstream']);
       expect(auto.state!.head.behind, 1);
+      expect(sawBusy, isFalse);
     });
 
     test('a branch with no upstream is not fetched', () async {
-      GitAutoFetchSetting.current = () => const Duration(milliseconds: 40);
+      GitAutoFetchSetting.interval.value = const Duration(milliseconds: 40);
       git.status = '## main\x00';
       final auto = IdeGitRepository(
         IdeGitService(git.root, runner: git.run),
@@ -181,6 +203,51 @@ void main() {
 
       await Future<void>.delayed(const Duration(milliseconds: 140));
       expect(git.callsTo('fetch'), isEmpty);
+    });
+
+    test('fetch failure stays quiet and does not overwrite error', () async {
+      GitAutoFetchSetting.interval.value = const Duration(milliseconds: 40);
+      git.status = '## main...origin/main\x00';
+      git.answers['fetch'] = const IdeGitOutput(
+        128,
+        '',
+        'fatal: unable to access remote: Could not resolve host',
+      );
+      final auto = IdeGitRepository(
+        IdeGitService(git.root, runner: git.run),
+        refreshDelay: const Duration(milliseconds: 10),
+      );
+      addTearDown(auto.dispose);
+      await auto.refresh();
+      git.calls.clear();
+
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      expect(git.callsTo('fetch'), isNotEmpty);
+      expect(auto.error, isNull);
+    });
+
+    test('slow fetch does not pile up overlapping fetches', () async {
+      GitAutoFetchSetting.interval.value = const Duration(milliseconds: 30);
+      git.status = '## main...origin/main\x00';
+      final release = Completer<void>();
+      git.hold = (arguments) =>
+          arguments.first == 'fetch' ? release.future : null;
+      final auto = IdeGitRepository(
+        IdeGitService(git.root, runner: git.run),
+        refreshDelay: const Duration(milliseconds: 10),
+      );
+      addTearDown(auto.dispose);
+      await auto.refresh();
+      git.calls.clear();
+
+      // Wait several intervals while the first fetch is still blocked.
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+      expect(git.callsTo('fetch'), hasLength(1));
+
+      git.hold = null;
+      release.complete();
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+      expect(git.callsTo('fetch').length, greaterThanOrEqualTo(2));
     });
   });
 

@@ -9909,6 +9909,36 @@ abstract class AppLocalizations {
   /// **'e.g. .git, node_modules, *.log'**
   String get explorerExcludeSettingPlaceholder;
 
+  /// No description provided for @gitAutoFetchSetting.
+  ///
+  /// In en, this message translates to:
+  /// **'Git auto-fetch'**
+  String get gitAutoFetchSetting;
+
+  /// No description provided for @gitAutoFetchSettingDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Periodically fetch the current branch\'s remote in the background so incoming commits appear without a manual Fetch. (git.autofetchInterval)'**
+  String get gitAutoFetchSettingDescription;
+
+  /// No description provided for @gitAutoFetchOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Off'**
+  String get gitAutoFetchOff;
+
+  /// No description provided for @gitAutoFetchMinutes.
+  ///
+  /// In en, this message translates to:
+  /// **'{minutes, plural, =1{Every 1 minute} other{Every {minutes} minutes}}'**
+  String gitAutoFetchMinutes(int minutes);
+
+  /// No description provided for @gitAutoFetchSeconds.
+  ///
+  /// In en, this message translates to:
+  /// **'Every {seconds} seconds'**
+  String gitAutoFetchSeconds(int seconds);
+
   /// No description provided for @claudePathSetting.
   ///
   /// In en, this message translates to:

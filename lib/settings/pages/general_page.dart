@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../bash_exe/bao_bash.dart';
 import '../../bash_exe/bao_bash_view.dart';
 import '../../ide/explorer_excludes.dart';
+import '../../ide/git/git_repository.dart' show GitAutoFetchSetting;
 import '../../ide/ide_button.dart';
 import '../../ide/ide_menu.dart';
 import '../../ide/ide_notifications.dart' show IdeSeverity;
@@ -211,6 +212,53 @@ class GeneralSettingsPage extends StatelessWidget {
               checked: value == current,
               onSelected: () =>
                   _write(key, !keep && value == fallback ? null : value),
+            ),
+        ],
+      ),
+    );
+  }
+
+  static const _autoFetchChoices = [
+    Duration.zero,
+    Duration(minutes: 1),
+    GitAutoFetchSetting.defaultInterval,
+    Duration(minutes: 5),
+    Duration(minutes: 10),
+  ];
+
+  static String _autoFetchLabel(BuildContext context, Duration interval) {
+    final l10n = context.l10n;
+    if (interval <= Duration.zero) return l10n.gitAutoFetchOff;
+    if (interval.inSeconds % 60 == 0) {
+      return l10n.gitAutoFetchMinutes(interval.inMinutes);
+    }
+    return l10n.gitAutoFetchSeconds(interval.inSeconds);
+  }
+
+  Widget _gitAutoFetchRow(BuildContext context) {
+    final l10n = context.l10n;
+    final current = GitAutoFetchSetting.parse(
+      settings?[GitAutoFetchSetting.settingKey],
+    );
+    final shown = _autoFetchLabel(context, current);
+    return SettingsRow(
+      label: l10n.gitAutoFetchSetting,
+      description: l10n.gitAutoFetchSettingDescription,
+      trailing: SettingsDropdown(
+        current: shown,
+        semanticLabel: l10n.generalSettingsWindowLabel(
+          l10n.gitAutoFetchSetting,
+          shown,
+        ),
+        entries: () => [
+          for (final choice in _autoFetchChoices)
+            IdeMenuAction(
+              _autoFetchLabel(context, choice),
+              checked: choice == current,
+              onSelected: () => _write(
+                GitAutoFetchSetting.settingKey,
+                GitAutoFetchSetting.setting(choice),
+              ),
             ),
         ],
       ),
@@ -481,6 +529,7 @@ class GeneralSettingsPage extends StatelessWidget {
                         ),
                       ),
                     ),
+                    _gitAutoFetchRow(context),
                   ],
                 ),
               ],
