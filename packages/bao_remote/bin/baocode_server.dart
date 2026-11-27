@@ -94,6 +94,9 @@ Future<void> main(List<String> arguments) async {
         }
       }
 
+      if (_cliExecutable case final executable?) {
+        pruneServerBuildsForExecutable(executable);
+      }
       final clean = await session.runDaemon(
         serve: (peer) => RemoteServer(
           peer,
@@ -134,6 +137,9 @@ Future<void> main(List<String> arguments) async {
     stdin.transform(utf8.decoder).transform(const LineSplitter()),
     stdout.writeln,
   );
+  if (_cliExecutable case final executable?) {
+    pruneServerBuildsForExecutable(executable);
+  }
   final server = RemoteServer(
     peer,
     dataDir: dataDir,
