@@ -17686,7 +17686,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsSshKeywords.
   ///
   /// In en, this message translates to:
-  /// **'ssh remote server host jump bastion key password core'**
+  /// **'ssh remote server host jump bastion key password core skills'**
   String get settingsSshKeywords;
 
   /// No description provided for @sshSettingsDescription.
@@ -23034,6 +23034,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Ask Each Time'**
   String get remoteLocalAccessAskAgain;
+
+  /// No description provided for @remoteShareUserSkillsGroup.
+  ///
+  /// In en, this message translates to:
+  /// **'Skills'**
+  String get remoteShareUserSkillsGroup;
+
+  /// No description provided for @remoteShareUserSkills.
+  ///
+  /// In en, this message translates to:
+  /// **'Share Local User Skills'**
+  String get remoteShareUserSkills;
+
+  /// No description provided for @remoteShareUserSkillsDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Project this computer’s user skills (~/.claude/skills) into a temporary directory for remote agents without changing files on the remote host. Remote skills with the same name take precedence.'**
+  String get remoteShareUserSkillsDetail;
 
   /// No description provided for @sidePanelPorts.
   ///

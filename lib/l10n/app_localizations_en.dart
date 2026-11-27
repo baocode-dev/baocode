@@ -10856,7 +10856,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsSshKeywords =>
-      'ssh remote server host jump bastion key password core';
+      'ssh remote server host jump bastion key password core skills';
 
   @override
   String get sshSettingsDescription =>
@@ -14194,6 +14194,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get remoteLocalAccessAskAgain => 'Ask Each Time';
+
+  @override
+  String get remoteShareUserSkillsGroup => 'Skills';
+
+  @override
+  String get remoteShareUserSkills => 'Share Local User Skills';
+
+  @override
+  String get remoteShareUserSkillsDetail =>
+      'Project this computer’s user skills (~/.claude/skills) into a temporary directory for remote agents without changing files on the remote host. Remote skills with the same name take precedence.';
 
   @override
   String get sidePanelPorts => 'Ports';

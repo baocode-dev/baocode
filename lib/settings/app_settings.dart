@@ -192,7 +192,10 @@ class AppSettings {
       case SettingsSection.network:
         return NetworkSettingsPage(settings: files?.settings);
       case SettingsSection.ssh:
-        return SshSettingsPage(workspace: workspace);
+        return SshSettingsPage(
+          workspace: workspace,
+          settings: files?.settings,
+        );
       case SettingsSection.mobile:
         return switch (link) {
           final link? => MobileSettingsPage(host: link),

@@ -97,6 +97,7 @@ import 'platform/open_requests.dart';
 import 'platform/shell_command.dart';
 import 'remote/project_host.dart';
 import 'remote/remote_claude.dart';
+import 'remote/remote_skills.dart';
 import 'remote/ssh_host.dart';
 import 'search/claude_conversation_search.dart';
 import 'search/conversation_search.dart';
@@ -572,6 +573,10 @@ void followSettingsFiles(SettingsFiles files) {
   // agent starts.
   ClaudePathSetting.current = () =>
       ClaudePathSetting.parse(files.settings[ClaudePathSetting.settingKey]);
+  // Settings → SSH Servers: whether local user-level skills are projected to
+  // remote kernels on SSH/WSL hosts.
+  RemoteSkillsSetting.current = () =>
+      RemoteSkillsSetting.enabled(files.settings[RemoteSkillsSetting.settingKey]);
   // Settings → General → Claude Code: the core sessions run on (BaoCode's
   // own, or the CLI), read as each agent starts. Unset, the CLI where it
   // is installed (looked for on the app's PATH, then the shell's), else

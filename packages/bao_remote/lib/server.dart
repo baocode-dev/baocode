@@ -7,3 +7,4 @@ export 'src/server/remote_server.dart';
 export 'src/server/server_claude.dart' show ServerClaude;
 export 'src/server/server_cli.dart' show ServerCli, runCodeCommand;
 export 'src/server/server_session.dart';
+export 'src/server/server_skills.dart' show ServerSkills;

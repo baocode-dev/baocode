@@ -6,9 +6,11 @@ import 'package:baocode/ide/ide_input.dart';
 import 'package:baocode/l10n/l10n.dart';
 import 'package:baocode/models/secret_store.dart';
 import 'package:baocode/remote/remote_host_settings.dart';
+import 'package:baocode/remote/remote_skills.dart';
 import 'package:baocode/remote/ssh_host.dart';
 import 'package:baocode/remote/ssh_passwords.dart';
 import 'package:baocode/settings/pages/ssh_page.dart';
+import 'package:baocode/settings/user_settings.dart';
 import 'package:baocode/workspace/preference_store.dart';
 import 'package:baocode/workspace/workspace.dart';
 import 'package:flutter/material.dart';
@@ -167,5 +169,65 @@ void main() {
     expect(settings.runsWithoutAsking('prod'), isFalse);
     expect(settings.localAccess('prod'), isTrue);
     expect(find.text('Ask Each Time'), findsNothing);
+  });
+
+  testWidgets('sharing local user skills is on by default and toggles in '
+      'settings.json', (tester) async {
+    final userSettings = UserSettings(p.join(dir.path, 'settings.json'));
+    addTearDown(userSettings.dispose);
+    await tester.runAsync(() => userSettings.load());
+
+    Future<void> settle(bool Function() done) async {
+      for (var i = 0; i < 100; i++) {
+        if (done()) {
+          await tester.pump();
+          return;
+        }
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+        await tester.pump();
+      }
+      fail('timed out');
+    }
+
+    tester.view.physicalSize = const Size(1000, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: const [AppLocalizations.delegate],
+        home: Scaffold(
+          body: SshSettingsPage(
+            workspace: workspace,
+            settings: userSettings,
+            configHosts: () async => ['bastion'],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Share Local User Skills'), findsOneWidget);
+    expect(
+      RemoteSkillsSetting.enabled(userSettings[RemoteSkillsSetting.settingKey]),
+      isTrue,
+    );
+
+    await tester.tap(find.text('Share Local User Skills'));
+    await settle(() => userSettings[RemoteSkillsSetting.settingKey] == false);
+    expect(
+      RemoteSkillsSetting.enabled(userSettings[RemoteSkillsSetting.settingKey]),
+      isFalse,
+    );
+
+    await tester.tap(find.text('Share Local User Skills'));
+    await settle(
+      () => !userSettings.values.containsKey(RemoteSkillsSetting.settingKey),
+    );
+    expect(
+      RemoteSkillsSetting.enabled(userSettings[RemoteSkillsSetting.settingKey]),
+      isTrue,
+    );
   });
 }

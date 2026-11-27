@@ -11,12 +11,14 @@ import '../../l10n/l10n.dart';
 import '../../remote/remote_files.dart' show defaultRemoteConfigHosts;
 import '../../remote/remote_host_settings.dart';
 import '../../remote/remote_location.dart';
+import '../../remote/remote_skills.dart';
 import '../../remote/remote_status.dart' show sshErrorText;
 import '../../remote/ssh_host.dart';
 import '../../remote/ssh_passwords.dart';
 import '../../workspace/editor_launcher.dart' show openExternal;
 import '../../workspace/ssh_server_edit.dart';
 import '../../workspace/workspace.dart';
+import '../user_settings.dart';
 import 'settings_widgets.dart';
 
 /// Settings → SSH Servers: the servers remote projects connect to, added,
@@ -25,10 +27,19 @@ import 'settings_widgets.dart';
 /// are there; and whether each one's agents may act on this machine
 /// ([RemoteHostSettings.localAccess]).
 class SshSettingsPage extends StatefulWidget {
-  const SshSettingsPage({super.key, this.workspace, this.configHosts});
+  const SshSettingsPage({
+    super.key,
+    this.workspace,
+    this.settings,
+    this.configHosts,
+  });
 
   /// The window's; none under test.
   final Workspace? workspace;
+
+  /// `settings.json`, for remote-wide options (sharing local user skills);
+  /// none under test where not given.
+  final UserSettings? settings;
 
   /// The hosts of `~/.ssh/config`; [defaultRemoteConfigHosts] when not
   /// given.
@@ -116,6 +127,7 @@ class _SshSettingsPageState extends State<SshSettingsPage> {
         workspace,
         SshHosts.instance,
         RemoteHostSettings.instance,
+        ?widget.settings,
       ]),
       builder: (context, _) {
         // Those the app's form edits: not ~/.ssh/config's, nor WSL's.
@@ -180,6 +192,32 @@ class _SshSettingsPageState extends State<SshSettingsPage> {
                         onPressed: () => unawaited(openExternal(configFile)),
                       ),
                     ),
+                ],
+              ),
+            if (widget.settings case final settings?)
+              SettingsGroup(
+                title: l10n.remoteShareUserSkillsGroup,
+                children: [
+                  SettingsSwitchRow(
+                    label: l10n.remoteShareUserSkills,
+                    description: l10n.remoteShareUserSkillsDetail,
+                    value: RemoteSkillsSetting.enabled(
+                      settings[RemoteSkillsSetting.settingKey],
+                    ),
+                    onChanged: (on) => unawaited(
+                      settings
+                          .update(
+                            RemoteSkillsSetting.settingKey,
+                            on ? null : RemoteSkillsSetting.off,
+                          )
+                          .catchError((Object error) {
+                            debugPrint(
+                              '${RemoteSkillsSetting.settingKey} not kept: '
+                              '$error',
+                            );
+                          }),
+                    ),
+                  ),
                 ],
               ),
             if ([

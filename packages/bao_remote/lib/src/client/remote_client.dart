@@ -6,6 +6,7 @@ import '../claude/claude_history_page.dart';
 import '../claude/claude_release.dart';
 import '../claude/claude_sessions.dart';
 import '../claude/claude_unavailable.dart';
+import '../claude/staged_skills.dart';
 import '../files/browse.dart';
 import '../files/ide_file.dart';
 import '../files/recursive_watch.dart';
@@ -736,6 +737,25 @@ class RemoteClient {
 
   /// Where Claude Code is there; throws ClaudeUnavailable for nowhere.
   Future<String> locateClaude() => _call(RemoteProtocol.claudeLocate);
+
+  /// Projects local user skills into a temporary `--add-dir` root on the
+  /// host (see [RemoteProtocol.claudeStageSkills]). Without [skills], asks
+  /// whether the server already holds an up-to-date directory for [hash].
+  Future<({String? root, bool missing})> stageClaudeSkills({
+    required String hash,
+    List<StagedSkill>? skills,
+  }) async {
+    final result = _map(
+      await peer.request(RemoteProtocol.claudeStageSkills, {
+        'hash': hash,
+        if (skills != null) 'skills': [for (final skill in skills) skill.toJson()],
+      }),
+    );
+    return (
+      root: result['root'] as String?,
+      missing: result['missing'] == true,
+    );
+  }
 
   /// Has the server download and install Claude Code where the user has
   /// none ([RemoteProtocol.claudeInstall]); [onProgress] is told the bytes

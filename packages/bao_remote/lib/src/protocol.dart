@@ -15,7 +15,7 @@ import 'search/text_query.dart';
 abstract final class RemoteProtocol {
   /// Raise it whenever a method or a shape changes: an app and a server of
   /// another version do not talk, and the app puts its own server in place.
-  static const version = 11;
+  static const version = 12;
 
   static const initialize = 'initialize';
   static const shutdown = 'shutdown';
@@ -87,6 +87,7 @@ abstract final class RemoteProtocol {
   static const claudeUsageOffBy = 'claude/usageOffBy';
   static const claudeInstall = 'claude/install';
   static const claudeUpload = 'claude/upload';
+  static const claudeStageSkills = 'claude/stageSkills';
 
   // Review snapshots.
   static const reviewOpen = 'review/open';

@@ -63,6 +63,7 @@ class ClaudeLaunch {
     this.settingsPath,
     this.promptPath,
     this.directories = const [],
+    this.skillsDirectory,
     this.folderInstructions = true,
     this.readable = const [],
     this.instructions,
@@ -106,6 +107,10 @@ class ClaudeLaunch {
   /// Folders it works in besides [cwd] (a multi-folder workspace's): each
   /// an `--add-dir`, their `CLAUDE.md` read as [cwd]'s is.
   final List<String> directories;
+
+  /// A temporary directory holding projected local user skills on a remote
+  /// host: given as `--add-dir` without affecting [folderInstructions].
+  final String? skillsDirectory;
 
   /// Whether the `CLAUDE.md` of [directories] is read; not for those it
   /// only reaches into (a bot's, the user's projects).
@@ -212,12 +217,13 @@ class ClaudeLaunch {
   /// This launch with [systemPrompt] in the file at [path].
   ClaudeLaunch withPromptFile(String path) => copyWith(promptPath: path);
 
-  /// This launch in [cwd], or with [env], or its flag settings in the file
-  /// at [settingsPath], or its prompt in the file at [promptPath], or with
-  /// [instructions].
+  /// This launch in [cwd], or with [env], or with [skillsDirectory], or its
+  /// flag settings in the file at [settingsPath], or its prompt in the file at
+  /// [promptPath], or with [instructions].
   ClaudeLaunch copyWith({
     String? cwd,
     Map<String, String>? env,
+    String? skillsDirectory,
     String? settingsPath,
     String? promptPath,
     String? instructions,
@@ -238,6 +244,7 @@ class ClaudeLaunch {
     settingsPath: settingsPath ?? this.settingsPath,
     promptPath: promptPath ?? this.promptPath,
     directories: directories,
+    skillsDirectory: skillsDirectory ?? this.skillsDirectory,
     folderInstructions: folderInstructions,
     readable: readable,
     instructions: instructions ?? this.instructions,
@@ -367,6 +374,7 @@ class ClaudeLaunch {
     ],
     if (resume case final id?) ...['--resume', id],
     for (final directory in directories) ...['--add-dir', directory],
+    if (skillsDirectory case final dir?) ...['--add-dir', dir],
     if (!withSettings)
       ...const <String>[]
     else if (settingsPath case final path?) ...[

@@ -7665,7 +7665,7 @@
   "remoteAddServer": "Add SSH Server...",
   "remoteEditServer": "Edit",
   "settingsSectionSsh": "SSH Servers",
-  "settingsSshKeywords": "ssh remote server host jump bastion key password core",
+  "settingsSshKeywords": "ssh remote server host jump bastion key password core skills",
   "sshSettingsDescription": "The servers remote projects connect to: their address, how they sign in, a jump host, and the core each runs.",
   "sshSettingsServers": "Servers",
   "sshSettingsServersDescription": "Those added in the app, and the hosts the sidebar has.",
@@ -9012,6 +9012,9 @@
   "remoteLocalAccessDetail": "Agents on these hosts may run commands on this computer (asking you each time), copy files both ways and forward ports.",
   "remoteLocalAccessNoAsking": "Runs commands without asking",
   "remoteLocalAccessAskAgain": "Ask Each Time",
+  "remoteShareUserSkillsGroup": "Skills",
+  "remoteShareUserSkills": "Share Local User Skills",
+  "remoteShareUserSkillsDetail": "Project this computer’s user skills (~/.claude/skills) into a temporary directory for remote agents without changing files on the remote host. Remote skills with the same name take precedence.",
   "sidePanelPorts": "Ports",
   "portsEmpty": "No ports are forwarded. A server on {host} that prints its http://localhost address is forwarded here on its own.",
   "@portsEmpty": {

@@ -10296,7 +10296,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get settingsSshKeywords =>
-      'ssh 远程 服务器 主机 跳板机 私钥 密码 内核 remote server host';
+      'ssh 远程 服务器 主机 跳板机 私钥 密码 内核 技能 skills remote server host';
 
   @override
   String get sshSettingsDescription => '远程项目连接的服务器：地址、登录方式、跳板机，以及每台用的内核。';
@@ -13426,6 +13426,16 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get remoteLocalAccessAskAgain => '改回每次询问';
+
+  @override
+  String get remoteShareUserSkillsGroup => '技能';
+
+  @override
+  String get remoteShareUserSkills => '共享本机用户级 Skills';
+
+  @override
+  String get remoteShareUserSkillsDetail =>
+      '将本机的用户级 skills（~/.claude/skills）映射到远端临时目录供 SSH 内核使用，不改动远端原有配置。若远端已有同名 skill，优先保留远端版本。';
 
   @override
   String get sidePanelPorts => '端口';
