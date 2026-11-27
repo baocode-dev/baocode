@@ -49,7 +49,79 @@ void main() {
         config,
         contains('  PreferredAuthentications password,keyboard-interactive\n'),
       );
-      expect(config.trim(), endsWith('Host *\nInclude /home/me/.ssh/config'));
+      expect(
+        config,
+        contains('Host *\nInclude /home/me/.ssh/config\n'),
+      );
+      expect(
+        config.trim(),
+        endsWith(
+          'Host *\n'
+          '  StrictHostKeyChecking accept-new\n'
+          '  ServerAliveInterval 15\n'
+          '  ServerAliveCountMax 4',
+        ),
+      );
+    });
+
+    test('controlPath enables jump-host multiplexing on POSIX only and '
+        'lets user ~/.ssh/config override it', () async {
+      final posix = sshServersConfig(
+        const {},
+        ssh: '/usr/bin/ssh',
+        configFile: '/data/state/ssh_config',
+        includes: ['/home/me/.ssh/config'],
+        controlPath: '/tmp/bc-test/%C',
+      );
+      expect(posix, contains('Include /home/me/.ssh/config\n'));
+      expect(posix, contains('  ControlMaster auto\n'));
+      expect(posix, contains('  ControlPath /tmp/bc-test/%C\n'));
+      expect(posix, contains('  ControlPersist 30m\n'));
+
+      final win = sshServersConfig(
+        const {},
+        ssh: r'C:\ssh.exe',
+        configFile: r'C:\cfg',
+        windows: true,
+        controlPath: '/tmp/bc-test/%C',
+      );
+      expect(win, isNot(contains('ControlMaster')));
+      expect(win, contains('  ServerAliveInterval 15\n'));
+
+      final ssh = findSsh(Platform.environment);
+      if (ssh == null || Platform.isWindows) return;
+      final dir = Directory.systemTemp.createTempSync('baocode-mux-cfg-');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final userCfg = File(p.join(dir.path, 'user_config'))
+        ..writeAsStringSync(
+          'Host no-mux\n'
+          '  HostName 10.0.0.9\n'
+          '  ControlMaster no\n'
+          'Host with-mux\n'
+          '  HostName 10.0.0.10\n',
+        );
+      final cfg = File(p.join(dir.path, 'ssh_config'))
+        ..writeAsStringSync(
+          sshServersConfig(
+            const {},
+            ssh: ssh,
+            configFile: p.join(dir.path, 'ssh_config'),
+            includes: [userCfg.path],
+            controlPath: '/tmp/bc-test/%C',
+          ),
+        );
+      final noMux = await Process.run(ssh, ['-G', '-F', cfg.path, 'no-mux']);
+      expect(noMux.exitCode, 0);
+      expect('${noMux.stdout}', contains('controlmaster false\n'));
+      final withMux = await Process.run(ssh, [
+        '-G',
+        '-F',
+        cfg.path,
+        'with-mux',
+      ]);
+      expect(withMux.exitCode, 0);
+      expect('${withMux.stdout}', contains('controlmaster auto\n'));
+      expect('${withMux.stdout}', contains('controlpersist 1800\n'));
     });
 
     test('a jump typed, with its port; one that goes round left out', () {

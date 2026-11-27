@@ -1,6 +1,7 @@
 import 'package:bao_remote/client.dart';
 import 'package:baocode/ide/ide_input.dart';
 import 'package:baocode/models/secret_store.dart';
+import 'package:baocode/remote/ssh_host.dart';
 import 'package:baocode/remote/ssh_password_dialog.dart';
 import 'package:baocode/remote/ssh_passwords.dart';
 import 'package:flutter/material.dart';
@@ -108,6 +109,8 @@ void main() {
       );
       expect(SshPasswords.keepable(SshPrompt(host, 'MFA password: ')), isFalse);
       expect(SshPasswords.keepable(SshPrompt(host, '请输入动态密码: ')), isFalse);
+      expect(SshPasswords.keepable(SshPrompt(host, '一次性口令 password: ')), isFalse);
+      expect(SshPasswords.keepable(SshPrompt(host, 'Password (令牌): ')), isFalse);
       expect(SshPasswords.keepable(SshPrompt(host, 'Password: ')), isTrue);
       expect(
         SshPasswords.keepable(
@@ -141,6 +144,35 @@ void main() {
         ),
       );
       expect(SshPasswords.idOf(password()), startsWith('ssh:dev:'));
+    });
+
+    test('SshHost does not auto-retry or re-prompt after a prompted failure',
+        () async {
+      var attempts = 0;
+      final sshHost = SshHost(
+        'otp-box',
+        connect: (target, {onProgress}) async {
+          attempts++;
+          throw const SshConnectException(
+            SshFailure.unreachable,
+            'Connection closed',
+            prompted: true,
+          );
+        },
+      );
+      addTearDown(sshHost.dispose);
+      await expectLater(sshHost.ready, throwsA(isA<SshConnectException>()));
+      expect(attempts, 1);
+      expect(sshHost.state, SshHostState.failed);
+      // Subsequent ready callers get the cached failure instead of re-prompting.
+      await expectLater(sshHost.ready, throwsA(isA<SshConnectException>()));
+      expect(attempts, 1);
+      // Explicit user reconnect tries again once.
+      await expectLater(
+        sshHost.reconnect(),
+        throwsA(isA<SshConnectException>()),
+      );
+      expect(attempts, 2);
     });
   });
 

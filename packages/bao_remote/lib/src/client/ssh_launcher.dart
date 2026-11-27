@@ -4,6 +4,8 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart' as crypto;
+
 import '../protocol.dart';
 import '../rpc/resumable_channel.dart';
 import '../rpc/rpc_peer.dart';
@@ -29,8 +31,9 @@ class SshTarget {
   SshTarget.configured(
     String text, {
     required String destination,
+    int? port,
     required String configFile,
-  }) : this._(text.trim(), destination, null, ['-F', configFile]);
+  }) : this._(text.trim(), destination, port, ['-F', configFile]);
 
   factory SshTarget.parse(String text) {
     text = text.trim();
@@ -240,6 +243,7 @@ class _SessionKeeper {
   }) {
     channel.linkChanges.listen((up) {
       if (up) {
+        _linkedAt = DateTime.now();
         _failures = 0;
         lastError = null;
         retryAt = null;
@@ -248,13 +252,22 @@ class _SessionKeeper {
       }
       _changed();
     });
-    unawaited(channel.ended.then((_) => _stop()));
+    unawaited(
+      channel.ended.then((why) {
+        _launcher._log(
+          target,
+          'session ended (session=$_shortId, reason=${why.name})',
+        );
+        _stop();
+      }),
+    );
   }
 
   final SshLauncher _launcher;
   final SshTarget target;
   final List<String> _extra;
   final String id;
+  String get _shortId => id.length > 8 ? id.substring(0, 8) : id;
 
   /// A Windows host's session: its daemon's port there and the token it
   /// asks first (see [SshLauncher.windowsSessionScript]), reached by
@@ -264,6 +277,22 @@ class _SessionKeeper {
   late final ResumableChannel channel = ResumableChannel(
     heartbeat: _launcher.heartbeat,
     silence: _launcher.silence,
+    onLinkDrop: (reason, silentFor, {required wasLive}) {
+      if (closing || reason.startsWith('ended:') || reason == 'replaced') {
+        return;
+      }
+      final upMs = _linkedAt == null
+          ? null
+          : DateTime.now().difference(_linkedAt!).inMilliseconds;
+      final hint = SshLauncher.stderrHint(stderr.join('\n'));
+      _launcher._log(
+        target,
+        'link drop (session=$_shortId, wasLive=$wasLive, reason=$reason, '
+        'heard=${silentFor.inMilliseconds}ms'
+        '${upMs == null ? '' : ', up=${upMs}ms'}, hint=$hint)',
+      );
+      if (wasLive) _linkedAt = null;
+    },
   );
   final StreamController<void> changes = StreamController.broadcast();
 
@@ -272,6 +301,7 @@ class _SessionKeeper {
 
   Process? _process;
   Timer? _retry;
+  DateTime? _linkedAt;
   DateTime? retryAt;
   SshConnectException? lastError;
   bool stalled = false;
@@ -339,8 +369,7 @@ class _SessionKeeper {
         close: process.kill,
         // Signing in: the user is being asked (or just answered).
         patient: () =>
-            !channel.linked &&
-            (askpass?.busy(const Duration(seconds: 30)) ?? false),
+            !channel.linked && (askpass?.busy(_launcher.silence) ?? false),
       ),
     );
   }
@@ -393,6 +422,11 @@ class _SessionKeeper {
 
   Future<void> _redial() async {
     if (closing || channel.isClosed || channel.linked) return;
+    final started = Stopwatch()..start();
+    _launcher._log(
+      target,
+      'redial start (session=$_shortId, attempt=${_failures + 1})',
+    );
     retryAt = null;
     _changed();
     final linked = channel.linkChanges
@@ -405,6 +439,11 @@ class _SessionKeeper {
     try {
       (process, askpass, said, gone) = await dial(resume: true);
     } on SshConnectException catch (error) {
+      _launcher._log(
+        target,
+        'redial failed (session=$_shortId, failure=${error.failure.name}, '
+        'prompted=${error.prompted}, elapsed=${started.elapsedMilliseconds}ms)',
+      );
       _failed(error);
       return;
     }
@@ -412,7 +451,15 @@ class _SessionKeeper {
     final waiting = askpass?.waiting ?? false;
     final prompted = askpass?.prompted ?? false;
     await askpass?.close();
-    if (channel.linked || channel.isClosed || closing) return;
+    if (channel.linked) {
+      _launcher._log(
+        target,
+        'redial ok (session=$_shortId, prompted=$prompted, '
+        'elapsed=${started.elapsedMilliseconds}ms)',
+      );
+      return;
+    }
+    if (channel.isClosed || closing) return;
     final code = await process.exitCode.timeout(
       const Duration(seconds: 2),
       onTimeout: () {
@@ -421,16 +468,26 @@ class _SessionKeeper {
       },
     );
     if (channel.isClosed || closing) return;
-    _failed(
-      _launcher._failure(
-        code,
-        said.join('\n'),
-        cancelled: askpass?.cancelled ?? false,
-        prompted: prompted,
-        fallback: 'The connection could not be made again (exit $code).',
-        wsl: target.wslDistro != null,
-      ),
-      waiting: waiting,
+    final saidText = said.join('\n');
+    final hint = SshLauncher.stderrHint(saidText);
+    if (code == 255 && SshLauncher.isMuxFailure(saidText)) {
+      _launcher._log(target, 'mux cleanup triggered during redial (hint=$hint)');
+      await _launcher.onMuxError?.call();
+    }
+    final error = _launcher._failure(
+      code,
+      saidText,
+      cancelled: askpass?.cancelled ?? false,
+      prompted: prompted,
+      fallback: 'The connection could not be made again (exit $code).',
+      wsl: target.wslDistro != null,
+    );
+    _failed(error, waiting: waiting);
+    _launcher._log(
+      target,
+      'redial failed (session=$_shortId, failure=${error.failure.name}, '
+      'exit=$code, waiting=$waiting, prompted=$prompted, stalled=$stalled, '
+      'hint=$hint, elapsed=${started.elapsedMilliseconds}ms)',
     );
   }
 
@@ -439,6 +496,7 @@ class _SessionKeeper {
     _failures++;
     stalled =
         waiting ||
+        error.prompted ||
         switch (error.failure) {
           SshFailure.authentication ||
           SshFailure.hostKey ||
@@ -515,7 +573,9 @@ class SshLauncher {
     this.sessionGrace,
     this.maxBackoff = const Duration(seconds: 10),
     this.heartbeat = const Duration(seconds: 5),
-    this.silence = const Duration(seconds: 30),
+    this.silence = const Duration(seconds: 60),
+    this.onMuxError,
+    this.log,
   }) : _start = start ?? Process.start,
        _askpass = askpass ?? SshAskpass();
 
@@ -547,6 +607,61 @@ class SshLauncher {
   /// lost (a network gone silent: see [ResumableChannel]).
   final Duration heartbeat;
   final Duration silence;
+
+  /// Called when `ssh` fails with a ControlMaster / mux error so stale
+  /// jump-host control sockets can be torn down before the next attempt.
+  final Future<void> Function()? onMuxError;
+
+  /// Privacy-safe diagnostic log sink (never receives hostnames, IPs,
+  /// usernames, passwords, or prompt text).
+  final void Function(String message)? log;
+
+  /// Stable, privacy-safe tag identifying [host] in diagnostic logs.
+  static String hostTag(String host) =>
+      'h:${'${crypto.sha1.convert(utf8.encode(host.trim()))}'.substring(0, 8)}';
+
+  void _log(SshTarget target, String message) =>
+      log?.call('${hostTag(target.text)} $message');
+
+  /// Privacy-safe summary of `ssh` stderr for diagnostic logs.
+  static String stderrHint(String stderr) {
+    if (stderr.trim().isEmpty) return 'none';
+    if (stderr.contains('mux_client') ||
+        stderr.contains('ControlSocket') ||
+        stderr.contains('ControlPath')) {
+      return 'mux_failure';
+    }
+    if (stderr.contains('administratively prohibited')) {
+      return 'admin_prohibited';
+    }
+    if (stderr.contains('Permission denied')) return 'permission_denied';
+    if (stderr.contains('REMOTE HOST IDENTIFICATION HAS CHANGED') ||
+        RegExp(r'Host key for \S+ has changed').hasMatch(stderr)) {
+      return 'host_key_changed';
+    }
+    if (stderr.contains('Host key verification failed') ||
+        stderr.contains('host key is known')) {
+      return 'host_key_failed';
+    }
+    if (stderr.contains('Broken pipe')) return 'broken_pipe';
+    if (stderr.contains('Connection reset')) return 'connection_reset';
+    if (stderr.contains('Connection closed by')) return 'connection_closed';
+    if (stderr.contains('closed by remote host')) return 'closed_by_remote';
+    if (stderr.contains('client_loop: send disconnect')) {
+      return 'keepalive_timeout';
+    }
+    if (stderr.contains('timed out')) return 'timed_out';
+    if (stderr.contains('Connection refused')) return 'connection_refused';
+    if (stderr.contains('Could not resolve hostname')) return 'dns_failed';
+    if (stderr.contains('No route to host')) return 'no_route';
+    if (stderr.contains('Network is unreachable')) return 'network_unreachable';
+    if (stderr.contains('kex_exchange_identification')) return 'kex_failed';
+    if (stderr.contains('stdio forwarding failed') ||
+        stderr.contains('open failed')) {
+      return 'forward_failed';
+    }
+    return 'other';
+  }
 
   /// Whether what `ssh` asks is answered (by [SshAskpass]'s script).
   bool get _prompts => prompter != null && (!_askpass.windows || _forced);
@@ -592,7 +707,7 @@ class SshLauncher {
     '-o',
     'ServerAliveInterval=15',
     '-o',
-    'ServerAliveCountMax=3',
+    'ServerAliveCountMax=6',
     '-e',
     'none',
   ];
@@ -710,7 +825,11 @@ class SshLauncher {
   /// - `ConnectTimeout=20` for a direct host whose config sets none;
   ///   omitted when going through a `ProxyJump` or `ProxyCommand`, where
   ///   OpenSSH's `ConnectTimeout` also ticks while the jump host waits for
-  ///   a password or one-time verification code.
+  ///   a password or one-time verification code;
+  /// - `ControlMaster=no` and `ControlPath=none` on the outermost connection
+  ///   when the resolved config enables `ControlMaster`, so the target itself
+  ///   never attaches to a stale master on reconnect while jump hops still
+  ///   multiplex over their own persistent control sockets.
   Future<List<String>> connectionOptions(SshTarget target) async {
     if (target.wslDistro != null) return const [];
     final config = await configOf(target);
@@ -724,13 +843,74 @@ class SshLauncher {
         options.any(
           (option) => option.toLowerCase().startsWith('connecttimeout='),
         );
+    final controlMaster = config['controlmaster'];
+    final hasControlMaster =
+        !_askpass.windows &&
+        configured(controlMaster) &&
+        controlMaster != 'false' &&
+        controlMaster != 'no';
+    final proxyKind = configured(config['proxyjump'])
+        ? 'jump'
+        : configured(config['proxycommand'])
+        ? 'command'
+        : 'none';
+    _log(
+      target,
+      'options (proxy=$proxyKind, mux=${hasControlMaster ? 'on' : 'off'}, '
+      'strict=${strict ?? 'default'}, timeout=${config['connecttimeout'] ?? 'none'})',
+    );
     return [
       if (strict == null || strict == 'ask') ...[
         '-o',
         'StrictHostKeyChecking=accept-new',
       ],
       if (!proxied && !hasTimeout) ...['-o', 'ConnectTimeout=20'],
+      if (hasControlMaster) ...[
+        '-o',
+        'ControlMaster=no',
+        '-o',
+        'ControlPath=none',
+      ],
     ];
+  }
+
+  /// Whether [stderr] points to a broken or refused SSH ControlMaster socket
+  /// (as opposed to the destination port itself being unreachable).
+  static bool isMuxFailure(String stderr) =>
+      stderr.contains('mux_client') ||
+      stderr.contains('ControlSocket') ||
+      stderr.contains('ControlPath') ||
+      stderr.contains('administratively prohibited');
+
+  /// Asks every OpenSSH ControlMaster socket in [controlDir] to exit and
+  /// removes any stale socket left behind.
+  static Future<void> closeControlSockets(
+    String ssh,
+    String controlDir,
+  ) async {
+    final dir = Directory(controlDir);
+    if (!dir.existsSync()) return;
+    final List<FileSystemEntity> entries;
+    try {
+      entries = dir.listSync();
+    } on FileSystemException {
+      return;
+    }
+    for (final entry in entries) {
+      try {
+        await Process.run(ssh, ['-O', 'exit', '-S', entry.path, '_']).timeout(
+          const Duration(seconds: 2),
+          onTimeout: () => ProcessResult(0, 1, '', ''),
+        );
+      } on Object {
+        // Already gone.
+      }
+      try {
+        if (entry.existsSync()) entry.deleteSync();
+      } on FileSystemException {
+        // Removed by the master as it exited.
+      }
+    }
   }
 
   /// Forgets the key known for [target]'s host, in the user's known_hosts
@@ -1079,11 +1259,17 @@ exit 2
     SshTarget target, {
     void Function(String message)? onProgress,
   }) async {
+    final started = Stopwatch()..start();
     final progress = onProgress ?? (_) {};
     progress('Connecting to ${target.name}');
     final extra = await connectionOptions(target);
     final wsl = target.wslDistro != null;
     final id = _nonce(16);
+    final shortId = id.substring(0, 8);
+    _log(
+      target,
+      'connect start (session=$shortId, wsl=$wsl, silence=${silence.inSeconds}s)',
+    );
     final keeper = _SessionKeeper(this, target, extra, id);
     final (process, askpass) = await _startSsh(
       target,
@@ -1131,9 +1317,16 @@ exit 2
           );
           await stream.cancel();
           await keeper.close();
+          final saidText = said.join('\n');
+          _log(
+            target,
+            'connect failed (stage=bootstrap_timeout, session=$shortId, '
+            'exit=$code, prompted=$prompted, cancelled=$cancelled, '
+            'hint=${stderrHint(saidText)}, elapsed=${started.elapsedMilliseconds}ms)',
+          );
           throw _failure(
             code,
-            said.join('\n'),
+            saidText,
             cancelled: cancelled,
             prompted: prompted,
             timedOut: true,
@@ -1168,9 +1361,21 @@ exit 2
         await stream.cancel();
         await keeper.close();
         if ((wsl ? code < 0 : code == 255) || cancelled) {
+          final saidText = said.join('\n');
+          final hint = stderrHint(saidText);
+          if (!wsl && code == 255 && isMuxFailure(saidText)) {
+            _log(target, 'mux cleanup triggered during connect (hint=$hint)');
+            await onMuxError?.call();
+          }
+          _log(
+            target,
+            'connect failed (stage=bootstrap_eof, session=$shortId, '
+            'exit=$code, prompted=$prompted, cancelled=$cancelled, '
+            'hint=$hint, elapsed=${started.elapsedMilliseconds}ms)',
+          );
           throw _failure(
             code,
-            said.join('\n'),
+            saidText,
             cancelled: cancelled,
             prompted: prompted,
             wsl: wsl,
@@ -1191,10 +1396,12 @@ exit 2
           SshFailure.server,
           'The host gave no answer the app understands',
           detail: _tail('${probeLines.join('\n')}\n${said.join('\n')}'),
+          prompted: prompted,
         );
       }
 
       // SSH authentication already succeeded: no further prompts on this run.
+      final prompted = askpass?.prompted ?? false;
       await askpass?.close();
 
       if (probeParts.length < 3) {
@@ -1203,6 +1410,7 @@ exit 2
           SshFailure.server,
           'The host gave no answer the app understands',
           detail: _tail('${probeLines.join('\n')}\n${said.join('\n')}'),
+          prompted: prompted,
         );
       }
       final (system, machine) = (probeParts[1], probeParts[2]);
@@ -1213,6 +1421,7 @@ exit 2
           SshFailure.unsupported,
           'Only Linux (x64, arm64, riscv64), macOS and Windows (x64, arm64) '
           'hosts are supported, not $system $machine',
+          prompted: prompted,
         );
       }
 
@@ -1224,6 +1433,7 @@ exit 2
           throw SshConnectException(
             SshFailure.server,
             'This build of the app has no server for ${describe(platform)}',
+            prompted: prompted,
           );
         }
         final payload = hasGzip ? GZipCodec(level: 6).encode(binary) : binary;
@@ -1241,6 +1451,7 @@ exit 2
               SshFailure.server,
               'The server could not be installed on ${target.name}',
               detail: _tail(upload.stderr),
+              prompted: prompted,
             );
           }
           progress('Starting the BaoCode server on ${target.name}');
@@ -1273,11 +1484,18 @@ exit 2
           );
           await stream.cancel();
           await keeper.close();
-          if (code == 255) throw _failure(code, said.join('\n'), wsl: wsl);
+          final saidText = said.join('\n');
+          if (!wsl && code == 255 && isMuxFailure(saidText)) {
+            await onMuxError?.call();
+          }
+          if (code == 255) {
+            throw _failure(code, saidText, prompted: prompted, wsl: wsl);
+          }
           throw SshConnectException(
             SshFailure.server,
             'The server could not be installed on ${target.name}',
-            detail: _tail(said.join('\n')),
+            detail: _tail(saidText),
+            prompted: prompted,
           );
         }
         try {
@@ -1305,11 +1523,18 @@ exit 2
           );
           await stream.cancel();
           await keeper.close();
-          if (code == 255) throw _failure(code, said.join('\n'), wsl: wsl);
+          final saidText = said.join('\n');
+          if (!wsl && code == 255 && isMuxFailure(saidText)) {
+            await onMuxError?.call();
+          }
+          if (code == 255) {
+            throw _failure(code, saidText, prompted: prompted, wsl: wsl);
+          }
           throw SshConnectException(
             SshFailure.server,
             'The server could not be installed on ${target.name}',
-            detail: _tail(said.join('\n')),
+            detail: _tail(saidText),
+            prompted: prompted,
           );
         }
       }
@@ -1317,7 +1542,21 @@ exit 2
       progress('Starting the BaoCode server on ${target.name}');
       stream.handoff();
       final gone = keeper.attachProcess(process, stream.rest, null);
-      return await _initializeKeeper(keeper, process, null, said, gone);
+      final connection = await _initializeKeeper(
+        keeper,
+        process,
+        null,
+        said,
+        gone,
+        prompted: prompted,
+      );
+      _log(
+        target,
+        'connected (session=$shortId, platform=$platform, '
+        'uploaded=${state == 'BAOCODE-NEED'}, prompted=$prompted, '
+        'elapsed=${started.elapsedMilliseconds}ms)',
+      );
+      return connection;
     } on Object {
       await askpass?.close();
       rethrow;
@@ -1380,14 +1619,14 @@ exit 2
   Future<String?> _readLine(
     _BootstrapStream stream,
     AskpassRun? askpass, {
-    Duration wait = const Duration(seconds: 30),
+    Duration wait = const Duration(seconds: 45),
   }) async {
     final line = stream.nextLine();
     while (true) {
       try {
         return await line.timeout(wait);
       } on TimeoutException {
-        if (!(askpass?.busy(wait) ?? false)) rethrow;
+        if (!(askpass?.busy(const Duration(seconds: 60)) ?? false)) rethrow;
       }
     }
   }
@@ -1515,8 +1754,9 @@ exit 2
     Process process,
     AskpassRun? askpass,
     List<String> said,
-    Future<void> gone,
-  ) async {
+    Future<void> gone, {
+    bool prompted = false,
+  }) async {
     final target = keeper.target;
     final peer = RpcPeer(keeper.channel.messages, keeper.channel.send);
     final client = RemoteClient(peer);
@@ -1541,14 +1781,27 @@ exit 2
         onTimeout: () => -1,
       );
       await keeper.close();
-      throw _failure(
+      final saidText = said.join('\n');
+      final hint = stderrHint(saidText);
+      if (target.wslDistro == null && code == 255 && isMuxFailure(saidText)) {
+        _log(target, 'mux cleanup triggered during initialize (hint=$hint)');
+        await onMuxError?.call();
+      }
+      final failure = _failure(
         code,
-        said.join('\n'),
+        saidText,
         fallback: 'The server on ${target.name} did not start: $error',
         cancelled: askpass?.cancelled ?? false,
-        prompted: askpass?.prompted ?? false,
+        prompted: prompted || (askpass?.prompted ?? false),
         wsl: target.wslDistro != null,
       );
+      _log(
+        target,
+        'connect failed (stage=initialize, session=${keeper._shortId}, '
+        'failure=${failure.failure.name}, exit=$code, '
+        'prompted=${failure.prompted}, hint=$hint)',
+      );
+      throw failure;
     } finally {
       // Signed in, or not to be.
       await askpass?.close();

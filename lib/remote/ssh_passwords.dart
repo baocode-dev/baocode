@@ -45,7 +45,7 @@ class SshPasswords {
     final text = prompt.text.toLowerCase();
     return (text.contains('password') || text.contains('passphrase')) &&
         !RegExp(
-          r'one-time|otp|verification|token|code|dynamic|passcode|mfa|2fa|totp|authenticator|动态|验证',
+          r'one-time|otp|verification|token|code|dynamic|passcode|mfa|2fa|totp|authenticator|动态|验证|一次性|令牌|口令',
         ).hasMatch(text);
   }
 

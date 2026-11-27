@@ -13,6 +13,7 @@ import '../ide/lsp/language_features.dart';
 import '../ide/terminal/terminal_instance.dart';
 import '../kernel/claude_code/claude_install_progress.dart';
 import '../platform/data_dir.dart';
+import '../platform/event_log.dart';
 import 'project_host.dart';
 import 'remote_binaries.dart';
 import 'remote_location.dart';
@@ -260,15 +261,17 @@ class SshHost extends ChangeNotifier implements ProjectHost {
       _progress = null;
       _failures++;
       final permanent = switch (error) {
-        SshConnectException(:final failure) => switch (failure) {
-          SshFailure.authentication ||
-          SshFailure.hostKey ||
-          SshFailure.hostKeyChanged ||
-          SshFailure.unsupported ||
-          SshFailure.noSsh ||
-          SshFailure.wsl => true,
-          _ => false,
-        },
+        SshConnectException(:final failure, :final prompted) =>
+          prompted ||
+              switch (failure) {
+                SshFailure.authentication ||
+                SshFailure.hostKey ||
+                SshFailure.hostKeyChanged ||
+                SshFailure.unsupported ||
+                SshFailure.noSsh ||
+                SshFailure.wsl => true,
+                _ => false,
+              },
         _ => false,
       };
       _permanent = permanent;
@@ -358,6 +361,13 @@ class SshHost extends ChangeNotifier implements ProjectHost {
   }
 
   void _set(SshHostState state) {
+    if (state != _state) {
+      appEvent(
+        'ssh',
+        '${SshLauncher.hostTag(host)} state ${_state.name} -> ${state.name}'
+        '${state == SshHostState.failed ? ' (permanent=$_permanent)' : ''}',
+      );
+    }
     if (state == SshHostState.reconnecting) {
       if (!_losing) {
         _losing = true;
@@ -403,6 +413,7 @@ class SshHosts extends ChangeNotifier {
     SshPasswords? passwords,
     this.configFile,
     this.configIncludes,
+    this.controlDir,
     this.downAfter = SshHost._downAfter,
   }) : _connectOverride = connect,
        passwords = passwords ?? SshPasswords() {
@@ -441,6 +452,84 @@ class SshHosts extends ChangeNotifier {
   /// `~/.ssh/config` and the system's when not given.
   final List<String>? configIncludes;
 
+  /// Where OpenSSH ControlMaster sockets for jump hops live on POSIX (kept
+  /// short so `sun_path` stays under macOS's 104-byte limit). Null uses
+  /// `/tmp/baocode-ssh-<uid>` (or an isolated short folder when [configFile]
+  /// is overridden under test).
+  final String? controlDir;
+  String? _resolvedControlDir;
+  bool _ownsControlDir = false;
+  static String? _cachedUid;
+
+  /// Prepares the short private directory for jump-host ControlMaster sockets
+  /// on POSIX and returns its `ControlPath` template (`<dir>/%C`), or null on
+  /// Windows or when no safe short folder can be made.
+  Future<String?> _prepareControlPath() async {
+    if (Platform.isWindows) return null;
+    var dir = _resolvedControlDir;
+    if (dir == null) {
+      if (controlDir case final given?) {
+        dir = given;
+      } else if (configFile != null) {
+        // Test isolation: short path under /tmp so macOS 104-byte sun_path
+        // limit is never exceeded even when Directory.systemTemp is long.
+        final nonce = math.Random.secure()
+            .nextInt(0x7fffffff)
+            .toRadixString(16)
+            .padLeft(8, '0');
+        dir = '/tmp/bc-$nonce';
+        _ownsControlDir = true;
+      } else {
+        final uid = _cachedUid ??= () {
+          try {
+            final out = (Process.runSync('id', ['-u']).stdout as String).trim();
+            if (out.isNotEmpty) return out;
+          } on Object {
+            // Fall through.
+          }
+          return (Platform.environment['USER'] ?? 'user').replaceAll(
+            RegExp(r'[^A-Za-z0-9_-]+'),
+            '_',
+          );
+        }();
+        dir = '/tmp/baocode-ssh-$uid';
+      }
+      _resolvedControlDir = dir;
+    }
+    // `%C` expands to 40 hex chars and OpenSSH appends a ~17-byte suffix when
+    // creating the socket, so leave headroom under macOS's 104-byte sun_path.
+    if (dir.length > 40) return null;
+    try {
+      final folder = Directory(dir);
+      await folder.create(recursive: true);
+      await Process.run('chmod', ['700', folder.path]);
+      final mode = (await folder.stat()).modeString();
+      if (mode != 'rwx------') return null;
+      return '$dir/%C';
+    } on Object {
+      return null;
+    }
+  }
+
+  /// Closes any active jump-host ControlMaster sockets we manage.
+  Future<void> _closeControlSockets() async {
+    final dir = _resolvedControlDir;
+    if (dir == null || Platform.isWindows) return;
+    final launcherFuture = _launcher;
+    String? ssh;
+    if (launcherFuture != null) {
+      try {
+        ssh = (await launcherFuture).ssh;
+      } on Object {
+        ssh = null;
+      }
+    }
+    ssh ??= findSsh(Platform.environment);
+    if (ssh != null) {
+      await SshLauncher.closeControlSockets(ssh, dir);
+    }
+  }
+
   /// The keychain's name for the password [prompt] asks, where it is that
   /// of a saved server signed in with one: the host connected to, or the
   /// one it jumps through, by the `user@host` the prompt names (the host
@@ -472,11 +561,15 @@ class SshHosts extends ChangeNotifier {
   }
 
   /// [target] as `ssh` reaches it: a saved server by the app's ssh config
-  /// (written now, all of them, for one to jump through another), else as
-  /// typed.
+  /// (written now, all of them, for one to jump through another), or on POSIX
+  /// any ssh host wrapped through that config so `~/.ssh/config` jump hops
+  /// also inherit keepalives and ControlMaster multiplexing (without
+  /// overriding anything the user already configured).
   Future<SshTarget> _resolve(SshTarget target, String ssh) async {
     final servers = savedServers();
-    if (!servers.containsKey(target.text)) return target;
+    final saved = servers.containsKey(target.text);
+    final controlPath = await _prepareControlPath();
+    if (!saved && (Platform.isWindows || controlPath == null)) return target;
     final file = File(_configFile);
     final home =
         Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
@@ -487,6 +580,7 @@ class SshHosts extends ChangeNotifier {
         ssh: ssh,
         configFile: file.path,
         windows: Platform.isWindows,
+        controlPath: controlPath,
         includes:
             configIncludes ??
             [
@@ -504,7 +598,8 @@ class SshHosts extends ChangeNotifier {
     );
     return SshTarget.configured(
       target.text,
-      destination: sshServerAlias(target.text),
+      destination: saved ? sshServerAlias(target.text) : target.destination,
+      port: saved ? null : target.port,
       configFile: file.path,
     );
   }
@@ -628,12 +723,37 @@ class SshHosts extends ChangeNotifier {
     return SshLauncher(
       ssh: ssh,
       binaries: await _serverBinaries(),
-      prompter: passwords.answer,
+      prompter: _promptWithLog,
+      onMuxError: _closeControlSockets,
+      log: (message) => appEvent('ssh', message),
     );
+  }
+
+  Future<String?> _promptWithLog(SshPrompt prompt) async {
+    final keepable = SshPasswords.keepable(prompt);
+    final started = Stopwatch()..start();
+    final answer = await passwords.answer(prompt);
+    appEvent(
+      'ssh',
+      '${SshLauncher.hostTag(prompt.target.text)} prompt '
+      '(keepable=$keepable, retry=${prompt.retry}, '
+      'cancelled=${answer == null}, wait=${started.elapsedMilliseconds}ms)',
+    );
+    return answer;
   }
 
   /// Ends every host's server and connection: for when the app quits.
   Future<void> closeAll() async {
     await Future.wait([for (final host in _hosts.values) host.close()]);
+    await _closeControlSockets();
+    if (_ownsControlDir && _resolvedControlDir != null) {
+      try {
+        await Directory(_resolvedControlDir!).delete(recursive: true);
+      } on FileSystemException {
+        // Gone already.
+      }
+      _resolvedControlDir = null;
+      _ownsControlDir = false;
+    }
   }
 }

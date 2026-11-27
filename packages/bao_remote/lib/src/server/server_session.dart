@@ -313,7 +313,7 @@ class ServerSession {
   Future<bool> runDaemon({
     required RemoteServer Function(RpcPeer peer) serve,
     void Function(String message)? log,
-    Duration silence = const Duration(seconds: 45),
+    Duration silence = const Duration(seconds: 75),
   }) async {
     final say = log ?? (_) {};
     final ServerSocket listener;

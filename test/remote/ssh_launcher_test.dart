@@ -68,6 +68,7 @@ if [ -n "$config" ]; then
     "$dest" "${FAKE_PORT:-22}" "${FAKE_STRICT:-ask}" "$HOME/.ssh/known_hosts" "$HOME/.ssh/known_hosts2" "${FAKE_CONNECT_TIMEOUT:-none}"
   [ -n "${FAKE_PROXY_JUMP:-}" ] && printf 'proxyjump %s\n' "$FAKE_PROXY_JUMP"
   [ -n "${FAKE_PROXY_COMMAND:-}" ] && printf 'proxycommand %s\n' "$FAKE_PROXY_COMMAND"
+  [ -n "${FAKE_CONTROL_MASTER:-}" ] && printf 'controlmaster %s\n' "$FAKE_CONTROL_MASTER"
   exit 0
 fi
 printf '%s\n' "$all" >> "$FAKE_LOG.args"
@@ -105,6 +106,20 @@ case "$dest" in
       pw=$("$SSH_ASKPASS" "me@stubborn's password: ")
       [ "$pw" = hunter2 ] && break
     done ;;
+  otp-flaky-resume)
+    # First connect succeeds after OTP; resume asks OTP then fails unreachable.
+    otp=$("$SSH_ASKPASS" "Verification code: ") || { echo "Permission denied" >&2; exit 255; }
+    echo "otp:$otp" >> "$FAKE_LOG.otp"
+    case "$*" in
+      *--resume*) echo "Connection closed by remote host" >&2; exit 255 ;;
+    esac ;;
+  otp-drop-after-ready)
+    # Asks OTP, prints probe + ready, then drops with exit 255 before initialize.
+    otp=$("$SSH_ASKPASS" "Verification code: ") || { echo "Permission denied" >&2; exit 255; }
+    echo "BAOCODE-PROBE Linux x86_64"
+    echo "BAOCODE-READY"
+    echo "Connection closed by remote host" >&2
+    exit 255 ;;
   stranger)
     # Learned without a word where told to, else asked.
     case "$all" in
@@ -535,7 +550,7 @@ exec '$dartExecutable' '${p.absolute('packages', 'bao_remote', 'bin', 'baocode_s
       '-o',
       'ServerAliveInterval=15',
       '-o',
-      'ServerAliveCountMax=3',
+      'ServerAliveCountMax=6',
     ];
     final session = launcher.windowsSessionScript('0123456789abcdef');
     expect(session, contains('Win32_Process'));
@@ -658,7 +673,137 @@ exec '$dartExecutable' '${p.absolute('packages', 'bao_remote', 'bin', 'baocode_s
       await optionsFor(const {'FAKE_PROXY_COMMAND': 'ssh -W %h:%p login'}),
       isNot(contains('ConnectTimeout=20')),
     );
+    expect(
+      await optionsFor(const {'FAKE_CONTROL_MASTER': 'auto'}),
+      containsAllInOrder([
+        '-o',
+        'ControlMaster=no',
+        '-o',
+        'ControlPath=none',
+      ]),
+    );
+    expect(
+      await optionsFor(const {'FAKE_CONTROL_MASTER': 'false'}),
+      isNot(contains('ControlMaster=no')),
+    );
   });
+
+  test('reconnect stalls after prompting when unreachable, and connect keeps '
+      'prompted across initialize failures', () async {
+    final binaries = FakeBinaries('1-abc', {'linux-x64': serverScript()});
+    var asks = 0;
+    final launcher = SshLauncher(
+      ssh: fakeSsh,
+      binaries: binaries,
+      start: starter(),
+      maxBackoff: const Duration(seconds: 1),
+      prompter: (prompt) async {
+        asks++;
+        return 'code-$asks';
+      },
+    );
+    // Initial connect dropping after BAOCODE-READY still reports prompted=true.
+    await expectLater(
+      launcher.connect(SshTarget.parse('otp-drop-after-ready')),
+      throwsA(
+        isA<SshConnectException>()
+            .having((e) => e.failure, 'failure', SshFailure.unreachable)
+            .having((e) => e.prompted, 'prompted', isTrue),
+      ),
+    );
+    expect(asks, 1);
+
+    // Connected session whose reconnect prompts for OTP and then fails with
+    // exit 255 must stall instead of looping OTP dialogs.
+    asks = 0;
+    final connection = await launcher.connect(
+      SshTarget.parse('otp-flaky-resume'),
+    );
+    expect(asks, 1);
+    final id = RegExp(r'--session ([0-9a-f]+)')
+        .firstMatch(commands().last)!
+        .group(1)!;
+    final stalled = connection.changes.firstWhere((_) => connection.stalled);
+    await Process.run('pkill', ['-f', 'session $id']);
+    await stalled.timeout(const Duration(seconds: 20));
+    expect(connection.stalled, isTrue);
+    expect(connection.lastError?.prompted, isTrue);
+    final asksWhenStalled = asks;
+    expect(asksWhenStalled, 2);
+    // Must not keep re-prompting while stalled.
+    await Future<void>.delayed(const Duration(seconds: 2));
+    expect(asks, asksWhenStalled);
+    await connection.close();
+  }, timeout: const Timeout(Duration(minutes: 2)));
+
+  test('isMuxFailure matches mux errors without matching target refused', () {
+    expect(
+      SshLauncher.isMuxFailure('mux_client_request_session: read from master failed'),
+      isTrue,
+    );
+    expect(
+      SshLauncher.isMuxFailure('ControlSocket /tmp/bc/abc already exists'),
+      isTrue,
+    );
+    expect(
+      SshLauncher.isMuxFailure('channel 0: open failed: administratively prohibited'),
+      isTrue,
+    );
+    expect(
+      SshLauncher.isMuxFailure('channel 0: open failed: connect failed: Connection refused'),
+      isFalse,
+    );
+  });
+
+  test('diagnostic log records lifecycle, drop reasons and redials without '
+      'leaking hostnames or secrets', () async {
+    final events = <String>[];
+    final launcher = SshLauncher(
+      ssh: fakeSsh,
+      binaries: FakeBinaries('1-abc', {'linux-x64': serverScript()}),
+      start: starter(extra: const {'FAKE_PROXY_JUMP': 'jump-a'}),
+      maxBackoff: const Duration(seconds: 1),
+      prompter: (prompt) async => 'secret-otp-999999',
+      log: events.add,
+    );
+    final connection = await launcher.connect(
+      SshTarget.parse('otp-flaky-resume'),
+    );
+    final id = RegExp(r'--session ([0-9a-f]+)')
+        .firstMatch(commands().last)!
+        .group(1)!;
+    final stalled = connection.changes.firstWhere((_) => connection.stalled);
+    await Process.run('pkill', ['-f', 'session $id']);
+    await stalled.timeout(const Duration(seconds: 20));
+    await connection.close();
+
+    final joined = events.join('\n');
+    expect(joined, contains('options (proxy=jump'));
+    expect(joined, contains('connect start ('));
+    expect(joined, contains('connected ('));
+    expect(joined, contains('link drop ('));
+    expect(joined, contains('reason=eof'));
+    expect(joined, contains('redial start ('));
+    expect(joined, contains('redial failed ('));
+    expect(joined, contains('stalled=true'));
+    expect(joined, contains('hint=connection_closed'));
+    // Privacy: raw hostname and OTP secret must never appear in diagnostic logs.
+    expect(joined, isNot(contains('otp-flaky-resume')));
+    expect(joined, isNot(contains('secret-otp-999999')));
+
+    expect(
+      SshLauncher.stderrHint('client_loop: send disconnect: Broken pipe'),
+      'broken_pipe',
+    );
+    expect(
+      SshLauncher.stderrHint('client_loop: send disconnect: Timeout'),
+      'keepalive_timeout',
+    );
+    expect(
+      SshLauncher.stderrHint('mux_client_hello_exchange: write packet'),
+      'mux_failure',
+    );
+  }, timeout: const Timeout(Duration(minutes: 2)));
 
   test('targets: aliases, users and ports', () {
     final plain = SshTarget.parse(' dev ');

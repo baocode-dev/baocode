@@ -147,6 +147,7 @@ String sshServersConfig(
   required String configFile,
   List<String> includes = const [],
   bool windows = false,
+  String? controlPath,
 }) {
   final out = StringBuffer()
     ..writeln('# Written by BaoCode for the servers saved in it: edits are')
@@ -186,9 +187,28 @@ String sshServersConfig(
     out.writeln();
   }
   // Out of the last Host first: an Include in one applies to it alone.
-  if (includes.isNotEmpty) out.writeln('Host *');
-  for (final include in includes) {
-    out.writeln('Include ${_configWord(_path(include, windows: windows))}');
+  if (includes.isNotEmpty) {
+    if (servers.isNotEmpty) out.writeln('Host *');
+    for (final include in includes) {
+      out.writeln('Include ${_configWord(_path(include, windows: windows))}');
+    }
+    out.writeln();
+  }
+  // Fallback defaults after the user's ~/.ssh/config (OpenSSH uses the first
+  // value seen): keep jump hops alive and multiplex them on POSIX so a drop
+  // on an inner hop (e.g. a container behind a bastion) reconnects without
+  // re-authenticating the jump host. The outermost target overrides
+  // ControlMaster=no on its CLI so it never attaches to a stale master.
+  out.writeln('Host *');
+  out.writeln('  StrictHostKeyChecking accept-new');
+  out.writeln('  ServerAliveInterval 15');
+  out.writeln('  ServerAliveCountMax 4');
+  if (!windows && controlPath != null && controlPath.isNotEmpty) {
+    out.writeln('  ControlMaster auto');
+    out.writeln(
+      '  ControlPath ${_configWord(_path(controlPath, windows: windows))}',
+    );
+    out.writeln('  ControlPersist 30m');
   }
   return '$out';
 }

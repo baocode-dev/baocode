@@ -104,12 +104,25 @@ void main() {
         user: 'ops',
         auth: SshAuth.password,
       ),
+      'mid-bastion': SshServer(
+        hostName: 'bao-e2e-bastion',
+        user: 'ops',
+        auth: SshAuth.password,
+        jump: 'otp-bastion',
+      ),
       'inner-otp': SshServer(
         hostName: 'inner',
         user: 'fresh',
         auth: SshAuth.key,
         identityFile: key,
         jump: 'otp-bastion',
+      ),
+      'inner-3hop': SshServer(
+        hostName: 'inner',
+        user: 'tester',
+        auth: SshAuth.key,
+        identityFile: key,
+        jump: 'mid-bastion',
       ),
     };
   });
@@ -181,10 +194,76 @@ void main() {
     expect(await home('inner-otp'), '/home/fresh');
     expect(otpAsks, 1);
 
-    // Close and connect again (server already installed): still one OTP.
+    // Close and connect again: on POSIX, otp-bastion's ControlMaster is reused
+    // so no second OTP is asked; on Windows (no ControlMaster), one OTP.
     await hosts['inner-otp'].close();
     expect(await home('inner-otp'), '/home/fresh');
-    expect(otpAsks, 2);
+    expect(otpAsks, Platform.isWindows ? 2 : 1);
+  }, timeout: const Timeout(Duration(minutes: 5)));
+
+  test('3-hop chain (OTP jump -> server -> container): inner disconnect '
+      'resumes without re-entering jump-host OTP', () async {
+    if (Platform.isWindows) {
+      markTestSkipped('OpenSSH ControlMaster is POSIX-only');
+      return;
+    }
+    await hosts.passwords.keep(
+      SshPasswords.serverId('otp-bastion'),
+      'bastion-secret',
+    );
+    await hosts.passwords.keep(
+      SshPasswords.serverId('mid-bastion'),
+      'bastion-secret',
+    );
+    var otpAsks = 0;
+    hosts.passwords.ask = (prompt, {required keepable}) async {
+      asked.add(prompt);
+      if (prompt.text.toLowerCase().contains('verification code')) {
+        expect(keepable, isFalse);
+        otpAsks++;
+        // Read current expected OTP sequence from the container so the test
+        // does not depend on previous test ordering.
+        final seq = await Process.run('docker', [
+          'exec',
+          'bao-e2e-otp-bastion',
+          'cat',
+          '/run/otp_seq',
+        ]);
+        return (answer: '${seq.stdout}'.trim(), remember: false);
+      }
+      return null;
+    };
+
+    final client = await hosts['inner-3hop'].reconnect();
+    expect(client.hello?.home, '/home/tester');
+    expect(otpAsks, 1);
+
+    // Kill the inner container's SSH session bridge (simulating a drop on
+    // container c while jump host a stays alive): must reconnect seamlessly
+    // over jump-host ControlMaster without asking OTP again.
+    await Process.run('docker', [
+      'exec',
+      'bao-e2e-inner',
+      'pkill',
+      '-f',
+      'baocode-server --session',
+    ]);
+    final deadline = DateTime.now().add(const Duration(seconds: 30));
+    while (hosts['inner-3hop'].state == SshHostState.connected &&
+        DateTime.now().isBefore(deadline)) {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+    while (hosts['inner-3hop'].state != SshHostState.connected &&
+        DateTime.now().isBefore(deadline)) {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+    expect(hosts['inner-3hop'].state, SshHostState.connected);
+    expect(identical(hosts['inner-3hop'].client, client), isTrue);
+    expect(
+      await client.read('/home/tester', '/etc/hostname'),
+      isNotEmpty,
+    );
+    expect(otpAsks, 1);
   }, timeout: const Timeout(Duration(minutes: 5)));
 
   test('a changed host key refused; forgotten, connected again', () async {

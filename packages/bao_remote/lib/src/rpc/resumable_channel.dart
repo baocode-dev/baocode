@@ -55,6 +55,7 @@ class ResumableChannel {
     this.heartbeat = const Duration(seconds: 5),
     this.silence = const Duration(seconds: 30),
     this.maxUnlinked = 128 << 20,
+    this.onLinkDrop,
   });
 
   final Duration heartbeat;
@@ -63,6 +64,12 @@ class ResumableChannel {
   /// How many characters of messages, not yet acknowledged, are kept while
   /// unlinked; past it the channel ends ([ChannelEnd.overflow]).
   final int maxUnlinked;
+
+  /// Called when an active or connecting link is dropped, with why (`eof`,
+  /// `read_error`, `silence`, `bad_ack`, `write_error`, `replaced`, `detached`,
+  /// `ended`) and how long since the last bytes arrived.
+  final void Function(String reason, Duration silentFor, {required bool wasLive})?
+  onLinkDrop;
 
   /// The bridge's word that it found no session to resume.
   static const goneLine = 'BAOCODE-GONE';
@@ -127,7 +134,7 @@ class ResumableChannel {
       link.close();
       return Future.value();
     }
-    _drop();
+    _drop(reason: 'replaced');
     final attached = _Link(this, link);
     _link = attached;
     attached.start();
@@ -135,17 +142,19 @@ class ResumableChannel {
   }
 
   /// Drops the link there is, as a lost one: the next [attach] carries on.
-  void detach() => _drop();
+  void detach() => _drop(reason: 'detached');
 
   /// Ends the channel for good.
   void close() => _end(ChannelEnd.closed);
 
-  void _drop([_Link? only]) {
+  void _drop({_Link? only, required String reason}) {
     final link = _link;
     if (link == null || (only != null && !identical(link, only))) return;
     _link = null;
     final wasLive = link.live;
+    final silentFor = link.heardElapsed;
     link.stop();
+    onLinkDrop?.call(reason, silentFor, wasLive: wasLive);
     if (wasLive && !_links.isClosed) _links.add(false);
     _checkOverflow();
   }
@@ -157,7 +166,7 @@ class ResumableChannel {
   void _end(ChannelEnd why) {
     if (isClosed) return;
     _ended.complete(why);
-    _drop();
+    _drop(reason: 'ended:${why.name}');
     _unacked.clear();
     _unackedLength = 0;
     unawaited(_messages.close());
@@ -208,7 +217,7 @@ class ResumableChannel {
         if (_received - _ackedReceived >= _ackEvery) link.writeAck();
       case 'A':
         final count = int.tryParse(line.substring(1));
-        if (count == null || !_ackTo(count)) _drop(link);
+        if (count == null || !_ackTo(count)) _drop(only: link, reason: 'bad_ack');
     }
   }
 }
@@ -220,6 +229,7 @@ class _Link {
   final ChannelLink _link;
   final Completer<void> gone = Completer();
   final Stopwatch _heard = Stopwatch();
+  Duration get heardElapsed => _heard.elapsed;
   StreamSubscription<List<int>>? _subscription;
   Timer? _timer;
   BytesBuilder _partial = BytesBuilder(copy: false);
@@ -230,8 +240,8 @@ class _Link {
     _heard.start();
     _subscription = _link.input.listen(
       _bytes,
-      onDone: () => _channel._drop(this),
-      onError: (Object _) => _channel._drop(this),
+      onDone: () => _channel._drop(only: this, reason: 'eof'),
+      onError: (Object _) => _channel._drop(only: this, reason: 'read_error'),
       cancelOnError: true,
     );
     _write('H${_channel._received}\n');
@@ -241,7 +251,7 @@ class _Link {
   void _tick() {
     if (_heard.elapsed > _channel.silence &&
         !(_link.patient?.call() ?? false)) {
-      _channel._drop(this);
+      _channel._drop(only: this, reason: 'silence');
       return;
     }
     if (live) writeAck();
@@ -288,7 +298,7 @@ class _Link {
     try {
       _link.write(utf8.encode(text));
     } on Object {
-      _channel._drop(this);
+      _channel._drop(only: this, reason: 'write_error');
     }
   }
 
