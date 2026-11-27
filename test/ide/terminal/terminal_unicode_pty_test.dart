@@ -147,6 +147,59 @@ void main() {
     skip: executable == null,
   );
 
+  test(
+    'typing and backspacing emoji keeps cursor aligned with the shell prompt',
+    () async {
+      final shell = await _Shell.start(executable: executable!);
+      expect(shell.screen.buffer.active.cursorX, 7);
+
+      shell.pty.writeText('😂😂');
+      await shell.shows('READY> 😂😂');
+      expect(shell.screen.buffer.active.cursorX, 11);
+
+      shell.pty.writeText('\x7f');
+      await shell.shows('READY> 😂');
+      expect(shell.screen.buffer.active.cursorX, 9);
+
+      shell.pty.writeText('\x7f');
+      await shell.shows('READY>');
+      expect(shell.screen.buffer.active.cursorX, 7);
+    },
+    skip: executable == null,
+  );
+
+  test(
+    'TerminalXterm uses Unicode 15 graphemes for emoji widths and redraws',
+    () {
+      final screen = TerminalXterm(ITerminalOptions(cols: 40, rows: 4));
+      addTearDown(screen.dispose);
+      expect(screen.core.unicodeService.activeVersion, '15-graphemes');
+
+      // Simulate zsh-syntax-highlighting redrawing a wide emoji in place:
+      // prompt + emoji, then 2 backspaces and colored emoji.
+      screen.core.writeSync('✗ 😂\b\b\x1b[31m😂\x1b[0m');
+      final line = screen.buffer.active.getLine(0)!;
+      expect(line.translateToString(true), '✗ 😂');
+      expect(screen.buffer.active.cursorX, 4);
+      expect(line.getCell(2)!.getWidth(), 2);
+      expect(line.getCell(3)!.getWidth(), 0);
+
+      // Composite and Unicode 13/15 emojis occupy a single 2-cell grapheme.
+      screen.core.writeSync('\r\n👩‍💻👨‍👩‍👧‍👦👍🏽🇨🇳❤️🥲');
+      final emojiLine = screen.buffer.active.getLine(1)!;
+      expect(emojiLine.translateToString(true), '👩‍💻👨‍👩‍👧‍👦👍🏽🇨🇳❤️🥲');
+      expect(screen.buffer.active.cursorX, 12);
+      for (var col = 0; col < 12; col += 2) {
+        expect(emojiLine.getCell(col)!.getWidth(), 2, reason: 'col $col');
+        expect(
+          emojiLine.getCell(col + 1)!.getWidth(),
+          0,
+          reason: 'col ${col + 1}',
+        );
+      }
+    },
+  );
+
   for (final name in [
     '👩‍💻中文说明.txt',
     '👨‍👩‍👧‍👦 合照.txt',

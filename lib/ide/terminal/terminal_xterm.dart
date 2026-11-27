@@ -17,6 +17,8 @@
 import 'terminal_selection.dart';
 
 import 'package:bao_xterm/addons/addon_search/typings/addon_search.dart';
+import 'package:bao_xterm/addons/addon_unicode11/unicode_v11.dart';
+import 'package:bao_xterm/addons/addon_unicode_graphemes/unicode_grapheme_provider.dart';
 import 'package:bao_xterm/common/event.dart';
 import 'package:bao_xterm/common/services/decoration_service.dart';
 import 'package:bao_xterm/headless/public/terminal.dart';
@@ -25,6 +27,11 @@ import 'package:bao_xterm/typings/xterm.dart'
 
 class TerminalXterm extends Terminal implements ISearchTerminal {
   TerminalXterm([super.options]) {
+    core.unicodeService
+      ..register(UnicodeV11())
+      ..register(UnicodeGraphemeProvider(false))
+      ..register(UnicodeGraphemeProvider(true))
+      ..activeVersion = '15-graphemes';
     decorationService = register(
       DecorationService(core.logService, core.bufferService),
     );

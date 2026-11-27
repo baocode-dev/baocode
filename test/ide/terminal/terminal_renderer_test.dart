@@ -13,6 +13,7 @@ import 'package:baocode/ide/terminal/terminal_render_adapter.dart';
 import 'package:baocode/ide/terminal/terminal_render_source.dart';
 import 'package:baocode/ide/terminal/terminal_render_theme.dart';
 import 'package:baocode/ide/terminal/terminal_renderer.dart';
+import 'package:baocode/ide/terminal/terminal_xterm.dart';
 import 'package:bao_xterm/addons/addon_unicode11/unicode_v11.dart';
 import 'package:bao_xterm/common/buffer/attribute_data.dart';
 import 'package:bao_xterm/common/buffer/constants.dart';
@@ -300,6 +301,72 @@ void main() {
       expect(pixels.at(65, 5), _fg);
       expect(h.terminal.buffer.x, 7);
       expect(pixels.at(75, 5), _cursor);
+    });
+
+    test('TerminalXterm renders emojis and graphemes as wide cells without '
+        'overlapping the cursor', () async {
+      final xterm = TerminalXterm(_options(cols: 16, rows: 2));
+      addTearDown(xterm.dispose);
+      final source = TerminalCoreSource(xterm.core);
+      addTearDown(source.dispose);
+      final renderer = TerminalRenderer(
+        source,
+        onNeedsPaint: () {},
+        isFocused: true,
+      );
+      addTearDown(renderer.dispose);
+
+      xterm.core.writeSync('✗ 😂😂❤️🥲A\r\n👩‍💻👨‍👩‍👧‍👦👍🏽🇨🇳B');
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+      final dims = renderer.dimensions;
+      final bounds = Rect.fromLTWH(
+        0,
+        0,
+        16 * dims.cellWidth,
+        2 * dims.cellHeight,
+      );
+      canvas
+        ..clipRect(bounds)
+        ..drawRect(bounds, Paint()..color = renderer.backgroundColor);
+      renderer.paint(canvas, Offset.zero);
+      final picture = recorder.endRecording();
+      final image = await picture.toImage(
+        16 * dims.deviceCellWidth,
+        2 * dims.deviceCellHeight,
+      );
+      final bytes = (await image.toByteData(
+        format: ui.ImageByteFormat.rawRgba,
+      ))!;
+      image.dispose();
+      picture.dispose();
+
+      final pixels = _Pixels(
+        16 * dims.deviceCellWidth,
+        2 * dims.deviceCellHeight,
+        bytes,
+        1,
+      );
+      expect(renderer.debugRowText(0), '✗ 😂😂❤️🥲A');
+      expect(renderer.debugRowText(1), '👩‍💻👨‍👩‍👧‍👦👍🏽🇨🇳B');
+      // Row 0: ✗ (0), space (1), 😂 (2-3), 😂 (4-5), ❤️ (6-7), 🥲 (8-9), A (10).
+      expect(pixels.at(105, 5), _fg);
+      // Row 1: 👩‍💻 (0-1), 👨‍👩‍👧‍👦 (2-3), 👍🏽 (4-5), 🇨🇳 (6-7), B (8), cursor (9).
+      expect(xterm.core.buffer.x, 9);
+      expect(pixels.at(85, 15), _fg);
+      expect(pixels.at(95, 15), _cursor);
+
+      // Cursor positioned on the continuation cell of a wide emoji still draws.
+      xterm.core.writeSync('\x1b[1;4H');
+      expect(xterm.core.buffer.x, 3);
+      final r2 = ui.PictureRecorder();
+      final c2 = Canvas(r2);
+      c2.clipRect(
+        Rect.fromLTWH(0, 0, 16 * dims.cellWidth, 2 * dims.cellHeight),
+      );
+      renderer.paint(c2, Offset.zero);
+      r2.endRecording().dispose();
+      expect(renderer.debugCellColors(3, 0)!.bg, _cursor);
     });
 
     test('squeezes a glyph wider than its cell', () async {

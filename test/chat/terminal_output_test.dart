@@ -139,6 +139,8 @@ void main() {
 
     test('backspaces and Windows line ends', () {
       expect(terminalOutput('ab\bc\n').text, 'ac');
+      expect(terminalOutput('✗ 😂\b\b  \b\b').text, '✗');
+      expect(terminalOutput('✗ 😂\b\b🔥').text, '✗ 🔥');
       final crlf = terminalOutput('one\r\ntwo\r\n');
       expect(crlf.text, 'one\ntwo');
       expect(crlf.styled, isFalse);

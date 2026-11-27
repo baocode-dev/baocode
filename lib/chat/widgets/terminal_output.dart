@@ -5,6 +5,7 @@ import 'package:flutter/painting.dart';
 
 import '../../ide/terminal/terminal_colors.dart';
 
+import 'package:bao_xterm/addons/addon_unicode_graphemes/unicode_grapheme_provider.dart';
 import 'package:bao_xterm/common/buffer/cell_data.dart';
 import 'package:bao_xterm/common/buffer/constants.dart';
 import 'package:bao_xterm/common/buffer/types.dart';
@@ -122,6 +123,9 @@ TerminalOutput _render(String output) {
       logLevel: 'off',
     ),
   );
+  terminal.unicodeService
+    ..register(UnicodeGraphemeProvider(true))
+    ..activeVersion = '15-graphemes';
   try {
     terminal.writeSync(output);
     final buffers = terminal.buffers;

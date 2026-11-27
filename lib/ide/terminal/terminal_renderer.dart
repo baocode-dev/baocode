@@ -985,7 +985,9 @@ class TerminalRenderer {
 
       // Override colors for cursor cell
       if (cursorBlock) {
-        if (x == _cursorX) lastCursorX = _cursorX + width - 1;
+        if (x == _cursorX) {
+          lastCursorX = _cursorX + (width == 0 ? 1 : width) - 1;
+        }
         if (x >= _cursorX && x <= lastCursorX) {
           _resultFg =
               Attributes.cmRgb |
@@ -1023,7 +1025,7 @@ class TerminalRenderer {
         if ((fg & FgFlags.bold) != 0) flags |= _fBold;
         if ((bg & BgFlags.italic) != 0) flags |= _fItalic;
         if (isCombined) {
-          flags |= _fCombined | _fGlyph;
+          flags |= _fCombined;
           codeOut = strings.length;
           strings.add(cell.combinedData);
         } else {
@@ -1208,7 +1210,9 @@ class TerminalRenderer {
     for (var x = 0; x < cols; x++) {
       final flags = data[x * _stride + _iFlags];
       if (flags & _fGlyph != 0) lastGlyph = x;
-      if (flags & (_fCustom | _fRescale | _fDecorations) != 0) others = true;
+      if (flags & (_fCustom | _fRescale | _fCombined | _fDecorations) != 0) {
+        others = true;
+      }
     }
     if (lastGlyph < 0 && !others) return null;
     final recorder = ui.PictureRecorder();
@@ -1260,12 +1264,9 @@ class TerminalRenderer {
         final italic = variant & _fItalic != 0;
         final argb = data[base + _iFg];
         final code = data[base + _iCode];
-        final combined = flags & _fCombined != 0;
         final spacing =
             width * cellWidth -
-            (combined
-                ? metrics.width(model.strings[code], bold: bold, italic: italic)
-                : metrics.widthOfCodePoint(code, bold: bold, italic: italic));
+            metrics.widthOfCodePoint(code, bold: bold, italic: italic);
         if (text.isNotEmpty &&
             (spacing != runSpacing ||
                 runHasGlyph && (argb != runArgb || variant != runVariant) ||
@@ -1278,11 +1279,7 @@ class TerminalRenderer {
         }
         runSpacing = spacing;
         runHasGlyph = true;
-        if (combined) {
-          text.write(model.strings[code]);
-        } else {
-          text.writeCharCode(code);
-        }
+        text.writeCharCode(code);
       } else {
         // A space holds the cell: in the run's style when its advance fits.
         final spacing =
@@ -1334,7 +1331,9 @@ class TerminalRenderer {
     for (var x = 0; x < cols; x++) {
       final base = x * _stride;
       final flags = data[base + _iFlags];
-      if (flags & (_fCustom | _fRescale | _fDecorations) == 0) continue;
+      if (flags & (_fCustom | _fRescale | _fCombined | _fDecorations) == 0) {
+        continue;
+      }
       final width = data[base + _iWidth];
       final argb = data[base + _iFg];
       if (flags & _fCustom != 0) {
@@ -1353,6 +1352,16 @@ class TerminalRenderer {
               : null,
         );
       }
+      if (flags & _fCombined != 0) {
+        _drawCombined(
+          canvas,
+          x,
+          model.strings[data[base + _iCode]],
+          flags,
+          argb,
+          dims,
+        );
+      }
       if (flags & _fRescale != 0) {
         _drawRescaled(canvas, x, data[base + _iCode], flags, argb, dims);
       }
@@ -1368,6 +1377,33 @@ class TerminalRenderer {
         );
       }
     }
+  }
+
+  /// A combined grapheme cell (ZWJ emoji, VS16 emoji, flags, combining marks)
+  /// drawn at its cell's origin with zero letter spacing, so multi-codepoint
+  /// clusters neither break shaping nor multiply letter spacing across the row.
+  void _drawCombined(
+    ui.Canvas canvas,
+    int x,
+    String text,
+    int flags,
+    int argb,
+    TerminalRenderDimensions dims,
+  ) {
+    final metrics = this.metrics;
+    final builder = ui.ParagraphBuilder(metrics.paragraphStyle)
+      ..pushStyle(_style(argb, flags & (_fBold | _fItalic), 0))
+      ..addText(text);
+    final paragraph = builder.build()
+      ..layout(const ui.ParagraphConstraints(width: double.infinity));
+    canvas.drawParagraph(
+      paragraph,
+      ui.Offset(
+        x * dims.cellWidth + dims.charLeft,
+        dims.charTop + dims.charHeight - metrics.charHeight,
+      ),
+    );
+    paragraph.dispose();
   }
 
   /// A one cell glyph wider than a cell and a half, squeezed to the cell
@@ -1689,7 +1725,8 @@ class TerminalRenderer {
     final y = _cursorRow - buffer.ydisp;
     if (y < 0 || y >= source.rows) return;
     final line = buffer.lines.get(_cursorRow);
-    final width = line?.getWidth(_cursorX) ?? 1;
+    final rawWidth = line?.getWidth(_cursorX) ?? 1;
+    final width = rawWidth == 0 ? 1 : rawWidth;
     final cellWidth = dims.cellWidth;
     final cellHeight = dims.cellHeight;
     final left = _cursorX * cellWidth;
@@ -1831,7 +1868,7 @@ class TerminalRenderer {
       if (width == 0) continue;
       final flags = model.data[base + _iFlags];
       text.write(
-        flags & (_fGlyph | _fCustom | _fRescale) != 0
+        flags & (_fGlyph | _fCustom | _fRescale | _fCombined) != 0
             ? _charsOf(model, base)
             : ' ',
       );
