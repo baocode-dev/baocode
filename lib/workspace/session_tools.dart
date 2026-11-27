@@ -67,6 +67,7 @@ abstract final class SessionTools {
     'session_models',
     'session_wait',
     'session_stop',
+    'session_rename',
     'session_changes',
   ];
 
@@ -84,8 +85,9 @@ abstract final class SessionTools {
       'it comes rather than waiting (session_wait only when there is '
       'nothing else to do). Only the user answers what one waits on them '
       'for: tell them. session_changes lists the files one edited, to '
-      'check its work; session_models, the models one can be on, as the '
-      'user picks them.';
+      'check its work; session_rename updates a conversation\'s title '
+      'without waking or interrupting it; session_models, the models one '
+      'can be on, as the user picks them.';
 
   /// What was sent lately, by whom to whom: the same task not sent twice.
   static final Map<(String?, String), (String, DateTime)> _sent = {};
@@ -609,6 +611,32 @@ abstract final class SessionTools {
         },
         required: ['session'],
         summary: titled,
+      ),
+      tool(
+        'session_rename',
+        'Renames another conversation in BaoCode without waking, interrupting, '
+            'or queuing a message for it (works whether it is running or '
+            'idle). The new title is persisted and shown in the list and '
+            'reports immediately.',
+        {
+          'session': sessionId,
+          'title': {
+            'type': 'string',
+            'description': 'The new title for the conversation.',
+          },
+        },
+        (input, call) async {
+          final thread = chat(input['session'], call);
+          final title = (input['title'] as String? ?? '').trim();
+          if (title.isEmpty) throw ArgumentError('title is empty');
+          final previous = thread.title;
+          workspace.rename(thread, title);
+          return previous == thread.title
+              ? 'Already named "${thread.title}".'
+              : 'Renamed ${idOf(thread)} from "$previous" to "${thread.title}".';
+        },
+        required: ['session', 'title'],
+        summary: (input, _) => '${input['title'] ?? input['session'] ?? ''}',
       ),
       tool(
         'session_changes',

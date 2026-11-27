@@ -436,6 +436,77 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 300));
     expect(fromAgents(boss), isEmpty);
   });
+
+  test('session_rename updates another conversation without waking or interrupting it', () async {
+    final boss = await lead();
+    final worker = started(
+      await call('session_new', {
+        'title': 'Initial Name',
+        'text': 'long running task',
+      }, from: boss.id),
+    );
+    await until(
+      () => worker.session.sessionId != null && worker.session.isStreaming,
+    );
+    final workerId = SessionTools.idOf(worker);
+    final launchesBefore = launches.length;
+
+    // Rename while running: does not stop or queue a message.
+    final renamed = await call('session_rename', {
+      'session': workerId,
+      'title': '  Auth Refactor  ',
+    }, from: boss.id);
+    expect(
+      renamed,
+      'Renamed $workerId from "Initial Name" to "Auth Refactor".',
+    );
+    expect(worker.title, 'Auth Refactor');
+    expect(worker.session.isStreaming, isTrue);
+    expect(worker.session.queued, isEmpty);
+    expect(launches, hasLength(launchesBefore));
+
+    // Reflected in session_list right away.
+    final listed = await call('session_list', const {}, from: boss.id);
+    expect(listed, contains('$workerId | app | Auth Refactor | running'));
+
+    // Same name again is a clean no-op.
+    expect(
+      await call('session_rename', {
+        'session': workerId,
+        'title': 'Auth Refactor',
+      }, from: boss.id),
+      'Already named "Auth Refactor".',
+    );
+
+    // Idle conversation can be renamed without waking it.
+    await settle(worker);
+    final afterSettle = launches.length;
+    expect(
+      await call('session_rename', {
+        'session': workerId,
+        'title': 'Auth Refactor Done',
+      }, from: boss.id),
+      'Renamed $workerId from "Auth Refactor" to "Auth Refactor Done".',
+    );
+    expect(worker.title, 'Auth Refactor Done');
+    expect(launches, hasLength(afterSettle));
+
+    // Empty title and self-rename are rejected.
+    expect(
+      await call('session_rename', {
+        'session': workerId,
+        'title': '   ',
+      }, from: boss.id),
+      contains('title is empty'),
+    );
+    expect(
+      await call('session_rename', {
+        'session': SessionTools.idOf(boss),
+        'title': 'Nope',
+      }, from: boss.id),
+      contains('That is this conversation.'),
+    );
+  });
 }
 
 /// The mock's, each launch under a session id of its own. A message with
