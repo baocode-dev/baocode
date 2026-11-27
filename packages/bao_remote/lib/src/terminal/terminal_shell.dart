@@ -136,12 +136,25 @@ List<String> windowsPowerShells(
 /// environment) without what belongs to the app that launched this one,
 /// then `TERM` (not on Windows, where node-pty sets none), `TERM_PROGRAM`,
 /// `LANG` from [locale] when [base] has none in UTF-8, and `COLORTERM`.
+/// With [availableLocales], character locales must also be installed: a
+/// syntactically valid locale such as `zh_AU.UTF-8` may not exist on the host.
 Map<String, String> terminalEnvironment(
   Map<String, String> base, {
   required TerminalOs os,
   String? locale,
   String? version,
+  Iterable<String>? availableLocales,
 }) {
+  final installed = availableLocales?.map((name) => name.toLowerCase()).toSet();
+  bool unavailable(String? name) =>
+      installed != null && !installed.contains(name?.toLowerCase());
+  final lang = [
+    terminalLang(locale),
+    terminalLang(locale?.split(RegExp('[-_]')).first),
+    'en_US.UTF-8',
+    'C.UTF-8',
+    'C.utf8',
+  ].firstWhere((name) => !unavailable(name), orElse: () => 'en_US.UTF-8');
   final environment = {...base}
     ..removeWhere((name, _) => _appVariables.any((app) => app.hasMatch(name)));
   void put(String name, String? value) {
@@ -158,8 +171,22 @@ Map<String, String> terminalEnvironment(
   put('TERM_PROGRAM', terminalProgram);
   // One the app inherited belongs to another terminal.
   put('TERM_PROGRAM_VERSION', version);
-  if (_needsLang(_lookUp(environment, 'LANG', os))) {
-    put('LANG', terminalLang(locale));
+  final inheritedLang = _lookUp(environment, 'LANG', os);
+  if (_needsLang(inheritedLang) || unavailable(inheritedLang)) {
+    put('LANG', lang);
+  }
+  // These override LANG for character decoding. An inherited C/POSIX locale
+  // makes an interactive shell display UTF-8 input as individual bytes.
+  if (os != TerminalOs.windows) {
+    for (final key in const ['LC_ALL', 'LC_CTYPE']) {
+      final value = environment[key];
+      if (value != null &&
+          value.isNotEmpty &&
+          (_needsLang(value) || unavailable(value)) &&
+          value.toUpperCase() != 'UTF-8') {
+        put(key, environment['LANG']);
+      }
+    }
   }
   put('COLORTERM', 'truecolor');
   return environment;
