@@ -154,6 +154,7 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
       usage: usage ?? (historyCount > 0 ? MockConversation.usage : null),
       queuedInPlace: _queuedInPlace,
     );
+    draft.addListener(_draftChanged);
     _connect(kernel ?? this.kernels.first);
   }
 
@@ -1213,6 +1214,22 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
     List<String> notes = const [],
   }) {
     if (message.isEmpty || !canSend) return;
+    int? targetIndex;
+    final isAgentMessage = message.text.trimLeft().startsWith('<agent-message');
+    if (!isAgentMessage && _editBeforeIds != null) {
+      final before = _editBeforeIds!;
+      _editBeforeIds = null;
+      if (!now) {
+        final current = _transcript.queued;
+        for (final afterId in before) {
+          final at = current.indexWhere((item) => item.$1 == afterId);
+          if (at >= 0) {
+            targetIndex = at;
+            break;
+          }
+        }
+      }
+    }
     final turn = KernelTurn(
       id: newTurnId(),
       // Pastes too long to send, kept in files the agent reads; a remote
@@ -1233,6 +1250,11 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
       ],
     );
     _kernel.send(turn);
+    if (targetIndex != null) {
+      if (_kernel case final QueuesMessages kernel) {
+        kernel.moveQueued(turn.id, targetIndex);
+      }
+    }
   }
 
   /// Where the agent finds [images] as files: they reach it as pictures
@@ -1280,16 +1302,34 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
     }
   }
 
+  /// Queued ids that followed a message taken back via [editQueued]: resending
+  /// from the composer places the edited message ahead of the first of these
+  /// still waiting in the queue instead of appending it to the end.
+  List<String>? _editBeforeIds;
+
+  void _draftChanged() {
+    if (_editBeforeIds == null) return;
+    if (draft.pendingMessage == null &&
+        (draft.content?.trim().isEmpty ?? true) &&
+        draft.images.isEmpty) {
+      _editBeforeIds = null;
+    }
+  }
+
   /// Takes back the queued message [id] to be edited: into the composer's
-  /// [draft], once taken back (not if it started meanwhile).
+  /// [draft], once taken back (not if it started meanwhile). Remembers its
+  /// slot in the queue so resending restores its original order.
   Future<void> editQueued(String id) async {
-    final message = _transcript.queued
-        .where((queued) => queued.$1 == id)
-        .firstOrNull
-        ?.$2;
-    if (message == null) return;
+    final queued = _transcript.queued;
+    final index = queued.indexWhere((item) => item.$1 == id);
+    if (index < 0) return;
+    final message = queued[index].$2;
+    final afterIds = [
+      for (var i = index + 1; i < queued.length; i++) queued[i].$1,
+    ];
     if (_kernel case final QueuesMessages kernel
         when await kernel.cancelQueued(id) && !_disposed) {
+      _editBeforeIds = afterIds;
       draft.restore(message.text, message.images);
     }
   }
@@ -1418,6 +1458,7 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
   @override
   void dispose() {
     _disposed = true;
+    draft.removeListener(_draftChanged);
     _quietTimer?.cancel();
     _review
       ?..removeListener(_reviewChanged)

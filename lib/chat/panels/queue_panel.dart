@@ -10,9 +10,10 @@ import '../chat_models.dart';
 import '../widgets/hover_builder.dart';
 
 /// The messages sent while the agent works, docked above the composer
-/// until their turn: each to be dragged into another place, taken back to
-/// edit, sent at once (the turn running stopped for it), or taken back.
-class QueuePanel extends StatelessWidget {
+/// until their turn: each to be clicked to preview in full, dragged into
+/// another place, taken back to edit, sent at once (the turn running stopped
+/// for it), or taken back.
+class QueuePanel extends StatefulWidget {
   const QueuePanel({
     super.key,
     required this.messages,
@@ -32,8 +33,31 @@ class QueuePanel extends StatelessWidget {
   final ValueChanged<String> onRemove;
 
   @override
+  State<QueuePanel> createState() => _QueuePanelState();
+}
+
+class _QueuePanelState extends State<QueuePanel> {
+  final Set<String> _expanded = {};
+
+  @override
+  void didUpdateWidget(QueuePanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_expanded.isNotEmpty) {
+      final ids = {for (final (id, _) in widget.messages) id};
+      _expanded.removeWhere((id) => !ids.contains(id));
+    }
+  }
+
+  void _toggle(String id) {
+    setState(() {
+      if (!_expanded.remove(id)) _expanded.add(id);
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final messages = widget.messages;
     // UiZoom.zoomed multiplies the media ratio by the window's UI scale.
     final viewRatio = View.of(context).devicePixelRatio;
     final zoom = MediaQuery.devicePixelRatioOf(context) / viewRatio;
@@ -71,6 +95,7 @@ class QueuePanel extends StatelessWidget {
           ),
           _QueueViewport(
             zoom: zoom,
+            maxHeight: _expanded.isEmpty ? 150 : 280,
             child: ReorderableListView(
               shrinkWrap: true,
               padding: const EdgeInsets.fromLTRB(4, 0, 4, 4) * zoom,
@@ -91,7 +116,7 @@ class QueuePanel extends StatelessWidget {
               // The index given is where it goes, the one it came from
               // already taken out.
               onReorderItem: (oldIndex, newIndex) =>
-                  onMove(messages[oldIndex].$1, newIndex),
+                  widget.onMove(messages[oldIndex].$1, newIndex),
               children: [
                 for (var i = 0; i < messages.length; i++)
                   _QueuedRow(
@@ -99,9 +124,11 @@ class QueuePanel extends StatelessWidget {
                     index: i,
                     zoom: zoom,
                     message: messages[i].$2,
-                    onEdit: () => onEdit(messages[i].$1),
-                    onSendNow: () => onSendNow(messages[i].$1),
-                    onRemove: () => onRemove(messages[i].$1),
+                    expanded: _expanded.contains(messages[i].$1),
+                    onToggle: () => _toggle(messages[i].$1),
+                    onEdit: () => widget.onEdit(messages[i].$1),
+                    onSendNow: () => widget.onSendNow(messages[i].$1),
+                    onRemove: () => widget.onRemove(messages[i].$1),
                   ),
               ],
             ),
@@ -113,16 +140,21 @@ class QueuePanel extends StatelessWidget {
 }
 
 class _QueueViewport extends StatelessWidget {
-  const _QueueViewport({required this.zoom, required this.child});
+  const _QueueViewport({
+    required this.zoom,
+    required this.maxHeight,
+    required this.child,
+  });
 
   final double zoom;
+  final double maxHeight;
   final Widget child;
 
   // Flutter compares window pointer positions with the rows' local sizes.
   // Lay out the list in window units, but draw its rows at the UI zoom.
   @override
   Widget build(BuildContext context) => ConstrainedBox(
-    constraints: const BoxConstraints(maxHeight: 150),
+    constraints: BoxConstraints(maxHeight: maxHeight),
     child: UiZoom(scale: 1 / zoom, child: child),
   );
 }
@@ -179,6 +211,8 @@ class _QueuedRow extends StatelessWidget {
     required this.index,
     required this.zoom,
     required this.message,
+    required this.expanded,
+    required this.onToggle,
     required this.onEdit,
     required this.onSendNow,
     required this.onRemove,
@@ -188,6 +222,8 @@ class _QueuedRow extends StatelessWidget {
   final int index;
   final double zoom;
   final UserMessageItem message;
+  final bool expanded;
+  final VoidCallback onToggle;
   final VoidCallback onEdit;
   final VoidCallback onSendNow;
   final VoidCallback onRemove;
@@ -195,48 +231,95 @@ class _QueuedRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final text = message.text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    final fullText = message.text.trim();
+    final summary = fullText.replaceAll(RegExp(r'\s+'), ' ');
+    final imagesLabel = message.images.isNotEmpty
+        ? l10n.queuedImages(message.images.length)
+        : null;
+    final collapsedLabel = [
+      if (summary.isNotEmpty) summary,
+      ?imagesLabel,
+    ].join(' · ');
     final row = HoverBuilder(
       builder: (context, hovered) => _draggable(
         context,
         Container(
           padding: const EdgeInsets.fromLTRB(4, 3, 4, 3),
           decoration: BoxDecoration(
-            color: hovered ? AppColors.bubbleHover : null,
+            color: hovered || expanded ? AppColors.bubbleHover : null,
             borderRadius: BorderRadius.circular(5),
           ),
           child: Row(
+            crossAxisAlignment: expanded
+                ? CrossAxisAlignment.start
+                : CrossAxisAlignment.center,
             children: [
               // The handle says the row drags; the whole row does.
-              MouseRegion(
-                cursor: SystemMouseCursors.grab,
-                child: Opacity(
-                  opacity: hovered ? 0.9 : 0.45,
-                  child: Icon(
-                    Codicons.gripper,
-                    size: 13,
-                    color: AppColors.textMuted,
+              Padding(
+                padding: EdgeInsets.only(top: expanded ? 3 : 0),
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.grab,
+                  child: Opacity(
+                    opacity: hovered ? 0.9 : 0.45,
+                    child: Icon(
+                      Codicons.gripper,
+                      size: 13,
+                      color: AppColors.textMuted,
+                    ),
                   ),
                 ),
               ),
               const SizedBox(width: 4),
               Expanded(
-                // A click takes it back to edit, as the pencil does.
+                // A click previews the full message in place; editing is via
+                // the pencil button so tapping never pulls it out of order.
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onTap: onEdit,
+                  onTap: onToggle,
                   child: MouseRegion(
                     cursor: SystemMouseCursors.click,
-                    child: Text(
-                      [
-                        if (text.isNotEmpty) text,
-                        if (message.images.isNotEmpty)
-                          l10n.queuedImages(message.images.length),
-                      ].join(' · '),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: AppColors.text, fontSize: 12.5),
-                    ),
+                    child: expanded
+                        ? ConstrainedBox(
+                            constraints: const BoxConstraints(maxHeight: 160),
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.symmetric(vertical: 2),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (fullText.isNotEmpty)
+                                    Text(
+                                      fullText,
+                                      style: TextStyle(
+                                        color: AppColors.text,
+                                        fontSize: 12.5,
+                                        height: 1.4,
+                                      ),
+                                    ),
+                                  if (imagesLabel != null) ...[
+                                    if (fullText.isNotEmpty)
+                                      const SizedBox(height: 4),
+                                    Text(
+                                      imagesLabel,
+                                      style: TextStyle(
+                                        color: AppColors.textMuted,
+                                        fontSize: 11.5,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          )
+                        : Text(
+                            collapsedLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: AppColors.text,
+                              fontSize: 12.5,
+                            ),
+                          ),
                   ),
                 ),
               ),
