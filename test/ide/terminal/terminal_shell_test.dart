@@ -207,6 +207,57 @@ void main() {
       expect(lang(null), 'zh_CN.UTF-8');
     });
 
+    test('repairs inherited character locales that override UTF-8 LANG', () {
+      for (final os in [TerminalOs.macOS, TerminalOs.linux]) {
+        final environment = terminalEnvironment(const {
+          'LANG': 'en_US.UTF-8',
+          'LC_ALL': 'C',
+          'LC_CTYPE': 'POSIX',
+          'LC_NUMERIC': 'C',
+        }, os: os);
+        expect(environment['LC_ALL'], 'en_US.UTF-8');
+        expect(environment['LC_CTYPE'], 'en_US.UTF-8');
+        expect(environment['LC_NUMERIC'], 'C');
+      }
+    });
+
+    test('uses an installed locale for an unsupported system region', () {
+      final environment = terminalEnvironment(
+        const {},
+        os: TerminalOs.macOS,
+        locale: 'zh-Hans-AU',
+        availableLocales: ['en_US.UTF-8', 'zh_CN.UTF-8'],
+      );
+      expect(environment['LANG'], 'zh_CN.UTF-8');
+    });
+
+    test('repairs unavailable inherited UTF-8 locale names', () {
+      final environment = terminalEnvironment(
+        const {
+          'LANG': 'zh_AU.UTF-8',
+          'LC_ALL': 'zh_AU.UTF-8',
+          'LC_CTYPE': 'zh_AU.UTF-8',
+        },
+        os: TerminalOs.macOS,
+        locale: 'zh-Hans-AU',
+        availableLocales: ['en_US.UTF-8'],
+      );
+      for (final key in ['LANG', 'LC_ALL', 'LC_CTYPE']) {
+        expect(environment[key], 'en_US.UTF-8');
+      }
+    });
+
+    test('keeps UTF-8 character locales and does not add absent overrides', () {
+      for (final value in ['en_US.UTF-8', 'en_GB.utf8', 'UTF-8', '']) {
+        final environment = terminalEnvironment({
+          'LANG': 'zh_CN.UTF-8',
+          'LC_CTYPE': value,
+        }, os: TerminalOs.macOS);
+        expect(environment['LC_CTYPE'], value);
+        expect(environment, isNot(contains('LC_ALL')));
+      }
+    });
+
     test("leaves out Electron's and VS Code's own variables", () {
       final environment = terminalEnvironment(const {
         'ELECTRON_RUN_AS_NODE': '1',

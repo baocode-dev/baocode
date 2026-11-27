@@ -44,6 +44,21 @@ abstract final class PtyProcesses {
       ? TerminalOs.macOS
       : TerminalOs.linux;
 
+  static final _macOSLocales = _readMacOSLocales();
+
+  static Future<List<String>> _readMacOSLocales() async {
+    try {
+      final result = await Process.run('/usr/bin/locale', ['-a']);
+      if (result.exitCode == 0) {
+        final names = (result.stdout as String).split(RegExp(r'\s+'));
+        if (names.any((name) => name.contains('UTF-8'))) return names;
+      }
+    } on ProcessException {
+      // macOS ships this locale even if enumeration is unavailable.
+    }
+    return const ['en_US.UTF-8'];
+  }
+
   static bool _exists(String path) =>
       File(path).existsSync() || windowsAppExecutionAliasExists(path);
 
@@ -101,6 +116,7 @@ abstract final class PtyProcesses {
           environment?.merge(base) ?? base,
           os: os,
           locale: Platform.localeName,
+          availableLocales: os == TerminalOs.macOS ? await _macOSLocales : null,
         ),
       ),
       columns: columns,
