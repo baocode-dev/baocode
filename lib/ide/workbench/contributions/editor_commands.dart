@@ -287,6 +287,18 @@ class EditorCommandsContribution extends WorkbenchRegistrations {
               services.find<LanguageService>()?.languages != null,
           run: (_, _) => config.formatOnSave = !config.formatOnSave,
         ),
+        command(
+          'baocode.ide.toggleTail',
+          'View',
+          'Toggle Tail (Follow File)',
+          () {
+            if (active() case final doc?) workspace()?.toggleTailing(doc);
+          },
+          precondition: (_) => switch (active()) {
+            final doc? => doc.canTail && (doc.tailing || !doc.dirty),
+            null => false,
+          },
+        ),
         git(
           'baocode.git.toggleAnnotations',
           'Annotate with Git Blame',

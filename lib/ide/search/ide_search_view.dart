@@ -1109,6 +1109,7 @@ class IdeSearchViewState extends State<IdeSearchView>
         final (updated, replaced) = _applyReplace(text, list, regExp);
         if (replaced == 0) continue;
         if (open != null) {
+          if (open.readOnly) continue;
           final wasDirty = open.dirty;
           backend.edit(file.path, updated);
           if (!wasDirty) await backend.save(open);

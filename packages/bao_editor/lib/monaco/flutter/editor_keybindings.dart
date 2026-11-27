@@ -1083,6 +1083,7 @@ KeyEventResult handleEditorKeyEvent(
   EditorViewHost host,
   KeyEvent event, {
   EditorKeyResolver? resolve,
+  VoidCallback? onReadOnlyEdit,
 }) {
   if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
     return KeyEventResult.ignored;
@@ -1104,10 +1105,26 @@ KeyEventResult handleEditorKeyEvent(
   }
   if (resolve != null) {
     final id = resolve(event);
-    if (id == null) return _handleUnboundKey(controller, host, pressed);
+    if (id == null) {
+      final result = _handleUnboundKey(
+        controller,
+        host,
+        pressed,
+        onReadOnlyEdit: onReadOnlyEdit,
+      );
+      if (result != KeyEventResult.ignored) return result;
+      if (!host.canEdit && _isReadOnlyTextKey(pressed, event.character)) {
+        onReadOnlyEdit?.call();
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    }
     final command = _commands[id];
     if (command == null) return KeyEventResult.ignored;
-    if (command.edits && !host.canEdit) return KeyEventResult.handled;
+    if (command.edits && !host.canEdit) {
+      onReadOnlyEdit?.call();
+      return KeyEventResult.handled;
+    }
     command.run(controller, host);
     return KeyEventResult.handled;
   } else {
@@ -1115,14 +1132,35 @@ KeyEventResult handleEditorKeyEvent(
       final chord = mac ? entry.value.mac : entry.value.other;
       if (chord == null || chord != pressed) continue;
       final command = entry.value;
-      if (command.edits && !host.canEdit) return KeyEventResult.handled;
+      if (command.edits && !host.canEdit) {
+        onReadOnlyEdit?.call();
+        return KeyEventResult.handled;
+      }
       command.run(controller, host);
       return KeyEventResult.handled;
     }
   }
-  return _handleCursorKey(controller, host, pressed, mac: mac)
-      ? KeyEventResult.handled
-      : KeyEventResult.ignored;
+  if (_handleCursorKey(
+    controller,
+    host,
+    pressed,
+    mac: mac,
+    onReadOnlyEdit: onReadOnlyEdit,
+  )) {
+    return KeyEventResult.handled;
+  }
+  if (!host.canEdit && _isReadOnlyTextKey(pressed, event.character)) {
+    onReadOnlyEdit?.call();
+    return KeyEventResult.handled;
+  }
+  return KeyEventResult.ignored;
+}
+
+bool _isReadOnlyTextKey(EditorKeyChord k, String? character) {
+  if (k.primary || k.alt || k.macCtrl) return false;
+  if (character == null || character.isEmpty) return false;
+  final code = character.codeUnitAt(0);
+  return code >= 0x20 && code != 0x7f;
 }
 
 /// A key no keybinding has, with the app's keybindings: Enter (with Shift
@@ -1132,12 +1170,38 @@ KeyEventResult handleEditorKeyEvent(
 KeyEventResult _handleUnboundKey(
   EditorSurfaceController c,
   EditorViewHost host,
-  EditorKeyChord k,
-) {
+  EditorKeyChord k, {
+  VoidCallback? onReadOnlyEdit,
+}) {
   final key = k.key;
   if (key == LogicalKeyboardKey.enter ||
       key == LogicalKeyboardKey.numpadEnter) {
-    if (!k.primary && !k.alt && !k.macCtrl && host.canEdit) c.newline();
+    if (!k.primary && !k.alt && !k.macCtrl) {
+      if (host.canEdit) {
+        c.newline();
+      } else {
+        onReadOnlyEdit?.call();
+      }
+    }
+    return KeyEventResult.handled;
+  }
+  if (!host.canEdit &&
+      (key == LogicalKeyboardKey.backspace ||
+          key == LogicalKeyboardKey.delete)) {
+    onReadOnlyEdit?.call();
+    return KeyEventResult.handled;
+  }
+  if (!host.canEdit &&
+      k.primary &&
+      !k.alt &&
+      !k.macCtrl &&
+      ((!k.shift &&
+              (key == LogicalKeyboardKey.keyV ||
+                  key == LogicalKeyboardKey.keyX ||
+                  key == LogicalKeyboardKey.keyZ ||
+                  key == LogicalKeyboardKey.keyY)) ||
+          (k.shift && key == LogicalKeyboardKey.keyZ))) {
+    onReadOnlyEdit?.call();
     return KeyEventResult.handled;
   }
   return _editingKeys.contains(key)
@@ -1167,6 +1231,7 @@ bool _handleCursorKey(
   EditorViewHost host,
   EditorKeyChord k, {
   required bool mac,
+  VoidCallback? onReadOnlyEdit,
 }) {
   final key = k.key;
   final shift = k.shift;
@@ -1248,13 +1313,21 @@ bool _handleCursorKey(
     } else {
       return false;
     }
-    if (host.canEdit) action();
+    if (host.canEdit) {
+      action();
+    } else {
+      onReadOnlyEdit?.call();
+    }
     return true;
   }
   if (key == LogicalKeyboardKey.enter ||
       key == LogicalKeyboardKey.numpadEnter) {
     if (!plain) return false;
-    if (host.canEdit) c.newline();
+    if (host.canEdit) {
+      c.newline();
+    } else {
+      onReadOnlyEdit?.call();
+    }
     return true;
   }
   if (key == LogicalKeyboardKey.tab) {
@@ -1268,11 +1341,19 @@ bool _handleCursorKey(
   }
   if (k.primary && !k.alt && !k.macCtrl) {
     if (key == LogicalKeyboardKey.keyZ) {
-      if (host.canEdit) shift ? c.redo() : c.undo();
+      if (host.canEdit) {
+        shift ? c.redo() : c.undo();
+      } else {
+        onReadOnlyEdit?.call();
+      }
       return true;
     }
     if (key == LogicalKeyboardKey.keyY && !mac && !shift) {
-      if (host.canEdit) c.redo();
+      if (host.canEdit) {
+        c.redo();
+      } else {
+        onReadOnlyEdit?.call();
+      }
       return true;
     }
   }
@@ -1284,11 +1365,16 @@ bool _handleCursorKey(
 void handleEditorSelector(
   EditorSurfaceController controller,
   EditorViewHost host,
-  String selectorName,
-) {
+  String selectorName, {
+  VoidCallback? onReadOnlyEdit,
+}) {
   final c = controller;
   void edit(void Function() action) {
-    if (host.canEdit) action();
+    if (host.canEdit) {
+      action();
+    } else {
+      onReadOnlyEdit?.call();
+    }
   }
 
   void vertical(int rows, {bool extend = false}) =>

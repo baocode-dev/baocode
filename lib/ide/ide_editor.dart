@@ -69,6 +69,7 @@ import 'ide_menu.dart';
 import 'ide_notifications.dart';
 import 'ide_original_diff.dart';
 import 'ide_status_bar.dart' show IdeLanguageNames, ideEolEdits;
+import 'ide_tail_button.dart';
 import 'ide_workspace.dart';
 import 'lsp/language_features.dart';
 import 'lsp/lsp_protocol.dart';
@@ -247,6 +248,20 @@ class IdeEditorState extends State<IdeEditor> {
 
   /// Each open file's agent change, shown in it ([IdeEditor.agentEdits]).
   final Map<IdeDocument, IdeAgentDiff> _agentDiffs = {};
+
+  /// Tailing documents where the user manually scrolled up to inspect earlier
+  /// lines, pausing automatic scroll-to-bottom until they return to the bottom
+  /// or click the resume button.
+  final Set<IdeDocument> _tailPaused = {};
+
+  /// Last observed [IdeDocument.tailing] per document, so [_workspaceChanged]
+  /// notices when tail mode toggles on or off.
+  final Map<IdeDocument, bool> _tailStates = {};
+
+  /// Caret offset where a read-only edit hint tooltip is currently anchored
+  /// while tailing; cleared automatically after a short delay or on Escape.
+  int? _readOnlyHintOffset;
+  Timer? _readOnlyHintTimer;
 
   /// Each open file's lines changed since HEAD, marked by its line numbers.
   final Map<IdeDocument, IdeGitLineChanges> _lineChanges = {};
@@ -448,6 +463,7 @@ class IdeEditorState extends State<IdeEditor> {
     }
     final doc = widget.active;
     _nativeController = _nativeControllers.putIfAbsent(doc, () {
+      _tailStates.putIfAbsent(doc, () => doc.tailing);
       final controller = EditorSurfaceController(document: doc.model)
         ..detectIndentation();
       // Where it was left, while it still fits the text.
@@ -701,6 +717,12 @@ class IdeEditorState extends State<IdeEditor> {
   /// editor's own bindings; everything else (e.g. F8, workbench shortcuts)
   /// keeps bubbling.
   KeyEventResult _onEditorKey(KeyEvent event) {
+    if (_readOnlyHintOffset != null &&
+        event is KeyDownEvent &&
+        event.logicalKey == LogicalKeyboardKey.escape) {
+      _hideReadOnlyHint();
+      return KeyEventResult.handled;
+    }
     if (_lineChangeShown != null &&
         event is KeyDownEvent &&
         event.logicalKey == LogicalKeyboardKey.escape) {
@@ -1017,7 +1039,76 @@ class IdeEditorState extends State<IdeEditor> {
     widget.onScrolled?.call();
     _language?.onViewChanged();
     _textMateViewportChanged();
+    _updateTailPause();
     _languageChanged();
+  }
+
+  /// Pauses tail auto-scroll when the user scrolls up away from the bottom,
+  /// and resumes it once they scroll back down to the bottom.
+  void _updateTailPause() {
+    final doc = widget.active;
+    if (!doc.tailing) return;
+    final view = _surfaceView;
+    if (view == null) return;
+    final atBottom = view.isAtBottom(
+      tolerance: math.max(8.0, view.lineHeight),
+    );
+    final wasPaused = _tailPaused.contains(doc);
+    if (!atBottom && !wasPaused) {
+      _tailPaused.add(doc);
+      _rebuildSoon();
+    } else if (atBottom && wasPaused) {
+      _tailPaused.remove(doc);
+      _rebuildSoon();
+    }
+  }
+
+  void _scrollToBottom() {
+    if (widget.nativeEditorEnabled) {
+      final view = _surfaceView;
+      if (view != null) {
+        view.scrollToBottom();
+      } else {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _surfaceView?.scrollToBottom();
+        });
+      }
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+    });
+  }
+
+  void _resumeTail() {
+    final doc = widget.active;
+    if (!doc.tailing) return;
+    if (_tailPaused.remove(doc) && mounted) setState(() {});
+    _scrollToBottom();
+  }
+
+  void _showReadOnlyHint() {
+    if (!mounted || !widget.active.tailing) return;
+    final selection = _nativeController?.value.selection;
+    final offset = selection != null && selection.isValid
+        ? selection.extentOffset
+        : 0;
+    _readOnlyHintTimer?.cancel();
+    _readOnlyHintTimer = Timer(const Duration(seconds: 3), _hideReadOnlyHint);
+    if (_readOnlyHintOffset != offset) {
+      setState(() => _readOnlyHintOffset = offset);
+    }
+  }
+
+  void _hideReadOnlyHint() {
+    _readOnlyHintTimer?.cancel();
+    _readOnlyHintTimer = null;
+    if (_readOnlyHintOffset != null && mounted) {
+      setState(() => _readOnlyHintOffset = null);
+    } else {
+      _readOnlyHintOffset = null;
+    }
   }
 
   /// The lines on screen go to the TextMate worker first.
@@ -1261,9 +1352,21 @@ class IdeEditorState extends State<IdeEditor> {
   }
 
   void _workspaceChanged() {
-    if (!widget.nativeEditorEnabled) return;
+    if (!widget.nativeEditorEnabled) {
+      final doc = widget.active;
+      final wasTailing = _tailStates[doc] ?? false;
+      _tailStates[doc] = doc.tailing;
+      if (doc.tailing != wasTailing) {
+        _tailPaused.remove(doc);
+        if (doc.tailing) _scrollToBottom();
+        _rebuildSoon();
+      }
+      return;
+    }
     final open = widget.workspace.documents;
     var activeChanged = false;
+    var shouldScrollToBottom = false;
+    var activeTailToggled = false;
     _syncing = true;
     try {
       for (final entry in _nativeControllers.entries.toList()) {
@@ -1272,6 +1375,8 @@ class IdeEditorState extends State<IdeEditor> {
           // Closed, or moved: shown where it was if it opens again.
           _keepViewState(entry.key, controller);
           _nativeControllers.remove(entry.key);
+          _tailPaused.remove(entry.key);
+          _tailStates.remove(entry.key);
           _diffs.remove(entry.key)?.dispose();
           _agentDiffs.remove(entry.key)?.dispose();
           _lineChanges.remove(entry.key)?.dispose();
@@ -1287,23 +1392,44 @@ class IdeEditorState extends State<IdeEditor> {
             _focusNode.unfocus();
           }
           controller.dispose();
-        } else if (controller.value.text != entry.key.text) {
-          // External edits/undo already changed the shared model. Refresh the
-          // view without applying another edit or invalidating its history.
-          controller.syncFromDocument();
-          if (identical(_nativeController, controller)) {
-            _snapshot = entry.key.model.snapshot;
-            activeChanged = true;
+        } else {
+          final doc = entry.key;
+          final wasTailing = _tailStates[doc] ?? false;
+          _tailStates[doc] = doc.tailing;
+          if (doc.tailing != wasTailing) {
+            _tailPaused.remove(doc);
+            if (identical(_nativeController, controller)) {
+              activeTailToggled = true;
+              if (doc.tailing) shouldScrollToBottom = true;
+            }
+          }
+          if (controller.value.text != doc.text) {
+            // External edits/undo already changed the shared model. Refresh the
+            // view without applying another edit or invalidating its history.
+            controller.syncFromDocument(reveal: !doc.tailing);
+            if (identical(_nativeController, controller)) {
+              _snapshot = doc.model.snapshot;
+              activeChanged = true;
+              if (doc.tailing && !_tailPaused.contains(doc)) {
+                shouldScrollToBottom = true;
+              }
+            }
           }
         }
       }
     } finally {
       _syncing = false;
     }
+    if (activeTailToggled) {
+      if (!widget.active.tailing) _hideReadOnlyHint();
+      _syncLanguageSession();
+      _rebuildSoon();
+    }
     if (activeChanged) {
       _selectionChanged();
       _scheduleFindRefresh();
     }
+    if (shouldScrollToBottom) _scrollToBottom();
     // A save changes what is blamed.
     _updateBlame(navigated: activeChanged ? false : null);
   }
@@ -1363,6 +1489,10 @@ class IdeEditorState extends State<IdeEditor> {
       controller.dispose();
     }
     _nativeControllers.clear();
+    _tailPaused.clear();
+    _tailStates.clear();
+    _readOnlyHintTimer?.cancel();
+    _readOnlyHintTimer = null;
     for (final diff in _diffs.values) {
       diff.dispose();
     }
@@ -1948,7 +2078,13 @@ class IdeEditorState extends State<IdeEditor> {
       }
     }
     _path = widget.active.path;
-    if (changed) _scheduleFindRefresh();
+    if (changed) {
+      _hideReadOnlyHint();
+      _scheduleFindRefresh();
+      if (widget.active.tailing && !_tailPaused.contains(widget.active)) {
+        _scrollToBottom();
+      }
+    }
     if (changed || oldWidget.gitBlame != widget.gitBlame) {
       _updateBlame(navigated: changed ? false : null);
     }
@@ -2202,7 +2338,19 @@ class IdeEditorState extends State<IdeEditor> {
                 ],
               ),
           ],
-          [wordWrapMenuAction(l10n)],
+          [
+            wordWrapMenuAction(l10n),
+            if (widget.active.canTail)
+              IdeMenuAction(
+                l10n.tailStart,
+                checked: widget.active.tailing,
+                enabled: widget.active.tailing || !widget.active.dirty,
+                keybinding: KeybindingService.instance.labelFor(
+                  'baocode.ide.toggleTail',
+                ),
+                onSelected: () => widget.workspace.toggleTailing(widget.active),
+              ),
+          ],
           [
             if (showCommands != null)
               IdeMenuAction(
@@ -2843,6 +2991,7 @@ class IdeEditorState extends State<IdeEditor> {
         : (offset, position) => _language?.onPointerHover(offset, position),
     onContentPointerDown: _language?.onPointerDown,
     onContextMenu: _showContextMenu,
+    onReadOnlyEdit: side == null ? _showReadOnlyHint : null,
     onViewChanged: _viewChanged,
     onChangeBarTap: side == null ? _lineChangeMarkPressed : null,
     lineAnnotations: side == null ? _lineAnnotations(colors) : null,
@@ -3092,6 +3241,7 @@ class IdeEditorState extends State<IdeEditor> {
                         controller: _controller,
                         focusNode: _focusNode,
                         scrollController: _scrollController,
+                        readOnly: widget.active.readOnly,
                         expands: true,
                         minLines: null,
                         maxLines: null,
@@ -3143,6 +3293,26 @@ class IdeEditorState extends State<IdeEditor> {
                       _ => null,
                     },
                   ),
+                ),
+              if (widget.active.tailing &&
+                  _readOnlyHintOffset != null &&
+                  _diffOf(widget.active) == null)
+                Positioned.fill(
+                  child: IdeEditorCaretTooltip(
+                    text: context.l10n.tailReadOnlyHint,
+                    view: _surfaceView,
+                    offset: _readOnlyHintOffset!,
+                  ),
+                ),
+              if (widget.active.tailing &&
+                  _tailPaused.contains(widget.active) &&
+                  _diffOf(widget.active) == null)
+                Positioned(
+                  right: widget.nativeEditorEnabled && EditorMinimap.on.value
+                      ? 96
+                      : 18,
+                  bottom: 16,
+                  child: IdeTailJumpButton(onPressed: _resumeTail),
                 ),
               if (_findVisible)
                 Positioned.fill(

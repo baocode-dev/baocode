@@ -1408,6 +1408,7 @@ class AgentSidePanelView extends StatelessWidget {
     formatter: tab.request.local ? null : formatter,
     // Shown as a file, on this machine (see FileOpenScope.showLocal).
     files: tab.request.local ? _localFiles : files,
+    watchDirectory: tab.request.local ? null : watchDirectory,
     root: tab.request.local ? null : _rootOf(tab.path),
     readBytes: tab.request.local ? readFileBytes : readBytes,
     paths: tab.request.local ? null : paths,

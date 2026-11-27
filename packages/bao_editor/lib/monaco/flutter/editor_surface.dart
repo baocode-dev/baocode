@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart'
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
 import '../vs/editor/common/core/range.dart';
@@ -154,6 +155,7 @@ class EditorSurface extends StatefulWidget {
     this.onContextMenu,
     this.onViewChanged,
     this.onChangeBarTap,
+    this.onReadOnlyEdit,
     this.lineAnnotations,
     this.contentCursor,
   });
@@ -312,6 +314,10 @@ class EditorSurface extends StatefulWidget {
   /// has moved there unless it was in a selection (`ContextMenuController`).
   final ValueChanged<Offset>? onContextMenu;
 
+  /// Called when the user attempts to edit via keyboard while [readOnly] is
+  /// true, e.g. to show a read-only tooltip at the caret.
+  final VoidCallback? onReadOnlyEdit;
+
   /// Called after the view scrolls or is laid out anew, so overlays anchored
   /// with [EditorSurfaceView] can follow.
   final VoidCallback? onViewChanged;
@@ -400,6 +406,14 @@ abstract interface class EditorSurfaceView {
   /// or always when [center].
   void revealRange(int start, int end, {bool center = false});
 
+  /// Whether the bottom of the last line is in view (within [tolerance]
+  /// pixels); false before the first layout.
+  bool isAtBottom({double tolerance = 4});
+
+  /// Scrolls so the last line sits at the bottom of the viewport without
+  /// scrolling past it into [EditorSurface.scrollBeyondLastLine].
+  void scrollToBottom();
+
   double get lineHeight;
 
   /// How far the text is scrolled, left and down.
@@ -450,6 +464,7 @@ class _EditorSurfaceState extends State<EditorSurface>
   TextInputConnection? _connection;
   bool _updatingFromPlatform = false;
   bool _scrollToCaret = false;
+  bool _scrollToBottom = false;
 
   // Layout and its inputs.
   ViewportLayout? _layout;
@@ -592,6 +607,7 @@ class _EditorSurfaceState extends State<EditorSurface>
   /// layout; the top for none.
   void _showViewState(EditorViewState? view) {
     _scrollToCaret = false;
+    _scrollToBottom = false;
     _viewRestored = view != null;
     _pendingView = view;
     if (view == null) {
@@ -754,8 +770,10 @@ class _EditorSurfaceState extends State<EditorSurface>
   }
 
   void _onControllerChange() {
-    // While drag-selecting, auto-scroll (not caret reveal) moves the view.
-    if (!_isSelectionDrag) _scrollToCaret = true;
+    // While drag-selecting or during a silent reload, keep scroll as is.
+    if (!_isSelectionDrag && !widget.controller.suppressReveal) {
+      _scrollToCaret = true;
+    }
     _viewRestored = false;
     if (!_updatingFromPlatform) _sendInputWindow();
     _restartBlink();
@@ -947,6 +965,10 @@ class _EditorSurfaceState extends State<EditorSurface>
 
   Future<void> _copyOrCut(CopySelectionTextIntent intent) {
     final controller = widget.controller;
+    if (intent.collapseSelection && widget.readOnly) {
+      widget.onReadOnlyEdit?.call();
+      return Future<void>.value();
+    }
     return intent.collapseSelection
         ? controller.cut(
             canEdit: () => _canEdit && identical(widget.controller, controller),
@@ -955,6 +977,10 @@ class _EditorSurfaceState extends State<EditorSurface>
   }
 
   Future<void> _paste(PasteTextIntent intent) {
+    if (widget.readOnly) {
+      widget.onReadOnlyEdit?.call();
+      return Future<void>.value();
+    }
     final controller = widget.controller;
     return controller.paste(
       canEdit: () => _canEdit && identical(widget.controller, controller),
@@ -967,7 +993,12 @@ class _EditorSurfaceState extends State<EditorSurface>
     // has does nothing: the text system's editing selectors, which such
     // keys still send, are not used.
     if (!_focusNode.hasFocus || widget.keyResolver != null) return;
-    handleEditorSelector(widget.controller, this, selectorName);
+    handleEditorSelector(
+      widget.controller,
+      this,
+      selectorName,
+      onReadOnlyEdit: widget.readOnly ? widget.onReadOnlyEdit : null,
+    );
   }
 
   // EditorViewHost.
@@ -1211,7 +1242,42 @@ class _EditorSurfaceState extends State<EditorSurface>
     final h = layout.viewportSize.height;
     if (!center && caret.top >= 0 && caret.bottom <= h) return;
     _scrollToCaret = false;
+    _scrollToBottom = false;
     _setScroll(top: _scrollTop + caret.top - (h - layout.lineHeight) / 2);
+  }
+
+  double _bottomScrollTop(ViewportLayout layout) =>
+      math.max(0.0, layout.contentHeight - layout.viewportSize.height);
+
+  @override
+  bool isAtBottom({double tolerance = 4}) {
+    final layout = _layout;
+    if (layout == null) return false;
+    return _scrollTop >= _bottomScrollTop(layout) - tolerance;
+  }
+
+  @override
+  void scrollToBottom() {
+    _scrollToCaret = false;
+    _wheel?.stop();
+    _fling?.stop();
+    final layout = _layout;
+    if (layout != null &&
+        identical(_layoutSnapshot, widget.controller.document.snapshot)) {
+      _scrollToBottom = false;
+      _setScroll(top: _bottomScrollTop(layout));
+      return;
+    }
+    _scrollToBottom = true;
+    if (!mounted) return;
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _scrollToBottom) setState(() {});
+      });
+    } else {
+      setState(() {});
+    }
   }
 
   // Scrolling.
@@ -1266,6 +1332,7 @@ class _EditorSurfaceState extends State<EditorSurface>
 
   void _scrollBy(double dx, double dy) {
     _scrollToCaret = false;
+    _scrollToBottom = false;
     _setScroll(top: _scrollTop + dy, left: _scrollLeft + dx);
   }
 
@@ -1278,6 +1345,7 @@ class _EditorSurfaceState extends State<EditorSurface>
     final layout = _layout;
     if (layout == null) return;
     _scrollToCaret = false;
+    _scrollToBottom = false;
     _fling?.stop();
     (_wheel ??= WheelGlider(vsync: this, move: _glide)).add(
       Offset(dx, dy),
@@ -2147,6 +2215,7 @@ class _EditorSurfaceState extends State<EditorSurface>
       this,
       event,
       resolve: widget.keyResolver,
+      onReadOnlyEdit: widget.readOnly ? widget.onReadOnlyEdit : null,
     );
   }
 
@@ -2650,6 +2719,20 @@ class _EditorSurfaceState extends State<EditorSurface>
           _scrollTop = (layout.lineTop(view.firstLine) + view.firstLineOffset)
               .clamp(0.0, maxTop);
           _scrollLeft = view.scrollLeft.clamp(0.0, maxLeft);
+        }
+        if (_scrollToBottom) {
+          _scrollToBottom = false;
+          _scrollToCaret = false;
+          final nextTop = _bottomScrollTop(layout);
+          if (nextTop != _scrollTop) {
+            _scrollTop = nextTop;
+            if (!_followingScroll) {
+              widget.scrollPosition?.value = Offset(_scrollLeft, _scrollTop);
+            }
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) widget.onViewChanged?.call();
+            });
+          }
         }
         if (_scrollTop > maxTop || _scrollLeft > maxLeft) {
           _scrollTop = math.min(_scrollTop, maxTop);

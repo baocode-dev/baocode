@@ -21,7 +21,9 @@ import '../../ide/ide_code_diff.dart';
 import '../../ide/ide_code_editor.dart';
 import '../../ide/ide_hover.dart';
 import '../../ide/ide_image_preview.dart';
+import '../../ide/ide_menu.dart';
 import '../../ide/ide_status_bar.dart' show IdeLanguageNames;
+import '../../ide/ide_tail_button.dart';
 import '../../ide/ide_view_state.dart';
 import '../../ide/language_mode.dart';
 import '../../ide/ide_dialog.dart';
@@ -80,6 +82,8 @@ class FilePreview extends StatefulWidget {
     this.onDiffScrolled,
     this.viewState = IdeViewState.empty,
     this.onPreviewLeft,
+    this.watchDirectory,
+    this.tailPollInterval,
   });
 
   final FileOpenRequest request;
@@ -144,6 +148,14 @@ class FilePreview extends StatefulWidget {
 
   /// Whether its bar names the file's language, to change it.
   final bool language;
+
+  /// Watches a directory for file changes while tailing; defaults to
+  /// [IdeHostFiles.watchDirectory] or local [watchDirectory].
+  final Stream<void> Function(String directory)? watchDirectory;
+
+  /// Fallback poll interval while tailing; defaults to 600ms locally or
+  /// 1500ms on remote hosts.
+  final Duration? tailPollInterval;
 
   /// Past this many lines, the text is not colored.
   static const maxColoredLines = 5000;
@@ -214,6 +226,14 @@ class _FilePreviewState extends State<FilePreview> {
   Object? _markedIn;
   final _editor = GlobalKey<IdeCodeEditorState>();
 
+  /// Notepad++-style tail (`tail -f`) state.
+  bool _tailing = false;
+  bool _tailPaused = false;
+  StreamSubscription<void>? _tailWatch;
+  Timer? _tailDebounce;
+  Timer? _tailPoll;
+  bool _tailReading = false;
+
   /// [FilePreview.agentEdit] in the editor, and where it is among its parts.
   IdeAgentDiff? _agent;
   late final _hunks = IdeAgentHunks(
@@ -239,6 +259,13 @@ class _FilePreviewState extends State<FilePreview> {
   /// nor what is only shown ([FileOpenRequest.readOnly]).
   bool get _editable =>
       !_request.diff && _request.modified == null && !_request.readOnly;
+
+  /// Whether tail monitoring can be toggled on the currently shown view.
+  bool get _canTail =>
+      _editable &&
+      _loaded is _Text &&
+      !_image &&
+      (_markdown == null || _source);
 
   @override
   void initState() {
@@ -300,6 +327,7 @@ class _FilePreviewState extends State<FilePreview> {
 
   @override
   void dispose() {
+    _stopTailWatch();
     EditorLanguageOverrides.instance.removeListener(_languageModesChanged);
     EditorWordWrap.on.removeListener(_editChanged);
     _dropMarkdown();
@@ -364,6 +392,9 @@ class _FilePreviewState extends State<FilePreview> {
   }
 
   void _start({bool force = false}) {
+    _stopTailWatch();
+    _tailing = false;
+    _tailPaused = false;
     _force = force;
     final load = ++_load;
     _loaded = null;
@@ -435,7 +466,10 @@ class _FilePreviewState extends State<FilePreview> {
 
   /// The file's [text], read: in its edit, made now unless there is one.
   void _edited(String text) {
-    if (_edit case final edit?) return edit.reload(text);
+    if (_edit case final edit?) {
+      edit.reload(text, reveal: !_tailing);
+      return;
+    }
     final edit = SidePanelFileEdit(
       path: _request.path,
       files: widget.files,
@@ -519,6 +553,97 @@ class _FilePreviewState extends State<FilePreview> {
     setState(() => _colors = byRow);
   }
 
+  void _toggleTail() {
+    if (!_tailing) {
+      if (!_canTail || (_edit?.dirty ?? false)) return;
+      setState(() {
+        _tailing = true;
+        _tailPaused = false;
+      });
+      _startTailWatch();
+      _editor.currentState?.scrollToBottom();
+      unawaited(_tailReload());
+    } else {
+      _stopTailWatch();
+      setState(() {
+        _tailing = false;
+        _tailPaused = false;
+      });
+    }
+  }
+
+  void _startTailWatch() {
+    _stopTailWatch();
+    final watch =
+        widget.watchDirectory ??
+        switch (widget.files) {
+          final IdeHostFiles files => files.watchDirectory,
+          _ => watchDirectory,
+        };
+    final dir = (widget.paths ?? p.context).dirname(_request.path);
+    _tailWatch = watch(dir).listen((_) {
+      _tailDebounce ??= Timer(const Duration(milliseconds: 100), () {
+        _tailDebounce = null;
+        unawaited(_tailReload());
+      });
+    });
+    final interval =
+        widget.tailPollInterval ??
+        (widget.files is IdeHostFiles
+            ? const Duration(milliseconds: 1500)
+            : const Duration(milliseconds: 600));
+    _tailPoll = Timer.periodic(interval, (_) => unawaited(_tailReload()));
+  }
+
+  void _stopTailWatch() {
+    _tailDebounce?.cancel();
+    _tailDebounce = null;
+    _tailPoll?.cancel();
+    _tailPoll = null;
+    unawaited(_tailWatch?.cancel());
+    _tailWatch = null;
+  }
+
+  Future<void> _tailReload() async {
+    if (!mounted || !_tailing || _tailReading) return;
+    _tailReading = true;
+    final path = _request.path;
+    String? text;
+    try {
+      text = await widget.files.read(path, force: true);
+    } catch (_) {
+      return;
+    } finally {
+      _tailReading = false;
+    }
+    if (!mounted || !_tailing || _request.path != path) return;
+    final edit = _edit;
+    if (edit == null) return;
+    if (edit.reload(text, reveal: false)) {
+      if (!_tailPaused) _editor.currentState?.scrollToBottom();
+    }
+  }
+
+  void _onEditorViewChanged() {
+    if (!_tailing) return;
+    final view = _editor.currentState?.view;
+    if (view == null) return;
+    final atBottom = view.isAtBottom(
+      tolerance: math.max(8.0, view.lineHeight),
+    );
+    if (!atBottom && !_tailPaused) {
+      setState(() => _tailPaused = true);
+    } else if (atBottom && _tailPaused) {
+      setState(() => _tailPaused = false);
+    }
+  }
+
+  void _resumeTail() {
+    if (!_tailing) return;
+    if (_tailPaused) setState(() => _tailPaused = false);
+    _editor.currentState?.scrollToBottom();
+  }
+
   @override
   Widget build(BuildContext context) {
     _syncAgent();
@@ -591,11 +716,25 @@ class _FilePreviewState extends State<FilePreview> {
                   : _loaded is _Diff
                   ? l10n.sidePanelChanges
                   : l10n.sidePanelSource,
-              onPressed: () => setState(() => _source = !_source),
+              onPressed: () => setState(() {
+                _source = !_source;
+                if (!_source && _tailing) {
+                  _stopTailWatch();
+                  _tailing = false;
+                  _tailPaused = false;
+                }
+              }),
             ),
           if ((widget.agentEdit, _agent) case (final edit?, _?)
               when !_isMarkdown || _source)
             IdeAgentEditActions(edit: edit, hunks: _hunks),
+          if (_canTail &&
+              (_tailing || p.extension(path).toLowerCase() == '.log'))
+            IdeTailActionButton(
+              tailing: _tailing,
+              dirty: _edit?.dirty ?? false,
+              onPressed: _toggleTail,
+            ),
           // Its lines, the editor's or only shown, wrapped or not: the
           // editors' one setting.
           if (_loaded is _Text && !_image && (_markdown == null || _source))
@@ -760,26 +899,50 @@ class _FilePreviewState extends State<FilePreview> {
         range != null &&
         !_request.agentChange &&
         identical(_markedIn, edit.controller.document.snapshot);
+    final editor = IdeCodeEditor(
+      key: _editor,
+      controller: edit.controller,
+      path: _request.path,
+      readOnly: _tailing,
+      readOnlyHint: _tailing ? context.l10n.tailReadOnlyHint : null,
+      highlights: widget.highlights,
+      interfaceSized: false,
+      formatter: widget.formatter,
+      agent: _agent,
+      onViewChanged: _onEditorViewChanged,
+      extraMenuActions: [
+        if (_canTail)
+          IdeMenuAction(
+            context.l10n.tailStart,
+            checked: _tailing,
+            enabled: _tailing || !edit.dirty,
+            onSelected: _toggleTail,
+          ),
+      ],
+      decorations: [
+        if (marked)
+          EditorDecoration(
+            start: range.$1,
+            end: range.$2,
+            isWholeLine: true,
+            backgroundColor: themeColors['editor.rangeHighlightBackground'],
+          ),
+      ],
+    );
     return _saved(
       edit,
-      IdeCodeEditor(
-        key: _editor,
-        controller: edit.controller,
-        path: _request.path,
-        highlights: widget.highlights,
-        interfaceSized: false,
-        formatter: widget.formatter,
-        agent: _agent,
-        decorations: [
-          if (marked)
-            EditorDecoration(
-              start: range.$1,
-              end: range.$2,
-              isWholeLine: true,
-              backgroundColor: themeColors['editor.rangeHighlightBackground'],
-            ),
-        ],
-      ),
+      _tailing && _tailPaused
+          ? Stack(
+              children: [
+                Positioned.fill(child: editor),
+                Positioned(
+                  right: 18,
+                  bottom: 16,
+                  child: IdeTailJumpButton(onPressed: _resumeTail),
+                ),
+              ],
+            )
+          : editor,
     );
   }
 
