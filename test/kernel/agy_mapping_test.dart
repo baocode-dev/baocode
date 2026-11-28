@@ -299,6 +299,201 @@ void main() {
         },
       ]);
     });
+
+    test('run_workflow as Workflow', () {
+      final inline = claudeToolUse(
+        call({
+          'name': 'run_workflow',
+          'kind': 'other',
+          'rawInput': {
+            'Description': 'Fan out tests',
+            'Script': 'print("hi")',
+            'Cwd': '/repo',
+          },
+        }),
+      );
+      expect(inline.name, 'Workflow');
+      expect(inline.input, {
+        'name': 'Fan out tests',
+        'script': 'print("hi")',
+        'cwd': '/repo',
+      });
+
+      final fromPath = claudeToolUse(
+        call({
+          'name': 'run_workflow',
+          'rawInput': {'ScriptPath': '/repo/scripts/audit.py'},
+        }),
+      );
+      expect(fromPath.name, 'Workflow');
+      expect(fromPath.input, {
+        'name': 'audit.py',
+        'script': '/repo/scripts/audit.py',
+      });
+
+      final unnamed = claudeToolUse(
+        call({
+          'name': 'run_workflow',
+          'rawInput': {'Script': 'pass'},
+        }),
+      );
+      expect(unnamed.name, 'Workflow');
+      expect(unnamed.input, {'script': 'pass'});
+    });
+
+    test('manage_task as TaskOutput, TaskStop, or ManageTask', () {
+      final status = claudeToolUse(
+        call({
+          'name': 'manage_task',
+          'kind': 'execute',
+          'rawInput': {'Action': 'status', 'TaskId': 'task-1'},
+        }),
+      );
+      expect(status.name, 'TaskOutput');
+      expect(status.input, {'task_id': 'task-1'});
+
+      final kill = claudeToolUse(
+        call({
+          'name': 'manage_task',
+          'kind': 'execute',
+          'rawInput': {'Action': 'kill', 'TaskId': 'task-2'},
+        }),
+      );
+      expect(kill.name, 'TaskStop');
+      expect(kill.input, {'task_id': 'task-2'});
+
+      final list = claudeToolUse(
+        call({
+          'name': 'manage_task',
+          'rawInput': {'Action': 'list'},
+        }),
+      );
+      expect(list.name, 'ManageTask');
+      expect(list.input, {'action': 'list'});
+
+      final sendInput = claudeToolUse(
+        call({
+          'name': 'manage_task',
+          'rawInput': {
+            'Action': 'send_input',
+            'TaskId': 'task-3',
+            'Input': 'y\n',
+          },
+        }),
+      );
+      expect(sendInput.name, 'ManageTask');
+      expect(sendInput.input, {
+        'action': 'send_input',
+        'task_id': 'task-3',
+        'input': 'y\n',
+      });
+    });
+
+    test('schedule as Schedule', () {
+      final cron = claudeToolUse(
+        call({
+          'name': 'schedule',
+          'rawInput': {
+            'CronExpression': '*/5 * * * *',
+            'Prompt': 'Check build',
+            'IsDaemon': true,
+            'MaxIterations': 10,
+          },
+        }),
+      );
+      expect(cron.name, 'Schedule');
+      expect(cron.input, {
+        'cron': '*/5 * * * *',
+        'prompt': 'Check build',
+        'is_daemon': true,
+        'max_iterations': 10,
+      });
+
+      final timer = claudeToolUse(
+        call({
+          'name': 'schedule',
+          'rawInput': {
+            'DurationSeconds': 60,
+            'Prompt': 'Wake up',
+            'IsDaemon': false,
+            'TimerCondition': 'any',
+          },
+        }),
+      );
+      expect(timer.name, 'Schedule');
+      expect(timer.input, {
+        'duration_seconds': 60,
+        'prompt': 'Wake up',
+        'timer_condition': 'any',
+      });
+    });
+
+    test('manage_subagents and define_subagent', () {
+      final list = claudeToolUse(
+        call({
+          'name': 'manage_subagents',
+          'rawInput': {'Action': 'list'},
+        }),
+      );
+      expect(list.name, 'ManageSubagents');
+      expect(list.input, {'action': 'list'});
+
+      final kill = claudeToolUse(
+        call({
+          'name': 'manage_subagents',
+          'rawInput': {
+            'Action': 'kill',
+            'ConversationIds': ['conv-1', 'conv-2'],
+          },
+        }),
+      );
+      expect(kill.name, 'ManageSubagents');
+      expect(kill.input, {
+        'action': 'kill',
+        'conversation_ids': ['conv-1', 'conv-2'],
+      });
+
+      final define = claudeToolUse(
+        call({
+          'name': 'define_subagent',
+          'rawInput': {
+            'Name': 'reviewer',
+            'Description': 'Reviews diffs carefully',
+          },
+        }),
+      );
+      expect(define.name, 'DefineSubagent');
+      expect(define.input, {
+        'name': 'reviewer',
+        'description': 'Reviews diffs carefully',
+      });
+    });
+
+    test('list_resources and read_resource as McpResource', () {
+      final list = claudeToolUse(
+        call({
+          'name': 'list_resources',
+          'kind': 'read',
+          'rawInput': {'ServerName': 'docs'},
+        }),
+      );
+      expect(list.name, 'McpResource');
+      expect(list.input, {'action': 'list', 'server': 'docs'});
+
+      final read = claudeToolUse(
+        call({
+          'name': 'read_resource',
+          'kind': 'read',
+          'rawInput': {'ServerName': 'docs', 'Uri': 'docs://api/v1'},
+        }),
+      );
+      expect(read.name, 'McpResource');
+      expect(read.input, {
+        'action': 'read',
+        'server': 'docs',
+        'uri': 'docs://api/v1',
+      });
+    });
   });
 
   group('questions', () {

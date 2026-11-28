@@ -59,6 +59,23 @@ class SshStatusIndicator implements IdeRemoteIndicator {
         onTapRect: onChoose,
       );
     }
+    if (host.installingAgy case final installing?
+        when host.state == SshHostState.connected) {
+      return IdeStatusBarItem(
+        switch (installing.fraction) {
+          final fraction? => l10n.remoteStatusInstallingAgy(
+            kind,
+            name,
+            (fraction * 100).round(),
+          ),
+          // Its size not known yet: no 0% for what is under way.
+          null => l10n.remoteStatusInstallingAgyUnsized(kind, name),
+        },
+        icon: Codicons.sync,
+        tooltip: tooltip(agyInstallText(l10n, name, installing)),
+        onTapRect: onChoose,
+      );
+    }
     return switch (host.state) {
       SshHostState.connected => IdeStatusBarItem(
         l10n.remoteStatus(kind, name),
@@ -144,9 +161,26 @@ String claudeInstallText(
       : l10n.remoteInstallingClaudeProgress(host, percent);
 }
 
-/// Over the composer while Claude Code is being installed for the agent
-/// to start: on a remote project's host, or downloaded for this machine
-/// (see LocalClaude). Nothing otherwise.
+/// What installing Antigravity CLI on [host] is doing, for the user.
+String agyInstallText(
+  AppLocalizations l10n,
+  String host,
+  ClaudeInstallProgress progress,
+) {
+  host = RemoteLocation.hostName(host);
+  final percent = switch (progress.fraction) {
+    final fraction? => (fraction * 100).round(),
+    null => null,
+  };
+  if (percent == null) return l10n.remoteInstallingAgy(host);
+  return progress.uploading
+      ? l10n.remoteUploadingAgy(host, percent)
+      : l10n.remoteInstallingAgyProgress(host, percent);
+}
+
+/// Over the composer while Claude Code or Antigravity CLI is being installed
+/// for the agent to start: on a remote project's host, or downloaded for this
+/// machine (see LocalClaude). Nothing otherwise.
 class ClaudeInstallBanner extends StatelessWidget {
   const ClaudeInstallBanner({
     super.key,

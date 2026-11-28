@@ -102,10 +102,18 @@ class TurnUsage {
 /// writes (now while it does, else on average so far; null before it has
 /// written long enough to say).
 class TurnOutput {
-  const TurnOutput({required this.tokens, this.tokensPerSecond});
+  const TurnOutput({
+    required this.tokens,
+    this.tokensPerSecond,
+    this.estimatedTokensPerSecond,
+  });
 
   final int tokens;
   final double? tokensPerSecond;
+
+  /// Fallback estimated speed (shown as `~X tok/s`) before [tokensPerSecond]
+  /// has enough timed streaming span to sample.
+  final double? estimatedTokensPerSecond;
 }
 
 /// A picture sent with a message.

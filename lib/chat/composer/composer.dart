@@ -199,6 +199,9 @@ class ChatComposerState extends State<ChatComposer>
   /// The conversations the open @ offers, as they were when it was typed.
   List<Suggestion> _sessions = const [];
 
+  /// Swarm members the open @ offers, ahead of files, as they were when typed.
+  List<Suggestion> _members = const [];
+
   /// The stashes the open @ offers, after the files, as they were when it
   /// was typed.
   List<Suggestion> _stashes = const [];
@@ -208,6 +211,9 @@ class ChatComposerState extends State<ChatComposer>
     ...rankGroupedSuggestions(_stashes, query),
     ...rankGroupedSuggestions(_sessions, query),
   ];
+
+  List<SuggestionMatch> _rankMembers(String query) =>
+      rankGroupedSuggestions(_members, query);
 
   /// Whether the menu lists a mention's files and conversations or the
   /// commands: kept as it closes, for it to fade out as it was.
@@ -938,11 +944,13 @@ class ChatComposerState extends State<ChatComposer>
     // stays text.
     if (visible && trigger.kind == SuggestionKind.file) {
       if (!trigger.sameAnchor(_trigger)) {
+        _members = vocabulary.members?.call() ?? [];
         _sessions = vocabulary.sessions?.call() ?? [];
         _stashes = vocabulary.stashes?.call() ?? [];
       }
       visible =
           vocabulary.suggestFiles != null ||
+          _members.isNotEmpty ||
           _sessions.isNotEmpty ||
           _stashes.isNotEmpty;
     }
@@ -962,7 +970,10 @@ class ChatComposerState extends State<ChatComposer>
           !trigger!.sameAnchor(_trigger) || trigger.query != _trigger!.query;
       if (queryChanged) {
         if (trigger.kind == SuggestionKind.file) {
-          _matches = _rankOthers(trigger.query);
+          _matches = [
+            ..._rankMembers(trigger.query),
+            ..._rankOthers(trigger.query),
+          ];
           if (vocabulary.suggestFiles case final suggest?) {
             unawaited(_lookUpFiles(trigger, suggest));
           }
@@ -1007,6 +1018,7 @@ class ChatComposerState extends State<ChatComposer>
     }
     setState(() {
       _matches = [
+        ..._rankMembers(trigger.query),
         for (final suggestion in files)
           SuggestionMatch(
             suggestion,
@@ -1051,6 +1063,7 @@ class ChatComposerState extends State<ChatComposer>
     final vocabulary = ComposerVocabulary.read(context);
     final mentions =
         vocabulary.sessions != null ||
+        vocabulary.members != null ||
         vocabulary.suggestFiles != null ||
         vocabulary.stashes != null;
     for (var i = caret - 1; i >= 0; i--) {

@@ -105,13 +105,20 @@ void main() {
   ) async {
     await _pump(tester, _Feed(_turn(worked: const Duration(seconds: 65))));
 
-    expect(_text('Worked for 1m 5s · 1 file +1 -1'), findsOneWidget);
+    expect(
+      _text(
+        'Worked for 1m 5s · 1 file +1 -1 · read 2 files, searched 1 pattern · thought 3s',
+      ),
+      findsOneWidget,
+    );
     expect(_text('Done, fixed.'), findsOneWidget);
     expect(_text('Found it.'), findsNothing);
     expect(_text('main.dart'), findsNothing);
 
-    // Open: its words and edit, its run folded on its own.
+    // Open: its words and edit, its run folded on its own; work line drops
+    // the step tally so it does not repeat the child fold below.
     await _toggle(tester, find.byType(WorkFoldLine));
+    expect(_text('read 2 files'), findsNothing);
     expect(_text('Found it.'), findsOneWidget);
     expect(_text('main.dart'), findsOneWidget);
     expect(_text('b.dart'), findsOneWidget);
@@ -192,7 +199,10 @@ void main() {
       const AssistantTextItem('It was the needle.'),
     ], streaming: false);
     await tester.pump();
-    expect(_text('Worked for 9s'), findsOneWidget);
+    expect(
+      _text('Worked for 9s · read 1 file, searched 1 pattern · thought 2s'),
+      findsOneWidget,
+    );
     expect(_text('needle'), findsOneWidget, reason: 'in the answer only');
     expect(_text('It was the needle.'), findsOneWidget);
     expect(_text('Read 1 file'), findsNothing);
@@ -341,7 +351,7 @@ void main() {
     await tester.pump();
     expect(
       copied,
-      'Fix the bug\nWorked for 1m 5s · 1 file +1 -1\nDone, fixed.',
+      'Fix the bug\nWorked for 1m 5s · 1 file +1 -1 · read 2 files, searched 1 pattern · thought 3s\nDone, fixed.',
     );
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 }

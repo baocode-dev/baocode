@@ -203,6 +203,7 @@ class IdeListRow extends StatefulWidget {
     this.focusedItem,
     this.focused = false,
     this.keepSelectionActive = false,
+    this.paintSelection = true,
     this.height = IdeListColors.rowHeight,
     this.tooltip,
   });
@@ -223,6 +224,10 @@ class IdeListRow extends StatefulWidget {
   /// Keeps the active selection colors and outline when opening a row
   /// moves keyboard focus to its content.
   final bool keepSelectionActive;
+
+  /// Whether this row paints its own selection fill and outline; false while
+  /// a list's sliding selection highlight stands in for them.
+  final bool paintSelection;
   final double height;
   final String? tooltip;
 
@@ -277,6 +282,7 @@ class _IdeListRowState extends State<IdeListRow> {
     final focusedItem = widget.focusedItem ?? widget.selected;
     if ((widget.focused && focusedItem) ||
         (widget.selected && widget.keepSelectionActive)) {
+      if (!widget.paintSelection && widget.selected) return null;
       return widget.selected
           ? colors.get('list.focusAndSelectionOutline') ??
                 contrast ??
@@ -284,6 +290,7 @@ class _IdeListRowState extends State<IdeListRow> {
           : colors.get('list.focusOutline');
     }
     if (widget.selected) {
+      if (!widget.paintSelection) return null;
       return contrast ??
           (focusedItem ? colors.get('list.inactiveFocusOutline') : null);
     }
@@ -319,9 +326,11 @@ class _IdeListRowState extends State<IdeListRow> {
             decoration: BoxDecoration(
               borderRadius: radius,
               color: selected
-                  ? (widget.focused || widget.keepSelectionActive
-                        ? IdeListColors.activeSelection
-                        : IdeListColors.inactiveSelection)
+                  ? (widget.paintSelection
+                        ? (widget.focused || widget.keepSelectionActive
+                              ? IdeListColors.activeSelection
+                              : IdeListColors.inactiveSelection)
+                        : null)
                   : _hover
                   ? IdeListColors.hover
                   : null,

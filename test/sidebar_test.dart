@@ -2659,4 +2659,143 @@ void main() {
       );
     },
   );
+
+  testWidgets('switching the selected agent slides the highlight smoothly', (
+    tester,
+  ) async {
+    await pumpKept(
+      tester,
+      KeptCatalog([
+        kept('a1', '/tmp/a', 1),
+        kept('a2', '/tmp/a', 2),
+        kept('a3', '/tmp/a', 3),
+        kept('a4', '/tmp/a', 4),
+      ]),
+    );
+    Finder rowOf(String title) => find.ancestor(
+      of: inSidebar(find.text(title)),
+      matching: find.byType(IdeListRow),
+    );
+    final slideFill = inSidebar(
+      find.byKey(const ValueKey('sidebar.selectionSlide.fill')),
+    );
+    final slideOutline = inSidebar(
+      find.byKey(const ValueKey('sidebar.selectionSlide.outline')),
+    );
+
+    // Start settled on a1.
+    await tester.tap(inSidebar(find.text('Chat a1')));
+    await tester.pumpAndSettle();
+    expect(slideFill, findsNothing);
+    final topA1 = tester.getTopLeft(rowOf('Chat a1')).dy;
+    final topA4 = tester.getTopLeft(rowOf('Chat a4')).dy;
+    expect(topA4, greaterThan(topA1));
+
+    // Clicking a4 starts the slide at a1 and hides a4's static selection box.
+    await tester.tap(inSidebar(find.text('Chat a4')));
+    await tester.pump();
+    expect(slideFill, findsOneWidget);
+    expect(slideOutline, findsOneWidget);
+    expect(tester.widget<IdeListRow>(rowOf('Chat a4')).paintSelection, isFalse);
+    expect(tester.getTopLeft(slideFill).dy, closeTo(topA1, 0.5));
+
+    // Mid-animation, the highlight is between a1 and a4.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 60));
+    final midY = tester.getTopLeft(slideFill).dy;
+    expect(midY, greaterThan(topA1 + 1));
+    expect(midY, lessThan(topA4 - 1));
+
+    // Settled, the overlay disappears and a4 paints its own highlight again.
+    await tester.pumpAndSettle();
+    expect(slideFill, findsNothing);
+    expect(slideOutline, findsNothing);
+    expect(tester.widget<IdeListRow>(rowOf('Chat a4')).selected, isTrue);
+    expect(tester.widget<IdeListRow>(rowOf('Chat a4')).paintSelection, isTrue);
+  });
+
+  testWidgets('rapid keyboard navigation retargets the sliding highlight and '
+      'multi-select cancels it', (tester) async {
+    await pumpKept(
+      tester,
+      KeptCatalog([
+        kept('a1', '/tmp/a', 1),
+        kept('a2', '/tmp/a', 2),
+        kept('a3', '/tmp/a', 3),
+        kept('a4', '/tmp/a', 4),
+      ]),
+    );
+    Finder rowOf(String title) => find.ancestor(
+      of: inSidebar(find.text(title)),
+      matching: find.byType(IdeListRow),
+    );
+    final slideFill = inSidebar(
+      find.byKey(const ValueKey('sidebar.selectionSlide.fill')),
+    );
+
+    // Open a1 so the initial untouched chat is dismissed and a1 is row 0,
+    // then focus the sidebar list on a1.
+    await clickChat(tester, 'Chat a1');
+    await tester.pumpAndSettle();
+    await clickChat(tester, 'Chat a2', holding: multiSelectKey);
+    await tester.sendKeyEvent(LogicalKeyboardKey.home);
+    await tester.pumpAndSettle();
+    final topA1 = tester.getTopLeft(rowOf('Chat a1')).dy;
+    final topA2 = tester.getTopLeft(rowOf('Chat a2')).dy;
+    final topA4 = tester.getTopLeft(rowOf('Chat a4')).dy;
+
+    // Move down to a2, advance halfway, then press End to jump to a4.
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    final midFirst = tester.getTopLeft(slideFill).dy;
+    expect(midFirst, greaterThan(topA1));
+    expect(midFirst, lessThan(topA2));
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.end);
+    await tester.pump();
+    // Retargets from the in-flight position without snapping back to a1.
+    expect(tester.getTopLeft(slideFill).dy, closeTo(midFirst, 0.5));
+
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    final midSecond = tester.getTopLeft(slideFill).dy;
+    expect(midSecond, greaterThan(midFirst));
+    expect(midSecond, lessThan(topA4));
+
+    // Extending selection into multi-select immediately cancels the slide.
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.pump();
+    expect(slideFill, findsNothing);
+    expect(tester.widget<IdeListRow>(rowOf('Chat a3')).paintSelection, isTrue);
+    expect(tester.widget<IdeListRow>(rowOf('Chat a4')).paintSelection, isTrue);
+  });
+
+  testWidgets('selection slide respects reduced motion', (tester) async {
+    tester.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(
+      tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+    );
+    await pumpKept(
+      tester,
+      KeptCatalog([kept('a1', '/tmp/a', 1), kept('a2', '/tmp/a', 2)]),
+    );
+    final slideFill = inSidebar(
+      find.byKey(const ValueKey('sidebar.selectionSlide.fill')),
+    );
+    await tester.tap(inSidebar(find.text('Chat a1')));
+    await tester.pump();
+    await tester.tap(inSidebar(find.text('Chat a2')));
+    await tester.pump();
+    expect(slideFill, findsNothing);
+    final rowA2 = find.ancestor(
+      of: inSidebar(find.text('Chat a2')),
+      matching: find.byType(IdeListRow),
+    );
+    expect(tester.widget<IdeListRow>(rowA2).paintSelection, isTrue);
+  });
 }

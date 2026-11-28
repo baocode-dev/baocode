@@ -44,6 +44,18 @@ Future<void> main(List<String> arguments) async {
       ),
     );
   }
+  if (arguments.firstOrNull == ServerAgy.agyCommand) {
+    exit(
+      await runAgyCommandLine(
+        arguments.sublist(1),
+        input: stdin,
+        output: stdout,
+        errors: stderr,
+        cwd: Directory.current.path,
+        environment: Platform.environment,
+      ),
+    );
+  }
   if (arguments.firstOrNull == ServerCli.cliArgument) {
     final code = await runCodeCommand(
       arguments.sublist(1),

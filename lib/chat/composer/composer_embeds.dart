@@ -488,6 +488,7 @@ class ComposerTokenEmbed {
     return switch (token.kind) {
       SuggestionKind.command => '/${token.value}',
       SuggestionKind.session => sessionReferenceText(token.value, token.label),
+      SuggestionKind.member => '@${token.value}',
       _ => fileReferenceText(
         token.value,
         directory: token.kind == SuggestionKind.folder,
@@ -690,12 +691,16 @@ class ComposerVocabulary extends InheritedWidget {
     required this.commands,
     this.suggestFiles,
     this.sessions,
+    this.members,
     this.stashes,
     this.stash,
     required super.child,
   });
 
   final List<Suggestion> commands;
+
+  /// Swarm members `@` offers ([Suggestion.member]s), listed ahead of files.
+  final List<Suggestion> Function()? members;
 
   /// The stashes `@` offers ([Suggestion.stash]s), listed after the files;
   /// none without it.
@@ -730,6 +735,7 @@ class ComposerVocabulary extends InheritedWidget {
   bool updateShouldNotify(ComposerVocabulary oldWidget) =>
       !identical(commands, oldWidget.commands) ||
       (sessions == null) != (oldWidget.sessions == null) ||
+      (members == null) != (oldWidget.members == null) ||
       (stashes == null) != (oldWidget.stashes == null) ||
       (suggestFiles == null) != (oldWidget.suggestFiles == null);
 }
@@ -823,6 +829,21 @@ String composerContentFromPaste(
     }
     final atBoundary = i == 0 || text[i - 1].trim().isEmpty;
     if (text[i] == '@' && atBoundary) {
+      if (vocabulary.members?.call() case final members?
+          when members.isNotEmpty) {
+        var matched = false;
+        for (final member in longestFirst(members)) {
+          if (text.startsWith(member.value, i + 1) &&
+              endsAt(i + 1 + member.value.length)) {
+            flush();
+            content.write(ComposerTokenEmbed.fromSuggestion(member).atom);
+            i = i + 1 + member.value.length;
+            matched = true;
+            break;
+          }
+        }
+        if (matched) continue;
+      }
       if (parseFileReference(text, i) case (
         :final path,
         :final directory,
@@ -962,6 +983,14 @@ class ComposerTokenChip extends StatelessWidget {
               SuggestionKind.stash => Text(
                 token.label,
                 style: TextStyle(color: AppColors.text, fontSize: 12),
+              ),
+              SuggestionKind.member => Text(
+                token.label,
+                style: TextStyle(
+                  color: AppColors.accent,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
               SuggestionKind.session => Row(
                 mainAxisSize: MainAxisSize.min,

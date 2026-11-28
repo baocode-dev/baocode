@@ -20,12 +20,16 @@ import '../../models/model_runtime.dart';
 import '../../remote/port_forwards.dart';
 import '../../remote/remote_claude.dart' show remoteCoreOf;
 import '../../remote/remote_location.dart';
+import '../../remote/ssh_host.dart' show SshHosts;
 import '../../settings/user_settings.dart';
+import '../../swarm/swarm_model.dart';
+import '../../swarm/swarm_watcher.dart';
 import '../../usage/agy_usage_meter.dart';
 import '../../usage/claude_usage_meter.dart';
 import '../../usage/usage_ledger.dart';
 import '../../workspace/editor_launcher.dart' show openExternal;
 import '../agent_kernel.dart';
+import '../antigravity/agy_runtime.dart' show agyLocalBrainDir;
 import '../commit_attribution.dart';
 import '../extension_switches.dart';
 import '../kernel_event.dart';
@@ -1217,7 +1221,8 @@ class ClaudeCodeKernel
       usage = TurnUsage(
         inputTokens: usage.inputTokens,
         outputTokens: usage.outputTokens,
-        tokensPerSecond: _translator.averageSpeed,
+        tokensPerSecond:
+            _translator.averageSpeed ?? _translator.estimatedSpeed,
         costUsd: usage.costUsd,
       );
     }
@@ -2100,6 +2105,25 @@ class ClaudeCodeKernel
           commands: _commandsFrom(message['commands']),
         );
         emitInfoChanged();
+      case 'system' when message['subtype'] == 'swarm_update':
+        if (message['swarm'] case final Map<Object?, Object?> raw) {
+          final snapshot = SwarmSnapshot.fromJson(raw.cast<String, Object?>());
+          _translator.applySwarm(snapshot);
+          emit(SwarmReported(nextSeq, snapshot));
+        }
+      case 'system' when message['subtype'] == 'subagent_transcript':
+        if (message['tool_use_id'] case final String toolUseId
+            when toolUseId.isNotEmpty) {
+          final rawSteps = message['steps'] as List? ?? const [];
+          final steps = [
+            for (final raw in rawSteps)
+              if (raw is Map)
+                SwarmWorkerStep.fromJson(raw.cast<String, Object?>()),
+          ];
+          if (steps.isNotEmpty) {
+            _translator.applySubagentTranscript(toolUseId, steps);
+          }
+        }
       case 'system' when message['subtype'] == 'context_usage':
         if (message['usage'] case final Map<Object?, Object?> usage) {
           _applyContextUsage(
@@ -3094,6 +3118,55 @@ class ClaudeCodeKernel
 
   // --- History ------------------------------------------------------------------------
 
+  static final _subagentConvIdPattern = RegExp(
+    r'conversation_?id["\s:=]+([0-9a-f-]{36})',
+    caseSensitive: false,
+  );
+
+  static void _collectAgentToolUseIds(
+    Map<String, Object?> line,
+    Set<String> ids,
+  ) {
+    final content = (line['message'] as Map?)?['content'];
+    if (content is! List) return;
+    for (final block in content) {
+      if (block case {
+        'type': 'tool_use',
+        'id': final String id,
+        'name': 'Agent' || 'Task',
+      } when id.isNotEmpty) {
+        ids.add(id);
+      }
+    }
+  }
+
+  static void _collectSubagentConvIds(
+    Map<String, Object?> line,
+    Set<String> agentToolUseIds,
+    Map<String, String> convIds,
+  ) {
+    final content = (line['message'] as Map?)?['content'];
+    if (content is! List) return;
+    for (final block in content) {
+      if (block case {
+        'type': 'tool_result',
+        'tool_use_id': final String id,
+      } when agentToolUseIds.contains(id)) {
+        final text = switch (block['content']) {
+          final String s => s,
+          final List blocks => [
+            for (final b in blocks)
+              if (b case {'type': 'text', 'text': final String t}) t,
+          ].join('\n'),
+          _ => '',
+        };
+        if (_subagentConvIdPattern.firstMatch(text) case final m?) {
+          convIds[id] = m[1]!;
+        }
+      }
+    }
+  }
+
   Future<void> _replay(ClaudeHistoryPager read, SessionRecord session) async {
     // Read in the constructor, before anyone listens: seen when asked.
     _loadingHistory = true;
@@ -3108,8 +3181,22 @@ class ClaudeCodeKernel
         ..keptTurns = kept;
       var counted = false;
       var whole = page.earlier == null;
+      String? agySessionId;
+      final agentToolUseIds = <String>{};
+      final subagentConvIds = <String, String>{};
       for (final line in page.entries) {
-        if (line['type'] == 'assistant') counted |= _countRequest(line);
+        if (line['type'] == 'assistant') {
+          counted |= _countRequest(line);
+          _collectAgentToolUseIds(line, agentToolUseIds);
+        } else if (line['type'] == 'user') {
+          _collectSubagentConvIds(line, agentToolUseIds, subagentConvIds);
+        }
+        if (line case {
+          'type': 'antigravity-session',
+          'agySessionId': final String id,
+        }) {
+          agySessionId = id;
+        }
         _results.add(line);
         // What the model told before it is no longer what it holds.
         if (line case {'type': 'system', 'subtype': 'compact_boundary'}) {
@@ -3117,6 +3204,54 @@ class ClaudeCodeKernel
           whole = true;
         }
         _translator.translate(line);
+      }
+      if (agySessionId != null) {
+        const maxSteps = 120;
+        if (RemoteLocation.hostOf(_cwd) case final host?) {
+          try {
+            final client = await SshHosts.instance[host].ready;
+            if (_disposed) return;
+            final restored = await client.agySwarmSnapshot(agySessionId);
+            if (_disposed) return;
+            if (restored != null) {
+              _translator.applySwarm(restored);
+              emit(SwarmReported(nextSeq, restored));
+            }
+            for (final MapEntry(key: toolUseId, value: convId)
+                in subagentConvIds.entries) {
+              final steps = await client.agySwarmTranscript(convId);
+              if (_disposed) return;
+              if (steps.isNotEmpty) {
+                final recent = steps.length > maxSteps
+                    ? steps.sublist(steps.length - maxSteps)
+                    : steps;
+                _translator.applySubagentTranscript(toolUseId, recent);
+              }
+            }
+          } on Object {
+            // Remote host unreachable or older server: do not block history.
+          }
+        } else {
+          final brainDir = agyLocalBrainDir();
+          if (brainDir != null) {
+            final restored = readSwarmSnapshotSync(brainDir, agySessionId);
+            if (restored != null) {
+              _translator.applySwarm(restored);
+              emit(SwarmReported(nextSeq, restored));
+            }
+            for (final MapEntry(key: toolUseId, value: convId)
+                in subagentConvIds.entries) {
+              final steps = await readSwarmWorkerTranscript(brainDir, convId);
+              if (_disposed) return;
+              if (steps.isNotEmpty) {
+                final recent = steps.length > maxSteps
+                    ? steps.sublist(steps.length - maxSteps)
+                    : steps;
+                _translator.applySubagentTranscript(toolUseId, recent);
+              }
+            }
+          }
+        }
       }
       if (whole) {
         _resultsKnown = true;
@@ -3395,7 +3530,7 @@ class ClaudeCodeKernel
   bool get _builtinOffered => _builtinAvailable && !_providers.builtinHidden;
 
   /// The provider and model [ref] picks if offered in this session
-  /// (Antigravity ACP models are local-only: see [_agyOffered]).
+  /// (see [_agyOffered]).
   (ModelProvider, ProviderModel)? _resolveCustom(String? ref) {
     final resolved = _providers.resolve(ref);
     if (resolved == null) return null;
@@ -3430,12 +3565,10 @@ class ClaudeCodeKernel
     null => false,
   };
 
-  /// Whether Antigravity's models are offered here: on this machine's
-  /// projects, not over SSH; not to a bot, which works unwatched.
+  /// Whether Antigravity's models are offered here: on both local and SSH
+  /// projects, excluding unwatched bots.
   bool get _agyOffered =>
-      !RemoteLocation.isRemote(_cwd) &&
-      _workspace?.tools == null &&
-      !(_workspace?.approvesAll ?? false);
+      _workspace?.tools == null && !(_workspace?.approvesAll ?? false);
 
   /// What a session on [model] is started on: '' for Claude Code as the
   /// user set it up, else the provider and its setup.

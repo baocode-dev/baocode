@@ -52,14 +52,22 @@ class _AgySettingsGroupState extends State<AgySettingsGroup> {
   }
 
   Future<void> _load() async {
-    final version = await _runtime.version();
-    if (!mounted) return;
-    setState(() {
-      _version = version;
-      _read = true;
-    });
-    unawaited(_checkLatest());
-    if (version != null) await _list();
+    try {
+      final version = await _runtime.version();
+      if (!mounted) return;
+      setState(() {
+        _version = version;
+        _read = true;
+      });
+      unawaited(_checkLatest());
+      if (version != null) await _list();
+    } on Object catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _read = true;
+        _error = '$error';
+      });
+    }
   }
 
   Future<void> _checkLatest() async {

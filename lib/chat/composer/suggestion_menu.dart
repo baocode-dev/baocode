@@ -293,6 +293,8 @@ class _SuggestionRow extends StatelessWidget {
                     _ => Icon(
                       suggestion.kind == SuggestionKind.session
                           ? Icons.chat_bubble_outline_rounded
+                          : suggestion.kind == SuggestionKind.member
+                          ? Icons.alternate_email_rounded
                           : suggestion.icon,
                       size: 14,
                       color: highlighted

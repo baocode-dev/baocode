@@ -20,6 +20,7 @@ class AgentMessageCard extends StatefulWidget {
     required this.agent,
     required this.text,
     this.session,
+    this.onOpen,
   });
 
   /// The subagent: what it was given to do, else its id; or the
@@ -29,6 +30,10 @@ class AgentMessageCard extends StatefulWidget {
 
   /// The conversation's id ([SessionLinkHost]), for one that sent it.
   final String? session;
+
+  /// Opens the subagent's own view (e.g. a swarm worker's [SubagentFeed]) when
+  /// clicked, where [session] is null.
+  final VoidCallback? onOpen;
 
   /// Past this many lines or characters, it folds.
   static const foldLines = 8;
@@ -54,7 +59,10 @@ class _AgentMessageCardState extends State<AgentMessageCard> {
     final links = SessionLinks.of(context);
     final session = widget.session;
     final opens = links != null && session != null;
-    final folds = session != null && _long;
+    final VoidCallback? openName = opens
+        ? () => links.open(session)
+        : widget.onOpen;
+    final folds = _long;
     Widget name = Text(
       widget.agent,
       maxLines: 1,
@@ -65,14 +73,14 @@ class _AgentMessageCardState extends State<AgentMessageCard> {
         fontWeight: FontWeight.w500,
       ),
     );
-    if (opens) {
+    if (openName != null) {
       name = Semantics(
         button: true,
-        hint: l10n.sessionOpen,
+        hint: opens ? l10n.sessionOpen : l10n.chatOpensItsConversation,
         child: HoverBuilder(
           cursor: SystemMouseCursors.click,
           builder: (context, hovered) => GestureDetector(
-            onTap: () => links.open(session),
+            onTap: openName,
             child: Text(
               widget.agent,
               maxLines: 1,

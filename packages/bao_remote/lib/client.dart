@@ -3,6 +3,23 @@
 library;
 
 export 'protocol.dart';
+export 'src/acp/agy_release.dart' show AgyBuild, AgyRelease;
+export 'src/acp/agy_runtime.dart' show AgyModel, AgyUnavailable;
+export 'src/acp/swarm_model.dart'
+    show
+        SwarmAttention,
+        SwarmChannel,
+        SwarmEdge,
+        SwarmMember,
+        SwarmMemberRole,
+        SwarmMemberStatus,
+        SwarmMessage,
+        SwarmOverviewData,
+        SwarmPlan,
+        SwarmPlanThread,
+        SwarmSnapshot,
+        SwarmWorkerStep,
+        SwarmWorkstream;
 export 'src/claude/claude_release.dart' show ClaudeBuild, ClaudeRelease;
 export 'src/client/remote_client.dart';
 export 'src/client/remote_process.dart';

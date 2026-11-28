@@ -1,4 +1,5 @@
 import '../chat/chat_models.dart';
+import '../swarm/swarm_model.dart';
 import 'kernel_types.dart';
 
 /// What a kernel reports, translated from its own protocol by its adapter.
@@ -187,6 +188,13 @@ final class GoalReported extends KernelEvent {
   const GoalReported(super.seq, this.goal);
 
   final KernelGoal? goal;
+}
+
+/// The session's Antigravity native swarm snapshot; null with none.
+final class SwarmReported extends KernelEvent {
+  const SwarmReported(super.seq, this.swarm);
+
+  final SwarmSnapshot? swarm;
 }
 
 final class StatsReported extends KernelEvent {

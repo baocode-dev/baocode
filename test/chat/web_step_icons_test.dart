@@ -206,6 +206,55 @@ void main() {
         FoldWebSiteIcon(Uri.parse('https://pub.dev')),
       ]);
     });
+
+    test('includes browser icon for local/tab actions and site favicons for public URLs', () {
+      expect(
+        foldWebIcons(const [
+          ToolCallItem(
+            kind: ToolKind.browser,
+            tool: 'browser_open',
+            target: 'localhost:3000',
+            input: {'url': 'http://localhost:3000'},
+          ),
+          ToolCallItem(
+            kind: ToolKind.browser,
+            tool: 'browser_click',
+            target: 'Submit',
+          ),
+        ]),
+        [const FoldWebBrowserIcon()],
+      );
+
+      final withSite = foldWebIcons(const [
+        ToolCallItem(
+          kind: ToolKind.browser,
+          tool: 'browser_tabs',
+          target: '',
+        ),
+        ToolCallItem(
+          kind: ToolKind.browser,
+          tool: 'browser_open',
+          target: 'github.com/flutter/flutter',
+          input: {'url': 'https://github.com/flutter/flutter'},
+        ),
+        ToolCallItem(
+          kind: ToolKind.browser,
+          tool: 'browser_snapshot',
+          target: 'Flutter',
+          output: 'Title: Flutter\nURL: https://docs.flutter.dev/ui\nElements:',
+        ),
+        ToolCallItem(
+          kind: ToolKind.browser,
+          tool: 'browser_click',
+          target: 'Docs',
+        ),
+      ]);
+      expect(withSite, [
+        FoldWebSiteIcon(Uri.parse('https://github.com/flutter/flutter')),
+        FoldWebSiteIcon(Uri.parse('https://docs.flutter.dev/ui')),
+      ]);
+      expect((withSite.first as FoldWebSiteIcon).fromBrowser, isTrue);
+    });
   });
 
   group('ToolCallRow web icons', () {
@@ -463,6 +512,49 @@ void main() {
         ),
         findsNothing,
       );
+    });
+
+    testWidgets('only requests favicons for the first max visible badges', (
+      tester,
+    ) async {
+      final requested = <String>[];
+      SiteIcons.current = SiteIcons(
+        library: IconLibrary(),
+        fetch: (site, _) async {
+          requested.add(site.host);
+          return null;
+        },
+      );
+
+      final webIcons = <FoldWebIcon>[
+        for (var i = 0; i < 10; i++)
+          FoldWebSiteIcon(Uri.parse('https://site$i.example')),
+      ];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildAppTheme(),
+          home: Scaffold(
+            body: WorkFoldLine(
+              worked: const Duration(seconds: 20),
+              edits: (files: 0, added: 0, removed: 0),
+              webIcons: webIcons,
+              expanded: false,
+              onToggle: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(requested, [
+        'site0.example',
+        'site1.example',
+        'site2.example',
+        'site3.example',
+        'site4.example',
+      ]);
+      expect(find.text('+5'), findsOneWidget);
     });
   });
 }

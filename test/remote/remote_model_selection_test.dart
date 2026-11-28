@@ -73,8 +73,7 @@ void main() {
   );
 
   test('SSH host on Automatic/CLI keeps Claude Code builtin models, Plan mode, '
-      'and Approve for me even when local core is built-in and Antigravity is '
-      'added', () {
+      'and Approve for me while also offering Antigravity ACP', () {
     final providers = ModelProviders.memory(
       providers: [agyProvider, antigravityApiProvider],
     );
@@ -90,22 +89,22 @@ void main() {
       kernel.model.options.any((o) => o.group?.id == builtinProviderId),
       isTrue,
     );
-    // Antigravity ACP is excluded on SSH; API upstream remains available.
+    // Both Antigravity ACP and API upstreams are available on SSH.
     expect(
       kernel.model.options.any((o) => o.group?.id == agyProvider.id),
-      isFalse,
+      isTrue,
     );
     expect(
       kernel.model.options.any((o) => o.group?.id == antigravityApiProvider.id),
       isTrue,
     );
-    // Both Plan mode and Approve for me ("auto") stay available.
+    // Both Plan mode and Approve for me ("auto") stay available on Claude Code.
     expect(kernel.mode.options.map((o) => o.id), contains('plan'));
     expect(kernel.permission.options.map((o) => o.id), contains('auto'));
   });
 
-  test('SSH project ignores a remembered Antigravity ACP model from a local '
-      'session and falls back to remote Claude Code', () {
+  test('SSH project preserves a remembered Antigravity ACP model and still '
+      'offers remote Claude Code with Plan and auto mode', () {
     final providers = ModelProviders.memory(providers: [agyProvider]);
     final kernel = makeKernel(
       cwd: RemoteLocation.of('cli-host', '/home/me/app'),
@@ -116,13 +115,24 @@ void main() {
     );
     addTearDown(kernel.dispose);
 
+    expect(
+      kernel.model.selected,
+      modelRef(agyProvider.id, 'gemini-3-pro'),
+    );
+    expect(
+      kernel.model.options.any((o) => o.group?.id == builtinProviderId),
+      isTrue,
+    );
+    expect(kernel.mode.options.map((o) => o.id), isNot(contains('plan')));
+
+    kernel.model.select('default');
     expect(kernel.model.selected, 'default');
     expect(kernel.mode.options.map((o) => o.id), contains('plan'));
     expect(kernel.permission.options.map((o) => o.id), contains('auto'));
   });
 
   test('SSH host forced to built-in core does not offer remote Claude Code '
-      'and skips Antigravity ACP when picking the first upstream model', () {
+      'and offers Antigravity ACP alongside custom API models', () {
     final providers = ModelProviders.memory(
       providers: [agyProvider, customApiProvider],
     );
@@ -137,14 +147,22 @@ void main() {
       isFalse,
     );
     expect(
+      kernel.model.options.any((o) => o.group?.id == agyProvider.id),
+      isTrue,
+    );
+    expect(
+      kernel.model.options.any((o) => o.group?.id == customApiProvider.id),
+      isTrue,
+    );
+    expect(
       kernel.model.selected,
-      modelRef(customApiProvider.id, 'deepseek-chat'),
+      modelRef(agyProvider.id, 'gemini-3-pro'),
     );
     expect(kernel.permission.options.map((o) => o.id), isNot(contains('auto')));
   });
 
-  test('SSH host forced to built-in core with only Antigravity ACP has no '
-      'runnable model', () {
+  test('SSH host forced to built-in core with only Antigravity ACP selects '
+      'Antigravity ACP', () {
     final providers = ModelProviders.memory(providers: [agyProvider]);
     final kernel = makeKernel(
       cwd: RemoteLocation.of('builtin-host', '/home/me/app'),
@@ -152,8 +170,11 @@ void main() {
     );
     addTearDown(kernel.dispose);
 
-    expect(kernel.model.selected, isNull);
-    expect(kernel.model.options, isEmpty);
+    expect(
+      kernel.model.selected,
+      modelRef(agyProvider.id, 'gemini-3-pro'),
+    );
+    expect(kernel.model.options, isNotEmpty);
   });
 
   test('local project on built-in core still uses Antigravity ACP normally',

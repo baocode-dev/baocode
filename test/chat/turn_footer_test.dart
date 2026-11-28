@@ -307,6 +307,23 @@ void main() {
     await tester.pump();
     expect(find.text('¥1.50'), findsOneWidget);
   });
+
+  testWidgets('live TurnFooter shows ~estimated tok/s when exact speed is not sampled yet', (tester) async {
+    await _pump(
+      tester,
+      TurnFooter(
+        live: const TurnOutput(tokens: 70, estimatedTokensPerSecond: 68.4),
+        since: DateTime.now().subtract(const Duration(seconds: 22)),
+      ),
+    );
+    expect(find.byType(RollingText), findsNWidgets(3));
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is RollingText && w.text == '~68.4 tok/s',
+      ),
+      findsOneWidget,
+    );
+  });
 }
 
 class _TestCli implements ClaudeCodeTransport {

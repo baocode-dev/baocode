@@ -4,6 +4,8 @@ import 'agy_runtime.dart';
 /// No processes here (the web): agy never runs.
 AgyRuntime localAgyRuntime() => const _NoAgy();
 
+String? localAgyBrainDir() => null;
+
 class _NoAgy implements AgyRuntime {
   const _NoAgy();
 

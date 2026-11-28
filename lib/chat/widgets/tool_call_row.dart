@@ -23,6 +23,15 @@ const speakIcon = 'assets/icons/speak-ai-line.svg';
 /// An MCP tool call's icon (Simple Icons' modelcontextprotocol).
 const mcpIcon = 'assets/icons/mcp.svg';
 
+/// Structured tool step icons (Phosphor regular).
+const defineSubagentIcon = 'assets/icons/ph-sparkle.svg';
+const subagentsIcon = 'assets/icons/ph-users-three.svg';
+const stopTaskIcon = 'assets/icons/ph-stop-circle.svg';
+const backgroundTaskIcon = 'assets/icons/ph-terminal-window.svg';
+const taskInputIcon = 'assets/icons/ph-arrow-elbow-down-right.svg';
+const scheduleCronIcon = 'assets/icons/ph-clock-clockwise.svg';
+const scheduleTimerIcon = 'assets/icons/ph-hourglass-simple.svg';
+
 /// A todo's mark by its status (Remix Icon's): done, in progress, to do.
 const todoDoneIcon = 'assets/icons/checkbox-circle-fill.svg';
 const todoDoingIcon = 'assets/icons/progress-4-line.svg';
@@ -148,6 +157,15 @@ class ToolCallRow extends StatelessWidget {
     final todo = kind == ToolKind.todo
         ? todoStep(tool, input, target, output: output, l10n: context.l10n)
         : null;
+    final localized = todo == null
+        ? localizedToolStep(
+            tool,
+            input,
+            target,
+            status: status,
+            l10n: context.l10n,
+          )
+        : null;
     final isWebSearch =
         kind == ToolKind.web && isWebSearchTool(tool: tool, target: target);
     final fetchSite = kind == ToolKind.web && !isWebSearch
@@ -173,10 +191,11 @@ class ToolCallRow extends StatelessWidget {
           );
     Widget buildHeader(Widget? icon) => StepHeader(
       verb:
-          label ??
+          localized?.verb ??
           todo?.verb ??
+          label ??
           toolVerb(kind, status: status, l10n: context.l10n),
-      object: todo?.object ?? target,
+      object: localized?.object ?? todo?.object ?? target,
       detail: todo?.detail ?? detail,
       running: _running,
       expanded: expanded,
@@ -229,8 +248,10 @@ class ToolCallRow extends StatelessWidget {
             ToolKind.web => webSearchGlobe(),
             // Claude Code's ToolSearch loads tools' definitions, MCP tools'
             // mostly: it wears their mark too.
-            ToolKind.mcp || ToolKind.search
-                when kind == ToolKind.mcp || tool == 'ToolSearch' =>
+            ToolKind.mcp || ToolKind.search || ToolKind.read
+                when kind == ToolKind.mcp ||
+                    tool == 'ToolSearch' ||
+                    tool == 'McpResource' =>
               SvgPicture.asset(
                 mcpIcon,
                 width: 13,
@@ -240,7 +261,7 @@ class ToolCallRow extends StatelessWidget {
                   BlendMode.srcIn,
                 ),
               ),
-            _ => null,
+            _ => _toolStepIcon(tool, input),
           });
     // A file read or edit shows only its name: the whole path on hover.
     if ((kind == ToolKind.read || kind == ToolKind.edit) && path != null) {
@@ -281,6 +302,36 @@ class ToolCallRow extends StatelessWidget {
   /// The theme's for an event: warm, standing out without the warning's
   /// mustard.
   static Color get _amber => themeColors['symbolIcon.eventForeground'];
+
+  static Widget? _toolStepIcon(String? tool, Map<String, Object?> input) {
+    final asset = switch (tool) {
+      'DefineSubagent' => defineSubagentIcon,
+      'ManageSubagents' => switch (input['action']) {
+        'kill' || 'kill_all' => stopTaskIcon,
+        _ => subagentsIcon,
+      },
+      'BashOutput' || 'TaskOutput' => backgroundTaskIcon,
+      'KillShell' || 'KillBash' || 'TaskStop' => stopTaskIcon,
+      'ManageTask' => switch (input['action']) {
+        'send_input' => taskInputIcon,
+        _ => backgroundTaskIcon,
+      },
+      'Schedule' =>
+        (input['cron'] is String && (input['cron'] as String).trim().isNotEmpty)
+            ? scheduleCronIcon
+            : (input['duration_seconds'] != null
+                  ? scheduleTimerIcon
+                  : scheduleCronIcon),
+      _ => null,
+    };
+    if (asset == null) return null;
+    return SvgPicture.asset(
+      asset,
+      width: 14,
+      height: 14,
+      colorFilter: ColorFilter.mode(AppColors.textMuted, BlendMode.srcIn),
+    );
+  }
 
   Widget _pathTooltip(BuildContext context) {
     final lines = switch (detail) {
@@ -537,6 +588,108 @@ final _taskLine = RegExp(r'^#\S+ \[(\w+)\] (.+)$');
     _ => null,
   };
   return verb == null ? null : (verb: verb, object: target, detail: null);
+}
+
+/// Localized verb & object for structured tools whose labels come from
+/// [ClaudeTranslator] (keeping English defaults in the kernel while adapting
+/// to [l10n] in the UI).
+({String verb, String object})? localizedToolStep(
+  String? tool,
+  Map<String, Object?> input,
+  String target, {
+  required ToolStatus status,
+  AppLocalizations? l10n,
+}) {
+  if (tool == null) return null;
+  final s = l10n ?? englishLocalizations;
+  final running = status == ToolStatus.running;
+  switch (tool) {
+    case 'BashOutput' || 'TaskOutput':
+      return (
+        verb: running ? s.toolReadingOutput : s.toolReadOutput,
+        object: target,
+      );
+    case 'KillShell' || 'KillBash' || 'TaskStop':
+      return (
+        verb: running ? s.toolStopping : s.toolStopped,
+        object: target,
+      );
+    case 'ManageTask':
+      final action = input['action'] as String? ?? '';
+      return (
+        verb: switch (action) {
+          'list' => running ? s.toolListingTasks : s.toolListedTasks,
+          'send_input' =>
+            running ? s.toolSendingTaskInput : s.toolSentTaskInput,
+          _ => running ? s.toolManagingTask : s.toolManagedTask,
+        },
+        object: target,
+      );
+    case 'Schedule':
+      final cron = (input['cron'] as String?)?.trim();
+      final isDaemon = input['is_daemon'] == true;
+      final hasDuration = input['duration_seconds'] != null;
+      if (cron != null && cron.isNotEmpty) {
+        return (
+          verb: running ? s.toolSchedulingCron : s.toolScheduledCron,
+          object: isDaemon ? '$cron · ${s.toolScheduleDaemon}' : cron,
+        );
+      }
+      if (hasDuration) {
+        return (
+          verb: running ? s.toolSettingTimer : s.toolSetTimer,
+          object: target,
+        );
+      }
+      return (
+        verb: running ? s.toolScheduling : s.toolScheduled,
+        object: target,
+      );
+    case 'ManageSubagents':
+      final action = input['action'] as String? ?? '';
+      final rawIds = input['conversation_ids'];
+      final ids = rawIds is List
+          ? [
+              for (final raw in rawIds)
+                if ('$raw'.trim().isNotEmpty) '$raw'.trim(),
+            ]
+          : const <String>[];
+      final object = switch (action) {
+        'kill' when ids.length == 1 => ids.single,
+        'kill' when ids.length > 1 => s.toolSubagentCount(ids.length),
+        _ => target,
+      };
+      return (
+        verb: switch (action) {
+          'list' => running ? s.toolListingSubagents : s.toolListedSubagents,
+          'kill' => running ? s.toolStoppingSubagent : s.toolStoppedSubagent,
+          'kill_all' =>
+            running ? s.toolStoppingAllSubagents : s.toolStoppedAllSubagents,
+          _ => running ? s.toolManagingSubagents : s.toolManagedSubagents,
+        },
+        object: object,
+      );
+    case 'DefineSubagent':
+      return (
+        verb: running ? s.toolDefiningSubagent : s.toolDefinedSubagent,
+        object: target,
+      );
+    case 'McpResource':
+      final action = input['action'] as String? ?? '';
+      return (
+        verb: switch (action) {
+          'read' =>
+            running ? s.toolReadingMcpResource : s.toolReadMcpResource,
+          'list' =>
+            running ? s.toolListingMcpResources : s.toolListedMcpResources,
+          _ =>
+            running ? s.toolAccessingMcpResource : s.toolAccessedMcpResource,
+        },
+        object: target,
+      );
+    default:
+      return null;
+  }
 }
 
 /// What a kind of tool call did, or does while running, as its [status]

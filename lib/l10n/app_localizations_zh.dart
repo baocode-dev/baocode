@@ -2465,6 +2465,110 @@ class AppLocalizationsZh extends AppLocalizations {
   String get toolProposedGoal => '提议目标';
 
   @override
+  String get toolReadingOutput => '正在读取输出';
+
+  @override
+  String get toolReadOutput => '已读取输出';
+
+  @override
+  String get toolStopping => '正在停止';
+
+  @override
+  String get toolStopped => '已停止';
+
+  @override
+  String get toolListingTasks => '正在列出后台任务';
+
+  @override
+  String get toolListedTasks => '已列出后台任务';
+
+  @override
+  String get toolSendingTaskInput => '正在向任务发送输入';
+
+  @override
+  String get toolSentTaskInput => '已向任务发送输入';
+
+  @override
+  String get toolManagingTask => '正在管理任务';
+
+  @override
+  String get toolManagedTask => '已管理任务';
+
+  @override
+  String get toolSchedulingCron => '正在创建定时任务';
+
+  @override
+  String get toolScheduledCron => '已创建定时任务';
+
+  @override
+  String get toolSettingTimer => '正在设置计时器';
+
+  @override
+  String get toolSetTimer => '已设置计时器';
+
+  @override
+  String get toolScheduling => '正在调度';
+
+  @override
+  String get toolScheduled => '已调度';
+
+  @override
+  String get toolScheduleDaemon => '常驻';
+
+  @override
+  String get toolListingSubagents => '正在列出子代理';
+
+  @override
+  String get toolListedSubagents => '已列出子代理';
+
+  @override
+  String get toolStoppingSubagent => '正在停止子代理';
+
+  @override
+  String get toolStoppedSubagent => '已停止子代理';
+
+  @override
+  String get toolStoppingAllSubagents => '正在停止全部子代理';
+
+  @override
+  String get toolStoppedAllSubagents => '已停止全部子代理';
+
+  @override
+  String get toolManagingSubagents => '正在管理子代理';
+
+  @override
+  String get toolManagedSubagents => '已管理子代理';
+
+  @override
+  String toolSubagentCount(int count) {
+    return '$count 个子代理';
+  }
+
+  @override
+  String get toolDefiningSubagent => '正在定义子代理';
+
+  @override
+  String get toolDefinedSubagent => '已定义子代理';
+
+  @override
+  String get toolReadingMcpResource => '正在读取 MCP 资源';
+
+  @override
+  String get toolReadMcpResource => '已读取 MCP 资源';
+
+  @override
+  String get toolListingMcpResources => '正在列出 MCP 资源';
+
+  @override
+  String get toolListedMcpResources => '已列出 MCP 资源';
+
+  @override
+  String get toolAccessingMcpResource => '正在访问 MCP 资源';
+
+  @override
+  String get toolAccessedMcpResource => '已访问 MCP 资源';
+
+  @override
   String get goalAdopt => '设为目标';
 
   @override
@@ -2676,6 +2780,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get turnSpeedLiveHint => '输出速度（最近 2 秒采样）';
+
+  @override
+  String get turnSpeedEstimatedHint => '预估输出速度';
 
   @override
   String get turnDurationHint => '本轮耗时';
@@ -6794,6 +6901,97 @@ class AppLocalizationsZh extends AppLocalizations {
   String get agyNotSignedIn => '未登录';
 
   @override
+  String agyRemoteInstallTitle(String host) {
+    return '在 $host 上安装 Antigravity CLI';
+  }
+
+  @override
+  String agyRemoteInstallHint(String host) {
+    return '未在 $host 上检测到 Antigravity CLI（约 103 MB）。安装时会先尝试由服务器直连下载，无法直连时自动改为本机下载（同架构复用缓存）并分块上传。';
+  }
+
+  @override
+  String agyRemoteInstallingTitle(String host) {
+    return '正在 $host 上安装 Antigravity CLI';
+  }
+
+  @override
+  String agyRemoteInstallProbing(String host) {
+    return '正在探测 $host 直连下载…';
+  }
+
+  @override
+  String agyRemoteInstallDirect(String host) {
+    return '正在 $host 上直连下载…';
+  }
+
+  @override
+  String agyRemoteInstallDirectProgress(String host, int percent) {
+    return '正在 $host 上直连下载… $percent%';
+  }
+
+  @override
+  String agyRemoteInstallLocal(String host) {
+    return '$host 无法直连 Google，正在本机下载…';
+  }
+
+  @override
+  String agyRemoteInstallLocalProgress(String host, int percent) {
+    return '$host 无法直连 Google，正在本机下载… $percent%';
+  }
+
+  @override
+  String agyRemoteInstallUploading(String host, int percent) {
+    return '正在将 Antigravity CLI 传到 $host… $percent%';
+  }
+
+  @override
+  String agyRemoteSignInTitle(String host) {
+    return '在 $host 上登录 Antigravity';
+  }
+
+  @override
+  String agyRemoteSignInPrompt(String host) {
+    return '$host 上的 Antigravity CLI 尚未登录。在浏览器中完成 Google 授权后即可继续对话。';
+  }
+
+  @override
+  String get agyRemoteSignInPreparing => '正在准备 Google 登录链接…';
+
+  @override
+  String get agyRemoteSignInWaitingBrowser => '已在浏览器中打开 Google 登录页，等待授权完成…';
+
+  @override
+  String get agyRemoteSignInPasteHint =>
+      '已在浏览器中打开 Google 登录页。完成授权后，请将页面显示的授权码或完整回调链接粘贴到下方。';
+
+  @override
+  String get agyRemoteSignInStart => '去浏览器登录';
+
+  @override
+  String get agyRemoteOpenLink => '打开链接';
+
+  @override
+  String get agyRemoteCopyLink => '复制链接';
+
+  @override
+  String get agyRemoteLinkCopied => '已复制';
+
+  @override
+  String get agyRemoteCodePlaceholder => '粘贴授权码或回调链接';
+
+  @override
+  String get agyRemoteCodeSubmit => '完成登录';
+
+  @override
+  String agyRemoteErrorTitle(String host) {
+    return '$host 上的 Antigravity 暂不可用';
+  }
+
+  @override
+  String get agyRemoteRetry => '重试';
+
+  @override
   String get modelsTest => '测试连接';
 
   @override
@@ -7930,6 +8128,31 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String remoteUploadingClaude(String host, int percent) {
     return '正在把 Claude Code 传到 $host… $percent%';
+  }
+
+  @override
+  String remoteStatusInstallingAgy(String kind, String host, int percent) {
+    return '$kind: $host（正在安装 Antigravity CLI $percent%）';
+  }
+
+  @override
+  String remoteStatusInstallingAgyUnsized(String kind, String host) {
+    return '$kind: $host（正在安装 Antigravity CLI...）';
+  }
+
+  @override
+  String remoteInstallingAgy(String host) {
+    return '正在 $host 上安装 Antigravity CLI…';
+  }
+
+  @override
+  String remoteInstallingAgyProgress(String host, int percent) {
+    return '正在 $host 上安装 Antigravity CLI… $percent%';
+  }
+
+  @override
+  String remoteUploadingAgy(String host, int percent) {
+    return '正在把 Antigravity CLI 传到 $host… $percent%';
   }
 
   @override

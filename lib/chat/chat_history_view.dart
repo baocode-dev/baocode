@@ -180,6 +180,14 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   /// Folds the user opened (true) or closed (false); others are closed.
   final Map<(StepFoldKind, int), bool> _foldOpen = {};
 
+  /// Cached summaries of finished folds, bounded so very long conversations
+  /// stay O(1) per row build without unbounded memory growth.
+  final Map<(StepFoldKind, int), _CachedFoldSummary> _foldSummaries = {};
+
+  /// Cached summaries of folds in the live turn, cleared on [_refold].
+  final Map<(StepFoldKind, int), FoldSummary> _liveFoldSummaries = {};
+  static const _maxCachedFoldSummaries = 512;
+
   /// Where the work of the turns that ended while the user read further up
   /// starts: it stays open, not to fold the history away under them, until
   /// they are back at the bottom or send again. (Turns the agent takes up on
@@ -195,6 +203,11 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       _feed.itemAt,
       live: _feed.isStreaming,
     );
+    _liveFoldSummaries.clear();
+    if (_foldSummaries.isNotEmpty) {
+      final count = _feed.itemCount;
+      _foldSummaries.removeWhere((_, entry) => entry.end > count);
+    }
     _liveStart = null;
     if (!_feed.isStreaming) return;
     for (var index = _feed.itemCount - 1; index >= 0; index--) {
@@ -275,9 +288,38 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     _ => false,
   };
 
-  Iterable<ChatItem> _itemsIn(StepFold fold) => [
-    for (var index = fold.start; index < fold.end; index++) _feed.itemAt(index),
-  ];
+  FoldSummary _summaryOf(StepFold fold) {
+    if (fold.start >= fold.end || fold.end > _feed.itemCount) {
+      return FoldSummary.empty;
+    }
+    if (_isLive(fold.start)) {
+      return _liveFoldSummaries[fold.key] ??= FoldSummary.of(
+        fold.start,
+        fold.end,
+        _feed.itemAt,
+      );
+    }
+    final first = _feed.itemAt(fold.start);
+    final last = _feed.itemAt(fold.end - 1);
+    final cached = _foldSummaries[fold.key];
+    if (cached != null &&
+        cached.end == fold.end &&
+        identical(cached.first, first) &&
+        identical(cached.last, last)) {
+      return cached.summary;
+    }
+    final summary = FoldSummary.of(fold.start, fold.end, _feed.itemAt);
+    if (_foldSummaries.length >= _maxCachedFoldSummaries) {
+      _foldSummaries.remove(_foldSummaries.keys.first);
+    }
+    _foldSummaries[fold.key] = (
+      end: fold.end,
+      first: first,
+      last: last,
+      summary: summary,
+    );
+    return summary;
+  }
 
   // --- Turn costs ------------------------------------------------------------
   //
@@ -518,14 +560,18 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     final l10n = context.l10n;
     return [
       if (row.work case StepFold(:final worked?) && final fold)
-        WorkFoldLine.text(
-          worked,
-          turnEdits(_itemsIn(fold)),
-          l10n: l10n,
-          stopped: fold.stopped,
-        ),
+        () {
+          final summary = _summaryOf(fold);
+          return WorkFoldLine.text(
+            worked,
+            summary.edits,
+            tally: _isFoldOpen(fold) ? null : summary.tally,
+            l10n: l10n,
+            stopped: fold.stopped,
+          );
+        }(),
       if (row.steps case final fold?)
-        StepsFoldLine.text(StepTally(_itemsIn(fold)), l10n: l10n),
+        StepsFoldLine.text(_summaryOf(fold).tally, l10n: l10n),
       body,
     ].where((text) => text.isNotEmpty).join('\n');
   }
@@ -538,14 +584,18 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     final l10n = context.l10n;
     return [
       if (row.work case StepFold(:final worked?) && final fold)
-        WorkFoldLine.text(
-          worked,
-          turnEdits(_itemsIn(fold)),
-          l10n: l10n,
-          stopped: fold.stopped,
-        ),
+        () {
+          final summary = _summaryOf(fold);
+          return WorkFoldLine.text(
+            worked,
+            summary.edits,
+            tally: _isFoldOpen(fold) ? null : summary.tally,
+            l10n: l10n,
+            stopped: fold.stopped,
+          );
+        }(),
       if (row.steps case final fold?)
-        StepsFoldLine.text(StepTally(_itemsIn(fold)), l10n: l10n),
+        StepsFoldLine.text(_summaryOf(fold).tally, l10n: l10n),
       if (row.item)
         chatItemCopyText(item, expanded: _isExpanded(index), l10n: l10n),
     ].where((text) => text.isNotEmpty).join('\n');
@@ -1070,6 +1120,8 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       _closingIndex = null;
       _clearEditorScrollTracking();
       _foldOpen.clear();
+      _foldSummaries.clear();
+      _liveFoldSummaries.clear();
       _unfoldedTurns.clear();
       // Another conversation's rows: the list takes them as it finds them.
       _rows = const [];
@@ -1336,6 +1388,20 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     _foldOpen
       ..clear()
       ..addAll(opened);
+    final summaries = {
+      for (final MapEntry(key: (kind, start), :value)
+          in _foldSummaries.entries)
+        (kind, start + count): (
+          end: value.end + count,
+          first: value.first,
+          last: value.last,
+          summary: value.summary,
+        ),
+    };
+    _foldSummaries
+      ..clear()
+      ..addAll(summaries);
+    _liveFoldSummaries.clear();
     final unfolded = {for (final start in _unfoldedTurns) start + count};
     _unfoldedTurns
       ..clear()
@@ -3597,6 +3663,17 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   double _insetOf(int index) =>
       _feed.itemAt(index) is UserMessageItem ? 0 : UserMessageBubble.radius;
 
+  AgentItem? _agentByName(String name) {
+    final bare = name.startsWith('@') ? name.substring(1) : name;
+    final swarmId = 'swarm-worker:$bare';
+    for (var i = _feed.itemCount - 1; i >= 0; i--) {
+      if (_feed.itemAt(i) case final AgentItem agent when agent.id != null) {
+        if (agent.id == swarmId || agent.description == name) return agent;
+      }
+    }
+    return null;
+  }
+
   Widget _buildItem(int index) {
     final item = _shownAt(index);
     if (index == _editingIndex) {
@@ -3646,6 +3723,14 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
         onOpen: switch ((item, widget.onOpenAgent)) {
           (final AgentItem agent, final open?) when agent.id != null =>
             () => open(agent),
+          (
+            UserMessageItem(fromAgent: final sender?, fromSession: null),
+            final open?,
+          ) =>
+            switch (_agentByName(sender)) {
+              final agent? => () => open(agent),
+              null => null,
+            },
           _ => null,
         },
         onSetGoal: widget.onSetGoal,
@@ -3676,27 +3761,34 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (row.work case StepFold(:final worked?) && final fold) ...[
-                    WorkFoldLine(
-                      worked: worked,
-                      stopped: fold.stopped,
-                      edits: turnEdits(_itemsIn(fold)),
-                      images: foldImages(_itemsIn(fold)),
-                      webIcons: foldWebIcons(_itemsIn(fold)),
-                      expanded: _isFoldOpen(fold),
-                      onToggle: () => _toggleFold(fold),
-                    ),
+                    () {
+                      final summary = _summaryOf(fold);
+                      return WorkFoldLine(
+                        worked: worked,
+                        stopped: fold.stopped,
+                        tally: summary.tally,
+                        edits: summary.edits,
+                        images: summary.images,
+                        webIcons: summary.webIcons,
+                        expanded: _isFoldOpen(fold),
+                        onToggle: () => _toggleFold(fold),
+                      );
+                    }(),
                     // Words under it stand apart, as under any step.
                     if (row.steps == null && row.item && !isStep(item))
                       const SizedBox(height: 10),
                   ],
                   if (row.steps case final fold?)
-                    StepsFoldLine(
-                      tally: StepTally(_itemsIn(fold)),
-                      images: foldImages(_itemsIn(fold)),
-                      webIcons: foldWebIcons(_itemsIn(fold)),
-                      expanded: _isFoldOpen(fold),
-                      onToggle: () => _toggleFold(fold),
-                    ),
+                    () {
+                      final summary = _summaryOf(fold);
+                      return StepsFoldLine(
+                        tally: summary.tally,
+                        images: summary.images,
+                        webIcons: summary.webIcons,
+                        expanded: _isFoldOpen(fold),
+                        onToggle: () => _toggleFold(fold),
+                      );
+                    }(),
                   ?shown,
                   ?footer,
                 ],
@@ -4895,3 +4987,10 @@ class _RenderBeforeLayout extends RenderProxyBox {
     super.performLayout();
   }
 }
+
+typedef _CachedFoldSummary = ({
+  int end,
+  ChatItem first,
+  ChatItem last,
+  FoldSummary summary,
+});

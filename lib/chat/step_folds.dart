@@ -333,24 +333,30 @@ enum StepAction { read, search, list, fetch, run, browse, use }
 
 /// The steps of a run, counted by what they did.
 class StepTally {
-  StepTally(Iterable<ChatItem> items) {
+  StepTally([Iterable<ChatItem> items = const []]) {
     for (final item in items) {
-      final action = switch (item) {
-        ToolCallItem(:final kind) => switch (kind) {
-          ToolKind.read => StepAction.read,
-          ToolKind.grep || ToolKind.search => StepAction.search,
-          ToolKind.listDir => StepAction.list,
-          ToolKind.web => StepAction.fetch,
-          ToolKind.command => StepAction.run,
-          ToolKind.browser => StepAction.browse,
-          _ => StepAction.use,
-        },
-        TerminalItem(:final command) => commandAction(command),
-        _ => null,
-      };
-      if (action != null) counts[action] = (counts[action] ?? 0) + 1;
-      if (item case ThinkingItem(:final seconds?)) thought += seconds;
+      add(item);
     }
+  }
+
+  /// Counts [item] when it is a quick step.
+  void add(ChatItem item) {
+    if (!isQuickStep(item)) return;
+    final action = switch (item) {
+      ToolCallItem(:final kind) => switch (kind) {
+        ToolKind.read => StepAction.read,
+        ToolKind.grep || ToolKind.search => StepAction.search,
+        ToolKind.listDir => StepAction.list,
+        ToolKind.web => StepAction.fetch,
+        ToolKind.command => StepAction.run,
+        ToolKind.browser => StepAction.browse,
+        _ => StepAction.use,
+      },
+      TerminalItem(:final command) => commandAction(command),
+      _ => null,
+    };
+    if (action != null) counts[action] = (counts[action] ?? 0) + 1;
+    if (item case ThinkingItem(:final seconds?)) thought += seconds;
   }
 
   /// By action, in the order the line says them.
@@ -358,6 +364,9 @@ class StepTally {
 
   /// Seconds spent thinking, all thoughts together.
   int thought = 0;
+
+  /// Whether nothing was counted.
+  bool get isEmpty => counts.isEmpty && thought == 0;
 }
 
 /// What a shell command does, as far as its words tell: one that only

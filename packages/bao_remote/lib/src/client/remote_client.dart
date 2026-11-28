@@ -2,6 +2,9 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
+import '../acp/agy_release.dart';
+import '../acp/agy_runtime.dart';
+import '../acp/swarm_model.dart';
 import '../claude/claude_history_page.dart';
 import '../claude/claude_release.dart';
 import '../claude/claude_sessions.dart';
@@ -864,6 +867,178 @@ class RemoteClient {
   });
 
   Future<String?> claudeUsageOffBy() => _call(RemoteProtocol.claudeUsageOffBy);
+
+  // --- Antigravity ACP -------------------------------------------------------
+
+  /// The version of Antigravity installed on the remote host, or null if none.
+  Future<String?> agyVersion() => _call<String?>(RemoteProtocol.agyVersion);
+
+  /// The latest Antigravity version available for the remote host's platform.
+  Future<String> agyLatestVersion({Map<String, String>? environment}) =>
+      _call<String>(RemoteProtocol.agyLatestVersion, {
+        if (environment != null && environment.isNotEmpty)
+          'environment': environment,
+      });
+
+  /// The Antigravity models available to the remote host's signed-in account.
+  Future<List<AgyModel>> agyModels({Map<String, String>? environment}) async =>
+      [
+        for (final entry in await _call<List>(RemoteProtocol.agyModels, {
+          if (environment != null && environment.isNotEmpty)
+            'environment': environment,
+        }))
+          AgyModel.fromJson(_map(entry)),
+      ];
+
+  /// Has the remote server download and install the latest Antigravity build.
+  /// When [probeTimeout] is set, the remote server uses it as a fast
+  /// connection/header timeout so callers can quickly fall back to local
+  /// download + chunked upload on hosts that cannot reach Google directly.
+  Future<void> agyInstall({
+    Map<String, String>? environment,
+    Duration? probeTimeout,
+    Future<void>? cancel,
+    void Function(int received, int total)? onProgress,
+  }) async {
+    final done = Completer<void>();
+    var cancelled = false;
+    StreamSubscription<Object?>? sub;
+
+    if (cancel != null) {
+      unawaited(
+        cancel.then((_) async {
+          cancelled = true;
+          await sub?.cancel();
+          if (!done.isCompleted) {
+            done.completeError(
+              const AgyUnavailable('Installing Antigravity was cancelled'),
+            );
+          }
+        }),
+      );
+    }
+
+    sub =
+        openStream(RemoteProtocol.agyInstall, {
+          if (environment != null && environment.isNotEmpty)
+            'environment': environment,
+          if (probeTimeout != null)
+            'probeTimeoutMs': probeTimeout.inMilliseconds,
+        }).listen(
+          (event) {
+            if (cancelled) return;
+            if (event case {
+              'received': final int received,
+              'total': final int total,
+            }) {
+              onProgress?.call(received, total);
+            }
+          },
+          onError: (Object error, StackTrace stack) {
+            if (!done.isCompleted) done.completeError(error, stack);
+          },
+          onDone: () {
+            if (!done.isCompleted) done.complete();
+          },
+          cancelOnError: true,
+        );
+
+    if (cancelled) {
+      await sub.cancel();
+    }
+    await done.future;
+  }
+
+  /// Uploads a locally downloaded [file] for [build] to the remote server in
+  /// chunks, verifies SHA-512, installs it, and returns the installed version.
+  Future<String> agyUpload(
+    AgyBuild build,
+    File file, {
+    void Function(int sent, int size)? onProgress,
+    Future<void>? cancel,
+    int chunkSize = 1 << 20,
+  }) async {
+    var cancelled = false;
+    unawaited(cancel?.then((_) => cancelled = true));
+    final size = await file.length();
+    final input = await file.open();
+    try {
+      var offset = 0;
+      while (true) {
+        if (cancelled) {
+          throw const AgyUnavailable('Installing Antigravity was cancelled');
+        }
+        final data = await input.read(chunkSize);
+        if (cancelled) {
+          throw const AgyUnavailable('Installing Antigravity was cancelled');
+        }
+        final version = await _call<String?>(RemoteProtocol.agyUpload, {
+          'build': build.toJson(),
+          'offset': offset,
+          'size': size,
+          'data': encodeBytes(data),
+        });
+        offset += data.length;
+        onProgress?.call(offset, size);
+        if (version != null) return version;
+        if (data.isEmpty) {
+          throw const AgyUnavailable(
+            'Antigravity was not uploaded whole',
+            detail: 'The file ended before all expected bytes were uploaded.',
+          );
+        }
+      }
+    } finally {
+      await input.close();
+    }
+  }
+
+  /// Starts a headless Antigravity OAuth sign-in on the remote host and streams
+  /// `{type: 'line', text}`, `{type: 'url', url, callbackPort, needsCode}`,
+  /// and `{type: 'done'}` events.
+  Stream<Map<String, Object?>> agySignIn({Map<String, String>? environment}) =>
+      openStream(RemoteProtocol.agySignIn, {
+        if (environment != null && environment.isNotEmpty)
+          'environment': environment,
+      }).map(_map);
+
+  /// Submits an OAuth authorization [code] to the active remote sign-in flow.
+  Future<void> agySubmitAuthCode(String code) =>
+      _call<void>(RemoteProtocol.agyAuthCode, {'code': code});
+
+  /// Signs out of Antigravity on the remote host.
+  Future<void> agySignOut({Map<String, String>? environment}) =>
+      _call<void>(RemoteProtocol.agySignOut, {
+        if (environment != null && environment.isNotEmpty)
+          'environment': environment,
+      });
+
+  /// Deletes Antigravity's stored session data for [sessionId] on the remote
+  /// host.
+  Future<void> agyDeleteSession(String sessionId) =>
+      _call<void>(RemoteProtocol.agyDeleteSession, {'sessionId': sessionId});
+
+  /// Reads the current [SwarmSnapshot] for [swarmId] from the remote host's
+  /// Antigravity `brain/` directory, or null if none exists.
+  Future<SwarmSnapshot?> agySwarmSnapshot(String swarmId) async {
+    final result = await _call<Object?>(RemoteProtocol.agySwarmSnapshot, {
+      'swarmId': swarmId,
+    });
+    return result is Map
+        ? SwarmSnapshot.fromJson(result.cast<String, Object?>())
+        : null;
+  }
+
+  /// Reads a swarm worker's compact transcript steps for [conversationId] from
+  /// the remote host's Antigravity `brain/` directory.
+  Future<List<SwarmWorkerStep>> agySwarmTranscript(
+    String conversationId,
+  ) async => [
+    for (final entry in await _call<List>(RemoteProtocol.agySwarmTranscript, {
+      'conversationId': conversationId,
+    }))
+      SwarmWorkerStep.fromJson(_map(entry)),
+  ];
 
   // --- Review ----------------------------------------------------------------
 

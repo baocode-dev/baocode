@@ -4532,6 +4532,210 @@ abstract class AppLocalizations {
   /// **'Proposed a goal'**
   String get toolProposedGoal;
 
+  /// No description provided for @toolReadingOutput.
+  ///
+  /// In en, this message translates to:
+  /// **'Reading output'**
+  String get toolReadingOutput;
+
+  /// No description provided for @toolReadOutput.
+  ///
+  /// In en, this message translates to:
+  /// **'Read output'**
+  String get toolReadOutput;
+
+  /// No description provided for @toolStopping.
+  ///
+  /// In en, this message translates to:
+  /// **'Stopping'**
+  String get toolStopping;
+
+  /// No description provided for @toolStopped.
+  ///
+  /// In en, this message translates to:
+  /// **'Stopped'**
+  String get toolStopped;
+
+  /// No description provided for @toolListingTasks.
+  ///
+  /// In en, this message translates to:
+  /// **'Listing background tasks'**
+  String get toolListingTasks;
+
+  /// No description provided for @toolListedTasks.
+  ///
+  /// In en, this message translates to:
+  /// **'Listed background tasks'**
+  String get toolListedTasks;
+
+  /// No description provided for @toolSendingTaskInput.
+  ///
+  /// In en, this message translates to:
+  /// **'Sending input to task'**
+  String get toolSendingTaskInput;
+
+  /// No description provided for @toolSentTaskInput.
+  ///
+  /// In en, this message translates to:
+  /// **'Sent input to task'**
+  String get toolSentTaskInput;
+
+  /// No description provided for @toolManagingTask.
+  ///
+  /// In en, this message translates to:
+  /// **'Managing task'**
+  String get toolManagingTask;
+
+  /// No description provided for @toolManagedTask.
+  ///
+  /// In en, this message translates to:
+  /// **'Managed task'**
+  String get toolManagedTask;
+
+  /// No description provided for @toolSchedulingCron.
+  ///
+  /// In en, this message translates to:
+  /// **'Scheduling cron'**
+  String get toolSchedulingCron;
+
+  /// No description provided for @toolScheduledCron.
+  ///
+  /// In en, this message translates to:
+  /// **'Scheduled cron'**
+  String get toolScheduledCron;
+
+  /// No description provided for @toolSettingTimer.
+  ///
+  /// In en, this message translates to:
+  /// **'Setting timer'**
+  String get toolSettingTimer;
+
+  /// No description provided for @toolSetTimer.
+  ///
+  /// In en, this message translates to:
+  /// **'Set timer'**
+  String get toolSetTimer;
+
+  /// No description provided for @toolScheduling.
+  ///
+  /// In en, this message translates to:
+  /// **'Scheduling'**
+  String get toolScheduling;
+
+  /// No description provided for @toolScheduled.
+  ///
+  /// In en, this message translates to:
+  /// **'Scheduled'**
+  String get toolScheduled;
+
+  /// No description provided for @toolScheduleDaemon.
+  ///
+  /// In en, this message translates to:
+  /// **'daemon'**
+  String get toolScheduleDaemon;
+
+  /// No description provided for @toolListingSubagents.
+  ///
+  /// In en, this message translates to:
+  /// **'Listing subagents'**
+  String get toolListingSubagents;
+
+  /// No description provided for @toolListedSubagents.
+  ///
+  /// In en, this message translates to:
+  /// **'Listed subagents'**
+  String get toolListedSubagents;
+
+  /// No description provided for @toolStoppingSubagent.
+  ///
+  /// In en, this message translates to:
+  /// **'Stopping subagent'**
+  String get toolStoppingSubagent;
+
+  /// No description provided for @toolStoppedSubagent.
+  ///
+  /// In en, this message translates to:
+  /// **'Stopped subagent'**
+  String get toolStoppedSubagent;
+
+  /// No description provided for @toolStoppingAllSubagents.
+  ///
+  /// In en, this message translates to:
+  /// **'Stopping all subagents'**
+  String get toolStoppingAllSubagents;
+
+  /// No description provided for @toolStoppedAllSubagents.
+  ///
+  /// In en, this message translates to:
+  /// **'Stopped all subagents'**
+  String get toolStoppedAllSubagents;
+
+  /// No description provided for @toolManagingSubagents.
+  ///
+  /// In en, this message translates to:
+  /// **'Managing subagents'**
+  String get toolManagingSubagents;
+
+  /// No description provided for @toolManagedSubagents.
+  ///
+  /// In en, this message translates to:
+  /// **'Managed subagents'**
+  String get toolManagedSubagents;
+
+  /// No description provided for @toolSubagentCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} subagents'**
+  String toolSubagentCount(int count);
+
+  /// No description provided for @toolDefiningSubagent.
+  ///
+  /// In en, this message translates to:
+  /// **'Defining subagent'**
+  String get toolDefiningSubagent;
+
+  /// No description provided for @toolDefinedSubagent.
+  ///
+  /// In en, this message translates to:
+  /// **'Defined subagent'**
+  String get toolDefinedSubagent;
+
+  /// No description provided for @toolReadingMcpResource.
+  ///
+  /// In en, this message translates to:
+  /// **'Reading MCP resource'**
+  String get toolReadingMcpResource;
+
+  /// No description provided for @toolReadMcpResource.
+  ///
+  /// In en, this message translates to:
+  /// **'Read MCP resource'**
+  String get toolReadMcpResource;
+
+  /// No description provided for @toolListingMcpResources.
+  ///
+  /// In en, this message translates to:
+  /// **'Listing MCP resources'**
+  String get toolListingMcpResources;
+
+  /// No description provided for @toolListedMcpResources.
+  ///
+  /// In en, this message translates to:
+  /// **'Listed MCP resources'**
+  String get toolListedMcpResources;
+
+  /// No description provided for @toolAccessingMcpResource.
+  ///
+  /// In en, this message translates to:
+  /// **'Accessing MCP resource'**
+  String get toolAccessingMcpResource;
+
+  /// No description provided for @toolAccessedMcpResource.
+  ///
+  /// In en, this message translates to:
+  /// **'Accessed MCP resource'**
+  String get toolAccessedMcpResource;
+
   /// Button on a goal the agent proposed: sets it as the session's goal.
   ///
   /// In en, this message translates to:
@@ -4795,6 +4999,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Output speed, sampled over the last 2 seconds'**
   String get turnSpeedLiveHint;
+
+  /// No description provided for @turnSpeedEstimatedHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Estimated output speed'**
+  String get turnSpeedEstimatedHint;
 
   /// No description provided for @turnDurationHint.
   ///
@@ -11631,6 +11841,138 @@ abstract class AppLocalizations {
   /// **'Not signed in'**
   String get agyNotSignedIn;
 
+  /// No description provided for @agyRemoteInstallTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Install Antigravity CLI on {host}'**
+  String agyRemoteInstallTitle(String host);
+
+  /// No description provided for @agyRemoteInstallHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Antigravity CLI was not found on {host} (~103 MB). It tries a direct download on the host first, and falls back to downloading here (cached per platform) and uploading if unreachable.'**
+  String agyRemoteInstallHint(String host);
+
+  /// No description provided for @agyRemoteInstallingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Installing Antigravity CLI on {host}'**
+  String agyRemoteInstallingTitle(String host);
+
+  /// No description provided for @agyRemoteInstallProbing.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking direct connection from {host}…'**
+  String agyRemoteInstallProbing(String host);
+
+  /// No description provided for @agyRemoteInstallDirect.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading directly on {host}…'**
+  String agyRemoteInstallDirect(String host);
+
+  /// No description provided for @agyRemoteInstallDirectProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading directly on {host}… {percent}%'**
+  String agyRemoteInstallDirectProgress(String host, int percent);
+
+  /// No description provided for @agyRemoteInstallLocal.
+  ///
+  /// In en, this message translates to:
+  /// **'{host} could not reach Google directly. Downloading on this machine…'**
+  String agyRemoteInstallLocal(String host);
+
+  /// No description provided for @agyRemoteInstallLocalProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'{host} could not reach Google directly. Downloading on this machine… {percent}%'**
+  String agyRemoteInstallLocalProgress(String host, int percent);
+
+  /// No description provided for @agyRemoteInstallUploading.
+  ///
+  /// In en, this message translates to:
+  /// **'Transferring Antigravity CLI to {host}… {percent}%'**
+  String agyRemoteInstallUploading(String host, int percent);
+
+  /// No description provided for @agyRemoteSignInTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in to Antigravity on {host}'**
+  String agyRemoteSignInTitle(String host);
+
+  /// No description provided for @agyRemoteSignInPrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Antigravity CLI on {host} is not signed in yet. Open Google sign-in in your browser to continue.'**
+  String agyRemoteSignInPrompt(String host);
+
+  /// No description provided for @agyRemoteSignInPreparing.
+  ///
+  /// In en, this message translates to:
+  /// **'Preparing Google sign-in link…'**
+  String get agyRemoteSignInPreparing;
+
+  /// No description provided for @agyRemoteSignInWaitingBrowser.
+  ///
+  /// In en, this message translates to:
+  /// **'Google sign-in has been opened in your browser. Waiting for authorization to finish…'**
+  String get agyRemoteSignInWaitingBrowser;
+
+  /// No description provided for @agyRemoteSignInPasteHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Google sign-in has been opened in your browser. Complete authorization, then paste the authorization code or full callback URL below.'**
+  String get agyRemoteSignInPasteHint;
+
+  /// No description provided for @agyRemoteSignInStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign In in Browser'**
+  String get agyRemoteSignInStart;
+
+  /// No description provided for @agyRemoteOpenLink.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Link'**
+  String get agyRemoteOpenLink;
+
+  /// No description provided for @agyRemoteCopyLink.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy Link'**
+  String get agyRemoteCopyLink;
+
+  /// No description provided for @agyRemoteLinkCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Copied'**
+  String get agyRemoteLinkCopied;
+
+  /// No description provided for @agyRemoteCodePlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'Paste authorization code or callback URL'**
+  String get agyRemoteCodePlaceholder;
+
+  /// No description provided for @agyRemoteCodeSubmit.
+  ///
+  /// In en, this message translates to:
+  /// **'Finish Sign In'**
+  String get agyRemoteCodeSubmit;
+
+  /// No description provided for @agyRemoteErrorTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Antigravity on {host} is unavailable'**
+  String agyRemoteErrorTitle(String host);
+
+  /// No description provided for @agyRemoteRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get agyRemoteRetry;
+
   /// No description provided for @modelsTest.
   ///
   /// In en, this message translates to:
@@ -13544,6 +13886,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Sending Claude Code to {host}… {percent}%'**
   String remoteUploadingClaude(String host, int percent);
+
+  /// No description provided for @remoteStatusInstallingAgy.
+  ///
+  /// In en, this message translates to:
+  /// **'{kind}: {host} (installing Antigravity CLI {percent}%)'**
+  String remoteStatusInstallingAgy(String kind, String host, int percent);
+
+  /// The status bar while Antigravity CLI is installed on a host, its size not known yet (no percentage).
+  ///
+  /// In en, this message translates to:
+  /// **'{kind}: {host} (installing Antigravity CLI...)'**
+  String remoteStatusInstallingAgyUnsized(String kind, String host);
+
+  /// Shown while Antigravity CLI is installed on a remote host, size not known yet.
+  ///
+  /// In en, this message translates to:
+  /// **'Installing Antigravity CLI on {host}…'**
+  String remoteInstallingAgy(String host);
+
+  /// No description provided for @remoteInstallingAgyProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Installing Antigravity CLI on {host}… {percent}%'**
+  String remoteInstallingAgyProgress(String host, int percent);
+
+  /// The host cannot download Antigravity CLI itself: this machine downloaded it and sends it over the SSH connection.
+  ///
+  /// In en, this message translates to:
+  /// **'Sending Antigravity CLI to {host}… {percent}%'**
+  String remoteUploadingAgy(String host, int percent);
 
   /// No description provided for @remoteStatusTooltip.
   ///

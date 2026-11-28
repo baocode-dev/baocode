@@ -39,6 +39,7 @@ class ActivityStrip extends StatefulWidget {
     this.onOpenFile,
     this.fileActions,
     this.onStopTask,
+    this.canStopTask,
     this.onOpenTask,
     this.canOpenTask,
     this.detailOf,
@@ -64,6 +65,7 @@ class ActivityStrip extends StatefulWidget {
 
   /// Stops a running task; null when tasks cannot be stopped.
   final ValueChanged<KernelTask>? onStopTask;
+  final bool Function(KernelTask)? canStopTask;
 
   /// Opens a subagent's conversation or background command's output.
   final ValueChanged<KernelTask>? onOpenTask;
@@ -297,8 +299,10 @@ class _ActivityStripState extends State<ActivityStrip> {
                             _ => null,
                           },
                           onStop: switch (widget.onStopTask) {
-                            final stop? => () => stop(task),
-                            null => null,
+                            final stop?
+                                when widget.canStopTask?.call(task) ?? true =>
+                              () => stop(task),
+                            _ => null,
                           },
                         ),
                     ],

@@ -196,6 +196,15 @@ class SshHost extends ChangeNotifier implements ProjectHost {
     notifyListeners();
   }
 
+  /// Antigravity CLI being installed there (see installRemoteAgy): the bytes
+  /// so far, of [ClaudeInstallProgress.size] once known; null when not.
+  ClaudeInstallProgress? get installingAgy => _installingAgy;
+  ClaudeInstallProgress? _installingAgy;
+  set installingAgy(ClaudeInstallProgress? progress) {
+    _installingAgy = progress;
+    notifyListeners();
+  }
+
   /// Each connection made after a lost one: what ran over the old one
   /// (language servers, open files) is to be started or read again.
   Stream<RemoteClient> get reconnected => _reconnected.stream;

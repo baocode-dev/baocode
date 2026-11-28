@@ -1,3 +1,4 @@
+import '../acp/agy_runtime.dart';
 import '../claude/claude_unavailable.dart';
 import '../files/ide_file.dart';
 import '../git/git_types.dart';
@@ -76,6 +77,18 @@ class RpcError {
       'claudeUnavailable',
       {'message': message, 'detail': ?detail},
     ),
+    AgyUnavailable(
+      :final message,
+      :final notInstalled,
+      :final signIn,
+      :final detail,
+    ) =>
+      _typed(error, 'agyUnavailable', {
+        'message': message,
+        if (notInstalled) 'notInstalled': true,
+        if (signIn) 'signIn': true,
+        'detail': ?detail,
+      }),
     LspInstallException(:final message, :final detail) => _typed(
       error,
       'lspInstall',
@@ -157,6 +170,12 @@ class RpcError {
       ),
       'claudeUnavailable' => ClaudeUnavailable(
         text(),
+        detail: data['detail'] as String?,
+      ),
+      'agyUnavailable' => AgyUnavailable(
+        text(),
+        notInstalled: data['notInstalled'] == true,
+        signIn: data['signIn'] == true,
         detail: data['detail'] as String?,
       ),
       'lspInstall' => LspInstallException(

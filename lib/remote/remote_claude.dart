@@ -22,8 +22,10 @@ import '../kernel/antigravity/agy_transport.dart';
 import '../kernel/claude_code/dart_core_transport.dart';
 import '../kernel/claude_code/process_transport.dart';
 import '../models/launch_environment.dart';
+import 'remote_agy.dart';
 import 'remote_claude_install.dart';
 import 'remote_location.dart';
+import 'remote_proxy.dart';
 import 'remote_skills.dart';
 import 'ssh_host.dart';
 import 'port_forwards.dart';
@@ -50,12 +52,6 @@ Future<ClaudeCodeTransport> startClaude(ClaudeLaunch launch) async {
       ClaudeCore.builtin => startDartCore(launch),
       ClaudeCore.cli => startClaudeProcess(launch),
     };
-  }
-  if (launch.agy) {
-    throw const ClaudeUnavailable(
-      'Antigravity runs on this machine’s projects only',
-      detail: 'Pick another model for a project over SSH.',
-    );
   }
   return RemoteClaudeTransport.start(SshHosts.instance[host], launch);
 }
@@ -391,6 +387,62 @@ class RemoteClaudeTransport implements ClaudeCodeTransport {
   ) async {
     final client = await _clientOf(host);
     final cwd = RemoteLocation.pathOf(launch.cwd);
+    if (launch.agy) {
+      final skillsRoot = await RemoteSkills.stageFor(client);
+      final started = launch.copyWith(cwd: cwd, skillsDirectory: skillsRoot);
+      Map<String, String> proxyEnv;
+      try {
+        proxyEnv = await remoteProxyEnvironment(client);
+      } on Object {
+        proxyEnv = const {};
+      }
+      final forwarded = await PortForwards.instance.remoteEnvironment(
+        host.host,
+      );
+      final agyEnv = {
+        ...ClaudeLaunch.environment,
+        ...proxyEnv,
+        ...forwarded,
+      };
+      try {
+        final process = await client.startClaude(
+          cwd: cwd,
+          arguments: started.hasSecrets
+              ? started.argumentsWithoutSettings
+              : started.arguments,
+          settings: started.hasSecrets ? started.settings : null,
+          environment: agyEnv,
+          core: 'agy',
+        );
+        return RemoteClaudeTransport._(process);
+      } on AgyUnavailable catch (error) {
+        final hostName = RemoteLocation.hostName(host.host);
+        if (error.notInstalled) {
+          RemoteAgySetups.instance.of(host.host).markNeedsInstall();
+          throw ClaudeUnavailable(
+            'Antigravity is not installed on $hostName',
+            detail: 'Confirm installation in the card above the input box.',
+          );
+        }
+        if (error.signIn) {
+          RemoteAgySetups.instance.of(host.host).markNeedsSignIn();
+          throw ClaudeUnavailable(
+            'Sign in to Antigravity on $hostName',
+            detail: 'Complete sign-in in the card above the input box.',
+          );
+        }
+        throw ClaudeUnavailable(
+          '${error.message} (on $hostName)',
+          detail: error.detail,
+        );
+      } on IdeFileNotFoundException {
+        throw ClaudeFolderGone(cwd);
+      } on RpcClosed {
+        throw ClaudeUnavailable(
+          'The connection to ${RemoteLocation.hostName(host.host)} was lost',
+        );
+      }
+    }
     final env = await remoteModelEnvironment(client, launch.env);
     final skillsRoot = await RemoteSkills.stageFor(client);
     final started = launch.copyWith(

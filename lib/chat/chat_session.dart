@@ -12,6 +12,7 @@ import '../kernel/prompt_suggestions.dart';
 import '../kernel/transcript.dart';
 import '../platform/native_path.dart';
 import '../remote/remote_location.dart';
+import '../swarm/swarm_model.dart';
 import 'chat_feed.dart';
 import 'chat_models.dart';
 import 'composer/composer_draft.dart';
@@ -682,6 +683,23 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
   /// reported at: higher each time it writes it again.
   ({String path, int seq})? get plan => _transcript.plan;
 
+  /// The session's Antigravity native swarm snapshot, if any.
+  SwarmSnapshot? get swarm => _swarmOverride ?? _transcript.swarm;
+
+  /// Sequence when the swarm first appeared, for opening the Swarm panel once.
+  int get swarmSeq => _swarmOverrideSeq ?? _transcript.swarmSeq;
+
+  SwarmSnapshot? _swarmOverride;
+  int? _swarmOverrideSeq;
+
+  /// Sets a mock or synthetic swarm snapshot (for widget & screenshot tests).
+  @visibleForTesting
+  void setSwarmForTest(SwarmSnapshot? snapshot) {
+    _swarmOverride = snapshot;
+    _swarmOverrideSeq = snapshot == null ? null : (_swarmOverrideSeq ?? 0) + 1;
+    notifyListeners();
+  }
+
   /// The plan put to the user for them to start (see [startPlan]): the
   /// last round's, until a message is sent after it.
   PlanItem? get awaitingPlan {
@@ -919,9 +937,14 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
   /// Stops what the tool call [id] runs, e.g. a subagent; null unless it
   /// runs as a task the kernel can stop.
   VoidCallback? stopOf(String? id) => switch (_runningTask(id)) {
-    final task? when _kernel is RunsBackgroundTasks => () => stopTask(task),
+    final task?
+        when _kernel is RunsBackgroundTasks && canStopTask(task) =>
+      () => stopTask(task),
     _ => null,
   };
+
+  /// Whether [task] can be stopped directly by the user from the UI.
+  bool canStopTask(KernelTask task) => true;
 
   KernelTask? _runningTask(String? toolUseId) => toolUseId == null
       ? null

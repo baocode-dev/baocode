@@ -9,16 +9,20 @@ import 'package:flutter/services.dart';
 
 import '../base/mouse_navigation.dart';
 import '../ide/ide_menu.dart';
+import '../kernel/claude_code/claude_code_translator.dart'
+    show ClaudeTranslator;
 import '../kernel/kernel_types.dart';
 import '../keybindings/chat_keybindings.dart';
 import '../l10n/l10n.dart';
 import '../models/model_welcome.dart';
 import '../bash_exe/bao_bash.dart';
 import '../bash_exe/bao_bash_view.dart' show BaoBashHint;
+import '../remote/remote_agy_card.dart' show RemoteAgySetupCard;
 import '../remote/remote_location.dart';
 import '../remote/remote_status.dart' show ClaudeInstallBanner, SshHostBanner;
 import '../stash/stash_actions.dart';
 import '../stash/stash_store.dart';
+import '../swarm/swarm_model.dart' show SwarmMemberRole;
 import '../theme/app_theme.dart';
 import '../theme/codicons.dart';
 import '../workspace/editor_launcher.dart';
@@ -901,6 +905,7 @@ class _ChatScreenState extends State<ChatScreen>
           : (change) => open(change, _session.originalOf(change)),
       fileActions: _fileActions,
       onStopTask: _session.stopTask,
+      canStopTask: _session.canStopTask,
       canOpenTask: (task) => task.kind == KernelTaskKind.command
           ? widget.onOpenTerminalTask != null
           : _session.agentOf(task) != null,
@@ -1161,6 +1166,35 @@ class _ChatScreenState extends State<ChatScreen>
     return (query) async => [...(await kernel(query)).map(fileSuggestion)];
   }
 
+  /// `@` suggestions for members of the current Antigravity native swarm.
+  List<Suggestion> _swarmMemberSuggestions() {
+    final swarm = _session.swarm;
+    if (swarm == null) return const [];
+    final group = swarm.title;
+    return [
+      for (final m in swarm.members)
+        if (m.role != SwarmMemberRole.coordinator && !m.isKilled)
+          Suggestion.member(
+            name: m.name,
+            detail: m.model == null ? '' : AgentStep.modelName(m.model!).label,
+            group: group,
+          ),
+      Suggestion.member(name: 'all', group: group),
+    ];
+  }
+
+  /// Routes a direct message composed in a swarm worker's subagent view to the
+  /// conversation's coordinator prefixed with `@<workerName>`.
+  void _sendToSwarmWorker(String workerName, String text) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return;
+    final prefix = '@$workerName';
+    final payload = trimmed.toLowerCase().startsWith(prefix.toLowerCase())
+        ? trimmed
+        : '$prefix $trimmed';
+    _session.send(ComposerMessage(text: payload));
+  }
+
   @override
   Widget build(BuildContext context) {
     final links = widget.fileLinks;
@@ -1179,6 +1213,7 @@ class _ChatScreenState extends State<ChatScreen>
           child: ComposerVocabulary(
             commands: _commandSuggestions(),
             suggestFiles: _suggestFiles(root),
+            members: _session.swarm == null ? null : _swarmMemberSuggestions,
             sessions: widget.sessions,
             // The stashes, after the files (see docs/stash.md).
             stashes: switch (StashStore.current) {
@@ -1528,6 +1563,17 @@ class _ChatScreenState extends State<ChatScreen>
               // Claude Code being downloaded for this machine, or put on
               // a remote project's host.
               ClaudeInstallBanner(location: _session.kernelContext.cwd),
+              // Remote SSH Antigravity ACP setup (confirm install, progress,
+              // and inline headless OAuth sign-in).
+              RemoteAgySetupCard(
+                location: _session.kernelContext.cwd,
+                model: _session.models?.selected.id,
+                onReady: () {
+                  if (HealthBanner.shows(_session.health)) {
+                    _session.restart();
+                  }
+                },
+              ),
               // Windows: BaoCode Bash recommended to whoever runs commands
               // in neither it nor Git Bash, for a project on this machine.
               if (BaoBash.current case final bash?
@@ -1553,11 +1599,30 @@ class _ChatScreenState extends State<ChatScreen>
                   padding: const EdgeInsets.only(bottom: 8),
                   child: start,
                 ),
-              // A subagent's conversation takes no messages.
+              // Regular subagents are read-only; swarm workers can be messaged
+              // directly via the conversation's coordinator (`@<worker>`).
               _BottomSwitcher(
-                child: _agentShown == null
-                    ? _buildDock()
-                    : const SizedBox.shrink(key: ValueKey('none')),
+                child: switch (_agentShown) {
+                  null => _buildDock(),
+                  final layer
+                      when ClaudeTranslator.isSwarmWorkerId(
+                        layer.feed.agent?.id,
+                      ) =>
+                    _SwarmWorkerComposer(
+                      key: ValueKey(('swarm-composer', layer.feed.agent!.id)),
+                      workerName: layer.feed.agent!.id!.substring(
+                        ClaudeTranslator.swarmWorkerPrefix.length,
+                      ),
+                      canSend: _session.canSend,
+                      onSend: (text) => _sendToSwarmWorker(
+                        layer.feed.agent!.id!.substring(
+                          ClaudeTranslator.swarmWorkerPrefix.length,
+                        ),
+                        text,
+                      ),
+                    ),
+                  _ => const SizedBox.shrink(key: ValueKey('none')),
+                },
               ),
             ],
           ),
@@ -2129,6 +2194,155 @@ class _SoftSlot extends StatelessWidget {
           ],
         ),
         child: _PanelSlot(key: ValueKey(child != null), child: child),
+      ),
+    );
+  }
+}
+
+/// Compact native reply composer docked at the bottom of a swarm worker's
+/// subagent view so the user can directly message/steer `@<workerName>`.
+class _SwarmWorkerComposer extends StatefulWidget {
+  const _SwarmWorkerComposer({
+    super.key,
+    required this.workerName,
+    required this.canSend,
+    required this.onSend,
+  });
+
+  final String workerName;
+  final bool canSend;
+  final ValueChanged<String> onSend;
+
+  @override
+  State<_SwarmWorkerComposer> createState() => _SwarmWorkerComposerState();
+}
+
+class _SwarmWorkerComposerState extends State<_SwarmWorkerComposer> {
+  final TextEditingController _controller = TextEditingController();
+  final FocusNode _focus = FocusNode();
+  bool _focused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _focus.addListener(_onFocus);
+  }
+
+  void _onFocus() {
+    if (_focused != _focus.hasFocus) {
+      setState(() => _focused = _focus.hasFocus);
+    }
+  }
+
+  @override
+  void dispose() {
+    _focus.removeListener(_onFocus);
+    _focus.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (!widget.canSend) return;
+    final text = _controller.text.trim();
+    if (text.isEmpty) return;
+    widget.onSend(text);
+    _controller.clear();
+    setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final zh = Localizations.localeOf(context).languageCode == 'zh';
+    final hint = zh
+        ? '给 @${widget.workerName} 发消息…'
+        : 'Message @${widget.workerName}…';
+    final hasText = _controller.text.trim().isNotEmpty;
+    final enabled = widget.canSend && hasText;
+
+    return Container(
+      margin: const EdgeInsets.only(top: 6),
+      decoration: BoxDecoration(
+        color: AppColors.bubbleFill,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.bubbleBorder(focused: _focused)),
+      ),
+      padding: const EdgeInsets.fromLTRB(12, 6, 8, 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 5, right: 6),
+            child: Text(
+              '@${widget.workerName}',
+              style: TextStyle(
+                color: AppColors.accent,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Focus(
+              onKeyEvent: (node, event) {
+                if (event is KeyDownEvent &&
+                    event.logicalKey == LogicalKeyboardKey.enter &&
+                    !HardwareKeyboard.instance.isShiftPressed) {
+                  _submit();
+                  return KeyEventResult.handled;
+                }
+                return KeyEventResult.ignored;
+              },
+              child: TextField(
+                controller: _controller,
+                focusNode: _focus,
+                enabled: widget.canSend,
+                minLines: 1,
+                maxLines: 5,
+                onChanged: (_) => setState(() {}),
+                style: TextStyle(color: AppColors.text, fontSize: 13.5),
+                decoration: InputDecoration(
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 5),
+                  border: InputBorder.none,
+                  hintText: hint,
+                  hintStyle: TextStyle(
+                    color: AppColors.textFaint,
+                    fontSize: 13.5,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 1),
+            child: MouseRegion(
+              cursor: enabled
+                  ? SystemMouseCursors.click
+                  : SystemMouseCursors.basic,
+              child: GestureDetector(
+                onTap: enabled ? _submit : null,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 120),
+                  width: 26,
+                  height: 26,
+                  decoration: BoxDecoration(
+                    color: enabled
+                        ? AppColors.accent
+                        : AppColors.textFaint.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(7),
+                  ),
+                  child: Icon(
+                    Icons.arrow_upward_rounded,
+                    size: 16,
+                    color: enabled ? AppColors.code : AppColors.textFaint,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

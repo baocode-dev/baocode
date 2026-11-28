@@ -4,6 +4,8 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '../acp/agy_release.dart';
+import '../acp/agy_transport_core.dart';
 import '../claude/claude_environment.dart';
 import '../claude/claude_sessions.dart';
 import '../claude/claude_settings_file.dart';
@@ -18,6 +20,7 @@ import '../platform/machine_platform.dart';
 import '../protocol.dart';
 import '../rpc/rpc_peer.dart';
 import '../search/local_search.dart';
+import 'server_agy.dart';
 import 'server_lsp.dart';
 import 'server_claude.dart';
 import 'server_cli.dart';
@@ -73,6 +76,12 @@ class RemoteServer {
       managed: ManagedClaude(p.join(dataDir, 'claude')),
       platform: ClaudeRelease.platformOf(currentPlatform()),
     );
+    _agy = ServerAgy(
+      peer,
+      _streams,
+      managed: ManagedAgy(p.join(dataDir, 'antigravity')),
+      platform: currentPlatform(),
+    );
     _register();
     unawaited(peer.done.then((_) => shutdown()));
   }
@@ -91,6 +100,7 @@ class RemoteServer {
   late final ServerTcp _tcp;
   late final ServerLsp _lsp;
   late final ServerClaude _claude;
+  late final ServerAgy _agy;
   late final ServerSkills _skills = ServerSkills();
   final Map<String, LocalFiles> _files = {};
   final Map<int, _ServerProcess> _processes = {};
@@ -350,6 +360,19 @@ class RemoteServer {
           ),
         );
       }
+      if (args['core'] == 'agy') {
+        return _track(
+          await _agy.startAgy(
+            cwd: cwd,
+            arguments: (args['arguments'] as List).cast<String>(),
+            settings: (args['settings'] as Map?)?.cast<String, Object?>(),
+            cleared: (args['cleared'] as List? ?? const []).cast<String>(),
+            environment:
+                (args['environment'] as Map?)?.cast<String, String>() ??
+                const {},
+          ),
+        );
+      }
       final cli = await _claude.locate();
       if (!Directory(cwd).existsSync()) {
         throw IdeFileNotFoundException(cwd);
@@ -418,7 +441,16 @@ class RemoteServer {
     handlers[RemoteProtocol.claudeGoal] = (params, _) =>
         _sessions.goal(paramsOf(params)['id'] as String);
     handlers[RemoteProtocol.claudeDelete] = (params, _) async {
-      await _sessions.delete(paramsOf(params)['id'] as String);
+      final id = paramsOf(params)['id'] as String;
+      if (RegExp(r'^[0-9a-zA-Z][0-9a-zA-Z_-]*$').hasMatch(id)) {
+        final configDir = await ClaudeEnvironment.configDir();
+        await AgyTransportCore.forget(
+          id,
+          configDir,
+          runtime: _agy.defaultRuntime,
+        );
+      }
+      await _sessions.delete(id);
       return null;
     };
     handlers[RemoteProtocol.claudeFork] = (params, _) {
@@ -498,6 +530,7 @@ class RemoteServer {
       _streams.closeAll(),
       _tcp.closeAll(),
       _lsp.cancelAll(),
+      _agy.stopAll(),
       _cli.close(),
       _skills.dispose(),
     ]);

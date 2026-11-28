@@ -241,6 +241,7 @@ class _LiveStatsState extends State<_LiveStats> {
     final l10n = context.l10n;
     final output = widget.output;
     final speed = output.tokensPerSecond;
+    final estimated = speed == null ? output.estimatedTokensPerSecond : null;
     final since = widget.since;
     final tokens = output.tokens;
     return TurnFooter._line([
@@ -259,6 +260,13 @@ class _LiveStatsState extends State<_LiveStats> {
           icon: _zapIcon,
           text: l10n.turnSpeed(speed.toStringAsFixed(2)),
           hint: l10n.turnSpeedLiveHint,
+          live: true,
+        )
+      else if (estimated != null)
+        _Stat(
+          icon: _zapIcon,
+          text: l10n.turnSpeed('~${estimated.toStringAsFixed(1)}'),
+          hint: l10n.turnSpeedEstimatedHint,
           live: true,
         ),
       if (tokens > 0)

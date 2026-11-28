@@ -52,6 +52,8 @@ class MarkdownView extends StatefulWidget {
   static List<md.InlineSyntax> get inlineSyntaxes => [
     InlineMathSyntax(),
     CjkEmphasisSyntax(),
+    _SpacedLocalImageSyntax(),
+    _SpacedLocalLinkSyntax(),
   ];
 
   /// A document parsing as it does; one keeps the link definitions it
@@ -1258,3 +1260,86 @@ String _unescape(String text) => text
     .replaceAll('&gt;', '>')
     .replaceAll('&quot;', '"')
     .replaceAll('&#39;', "'");
+
+/// Parses local image syntax whose unbracketed path contains spaces, such as
+/// `![shot](/Users/me/Application Support/shot.png)` or `![shot](C:/My Dir/a.png)`:
+/// CommonMark rejects spaces in bare link destinations, leaving the raw text.
+class _SpacedLocalImageSyntax extends md.InlineSyntax {
+  _SpacedLocalImageSyntax()
+    : super(
+        r'!\[([^\]]*)\]\(((?:/(?!/)|[A-Za-z]:[/\\]|~[/\\]|file://)[^()<>"\n]* [^\n()<>"]*\.(?:png|jpe?g|gif|webp|bmp|svg))\)',
+        startCharacter: 0x21, // !
+        caseSensitive: false,
+      );
+
+  @override
+  bool tryMatch(md.InlineParser parser, [int? startMatchPos]) {
+    final pos = startMatchPos ?? parser.pos;
+    if (pos >= parser.source.length || parser.source.codeUnitAt(pos) != 0x21) {
+      return false;
+    }
+    final match = pattern.matchAsPrefix(parser.source, pos);
+    if (match == null) return false;
+    final src = (match[2] ?? '').trim();
+    if (src.isEmpty || !src.contains(' ')) return false;
+    parser.writeText();
+    final element = md.Element.empty('img')
+      ..attributes['src'] = src
+      ..attributes['alt'] = match[1] ?? '';
+    parser.addNode(element);
+    parser.consume(match[0]!.length);
+    return true;
+  }
+
+  @override
+  bool onMatch(md.InlineParser parser, Match match) => false;
+}
+
+/// Parses markdown links whose unbracketed local/file path contains spaces,
+/// such as `[plan.json](/Users/me/Application Support/.../plan.json)` or
+/// `[notes](My Folder/notes.md#L10-L20)`: CommonMark rejects unescaped spaces
+/// in bare link destinations unless wrapped in `<...>`.
+class _SpacedLocalLinkSyntax extends md.InlineSyntax {
+  _SpacedLocalLinkSyntax()
+    : super(
+        r'\[([^\[\]\n]+)\]\(([^()<>"\n]+ [^()<>"\n]+)\)',
+        startCharacter: 0x5B, // [
+      );
+
+  /// A trailing single-quoted markdown link title (` 'title'`), which belongs
+  /// to standard CommonMark links rather than a spaced path.
+  static final _singleQuotedTitle = RegExp(r"\s+'[^']*'$");
+
+  /// Must look like a file/folder path: absolute (`/`, `C:/`, `~/`), file/SSH
+  /// scheme (`file://`, `local:`, `ssh://`), or a relative path with a slash.
+  static final _pathLikeDestination = RegExp(
+    r'^(?:/(?!/)|[A-Za-z]:[/\\]|~[/\\]|file://|local:|ssh://[^/\s]+/|[^/\s][^:]*[/\\])',
+    caseSensitive: false,
+  );
+
+  @override
+  bool tryMatch(md.InlineParser parser, [int? startMatchPos]) {
+    final pos = startMatchPos ?? parser.pos;
+    if (pos >= parser.source.length || parser.source.codeUnitAt(pos) != 0x5B) {
+      return false;
+    }
+    // Do not steal an image (`![alt](...)`) that `_SpacedLocalImageSyntax` declined.
+    if (pos > 0 && parser.source.codeUnitAt(pos - 1) == 0x21) return false;
+    final match = pattern.matchAsPrefix(parser.source, pos);
+    if (match == null) return false;
+    final label = match[1] ?? '';
+    final href = (match[2] ?? '').trim();
+    if (label.isEmpty || href.isEmpty || !href.contains(' ')) return false;
+    if (_singleQuotedTitle.hasMatch(href)) return false;
+    if (!_pathLikeDestination.hasMatch(href)) return false;
+    if (FileLink.parseHref(href) == null) return false;
+    parser.writeText();
+    final children = md.InlineParser(label, parser.document).parse();
+    parser.addNode(md.Element('a', children)..attributes['href'] = href);
+    parser.consume(match[0]!.length);
+    return true;
+  }
+
+  @override
+  bool onMatch(md.InlineParser parser, Match match) => false;
+}

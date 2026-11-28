@@ -398,6 +398,7 @@ abstract final class ChatCodec {
       'startedAt': ?item.startedAt?.millisecondsSinceEpoch,
       'tokens': ?item.output?.tokens,
       'speed': ?item.output?.tokensPerSecond,
+      'estimatedSpeed': ?item.output?.estimatedTokensPerSecond,
     },
   };
 
@@ -554,6 +555,8 @@ abstract final class ChatCodec {
           final num tokens => TurnOutput(
             tokens: tokens.toInt(),
             tokensPerSecond: (json['speed'] as num?)?.toDouble(),
+            estimatedTokensPerSecond:
+                (json['estimatedSpeed'] as num?)?.toDouble(),
           ),
           _ => null,
         },

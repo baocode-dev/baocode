@@ -2539,6 +2539,110 @@ class AppLocalizationsEn extends AppLocalizations {
   String get toolProposedGoal => 'Proposed a goal';
 
   @override
+  String get toolReadingOutput => 'Reading output';
+
+  @override
+  String get toolReadOutput => 'Read output';
+
+  @override
+  String get toolStopping => 'Stopping';
+
+  @override
+  String get toolStopped => 'Stopped';
+
+  @override
+  String get toolListingTasks => 'Listing background tasks';
+
+  @override
+  String get toolListedTasks => 'Listed background tasks';
+
+  @override
+  String get toolSendingTaskInput => 'Sending input to task';
+
+  @override
+  String get toolSentTaskInput => 'Sent input to task';
+
+  @override
+  String get toolManagingTask => 'Managing task';
+
+  @override
+  String get toolManagedTask => 'Managed task';
+
+  @override
+  String get toolSchedulingCron => 'Scheduling cron';
+
+  @override
+  String get toolScheduledCron => 'Scheduled cron';
+
+  @override
+  String get toolSettingTimer => 'Setting timer';
+
+  @override
+  String get toolSetTimer => 'Set timer';
+
+  @override
+  String get toolScheduling => 'Scheduling';
+
+  @override
+  String get toolScheduled => 'Scheduled';
+
+  @override
+  String get toolScheduleDaemon => 'daemon';
+
+  @override
+  String get toolListingSubagents => 'Listing subagents';
+
+  @override
+  String get toolListedSubagents => 'Listed subagents';
+
+  @override
+  String get toolStoppingSubagent => 'Stopping subagent';
+
+  @override
+  String get toolStoppedSubagent => 'Stopped subagent';
+
+  @override
+  String get toolStoppingAllSubagents => 'Stopping all subagents';
+
+  @override
+  String get toolStoppedAllSubagents => 'Stopped all subagents';
+
+  @override
+  String get toolManagingSubagents => 'Managing subagents';
+
+  @override
+  String get toolManagedSubagents => 'Managed subagents';
+
+  @override
+  String toolSubagentCount(int count) {
+    return '$count subagents';
+  }
+
+  @override
+  String get toolDefiningSubagent => 'Defining subagent';
+
+  @override
+  String get toolDefinedSubagent => 'Defined subagent';
+
+  @override
+  String get toolReadingMcpResource => 'Reading MCP resource';
+
+  @override
+  String get toolReadMcpResource => 'Read MCP resource';
+
+  @override
+  String get toolListingMcpResources => 'Listing MCP resources';
+
+  @override
+  String get toolListedMcpResources => 'Listed MCP resources';
+
+  @override
+  String get toolAccessingMcpResource => 'Accessing MCP resource';
+
+  @override
+  String get toolAccessedMcpResource => 'Accessed MCP resource';
+
+  @override
   String get goalAdopt => 'Set as goal';
 
   @override
@@ -2760,6 +2864,9 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get turnSpeedLiveHint =>
       'Output speed, sampled over the last 2 seconds';
+
+  @override
+  String get turnSpeedEstimatedHint => 'Estimated output speed';
 
   @override
   String get turnDurationHint => 'Time this turn took';
@@ -7216,6 +7323,99 @@ class AppLocalizationsEn extends AppLocalizations {
   String get agyNotSignedIn => 'Not signed in';
 
   @override
+  String agyRemoteInstallTitle(String host) {
+    return 'Install Antigravity CLI on $host';
+  }
+
+  @override
+  String agyRemoteInstallHint(String host) {
+    return 'Antigravity CLI was not found on $host (~103 MB). It tries a direct download on the host first, and falls back to downloading here (cached per platform) and uploading if unreachable.';
+  }
+
+  @override
+  String agyRemoteInstallingTitle(String host) {
+    return 'Installing Antigravity CLI on $host';
+  }
+
+  @override
+  String agyRemoteInstallProbing(String host) {
+    return 'Checking direct connection from $host…';
+  }
+
+  @override
+  String agyRemoteInstallDirect(String host) {
+    return 'Downloading directly on $host…';
+  }
+
+  @override
+  String agyRemoteInstallDirectProgress(String host, int percent) {
+    return 'Downloading directly on $host… $percent%';
+  }
+
+  @override
+  String agyRemoteInstallLocal(String host) {
+    return '$host could not reach Google directly. Downloading on this machine…';
+  }
+
+  @override
+  String agyRemoteInstallLocalProgress(String host, int percent) {
+    return '$host could not reach Google directly. Downloading on this machine… $percent%';
+  }
+
+  @override
+  String agyRemoteInstallUploading(String host, int percent) {
+    return 'Transferring Antigravity CLI to $host… $percent%';
+  }
+
+  @override
+  String agyRemoteSignInTitle(String host) {
+    return 'Sign in to Antigravity on $host';
+  }
+
+  @override
+  String agyRemoteSignInPrompt(String host) {
+    return 'Antigravity CLI on $host is not signed in yet. Open Google sign-in in your browser to continue.';
+  }
+
+  @override
+  String get agyRemoteSignInPreparing => 'Preparing Google sign-in link…';
+
+  @override
+  String get agyRemoteSignInWaitingBrowser =>
+      'Google sign-in has been opened in your browser. Waiting for authorization to finish…';
+
+  @override
+  String get agyRemoteSignInPasteHint =>
+      'Google sign-in has been opened in your browser. Complete authorization, then paste the authorization code or full callback URL below.';
+
+  @override
+  String get agyRemoteSignInStart => 'Sign In in Browser';
+
+  @override
+  String get agyRemoteOpenLink => 'Open Link';
+
+  @override
+  String get agyRemoteCopyLink => 'Copy Link';
+
+  @override
+  String get agyRemoteLinkCopied => 'Copied';
+
+  @override
+  String get agyRemoteCodePlaceholder =>
+      'Paste authorization code or callback URL';
+
+  @override
+  String get agyRemoteCodeSubmit => 'Finish Sign In';
+
+  @override
+  String agyRemoteErrorTitle(String host) {
+    return 'Antigravity on $host is unavailable';
+  }
+
+  @override
+  String get agyRemoteRetry => 'Retry';
+
+  @override
   String get modelsTest => 'Test Connection';
 
   @override
@@ -8395,6 +8595,31 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String remoteUploadingClaude(String host, int percent) {
     return 'Sending Claude Code to $host… $percent%';
+  }
+
+  @override
+  String remoteStatusInstallingAgy(String kind, String host, int percent) {
+    return '$kind: $host (installing Antigravity CLI $percent%)';
+  }
+
+  @override
+  String remoteStatusInstallingAgyUnsized(String kind, String host) {
+    return '$kind: $host (installing Antigravity CLI...)';
+  }
+
+  @override
+  String remoteInstallingAgy(String host) {
+    return 'Installing Antigravity CLI on $host…';
+  }
+
+  @override
+  String remoteInstallingAgyProgress(String host, int percent) {
+    return 'Installing Antigravity CLI on $host… $percent%';
+  }
+
+  @override
+  String remoteUploadingAgy(String host, int percent) {
+    return 'Sending Antigravity CLI to $host… $percent%';
   }
 
   @override

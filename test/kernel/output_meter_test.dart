@@ -168,4 +168,21 @@ void main() {
     meter.endMessage(tokens: 30);
     expect(meter.averageSpeed, isNull);
   });
+
+  test('estimates output speed from streamed thoughts before warm-up, then hands off to exact speed', () {
+    // 7 chunks of 10 tokens every 100 ms (600 ms active span, first chunk is burst).
+    for (var i = 0; i < 7; i++) {
+      after(100);
+      meter.streamed('a' * 30, timed: false);
+    }
+    expect(meter.output.tokens, 70);
+    expect(meter.output.tokensPerSecond, isNull);
+    expect(meter.output.estimatedTokensPerSecond, closeTo(100, 1e-6));
+
+    // Once exact timed text streams past warm-up, estimated speed yields to exact speed.
+    meter.startMessage();
+    stream(15);
+    expect(meter.output.tokensPerSecond, closeTo(100, 1e-6));
+    expect(meter.output.estimatedTokensPerSecond, isNull);
+  });
 }

@@ -455,7 +455,7 @@ When you mention a specific file or folder in your reply (one you read, changed,
 The chat renders GitHub-flavored Markdown, and also:
 - Math (TeX): inline $E=mc^2$ or \(...\); display $$...$$ or \[...\] on lines of their own. Not in a ```math fence, which shows as code.
 - Mermaid: a ```mermaid block is drawn as a diagram (flowchart, sequence, class, state, ER, gantt, pie, mindmap, timeline, gitGraph…). Prefer flowchart LR to TD: the chat is wider than it is tall. Keep it under about 100 nodes and 200 lines, and quote labels with symbols: A["load (cached)"]; a larger or invalid one shows as its source.
-- Images: ![alt](path/to/shot.png) shows a local image inline.
+- Images: ![alt](path/to/shot.png) shows a local image inline. If the path contains spaces, wrap it in angle brackets: ![alt](</Users/me/My Project/shot.png>).
 - Folding: <details><summary>Title</summary> … </details>, the tags on lines of their own, folds long logs or output away.
 Use them where they make the answer clearer (a diagram for a flow or a structure, math for a formula), not as decoration. Other HTML shows as text.
 </formatting>''';

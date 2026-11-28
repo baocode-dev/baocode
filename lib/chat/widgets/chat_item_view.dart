@@ -70,7 +70,12 @@ class ChatItemView extends StatelessWidget {
         fromAgent: final agent?,
         :final fromSession,
       ) =>
-        AgentMessageCard(agent: agent, text: text, session: fromSession),
+        AgentMessageCard(
+          agent: agent,
+          text: text,
+          session: fromSession,
+          onOpen: onOpen,
+        ),
       UserMessageItem(:final text, :final images) => UserMessageBubble(
         text: text,
         images: images,

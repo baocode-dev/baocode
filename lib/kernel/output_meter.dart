@@ -74,6 +74,17 @@ class OutputMeter {
   /// The speed as last sampled; none before [warmUp].
   double? _speed;
 
+  /// Active writing clock and non-burst tokens across *all* streamed deltas
+  /// (including thoughts), for [estimatedSpeed] before [_speed] is sampled.
+  DateTime? _turnStartedAt;
+  Duration _anyWritten = Duration.zero;
+  DateTime? _anyFirst;
+  DateTime? _anyLast;
+  double _anySampled = 0;
+
+  /// Minimum active streaming span before estimating from active pace.
+  static const _estimateWarmUp = Duration(milliseconds: 300);
+
   /// The guess's correction: counted over guessed, within reason.
   double get _ratio => _guessedTimed < 50
       ? 1
@@ -88,6 +99,10 @@ class OutputMeter {
     _counted = 0;
     _countedTimed = _guessedTimed = 0;
     _speed = null;
+    _turnStartedAt = _clock();
+    _anyWritten = Duration.zero;
+    _anyFirst = _anyLast = null;
+    _anySampled = 0;
   }
 
   /// A message begins (any it did not end gave way).
@@ -106,6 +121,10 @@ class OutputMeter {
       _written += last.difference(first);
     }
     _first = _last = null;
+    if ((_anyFirst, _anyLast) case (final first?, final last?)) {
+      _anyWritten += last.difference(first);
+    }
+    _anyFirst = _anyLast = null;
     _guessed = _timed = 0;
   }
 
@@ -114,9 +133,13 @@ class OutputMeter {
   void streamed(String text, {bool timed = true}) {
     final tokens = estimateTokens(text);
     _guessed += tokens;
-    if (!timed || tokens == 0) return;
-    _timed += tokens;
+    if (tokens == 0) return;
     final now = _clock();
+    final anyFirst = _anyFirst ??= now;
+    _anyLast = now;
+    if (now.difference(anyFirst) >= _burst) _anySampled += tokens;
+    if (!timed) return;
+    _timed += tokens;
     final first = _first ??= now;
     _last = now;
     final at = _written + now.difference(first);
@@ -156,11 +179,34 @@ class OutputMeter {
     _startMessage();
   }
 
+  /// Fallback estimated speed (tok/s) when [_speed] has not been sampled yet
+  /// (e.g. while only thoughts or short bursts have arrived): prefers active
+  /// streaming pace excluding tool waits once >= 300 ms, else falls back to
+  /// total tokens over turn elapsed time once >= 1 s.
+  double? get estimatedSpeed {
+    if (_speed != null) return null;
+    final total = _counted + (_guessed * _ratio).round();
+    if (total < 10) return null;
+    var active = _anyWritten;
+    if ((_anyFirst, _anyLast) case (final first?, final last?)) {
+      active += last.difference(first);
+    }
+    if (active >= _estimateWarmUp && _anySampled >= 10) {
+      return _anySampled * _ratio / _seconds(active);
+    }
+    if (_turnStartedAt case final started?) {
+      final elapsed = _clock().difference(started);
+      if (elapsed >= warmUp) return total / _seconds(elapsed);
+    }
+    return null;
+  }
+
   /// What is written so far, and how fast, as last sampled: between its
   /// messages too.
   TurnOutput get output => TurnOutput(
     tokens: _counted + (_guessed * _ratio).round(),
     tokensPerSecond: _speed,
+    estimatedTokensPerSecond: _speed == null ? estimatedSpeed : null,
   );
 
   /// The tokens timed over all the time written, the turn so far; null

@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:ffi' show Abi;
 import 'dart:io';
 
+import 'package:bao_remote/acp.dart'
+    show AcpProcessTransport, AgyRelease, ManagedAgy;
 import 'package:bao_remote/local.dart' show ClaudeEnvironment;
-import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
 import '../../network/network_proxy_io.dart';
@@ -14,6 +14,8 @@ import '../acp/acp_connection.dart';
 import 'agy_runtime.dart';
 
 AgyRuntime localAgyRuntime() => LocalAgyRuntime();
+
+String? localAgyBrainDir() => LocalAgyRuntime()._managed.brainDir;
 
 /// agy on this machine, kept under `<data>/antigravity`: its builds in
 /// `bin/<version>`, its conversations and settings in `home` (agy's
@@ -31,18 +33,10 @@ class LocalAgyRuntime implements AgyRuntime {
   String get root =>
       _rootOverride ?? p.join(DataDirectory.current.path, 'antigravity');
 
+  ManagedAgy get _managed => ManagedAgy(root);
+
   /// agy's `--gemini-dir`: what it keeps, apart from the terminal's.
-  String get home => p.join(root, 'home');
-
-  String get _bin => p.join(root, 'bin');
-
-  /// Which build is in use, by its version.
-  File get _current => File(p.join(_bin, 'current'));
-
-  static String get _exe => Platform.isWindows ? '.exe' : '';
-
-  String _executableOf(String version) =>
-      p.join(_bin, version, 'antigravity$_exe');
+  String get home => _managed.home;
 
   /// The processes running, kept track of across runs (see
   /// [ChildProcessRegistry]).
@@ -56,28 +50,9 @@ class LocalAgyRuntime implements AgyRuntime {
   static final Set<Process> _live = {};
 
   @override
-  Future<String?> version() async {
-    try {
-      final version = (await _current.readAsString()).trim();
-      if (version.isEmpty || !File(_executableOf(version)).existsSync()) {
-        return null;
-      }
-      return version;
-    } on FileSystemException {
-      return null;
-    }
-  }
+  Future<String?> version() => _managed.version();
 
-  Future<String> _executable() async {
-    final version = await this.version();
-    if (version == null) {
-      throw const AgyUnavailable(
-        'Antigravity is not installed',
-        notInstalled: true,
-      );
-    }
-    return _executableOf(version);
-  }
+  Future<String> _executable() => _managed.executable();
 
   Future<Map<String, String>> _runEnvironment() async => {
     ...await _environment(),
@@ -202,166 +177,32 @@ class LocalAgyRuntime implements AgyRuntime {
 
   /// Google's release feed: `<feed>/<os>_<arch>.json` tells the version,
   /// its download and its SHA-512 (as `agy update` reads it).
-  static const feed =
-      'https://antigravity-cli-auto-updater-974169037036.us-central1.run.app/manifests';
-
-  /// Where its builds are, the only place a download is taken from.
-  static const _downloads =
-      'https://storage.googleapis.com/antigravity-public/antigravity-cli/';
-
-  static String get _target {
-    final os = switch (Platform.operatingSystem) {
-      'macos' => 'darwin',
-      final os => os,
-    };
-    final arch = switch (Abi.current()) {
-      Abi.macosArm64 || Abi.linuxArm64 || Abi.windowsArm64 => 'arm64',
-      _ => 'amd64',
-    };
-    return '${os}_$arch';
-  }
-
-  Future<Map<String, Object?>> _manifest(HttpClient client) async {
-    final request = await client.getUrl(Uri.parse('$feed/$_target.json'));
-    final response = await request.close();
-    final text = await utf8.decodeStream(response);
-    if (response.statusCode != 200) {
-      throw AgyUnavailable(
-        'Antigravity’s release feed answered ${response.statusCode}',
-      );
-    }
-    return switch (jsonDecode(text)) {
-      final Map<String, Object?> json => json,
-      _ => const {},
-    };
-  }
-
-  Future<T> _feed<T>(Future<T> Function(HttpClient client) use) async {
-    final client = HttpClient();
-    try {
-      return await use(client);
-    } on SocketException catch (error) {
-      throw AgyUnavailable(
-        'Antigravity’s release feed could not be reached',
-        detail: error.message,
-      );
-    } on HandshakeException catch (error) {
-      throw AgyUnavailable(
-        'Antigravity’s release feed could not be reached',
-        detail: error.message,
-      );
-    } finally {
-      client.close();
-    }
-  }
+  static const feed = AgyRelease.defaultFeed;
 
   @override
-  Future<String> latestVersion() => _feed((client) async {
-    final version = (await _manifest(client))['version'];
-    if (version is! String || !_versionPattern.hasMatch(version)) {
-      throw const AgyUnavailable('Antigravity’s release feed said nothing');
-    }
-    return version;
-  });
-
-  static final _versionPattern = RegExp(r'^\d+\.\d+\.\d+$');
+  Future<String> latestVersion() async =>
+      (await AgyRelease().latest(AgyRelease.currentTarget())).version;
 
   @override
-  Future<void> install({void Function(double progress)? onProgress}) =>
-      _feed((client) async {
-        final manifest = await _manifest(client);
-        final (version, url, sha) = (
-          manifest['version'],
-          manifest['url'],
-          manifest['sha512'],
-        );
-        if (version is! String ||
-            !_versionPattern.hasMatch(version) ||
-            url is! String ||
-            !url.startsWith(_downloads) ||
-            sha is! String) {
-          throw const AgyUnavailable('Antigravity’s release feed said nothing');
-        }
-        final folder = Directory(p.join(_bin, version));
-        final target = File(_executableOf(version));
-        if (!target.existsSync()) {
-          await _download(client, url, sha, folder, target, onProgress);
-        }
-        final before = await this.version();
-        await _current.writeAsString(version, flush: true);
-        dropSpare();
-        // The build before, unless sessions still run on it: then the
-        // next install takes it.
-        if (before != null && before != version && _live.isEmpty) {
-          await Directory(p.join(_bin, before))
-              .delete(recursive: true)
-              .catchError((_) => Directory(''));
-        }
-      });
-
-  Future<void> _download(
-    HttpClient client,
-    String url,
-    String sha,
-    Directory folder,
-    File target,
-    void Function(double progress)? onProgress,
-  ) async {
-    if (folder.existsSync()) await folder.delete(recursive: true);
-    await folder.create(recursive: true);
-    final download = File(p.join(folder.path, 'download.part'));
-    try {
-      final request = await client.getUrl(Uri.parse(url));
-      final response = await request.close();
-      if (response.statusCode != 200) {
-        throw AgyUnavailable(
-          'Antigravity could not be downloaded (${response.statusCode})',
-        );
-      }
-      final total = response.contentLength;
-      var received = 0;
-      final sink = download.openWrite();
-      final digest = _DigestSink();
-      final hasher = sha512.startChunkedConversion(digest);
-      await for (final chunk in response) {
-        sink.add(chunk);
-        hasher.add(chunk);
-        received += chunk.length;
-        if (total > 0) onProgress?.call(received / total);
-      }
-      await sink.close();
-      hasher.close();
-      if ('${digest.value}' != sha.toLowerCase()) {
-        throw const AgyUnavailable(
-          'Antigravity’s download did not match its checksum',
-        );
-      }
-      if (url.endsWith('.tar.gz')) {
-        final result = await Process.run('tar', [
-          '-xzf',
-          download.path,
-          '-C',
-          folder.path,
-        ]);
-        await download.delete();
-        final binary = File(p.join(folder.path, 'antigravity'));
-        if (result.exitCode != 0 || !binary.existsSync()) {
-          throw AgyUnavailable(
-            'Antigravity could not be unpacked',
-            detail: '${result.stderr}',
-          );
-        }
-        if (binary.path != target.path) await binary.rename(target.path);
-        await Process.run('chmod', ['755', target.path]);
-      } else {
-        await download.rename(target.path);
-      }
-    } on Object {
-      if (folder.existsSync()) {
-        await folder.delete(recursive: true).catchError((_) => folder);
-      }
-      rethrow;
+  Future<void> install({void Function(double progress)? onProgress}) async {
+    final release = AgyRelease();
+    final build = await release.latest(AgyRelease.currentTarget());
+    final managed = _managed;
+    final target = File(managed.executableOf(build.version));
+    final part = managed.partOf(build);
+    if (!target.existsSync()) {
+      await release.download(
+        build,
+        part,
+        onProgress: onProgress == null
+            ? null
+            : (received, total) {
+                if (total > 0) onProgress(received / total);
+              },
+      );
     }
+    await managed.installArchive(build, part, prunePrevious: _live.isEmpty);
+    dropSpare();
   }
 
   // --- The account -----------------------------------------------------------------
@@ -451,21 +292,8 @@ class LocalAgyRuntime implements AgyRuntime {
   });
 
   @override
-  Future<void> deleteSession(String sessionId) async {
-    if (sessionId.length < 8 || sessionId.contains(RegExp(r'[/\\.]'))) return;
-    final data = Directory(p.join(home, 'antigravity-cli'));
-    if (!data.existsSync()) return;
-    // Wherever agy keeps it, by its id: `conversations/<id>.db` and its
-    // journal, `brain/<id>`, `annotations/<id>.pbtxt`.
-    await for (final entity in data.list(recursive: true, followLinks: false)) {
-      if (!p.basename(entity.path).startsWith(sessionId)) continue;
-      try {
-        await entity.delete(recursive: true);
-      } on FileSystemException {
-        // Gone already (a folder's, with it), or held: left.
-      }
-    }
-  }
+  Future<void> deleteSession(String sessionId) =>
+      _managed.deleteSession(sessionId);
 
   @override
   Future<void> stopAll() async {
@@ -479,113 +307,18 @@ class LocalAgyRuntime implements AgyRuntime {
   }
 }
 
-/// An `agy acp` process, its stdio as an [AcpTransport].
-class AgyProcessTransport implements AcpTransport {
-  AgyProcessTransport(this._process) {
-    LocalAgyRuntime._live.add(_process);
-    unawaited(LocalAgyRuntime.registry.add(_process.pid));
-    _process.stdout
-        .transform(const Utf8Decoder(allowMalformed: true))
-        .transform(const LineSplitter())
-        .listen(_line, onDone: _stdoutDone);
-    _process.stderr
-        .transform(const Utf8Decoder(allowMalformed: true))
-        .transform(const LineSplitter())
-        .listen(_stderrLine);
-    unawaited(
-      _process.exitCode.then((code) {
-        _code = code;
-        LocalAgyRuntime._live.remove(_process);
-        unawaited(LocalAgyRuntime.registry.remove(_process.pid));
-        _finish();
-      }),
-    );
+/// An `agy acp` process registered in [LocalAgyRuntime.registry], wrapping
+/// [AcpProcessTransport].
+class AgyProcessTransport extends AcpProcessTransport {
+  AgyProcessTransport(Process process)
+    : super(
+        process,
+        onExit: (_) {
+          LocalAgyRuntime._live.remove(process);
+          unawaited(LocalAgyRuntime.registry.remove(process.pid));
+        },
+      ) {
+    LocalAgyRuntime._live.add(process);
+    unawaited(LocalAgyRuntime.registry.add(process.pid));
   }
-
-  final Process _process;
-  final StreamController<Map<String, Object?>> _messages =
-      StreamController.broadcast();
-  final List<String> _stderr = [];
-  final Completer<AcpExit> _exit = Completer();
-  int? _code;
-  bool _stdoutClosed = false;
-
-  @override
-  Stream<Map<String, Object?>> get messages => _messages.stream;
-
-  @override
-  Future<AcpExit> get exited => _exit.future;
-
-  void _line(String line) {
-    if (line.trim().isEmpty) return;
-    try {
-      if (jsonDecode(line) case final Map<String, Object?> message) {
-        _messages.add(message);
-        return;
-      }
-    } on FormatException {
-      // Not protocol: kept to say why it failed.
-    }
-    _stderrLine(line);
-  }
-
-  void _stderrLine(String line) {
-    _stderr.add(line);
-    if (_stderr.length > 30) _stderr.removeAt(0);
-  }
-
-  void _stdoutDone() {
-    _stdoutClosed = true;
-    _finish();
-  }
-
-  /// Whether it is gone, or going.
-  bool get ended => _code != null || _closing;
-  bool _closing = false;
-
-  void _finish() {
-    final code = _code;
-    if (code == null || !_stdoutClosed || _exit.isCompleted) return;
-    _exit.complete(AcpExit(code, _stderr.join('\n')));
-    unawaited(_messages.close());
-  }
-
-  @override
-  void write(Map<String, Object?> message) {
-    if (_code != null) return;
-    try {
-      _process.stdin.writeln(jsonEncode(message));
-    } on StateError {
-      // Closed under us: the exit follows.
-    }
-  }
-
-  @override
-  void close() {
-    if (_code != null) return;
-    _closing = true;
-    unawaited(_process.stdin.close().catchError((_) {}));
-    if (Platform.isWindows) {
-      unawaited(
-        Process.run('taskkill', [
-          '/pid',
-          '${_process.pid}',
-          '/T',
-          '/F',
-        ]).then<void>((_) {}, onError: (Object _) => _process.kill()),
-      );
-    } else {
-      _process.kill();
-    }
-  }
-}
-
-class _DigestSink implements Sink<Digest> {
-  Digest? value;
-
-  @override
-  void add(Digest data) => value = data;
-
-  @override
-  void close() {}
 }

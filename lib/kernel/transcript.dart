@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import '../chat/chat_models.dart';
+import '../swarm/swarm_model.dart';
 import 'kernel_event.dart';
 import 'kernel_types.dart';
 
@@ -98,6 +99,12 @@ class Transcript {
 
   /// The session's goal, if it has one (or just met one).
   KernelGoal? goal;
+
+  /// The session's Antigravity native swarm, if one is active or kept.
+  SwarmSnapshot? swarm;
+
+  /// Sequence of the first swarm report, to auto-open the Swarm panel once.
+  int swarmSeq = 0;
 
   int get length => _historyCount + _items.length;
 
@@ -226,6 +233,9 @@ class Transcript {
         tasks = reported;
       case GoalReported(goal: final reported):
         goal = reported;
+      case SwarmReported(swarm: final reported):
+        if (swarm == null && reported != null) swarmSeq = event.seq;
+        swarm = reported;
       case StatsReported(stats: final reported):
         stats = reported;
       // The session's, not the conversation's (see ChatSession.takeRenamed).

@@ -420,7 +420,7 @@ void main() {
   });
 
   testWidgets('copying from chat history preserves image, code, paste, quote, '
-      'stash, command, and file chips when pasted into composer', (
+      'stash, command, file, and member chips when pasted into composer', (
     tester,
   ) async {
     final clipboard = _NativeClipboard(tester);
@@ -444,7 +444,7 @@ void main() {
       number: 1,
     );
     final messageText =
-        '/plan @lib/app.dart [Image #1] '
+        '/plan @worker-1 @lib/app.dart [Image #1] '
         '${code.reference} ${pasted.reference} ${quote.reference} '
         '${stash.reference} 修复路径问题'
         '${codeAppendix([code, pasted, quote, stash])}';
@@ -466,6 +466,9 @@ void main() {
           body: ComposerVocabulary(
             commands: const [
               Suggestion(kind: SuggestionKind.command, label: 'plan'),
+            ],
+            members: () => const [
+              Suggestion.member(name: 'worker-1', group: 'Swarm'),
             ],
             child: Column(
               children: [
@@ -536,6 +539,7 @@ void main() {
     expect(out.images.single.bytes, _pngA);
     expect(out.mentions, contains('lib/app.dart'));
     expect(out.text, contains('/plan'));
+    expect(out.text, contains('@worker-1'));
     expect(out.text, contains('void main() {\n  run();\n}'));
     expect(out.text, contains('line one\nline two\nline three'));
     expect(out.text, contains('quoted snippet'));

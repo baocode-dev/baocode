@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../../browser/browser_steps.dart' show browserIcon;
 import '../../icons/icon_library.dart';
 import '../../icons/project_icon_view.dart';
 import '../../icons/site_icons.dart';
@@ -11,8 +12,8 @@ import '../chat_models.dart';
 import '../selection/chat_selection.dart';
 import '../step_folds.dart';
 
-/// A web search step's globe icon (Lucide's globe).
-const webSearchIcon = 'assets/icons/lucide-globe.svg';
+/// A web search step's globe icon (Phosphor's globe-simple).
+const webSearchIcon = 'assets/icons/ph-globe-simple.svg';
 
 /// The site [target] refers to for a `WebFetch` step; null when [target] is
 /// not an HTTP(S) URL with a host.
@@ -21,6 +22,68 @@ Uri? webFetchSite(String target) {
   if (uri == null || uri.host.isEmpty) return null;
   final scheme = uri.scheme.toLowerCase();
   return scheme == 'http' || scheme == 'https' ? uri : null;
+}
+
+final _ipHostPattern = RegExp(r'^[\d.]+$|:');
+final _browserOutputUrlPattern = RegExp(
+  r'^URL:\s*(https?://\S+)',
+  multiLine: true,
+);
+
+/// A public HTTP(S) site with a domain name (not `localhost` or an IP
+/// address), suitable for fetching a favicon.
+Uri? _publicSite(String raw) {
+  final uri = webFetchSite(raw);
+  if (uri == null) return null;
+  final host = uri.host.toLowerCase();
+  if (!host.contains('.') ||
+      host == 'localhost' ||
+      host.endsWith('.localhost') ||
+      host.endsWith('.local') ||
+      _ipHostPattern.hasMatch(host)) {
+    return null;
+  }
+  return uri;
+}
+
+/// Public sites a [ToolKind.browser] step opened, navigated to, or read.
+/// Scans only the head of [ToolCallItem.output] so huge DOM snapshots stay O(1).
+List<Uri> browserStepSites(ToolCallItem item) {
+  final sites = <Uri>[];
+  final hosts = <String>{};
+  void add(String? raw) {
+    if (raw == null || raw.isEmpty) return;
+    final site = _publicSite(raw);
+    if (site != null && hosts.add(site.host.toLowerCase())) {
+      sites.add(site);
+    }
+  }
+
+  if (item.input['url'] case final String url) add(url);
+  if (item.tool == 'browser_act' && item.input['steps'] is List) {
+    for (final step in (item.input['steps'] as List).whereType<Map>()) {
+      if (step['action'] == 'navigate' && step['url'] is String) {
+        add(step['url'] as String);
+      }
+    }
+  }
+  final output = item.output;
+  if (output != null && output.isNotEmpty) {
+    final head = output.length > 512 ? output.substring(0, 512) : output;
+    if (head.contains('URL:')) {
+      for (final match in _browserOutputUrlPattern.allMatches(head)) {
+        add(match.group(1));
+      }
+    }
+  }
+  if (sites.isEmpty &&
+      (item.tool == 'browser_open' || item.tool == 'browser_navigate')) {
+    final target = item.target.trim();
+    if (target.isNotEmpty && !target.contains(RegExp(r'\s'))) {
+      add(target.contains('://') ? target : 'https://$target');
+    }
+  }
+  return sites;
 }
 
 /// Whether a [ToolKind.web] step is a web search rather than a page fetch.
@@ -63,7 +126,11 @@ bool _isEngineRedirect(Uri url) {
 /// A list cut short (an output shortened for showing) still gives the sites
 /// of the entries that survived whole.
 List<Uri> webSearchResultSites(String? output) {
-  if (output == null || output.isEmpty) return const [];
+  if (output == null ||
+      output.isEmpty ||
+      (!output.contains('Results:') && !output.contains('Links:'))) {
+    return const [];
+  }
   final sites = <Uri>[];
   final hosts = <String>{};
   void add(String url, {Object? title}) {
@@ -117,6 +184,14 @@ List<Uri> webSearchResultSites(String? output) {
 /// Renders the globe icon for a web search step.
 Widget webSearchGlobe({double size = 14, Color? color}) => SvgPicture.asset(
   webSearchIcon,
+  width: size,
+  height: size,
+  colorFilter: ColorFilter.mode(color ?? AppColors.textMuted, BlendMode.srcIn),
+);
+
+/// Renders the browser icon (Lucide chrome) for a browser step badge.
+Widget webBrowserMark({double size = 14, Color? color}) => SvgPicture.asset(
+  browserIcon,
   width: size,
   height: size,
   colorFilter: ColorFilter.mode(color ?? AppColors.textMuted, BlendMode.srcIn),
@@ -188,8 +263,8 @@ Widget webIconSwitcher({
   child: child,
 );
 
-/// A web icon collected from a fold's steps: a search globe, or a fetched
-/// site whose favicon shows once available.
+/// A web icon collected from a fold's steps: a search globe, a browser mark,
+/// or a fetched/browsed site whose favicon shows once available.
 sealed class FoldWebIcon {
   const FoldWebIcon();
 }
@@ -205,11 +280,27 @@ final class FoldWebSearchIcon extends FoldWebIcon {
   int get hashCode => (FoldWebSearchIcon).hashCode;
 }
 
-/// A fetched site in a fold, keyed by host.
+/// A browser step in a fold with no public site URL (e.g. localhost or tab
+/// actions without a URL).
+final class FoldWebBrowserIcon extends FoldWebIcon {
+  const FoldWebBrowserIcon();
+
+  @override
+  bool operator ==(Object other) => other is FoldWebBrowserIcon;
+
+  @override
+  int get hashCode => (FoldWebBrowserIcon).hashCode;
+}
+
+/// A fetched or browsed site in a fold, keyed by host.
 final class FoldWebSiteIcon extends FoldWebIcon {
-  const FoldWebSiteIcon(this.site);
+  const FoldWebSiteIcon(this.site, {this.fromBrowser = false});
 
   final Uri site;
+
+  /// Whether this site came from a [ToolKind.browser] step: falls back to
+  /// the browser icon rather than the globe while its favicon is unavailable.
+  final bool fromBrowser;
 
   @override
   bool operator ==(Object other) =>
@@ -220,45 +311,79 @@ final class FoldWebSiteIcon extends FoldWebIcon {
   int get hashCode => site.host.toLowerCase().hashCode;
 }
 
-/// The deduplicated web icons among [items] (in order of first appearance):
-/// source sites from `WebSearch` results and fetched sites from `WebFetch`
-/// (deduplicated by host), plus at most one globe for searches that have not
-/// yielded any parsed sites yet; failed calls are skipped.
-List<FoldWebIcon> foldWebIcons(Iterable<ChatItem> items) {
-  final out = <FoldWebIcon>[];
-  var sawSearch = false;
-  final hosts = <String>{};
-  for (final item in items) {
+/// Single-pass collector for [foldWebIcons], shared with [FoldSummary].
+class FoldWebIconCollector {
+  final List<FoldWebIcon> _out = [];
+  final Set<String> _hosts = {};
+  bool _sawSearch = false;
+  bool _sawBrowserSite = false;
+  int? _browserPlaceholderAt;
+
+  void add(ChatItem item) {
     if (item is! ToolCallItem ||
-        item.kind != ToolKind.web ||
         item.status == ToolStatus.failed ||
         standsOutOfWork(item)) {
-      continue;
+      return;
     }
-    if (isWebSearchTool(tool: item.tool, target: item.target)) {
-      final sites = webSearchResultSites(item.output);
+    if (item.kind == ToolKind.web) {
+      if (isWebSearchTool(tool: item.tool, target: item.target)) {
+        final sites = webSearchResultSites(item.output);
+        if (sites.isNotEmpty) {
+          for (final site in sites) {
+            if (_hosts.add(site.host.toLowerCase())) {
+              _out.add(FoldWebSiteIcon(site));
+            }
+          }
+        } else if (!_sawSearch) {
+          _sawSearch = true;
+          _out.add(const FoldWebSearchIcon());
+        }
+      } else if (webFetchSite(item.target) case final site?) {
+        if (_hosts.add(site.host.toLowerCase())) {
+          _out.add(FoldWebSiteIcon(site));
+        }
+      }
+    } else if (item.kind == ToolKind.browser) {
+      final sites = browserStepSites(item);
       if (sites.isNotEmpty) {
+        _sawBrowserSite = true;
+        if (_browserPlaceholderAt case final at?) {
+          _out.removeAt(at);
+          _browserPlaceholderAt = null;
+        }
         for (final site in sites) {
-          if (hosts.add(site.host.toLowerCase())) {
-            out.add(FoldWebSiteIcon(site));
+          if (_hosts.add(site.host.toLowerCase())) {
+            _out.add(FoldWebSiteIcon(site, fromBrowser: true));
           }
         }
-      } else if (!sawSearch) {
-        sawSearch = true;
-        out.add(const FoldWebSearchIcon());
-      }
-    } else if (webFetchSite(item.target) case final site?) {
-      if (hosts.add(site.host.toLowerCase())) {
-        out.add(FoldWebSiteIcon(site));
+      } else if (!_sawBrowserSite && _browserPlaceholderAt == null) {
+        _browserPlaceholderAt = _out.length;
+        _out.add(const FoldWebBrowserIcon());
       }
     }
   }
-  return out;
+
+  List<FoldWebIcon> get icons => _out;
+}
+
+/// The deduplicated web and browser icons among [items] (in order of first
+/// appearance): source sites from `WebSearch` results, fetched sites from
+/// `WebFetch`, and public sites from browser steps (deduplicated by host),
+/// plus at most one globe for searches without parsed sites and at most one
+/// browser icon for browser steps without public sites; failed calls are
+/// skipped.
+List<FoldWebIcon> foldWebIcons(Iterable<ChatItem> items) {
+  final collector = FoldWebIconCollector();
+  for (final item in items) {
+    collector.add(item);
+  }
+  return collector.icons;
 }
 
 /// Stacked circular web icons shown after a folded header while it is closed:
-/// up to [max] overlapping badges (globes for web searches, favicons for
-/// fetched sites that have one), with `+$rest` for any beyond [max].
+/// up to [max] overlapping badges (globes for web searches, browser marks for
+/// browser steps, favicons for sites that have one), with `+$rest` for any
+/// beyond [max].
 class StepWebIcons extends StatelessWidget {
   const StepWebIcons({
     super.key,
@@ -279,42 +404,54 @@ class StepWebIcons extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final visibleCount = icons.length < max ? icons.length : max;
+    final rest = icons.length - visibleCount;
+    final needsSiteIcons =
+        shown &&
+        icons.take(visibleCount).any((icon) => icon is FoldWebSiteIcon);
+
+    Widget buildContent(BuildContext context, Widget? _) {
+      final resolved = shown && visibleCount > 0
+          ? <_ResolvedWebBadge>[
+              for (var i = 0; i < visibleCount; i++)
+                switch (icons[i]) {
+                  FoldWebSearchIcon() => const _ResolvedWebBadge.search(),
+                  FoldWebBrowserIcon() => const _ResolvedWebBadge.browser(),
+                  FoldWebSiteIcon(:final site, :final fromBrowser) =>
+                    _ResolvedWebBadge.site(
+                      site.host.toLowerCase(),
+                      SiteIcons.current.of(site),
+                      fromBrowser: fromBrowser,
+                    ),
+                },
+            ]
+          : const <_ResolvedWebBadge>[];
+      return ChatUnselectable(
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 180),
+          switchInCurve: Curves.easeOutCubic,
+          switchOutCurve: Curves.easeIn,
+          transitionBuilder: (child, animation) => SizeTransition(
+            axis: Axis.horizontal,
+            alignment: AlignmentDirectional.centerStart,
+            sizeFactor: animation,
+            child: FadeTransition(opacity: animation, child: child),
+          ),
+          child: resolved.isNotEmpty
+              ? _row(resolved, rest)
+              : const SizedBox(key: ValueKey('none'), height: badgeSize),
+        ),
+      );
+    }
+
+    if (!needsSiteIcons) return buildContent(context, null);
     return ListenableBuilder(
       listenable: SiteIcons.current,
-      builder: (context, _) {
-        final resolved = <_ResolvedWebBadge>[
-          for (final icon in icons)
-            switch (icon) {
-              FoldWebSearchIcon() => const _ResolvedWebBadge.search(),
-              FoldWebSiteIcon(:final site) => _ResolvedWebBadge.site(
-                site.host.toLowerCase(),
-                SiteIcons.current.of(site),
-              ),
-            },
-        ];
-        return ChatUnselectable(
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 180),
-            switchInCurve: Curves.easeOutCubic,
-            switchOutCurve: Curves.easeIn,
-            transitionBuilder: (child, animation) => SizeTransition(
-              axis: Axis.horizontal,
-              alignment: AlignmentDirectional.centerStart,
-              sizeFactor: animation,
-              child: FadeTransition(opacity: animation, child: child),
-            ),
-            child: shown && resolved.isNotEmpty
-                ? _row(resolved)
-                : const SizedBox(key: ValueKey('none'), height: badgeSize),
-          ),
-        );
-      },
+      builder: buildContent,
     );
   }
 
-  Widget _row(List<_ResolvedWebBadge> badges) {
-    final visible = badges.take(max).toList();
-    final rest = badges.length - visible.length;
+  Widget _row(List<_ResolvedWebBadge> visible, int rest) {
     final stackWidth = badgeSize + (visible.length - 1) * step;
     return Padding(
       key: const ValueKey('web_icons'),
@@ -341,7 +478,11 @@ class StepWebIcons extends StatelessWidget {
                       curve: Curves.easeOutCubic,
                       left: i * step,
                       top: 0,
-                      child: _AnimatedWebBadge(index: i, image: badge.image),
+                      child: _AnimatedWebBadge(
+                        index: i,
+                        image: badge.image,
+                        browserFallback: badge.browserFallback,
+                      ),
                     ),
                 ],
               ),
@@ -372,10 +513,15 @@ class StepWebIcons extends StatelessWidget {
 }
 
 class _AnimatedWebBadge extends StatefulWidget {
-  const _AnimatedWebBadge({required this.index, required this.image});
+  const _AnimatedWebBadge({
+    required this.index,
+    required this.image,
+    this.browserFallback = false,
+  });
 
   final int index;
   final IconImage? image;
+  final bool browserFallback;
 
   @override
   State<_AnimatedWebBadge> createState() => _AnimatedWebBadgeState();
@@ -421,6 +567,10 @@ class _AnimatedWebBadgeState extends State<_AnimatedWebBadge>
         key: const ValueKey('favicon'),
         child: webSiteFavicon(image, size: StepWebIcons.innerSize),
       ),
+      null when widget.browserFallback => KeyedSubtree(
+        key: const ValueKey('browser'),
+        child: webBrowserMark(size: 13, color: AppColors.textMuted),
+      ),
       null => KeyedSubtree(
         key: const ValueKey('globe'),
         child: webSearchGlobe(size: 14, color: AppColors.textMuted),
@@ -463,9 +613,22 @@ class _AnimatedWebBadgeState extends State<_AnimatedWebBadge>
 }
 
 class _ResolvedWebBadge {
-  const _ResolvedWebBadge.search() : id = 'search', image = null;
-  const _ResolvedWebBadge.site(String host, this.image) : id = 'site:$host';
+  const _ResolvedWebBadge.search()
+    : id = 'search',
+      image = null,
+      browserFallback = false;
+  const _ResolvedWebBadge.browser()
+    : id = 'browser',
+      image = null,
+      browserFallback = true;
+  const _ResolvedWebBadge.site(
+    String host,
+    this.image, {
+    bool fromBrowser = false,
+  }) : id = 'site:$host',
+       browserFallback = fromBrowser;
 
   final String id;
   final IconImage? image;
+  final bool browserFallback;
 }

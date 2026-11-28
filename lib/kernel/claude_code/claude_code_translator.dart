@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import '../../chat/chat_models.dart';
 import '../../chat/compaction_text.dart';
 import '../../l10n/l10n.dart';
+import '../../swarm/swarm_model.dart';
 import '../kernel_event.dart';
 import '../kernel_types.dart';
 import '../output_meter.dart';
@@ -44,6 +45,14 @@ class ClaudeTranslator {
   /// as earlier versions did: a question so answered shows as skipped.
   /// A workflow's card's [AgentItem.agentType] (see [_workflowProgress]).
   static const workflowAgentType = 'workflow';
+
+  /// Prefix of synthetic [AgentItem.id] and [KernelTask.id] entries that back
+  /// Antigravity native `/swarm` workers as first-class subagents.
+  static const swarmWorkerPrefix = 'swarm-worker:';
+
+  /// Whether [id] identifies a swarm worker's subagent card or task.
+  static bool isSwarmWorkerId(String? id) =>
+      id != null && id.startsWith(swarmWorkerPrefix);
 
   static const unattendedAnswer =
       'The user has given full access and is not here to answer questions. '
@@ -142,6 +151,12 @@ class ClaudeTranslator {
   /// task's): one continued (`SendMessage`) runs again on a call of its
   /// own, and goes on in the card of the first.
   final Map<String, String> _agentCalls = {};
+
+  /// Workers created by each `swarm(action: "add")` tool call, by call id.
+  final Map<String, List<String>> _swarmAddCalls = {};
+
+  /// When each swarm worker was first seen active, by worker item id.
+  final Map<String, DateTime> _swarmStartedAt = {};
 
   /// The card of each skill run from a slash command in a subagent of its
   /// own (`context: fork`), by the id its messages give as their parent
@@ -708,9 +723,9 @@ class ClaudeTranslator {
       case {'type': 'text_delta', 'text': final String text}:
         _meter.streamed(text);
       case {'type': 'input_json_delta', 'partial_json': final String json}:
-        _meter.streamed(json);
+        _meter.streamed(json, timed: delta['timed'] != false);
       case {'type': 'thinking_delta', 'thinking': final String thought}:
-        _meter.streamed(thought, timed: false);
+        _meter.streamed(thought, timed: delta['timed'] == true);
       default:
         return;
     }
@@ -776,6 +791,9 @@ class ClaudeTranslator {
   /// How fast the turn wrote, on average, as streamed: for a turn whose
   /// messages told no usage (Antigravity's), whose result alone counts it.
   double? get averageSpeed => _meter.averageSpeed;
+
+  /// Fallback estimated output speed for turns that never reached timed warm-up.
+  double? get estimatedSpeed => _meter.estimatedSpeed;
 
   void _completeThought(String id, String? whole) {
     final streamed = _thoughts.remove(id)?.toString() ?? '';
@@ -1151,6 +1169,41 @@ class ClaudeTranslator {
         }
         _putAgent(id);
         return;
+      // Each swarm worker added becomes a native subagent card in the chat.
+      case 'Swarm' when _string(input['action']) == 'add':
+        final added = _swarmAddedWorkers(input);
+        if (added.isNotEmpty) {
+          _swarmAddCalls[id] = [for (final w in added) w.name];
+          final model = _ownModelOf(_string(input['model']));
+          for (final worker in added) {
+            final workerId = '$swarmWorkerPrefix${worker.name}';
+            _swarmStartedAt.putIfAbsent(workerId, () => tool.startedAt);
+            final existing = _agents[workerId];
+            if (existing == null) {
+              _agents[workerId] = _Agent(
+                AgentItem(
+                  description: '@${worker.name}',
+                  id: workerId,
+                  agentType: 'Swarm',
+                  prompt: worker.prompt,
+                  status: replaying
+                      ? CommandStatus.succeeded
+                      : CommandStatus.running,
+                  startedAt: replaying ? null : _swarmStartedAt[workerId],
+                  model: model,
+                  background: true,
+                ),
+              );
+            } else {
+              existing.item = existing.item.copyWith(
+                prompt: existing.item.prompt ?? worker.prompt,
+                model: existing.item.model ?? model,
+              );
+            }
+            _putAgent(workerId);
+          }
+          return;
+        }
       // Not written to a file (see [_planCall]): the plan is said.
       case 'ExitPlanMode':
         if (_string(input['plan']) case final plan?) {
@@ -1283,15 +1336,21 @@ class ClaudeTranslator {
       ),
       'BashOutput' || 'TaskOutput' => ToolCallItem(
         kind: ToolKind.command,
+        tool: name,
         label: tense('Read output', 'Reading output'),
         target: _summary(input),
+        input: input,
         status: status,
+        output: output,
       ),
       'KillShell' || 'KillBash' || 'TaskStop' => ToolCallItem(
         kind: ToolKind.command,
+        tool: name,
         label: tense('Stopped', 'Stopping'),
         target: _summary(input),
+        input: input,
         status: status,
+        output: output,
       ),
       // Its verb the web kind's, in the app's language.
       'WebFetch' => ToolCallItem(
@@ -1412,6 +1471,25 @@ class ClaudeTranslator {
         target: '',
         status: status,
       ),
+      'ManageTask' => _manageTaskToolItem(input, status: status, output: output),
+      'Schedule' => _scheduleToolItem(input, status: status, output: output),
+      'ManageSubagents' => _manageSubagentsToolItem(
+        input,
+        status: status,
+        output: output,
+      ),
+      'DefineSubagent' => _defineSubagentToolItem(
+        input,
+        status: status,
+        output: output,
+      ),
+      'McpResource' => _mcpResourceToolItem(
+        input,
+        status: status,
+        output: output,
+      ),
+      'Swarm' => _swarmToolItem(input, status: status, output: output),
+      'SwarmBoard' => _swarmBoardToolItem(input, status: status, output: output),
       _ => ToolCallItem(
         kind: ToolKind.other,
         label: name,
@@ -1422,6 +1500,252 @@ class ClaudeTranslator {
         imageFiles: imageFiles,
       ),
     };
+  }
+
+  ToolCallItem _swarmToolItem(
+    Map<String, Object?> input, {
+    required ToolStatus status,
+    String? output,
+  }) {
+    final running = status == ToolStatus.running;
+    final action = _string(input['action']) ?? '';
+    final name = _string(input['name']);
+    final title = _string(input['title']);
+    final model = _string(input['model']);
+    final label = switch (action) {
+      'title' => running ? 'Naming swarm' : 'Named swarm',
+      'add' => running ? 'Adding swarm worker' : 'Added swarm worker',
+      'kill' => running ? 'Removing swarm worker' : 'Removed swarm worker',
+      'model' => running ? 'Switching worker model' : 'Switched worker model',
+      'status' => running ? 'Checking swarm status' : 'Checked swarm status',
+      'models' => running ? 'Listing swarm models' : 'Listed swarm models',
+      'channel' => running ? 'Updating swarm channel' : 'Updated swarm channel',
+      _ => running ? 'Running swarm' : 'Swarm',
+    };
+    final target = switch (action) {
+      'title' => title ?? '',
+      'add' => [
+        if (name != null) '@$name',
+        if (input['n'] case final num n when n > 1) '×${n.toInt()}',
+        if (input['tasks'] case final List t when t.isNotEmpty)
+          '(${t.length})',
+        if (model != null) '· $model',
+      ].join(' '),
+      'kill' => name != null ? '@$name' : '',
+      'model' => [if (name != null) '@$name', if (model != null) '→ $model'].join(' '),
+      'channel' => [
+        ?_string(input['op']),
+        if (_string(input['channel']) case final ch?) '#$ch',
+      ].join(' '),
+      _ => '',
+    };
+    return ToolCallItem(
+      kind: ToolKind.agent,
+      tool: 'Swarm',
+      label: label,
+      target: target,
+      input: input,
+      status: status,
+      output: output,
+    );
+  }
+
+  ToolCallItem _swarmBoardToolItem(
+    Map<String, Object?> input, {
+    required ToolStatus status,
+    String? output,
+  }) {
+    final running = status == ToolStatus.running;
+    final action = _string(input['action']) ?? 'read';
+    final since = input['since'];
+    final channel = _string(input['channel']);
+    final label = action == 'wait'
+        ? (running ? 'Waiting on swarm board' : 'Waited on swarm board')
+        : (running ? 'Reading swarm board' : 'Read swarm board');
+    final target = [
+      if (channel != null && channel != 'main') '#$channel',
+      if (since != null) '#$since+',
+    ].join(' ');
+    return ToolCallItem(
+      kind: ToolKind.message,
+      tool: 'SwarmBoard',
+      label: label,
+      target: target,
+      input: input,
+      status: status,
+      output: output,
+    );
+  }
+
+  ToolCallItem _manageTaskToolItem(
+    Map<String, Object?> input, {
+    required ToolStatus status,
+    String? output,
+  }) {
+    final running = status == ToolStatus.running;
+    final action = _string(input['action']) ?? '';
+    final taskId = _string(input['task_id'])?.trim();
+    final sent = _string(
+      input['input'],
+    )?.trim().replaceAll(RegExp(r'\s+'), ' ');
+    final label = switch (action) {
+      'list' => running ? 'Listing background tasks' : 'Listed background tasks',
+      'send_input' => running ? 'Sending input to task' : 'Sent input to task',
+      _ => running ? 'Managing task' : 'Managed task',
+    };
+    final target = switch (action) {
+      'list' => '',
+      'send_input' => [
+        if (taskId != null && taskId.isNotEmpty) taskId,
+        if (sent != null && sent.isNotEmpty)
+          sent.length > 60 ? '${sent.substring(0, 60)}…' : sent,
+      ].join(' · '),
+      _ => taskId ?? _summary(input),
+    };
+    return ToolCallItem(
+      kind: ToolKind.command,
+      tool: 'ManageTask',
+      label: label,
+      target: target,
+      input: input,
+      status: status,
+      output: output,
+    );
+  }
+
+  ToolCallItem _scheduleToolItem(
+    Map<String, Object?> input, {
+    required ToolStatus status,
+    String? output,
+  }) {
+    final running = status == ToolStatus.running;
+    final cron = _string(input['cron'])?.trim();
+    final durationSeconds = claudeInt(input['duration_seconds']);
+    final isDaemon = input['is_daemon'] == true;
+    final prompt = _string(input['prompt'])?.trim();
+    final String label;
+    final String target;
+    if (cron != null && cron.isNotEmpty) {
+      label = running ? 'Scheduling cron' : 'Scheduled cron';
+      target = isDaemon ? '$cron · daemon' : cron;
+    } else if (durationSeconds != null) {
+      label = running ? 'Setting timer' : 'Set timer';
+      target = _formatDurationSeconds(durationSeconds);
+    } else {
+      label = running ? 'Scheduling' : 'Scheduled';
+      target = _summary(input);
+    }
+    return ToolCallItem(
+      kind: ToolKind.other,
+      tool: 'Schedule',
+      label: label,
+      target: target,
+      input: input,
+      status: status,
+      output: status == ToolStatus.failed
+          ? output
+          : (prompt != null && prompt.isNotEmpty ? prompt : output),
+    );
+  }
+
+  static String _formatDurationSeconds(int seconds) {
+    if (seconds <= 0) return '0s';
+    if (seconds < 60) return '${seconds}s';
+    final hours = seconds ~/ 3600;
+    final minutes = (seconds % 3600) ~/ 60;
+    final secs = seconds % 60;
+    return [
+      if (hours > 0) '${hours}h',
+      if (minutes > 0) '${minutes}m',
+      if (secs > 0) '${secs}s',
+    ].join();
+  }
+
+  ToolCallItem _manageSubagentsToolItem(
+    Map<String, Object?> input, {
+    required ToolStatus status,
+    String? output,
+  }) {
+    final running = status == ToolStatus.running;
+    final action = _string(input['action']) ?? '';
+    final ids = [
+      for (final raw in _list(input['conversation_ids']))
+        if ('$raw'.trim().isNotEmpty) '$raw'.trim(),
+    ];
+    final label = switch (action) {
+      'list' => running ? 'Listing subagents' : 'Listed subagents',
+      'kill' => running ? 'Stopping subagent' : 'Stopped subagent',
+      'kill_all' =>
+        running ? 'Stopping all subagents' : 'Stopped all subagents',
+      _ => running ? 'Managing subagents' : 'Managed subagents',
+    };
+    final target = switch (action) {
+      'kill' when ids.length == 1 => ids.single,
+      'kill' when ids.length > 1 => '${ids.length} subagents',
+      _ => '',
+    };
+    return ToolCallItem(
+      kind: ToolKind.agent,
+      tool: 'ManageSubagents',
+      label: label,
+      target: target,
+      input: input,
+      status: status,
+      output: output,
+    );
+  }
+
+  ToolCallItem _defineSubagentToolItem(
+    Map<String, Object?> input, {
+    required ToolStatus status,
+    String? output,
+  }) {
+    final running = status == ToolStatus.running;
+    final name = _string(input['name'])?.trim() ?? '';
+    final description = _string(input['description'])?.trim();
+    return ToolCallItem(
+      kind: ToolKind.agent,
+      tool: 'DefineSubagent',
+      label: running ? 'Defining subagent' : 'Defined subagent',
+      target: name,
+      input: input,
+      status: status,
+      output: status == ToolStatus.failed
+          ? output
+          : (description != null && description.isNotEmpty
+                ? description
+                : output),
+    );
+  }
+
+  ToolCallItem _mcpResourceToolItem(
+    Map<String, Object?> input, {
+    required ToolStatus status,
+    String? output,
+  }) {
+    final running = status == ToolStatus.running;
+    final action = _string(input['action']) ?? '';
+    final server = _string(input['server'])?.trim();
+    final uri = _string(input['uri'])?.trim();
+    final label = switch (action) {
+      'read' => running ? 'Reading MCP resource' : 'Read MCP resource',
+      'list' => running ? 'Listing MCP resources' : 'Listed MCP resources',
+      _ => running ? 'Accessing MCP resource' : 'Accessed MCP resource',
+    };
+    final target = switch (action) {
+      'read' => (uri != null && uri.isNotEmpty) ? uri : (server ?? ''),
+      'list' => server ?? '',
+      _ => (uri != null && uri.isNotEmpty) ? uri : (server ?? ''),
+    };
+    return ToolCallItem(
+      kind: ToolKind.read,
+      tool: 'McpResource',
+      label: label,
+      target: target,
+      input: input,
+      status: status,
+      output: output,
+    );
   }
 
   void _toolResult(Map<String, Object?> block, Object? result) {
@@ -1510,6 +1834,21 @@ class ClaudeTranslator {
             result: text,
           );
           _putAgent(id);
+        }
+        return;
+      case 'Swarm' when _swarmAddCalls.containsKey(id):
+        final names = _swarmAddCalls.remove(id)!;
+        if (outcome != _Outcome.done) {
+          for (final name in names) {
+            final workerId = '$swarmWorkerPrefix$name';
+            final agent = _agents[workerId];
+            if (agent == null) continue;
+            agent.item = agent.item.copyWith(
+              status: CommandStatus.failed,
+              result: text,
+            );
+            _putAgent(workerId);
+          }
         }
         return;
       case 'Edit' || 'MultiEdit' || 'Write' || 'NotebookEdit'
@@ -2015,7 +2354,8 @@ class ClaudeTranslator {
             status: _taskStatus(patch['status']) ?? task.status,
             background: patch['is_backgrounded'] as bool?,
             description: _string(patch['description']),
-            summary: _string(patch['error']),
+            summary: _string(patch['error']) ?? _string(patch['summary']),
+            outputFile: _string(patch['output_file']),
           );
           _reportTasks();
           if (patch['is_backgrounded'] == true) {
@@ -2168,6 +2508,10 @@ class ClaudeTranslator {
       }
       agent.item = agent.item.copyWith(
         status: status,
+        result:
+            agent.item.result == null && summary != null && summary.isNotEmpty
+            ? summary
+            : null,
         tokens: claudeInt(usage['total_tokens']),
         toolUses: claudeInt(usage['tool_uses']),
         duration: switch (claudeInt(usage['duration_ms'])) {
@@ -2194,6 +2538,303 @@ class ClaudeTranslator {
   }
 
   void _reportTasks() => emit(TasksReported(nextSeq(), [..._tasks.values]));
+
+  /// Projects an Antigravity native [SwarmSnapshot] onto BaoCode's native
+  /// subagent primitives: each worker becomes an [AgentItem] card (opening into
+  /// a [SubagentFeed] with its `brief`, live `transcript.jsonl` steps, and
+  /// board report), running workers appear in [ActivityStrip] as background
+  /// agent [KernelTask]s, and non-brief worker board posts appear in the chat
+  /// as [AgentMessageCard] bubbles (`UserMessageItem(fromAgent: ...)`).
+  void applySwarm(SwarmSnapshot snapshot) {
+    final now = DateTime.now();
+    final activeWorkerIds = <String>{};
+    var tasksChanged = false;
+
+    // Group non-brief messages by sender so each worker's subagent view shows
+    // its board reports cleanly.
+    final postsByMember = <String, List<SwarmMessage>>{};
+    for (final msg in snapshot.messages) {
+      if (msg.isBrief || msg.text.trim().isEmpty) continue;
+      (postsByMember[msg.agent] ??= []).add(msg);
+    }
+
+    for (final member in snapshot.members) {
+      if (member.role == SwarmMemberRole.coordinator) continue;
+      final workerId = '$swarmWorkerPrefix${member.name}';
+      final existing = _agents[workerId];
+      final status = switch (member.status) {
+        SwarmMemberStatus.working when !replaying => CommandStatus.running,
+        _ when member.failure != null && !member.isKilled =>
+          CommandStatus.failed,
+        _ => CommandStatus.succeeded,
+      };
+      final startedAt =
+          _swarmStartedAt[workerId] ??= existing?.item.startedAt ?? now;
+      final duration = status == CommandStatus.running
+          ? null
+          : existing?.item.duration ??
+                (replaying ? null : now.difference(startedAt));
+
+      final posts = postsByMember[member.name] ?? const <SwarmMessage>[];
+      final latestPost = posts.lastOrNull?.text.trim();
+      final result = switch (status) {
+        CommandStatus.failed => member.failure ?? latestPost,
+        CommandStatus.succeeded => latestPost ?? existing?.item.result,
+        CommandStatus.running => existing?.item.result,
+      };
+
+      final agent = _agents[workerId] ??= _Agent(
+        AgentItem(
+          description: '@${member.name}',
+          id: workerId,
+          agentType: 'Swarm',
+          prompt: member.brief,
+          status: status,
+          startedAt: replaying ? null : startedAt,
+          background: true,
+        ),
+      );
+
+      // Rebuild the worker's child items from its transcript.jsonl steps using
+      // BaoCode's native item types (ThinkingItem, ToolCallItem, TerminalItem,
+      // AssistantTextItem, NoticeItem) plus incoming board messages.
+      agent.children.clear();
+      for (final msg in snapshot.messages) {
+        if (msg.isBrief ||
+            msg.agent == member.name ||
+            msg.text.trim().isEmpty) {
+          continue;
+        }
+        if (msg.mentions.contains(member.name) || msg.isAll) {
+          agent.children['incoming:${msg.seq}'] = UserMessageItem(
+            text: msg.text.trim(),
+            sentAt: msg.timestamp,
+            fromAgent: '@${msg.agent}',
+          );
+        }
+      }
+      for (final (i, step) in member.steps.indexed) {
+        final stepKey = 'step:${step.index}:$i';
+        final live =
+            status == CommandStatus.running && i == member.steps.length - 1;
+        agent.children[stepKey] = _swarmStepToChatItem(step, live: live);
+      }
+      // Include earlier board posts in children when the worker posted more
+      // than once (the latest post is shown as `result`).
+      if (posts.length > 1) {
+        for (final post in posts.take(posts.length - 1)) {
+          agent.children['post:${post.seq}'] = AssistantTextItem(
+            post.text.trim(),
+          );
+        }
+      }
+
+      agent.item = agent.item.copyWith(
+        description: '@${member.name}',
+        agentType: 'Swarm',
+        prompt: existing?.item.prompt ?? member.brief,
+        status: status,
+        model: _ownModelOf(member.model) ?? existing?.item.model,
+        toolUses: member.stepsCount > 0 ? member.stepsCount : null,
+        tokens: member.totalTokens > 0 ? member.totalTokens : null,
+        activity: member.currentActivity,
+        duration: duration,
+        result: result,
+        background: true,
+      );
+      _putAgent(workerId);
+
+      // Sync running workers into ActivityStrip via native KernelTask.
+      if (!replaying && status == CommandStatus.running) {
+        activeWorkerIds.add(workerId);
+        final prev = _tasks[workerId];
+        if (prev == null || prev.status != CommandStatus.running) {
+          _tasks[workerId] = KernelTask(
+            id: workerId,
+            kind: KernelTaskKind.agent,
+            description: '@${member.name}',
+            status: CommandStatus.running,
+            startedAt: startedAt,
+            toolUseId: workerId,
+            background: true,
+          );
+          tasksChanged = true;
+        }
+      } else if (_tasks[workerId] case final prev?
+          when prev.status == CommandStatus.running) {
+        _tasks[workerId] = prev.copyWith(status: status);
+        tasksChanged = true;
+      }
+    }
+
+    // Settle any swarm worker tasks no longer reported as working.
+    for (final MapEntry(:key, :value) in [..._tasks.entries]) {
+      if (!isSwarmWorkerId(key) || value.status != CommandStatus.running) {
+        continue;
+      }
+      if (!activeWorkerIds.contains(key)) {
+        _tasks[key] = value.copyWith(status: CommandStatus.succeeded);
+        tasksChanged = true;
+      }
+    }
+    if (tasksChanged) _reportTasks();
+
+    // Surface non-brief worker board posts in the main conversation as native
+    // AgentMessageCard bubbles.
+    for (final msg in snapshot.messages) {
+      if (msg.isBrief ||
+          msg.agent == 'coordinator' ||
+          msg.text.trim().isEmpty) {
+        continue;
+      }
+      _put(
+        'swarm-msg:${snapshot.swarmId}:${msg.seq}',
+        UserMessageItem(
+          text: msg.text.trim(),
+          sentAt: msg.timestamp,
+          fromAgent: '@${msg.agent}',
+        ),
+      );
+    }
+  }
+
+  /// Populates a subagent's [AgentItem] card (created by an `Agent` or `Task`
+  /// tool call) with parsed `transcript.jsonl` steps from Antigravity.
+  ///
+  /// Existing non-`substep:` children are preserved, and calls with an unknown
+  /// [toolUseId] or empty [steps] are ignored.
+  void applySubagentTranscript(String toolUseId, List<SwarmWorkerStep> steps) {
+    final agent = _agents[toolUseId];
+    if (agent == null || steps.isEmpty) return;
+    agent.children.removeWhere((key, _) => key.startsWith('substep:'));
+    var toolUses = 0;
+    var tokens = 0;
+    final isRunning = agent.item.status == CommandStatus.running;
+    for (final (i, step) in steps.indexed) {
+      final live = isRunning && i == steps.length - 1;
+      agent.children['substep:${step.index}:$i'] = _swarmStepToChatItem(
+        step,
+        live: live,
+      );
+      if (step.kind == 'tool') toolUses++;
+      tokens += step.inputTokens + step.outputTokens;
+    }
+    agent.item = agent.item.copyWith(
+      toolUses: toolUses > 0 ? toolUses : null,
+      tokens: tokens > 0 ? tokens : null,
+    );
+    _putAgent(toolUseId);
+  }
+
+  static ChatItem _swarmStepToChatItem(
+    SwarmWorkerStep step, {
+    bool live = false,
+  }) {
+    final toolStatus = step.isError ? ToolStatus.failed : ToolStatus.succeeded;
+    switch (step.kind) {
+      case 'thought':
+        return ThinkingItem(
+          text: step.detail ?? step.title,
+          seconds: live ? null : 0,
+          tokens: 0,
+        );
+      case 'reply':
+        return AssistantTextItem(step.detail ?? step.title);
+      case 'error':
+        return NoticeItem(NoticeKind.error, step.detail ?? step.title);
+      case 'tool':
+        switch (step.toolName) {
+          case 'read_file':
+            return ToolCallItem(
+              kind: ToolKind.read,
+              target: step.target ?? step.title,
+              path: step.path,
+              detail: step.range,
+              status: toolStatus,
+              output: step.detail,
+            );
+          case 'edit_file' || 'write_file':
+            return ToolCallItem(
+              kind: ToolKind.edit,
+              target: step.target ?? step.title,
+              path: step.path,
+              status: toolStatus,
+              output: step.detail,
+            );
+          case 'grep_search' || 'find_by_name' || 'list_dir':
+            return ToolCallItem(
+              kind: ToolKind.search,
+              target: step.target ?? step.title,
+              path: step.path,
+              status: toolStatus,
+              output: step.detail,
+            );
+          case 'run_command':
+            final cmd = step.target ?? step.title;
+            return TerminalItem(
+              command: cmd,
+              description: step.title == cmd ? null : step.title,
+              output: step.detail ?? '',
+              status: step.isError
+                  ? CommandStatus.failed
+                  : CommandStatus.succeeded,
+            );
+          case 'post_message' || 'send_message':
+            return ToolCallItem(
+              kind: ToolKind.message,
+              label: 'Sent message',
+              target: step.target ?? '',
+              status: toolStatus,
+              output: step.detail,
+            );
+          default:
+            return ToolCallItem(
+              kind: ToolKind.other,
+              label: step.title,
+              target: step.target ?? '',
+              status: toolStatus,
+              output: step.detail,
+            );
+        }
+      default:
+        return ToolCallItem(
+          kind: ToolKind.other,
+          label: step.title,
+          target: step.target ?? '',
+          status: toolStatus,
+          output: step.detail,
+        );
+    }
+  }
+
+  static List<({String name, String? prompt})> _swarmAddedWorkers(
+    Map<String, Object?> input,
+  ) {
+    final name = _string(input['name'])?.trim();
+    if (name == null || name.isEmpty) return const [];
+    final brief = _string(input['brief'])?.trim();
+    final tasks = input['tasks'];
+    if (tasks is List && tasks.isNotEmpty) {
+      return [
+        for (var i = 0; i < tasks.length; i++)
+          (
+            name: '$name-${i + 1}',
+            prompt: [
+              '${tasks[i]}'.trim(),
+              if (brief != null && brief.isNotEmpty) brief,
+            ].where((s) => s.isNotEmpty).join('\n\n'),
+          ),
+      ];
+    }
+    final count = input['n'];
+    if (count is num && count.toInt() > 1) {
+      return [
+        for (var i = 1; i <= count.toInt(); i++)
+          (name: '$name-$i', prompt: brief),
+      ];
+    }
+    return [(name: name, prompt: brief)];
+  }
 
   /// What a workflow's card says it is: the workflow's name, else its
   /// script's `meta` description.

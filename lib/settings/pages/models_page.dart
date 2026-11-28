@@ -1370,6 +1370,25 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
     child: _page(context),
   );
 
+  void _mergeAgyModels(List<RemoteModel> listed) {
+    final now = _providerNow;
+    unawaited(
+      _save(
+        now.copyWith(
+          models: mergeModelList(
+            now.models,
+            listed,
+            // Listed first: all of them on.
+            enable: now.models.isEmpty
+                ? {for (final model in listed) model.id}
+                : const {},
+            follow: true,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _page(BuildContext context) {
     final l10n = context.l10n;
     final provider = _provider;
@@ -1391,24 +1410,7 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
           const SizedBox(height: 16),
           AgySettingsGroup(
             key: ValueKey(provider.id),
-            onModels: (listed) {
-              final now = _providerNow;
-              unawaited(
-                _save(
-                  now.copyWith(
-                    models: mergeModelList(
-                      now.models,
-                      listed,
-                      // Listed first: all of them on.
-                      enable: now.models.isEmpty
-                          ? {for (final model in listed) model.id}
-                          : const {},
-                      follow: true,
-                    ),
-                  ),
-                ),
-              );
-            },
+            onModels: _mergeAgyModels,
           ),
         ],
         if (provider.protocol.usesAccounts) ...[

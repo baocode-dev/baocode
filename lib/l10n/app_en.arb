@@ -1445,6 +1445,47 @@
   "imageCopyPrompt": "Copy prompt",
   "toolProposingGoal": "Proposing a goal",
   "toolProposedGoal": "Proposed a goal",
+  "toolReadingOutput": "Reading output",
+  "toolReadOutput": "Read output",
+  "toolStopping": "Stopping",
+  "toolStopped": "Stopped",
+  "toolListingTasks": "Listing background tasks",
+  "toolListedTasks": "Listed background tasks",
+  "toolSendingTaskInput": "Sending input to task",
+  "toolSentTaskInput": "Sent input to task",
+  "toolManagingTask": "Managing task",
+  "toolManagedTask": "Managed task",
+  "toolSchedulingCron": "Scheduling cron",
+  "toolScheduledCron": "Scheduled cron",
+  "toolSettingTimer": "Setting timer",
+  "toolSetTimer": "Set timer",
+  "toolScheduling": "Scheduling",
+  "toolScheduled": "Scheduled",
+  "toolScheduleDaemon": "daemon",
+  "toolListingSubagents": "Listing subagents",
+  "toolListedSubagents": "Listed subagents",
+  "toolStoppingSubagent": "Stopping subagent",
+  "toolStoppedSubagent": "Stopped subagent",
+  "toolStoppingAllSubagents": "Stopping all subagents",
+  "toolStoppedAllSubagents": "Stopped all subagents",
+  "toolManagingSubagents": "Managing subagents",
+  "toolManagedSubagents": "Managed subagents",
+  "toolSubagentCount": "{count} subagents",
+  "@toolSubagentCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "toolDefiningSubagent": "Defining subagent",
+  "toolDefinedSubagent": "Defined subagent",
+  "toolReadingMcpResource": "Reading MCP resource",
+  "toolReadMcpResource": "Read MCP resource",
+  "toolListingMcpResources": "Listing MCP resources",
+  "toolListedMcpResources": "Listed MCP resources",
+  "toolAccessingMcpResource": "Accessing MCP resource",
+  "toolAccessedMcpResource": "Accessed MCP resource",
   "goalAdopt": "Set as goal",
   "@goalAdopt": {
     "description": "Button on a goal the agent proposed: sets it as the session's goal."
@@ -1659,6 +1700,7 @@
   "turnSpeedHint": "Average output speed",
   "turnOutputTokensHint": "Written so far this turn",
   "turnSpeedLiveHint": "Output speed, sampled over the last 2 seconds",
+  "turnSpeedEstimatedHint": "Estimated output speed",
   "turnDurationHint": "Time this turn took",
   "turnCostHint": "Cost of this turn",
   "turnWorked": "Worked for {duration}",
@@ -5157,6 +5199,40 @@
   "agySignedIn": "Signed in: {count} models",
   "@agySignedIn": {"placeholders": {"count": {"type": "int"}}},
   "agyNotSignedIn": "Not signed in",
+  "agyRemoteInstallTitle": "Install Antigravity CLI on {host}",
+  "@agyRemoteInstallTitle": {"placeholders": {"host": {"type": "String"}}},
+  "agyRemoteInstallHint": "Antigravity CLI was not found on {host} (~103 MB). It tries a direct download on the host first, and falls back to downloading here (cached per platform) and uploading if unreachable.",
+  "@agyRemoteInstallHint": {"placeholders": {"host": {"type": "String"}}},
+  "agyRemoteInstallingTitle": "Installing Antigravity CLI on {host}",
+  "@agyRemoteInstallingTitle": {"placeholders": {"host": {"type": "String"}}},
+  "agyRemoteInstallProbing": "Checking direct connection from {host}…",
+  "@agyRemoteInstallProbing": {"placeholders": {"host": {"type": "String"}}},
+  "agyRemoteInstallDirect": "Downloading directly on {host}…",
+  "@agyRemoteInstallDirect": {"placeholders": {"host": {"type": "String"}}},
+  "agyRemoteInstallDirectProgress": "Downloading directly on {host}… {percent}%",
+  "@agyRemoteInstallDirectProgress": {"placeholders": {"host": {"type": "String"}, "percent": {"type": "int"}}},
+  "agyRemoteInstallLocal": "{host} could not reach Google directly. Downloading on this machine…",
+  "@agyRemoteInstallLocal": {"placeholders": {"host": {"type": "String"}}},
+  "agyRemoteInstallLocalProgress": "{host} could not reach Google directly. Downloading on this machine… {percent}%",
+  "@agyRemoteInstallLocalProgress": {"placeholders": {"host": {"type": "String"}, "percent": {"type": "int"}}},
+  "agyRemoteInstallUploading": "Transferring Antigravity CLI to {host}… {percent}%",
+  "@agyRemoteInstallUploading": {"placeholders": {"host": {"type": "String"}, "percent": {"type": "int"}}},
+  "agyRemoteSignInTitle": "Sign in to Antigravity on {host}",
+  "@agyRemoteSignInTitle": {"placeholders": {"host": {"type": "String"}}},
+  "agyRemoteSignInPrompt": "Antigravity CLI on {host} is not signed in yet. Open Google sign-in in your browser to continue.",
+  "@agyRemoteSignInPrompt": {"placeholders": {"host": {"type": "String"}}},
+  "agyRemoteSignInPreparing": "Preparing Google sign-in link…",
+  "agyRemoteSignInWaitingBrowser": "Google sign-in has been opened in your browser. Waiting for authorization to finish…",
+  "agyRemoteSignInPasteHint": "Google sign-in has been opened in your browser. Complete authorization, then paste the authorization code or full callback URL below.",
+  "agyRemoteSignInStart": "Sign In in Browser",
+  "agyRemoteOpenLink": "Open Link",
+  "agyRemoteCopyLink": "Copy Link",
+  "agyRemoteLinkCopied": "Copied",
+  "agyRemoteCodePlaceholder": "Paste authorization code or callback URL",
+  "agyRemoteCodeSubmit": "Finish Sign In",
+  "agyRemoteErrorTitle": "Antigravity on {host} is unavailable",
+  "@agyRemoteErrorTitle": {"placeholders": {"host": {"type": "String"}}},
+  "agyRemoteRetry": "Retry",
   "modelsTest": "Test Connection",
   "modelsTesting": "Connecting…",
   "modelsTestOk": "Connected: the upstream lists {count} models.",
@@ -6057,6 +6133,66 @@
   "remoteUploadingClaude": "Sending Claude Code to {host}… {percent}%",
   "@remoteUploadingClaude": {
     "description": "The host cannot download Claude Code itself: this machine downloaded it and sends it over the SSH connection.",
+    "placeholders": {
+      "host": {
+        "type": "String"
+      },
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "remoteStatusInstallingAgy": "{kind}: {host} (installing Antigravity CLI {percent}%)",
+  "@remoteStatusInstallingAgy": {
+    "placeholders": {
+      "kind": {
+        "type": "String",
+        "description": "How the host is reached: SSH, or WSL for a WSL distribution."
+      },
+      "host": {
+        "type": "String"
+      },
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "remoteStatusInstallingAgyUnsized": "{kind}: {host} (installing Antigravity CLI...)",
+  "@remoteStatusInstallingAgyUnsized": {
+    "description": "The status bar while Antigravity CLI is installed on a host, its size not known yet (no percentage).",
+    "placeholders": {
+      "kind": {
+        "type": "String",
+        "description": "How the host is reached: SSH, or WSL for a WSL distribution."
+      },
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "remoteInstallingAgy": "Installing Antigravity CLI on {host}…",
+  "@remoteInstallingAgy": {
+    "description": "Shown while Antigravity CLI is installed on a remote host, size not known yet.",
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "remoteInstallingAgyProgress": "Installing Antigravity CLI on {host}… {percent}%",
+  "@remoteInstallingAgyProgress": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      },
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "remoteUploadingAgy": "Sending Antigravity CLI to {host}… {percent}%",
+  "@remoteUploadingAgy": {
+    "description": "The host cannot download Antigravity CLI itself: this machine downloaded it and sends it over the SSH connection.",
     "placeholders": {
       "host": {
         "type": "String"

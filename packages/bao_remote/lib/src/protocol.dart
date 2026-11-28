@@ -15,7 +15,7 @@ import 'search/text_query.dart';
 abstract final class RemoteProtocol {
   /// Raise it whenever a method or a shape changes: an app and a server of
   /// another version do not talk, and the app puts its own server in place.
-  static const version = 12;
+  static const version = 13;
 
   static const initialize = 'initialize';
   static const shutdown = 'shutdown';
@@ -88,6 +88,19 @@ abstract final class RemoteProtocol {
   static const claudeInstall = 'claude/install';
   static const claudeUpload = 'claude/upload';
   static const claudeStageSkills = 'claude/stageSkills';
+
+  // Antigravity ACP.
+  static const agyVersion = 'agy/version';
+  static const agyLatestVersion = 'agy/latestVersion';
+  static const agyModels = 'agy/models';
+  static const agyInstall = 'agy/install';
+  static const agyUpload = 'agy/upload';
+  static const agySignIn = 'agy/signIn';
+  static const agyAuthCode = 'agy/authCode';
+  static const agySignOut = 'agy/signOut';
+  static const agyDeleteSession = 'agy/deleteSession';
+  static const agySwarmSnapshot = 'agy/swarmSnapshot';
+  static const agySwarmTranscript = 'agy/swarmTranscript';
 
   // Review snapshots.
   static const reviewOpen = 'review/open';

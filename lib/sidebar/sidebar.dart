@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
 import '../base/give_way_row.dart';
@@ -310,9 +311,13 @@ class Sidebar extends StatefulWidget {
 }
 
 class _SidebarState extends State<Sidebar>
-    with IdeKeyboardList<Sidebar>
+    with IdeKeyboardList<Sidebar>, SingleTickerProviderStateMixin<Sidebar>
     implements ChatDragList {
   static const _rowHeight = IdeListColors.rowHeight;
+  static const _selectionSlideMinMs = 180.0;
+  static const _selectionSlideMaxExtraMs = 70.0;
+  static const _selectionSlideMaxStepMs = 32.0;
+  static final Listenable _neverNotify = ChangeNotifier();
 
   /// The agents a project shows until asked for more (pinned ones apart).
   static const _recent = 5;
@@ -340,6 +345,24 @@ class _SidebarState extends State<Sidebar>
   final ScrollController _listScroll = SmoothScrollController();
   final FocusNode _listFocus = FocusNode();
   final IdeListSelection<AgentThread> _listSelection = IdeListSelection();
+
+  /// Slides the single-row selection highlight between agent rows.
+  final ValueNotifier<double> _selectionSlideProgress = ValueNotifier(0);
+
+  /// Fires only when a slide finishes so the overlay and target row hand off
+  /// locally without rebuilding the rest of the sidebar.
+  final ValueNotifier<int> _selectionSlideDone = ValueNotifier(0);
+  late final Listenable _selectionSlideRepaint = Listenable.merge([
+    _selectionSlideProgress,
+    _listScroll,
+  ]);
+  Ticker? _selectionTicker;
+  Duration? _lastSlideElapsed;
+  double _selectionDurationMs = _selectionSlideMinMs;
+  AgentThread? _selectionThread;
+  double? _selectionFrom;
+  double? _selectionTo;
+  bool _selectionSliding = false;
 
   bool _rowsDirty = true;
   AgentThread? _listedCurrent;
@@ -445,6 +468,7 @@ class _SidebarState extends State<Sidebar>
       oldWidget.workspace.removeListener(_markRowsDirty);
       widget.workspace.addListener(_markRowsDirty);
       _rowsDirty = true;
+      _resetSelectionSlide();
     }
     if (oldWidget.link != widget.link) {
       if (oldWidget.link?._state == this) oldWidget.link!._state = null;
@@ -474,6 +498,9 @@ class _SidebarState extends State<Sidebar>
     SidebarTimes.shown.removeListener(_timesChanged);
     _clock.cancel();
     _autoScroll?.cancel();
+    _selectionTicker?.dispose();
+    _selectionSlideProgress.dispose();
+    _selectionSlideDone.dispose();
     _listFocus.removeListener(_focusChanged);
     _listFocus.dispose();
     _listScroll.dispose();
@@ -961,9 +988,6 @@ class _SidebarState extends State<Sidebar>
       for (final thread in active)
         if (!thread.pinned) thread,
     ];
-    List<AgentThread> where(bool Function(AgentThread) test) =>
-        rest.where(test).toList();
-
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     int daysAgo(AgentThread thread) {
@@ -971,65 +995,84 @@ class _SidebarState extends State<Sidebar>
       return today.difference(DateTime(time.year, time.month, time.day)).inDays;
     }
 
+    List<_Group> grouped() {
+      switch (_grouping) {
+        case SidebarGrouping.project:
+          final byProject = <Project, List<AgentThread>>{};
+          for (final thread in rest) {
+            (byProject[thread.project] ??= []).add(thread);
+          }
+          return [
+            for (final project in _workspace.sidebarProjectsHere)
+              _Group(
+                Workspace.projectGroup(project.path),
+                // Every host's together: a remote one's says where it is.
+                switch (project.host) {
+                  final host? when _workspace.sidebarAllHosts =>
+                    '${project.name} · ${_workspace.hostLabel(host)}',
+                  _ => project.name,
+                },
+                _workspace.inProjectOrder(
+                  project,
+                  byProject[project] ?? const [],
+                ),
+                project: project,
+              ),
+          ];
+        case SidebarGrouping.time:
+          final todayList = <AgentThread>[];
+          final yesterdayList = <AgentThread>[];
+          final weekList = <AgentThread>[];
+          final olderList = <AgentThread>[];
+          for (final thread in rest) {
+            final days = daysAgo(thread);
+            if (days <= 0) {
+              todayList.add(thread);
+            } else if (days == 1) {
+              yesterdayList.add(thread);
+            } else if (days <= 7) {
+              weekList.add(thread);
+            } else {
+              olderList.add(thread);
+            }
+          }
+          return [
+            _Group('today', l10n.sidebarToday, todayList),
+            _Group('yesterday', l10n.sidebarYesterday, yesterdayList),
+            _Group('week', l10n.sidebarPrevious7Days, weekList),
+            _Group('older', l10n.sidebarOlder, olderList),
+          ];
+        case SidebarGrouping.status:
+          final needsInput = <AgentThread>[];
+          final running = <AgentThread>[];
+          final unread = <AgentThread>[];
+          final idle = <AgentThread>[];
+          for (final thread in rest) {
+            switch (thread.shownStatus) {
+              case ThreadStatus.needsInput:
+                needsInput.add(thread);
+              case ThreadStatus.running:
+                running.add(thread);
+              case ThreadStatus.unread:
+                unread.add(thread);
+              case ThreadStatus.idle:
+                idle.add(thread);
+            }
+          }
+          return [
+            _Group('needsInput', l10n.sidebarNeedsInput, needsInput),
+            _Group('running', l10n.sidebarRunning, running),
+            _Group('unread', l10n.sidebarUnread, unread),
+            _Group('idle', l10n.sidebarDone, idle),
+          ];
+      }
+    }
+
     return [
       // While an agent is dragged, a place to pin it, if none is yet.
       if (pinned.isNotEmpty || _pinZone)
         _Group(_pinnedGroup, l10n.sidebarPinned, pinned),
-      ...switch (_grouping) {
-        SidebarGrouping.project => [
-          for (final project in _workspace.sidebarProjectsHere)
-            _Group(
-              Workspace.projectGroup(project.path),
-              // Every host's together: a remote one's says where it is.
-              switch (project.host) {
-                final host? when _workspace.sidebarAllHosts =>
-                  '${project.name} · ${_workspace.hostLabel(host)}',
-                _ => project.name,
-              },
-              _workspace.inProjectOrder(
-                project,
-                where((thread) => thread.project == project),
-              ),
-              project: project,
-            ),
-        ],
-        SidebarGrouping.time => [
-          _Group('today', l10n.sidebarToday, where((t) => daysAgo(t) <= 0)),
-          _Group(
-            'yesterday',
-            l10n.sidebarYesterday,
-            where((t) => daysAgo(t) == 1),
-          ),
-          _Group(
-            'week',
-            l10n.sidebarPrevious7Days,
-            where((t) => daysAgo(t) > 1 && daysAgo(t) <= 7),
-          ),
-          _Group('older', l10n.sidebarOlder, where((t) => daysAgo(t) > 7)),
-        ],
-        SidebarGrouping.status => [
-          _Group(
-            'needsInput',
-            l10n.sidebarNeedsInput,
-            where((t) => t.shownStatus == ThreadStatus.needsInput),
-          ),
-          _Group(
-            'running',
-            l10n.sidebarRunning,
-            where((t) => t.shownStatus == ThreadStatus.running),
-          ),
-          _Group(
-            'unread',
-            l10n.sidebarUnread,
-            where((t) => t.shownStatus == ThreadStatus.unread),
-          ),
-          _Group(
-            'idle',
-            l10n.sidebarDone,
-            where((t) => t.shownStatus == ThreadStatus.idle),
-          ),
-        ],
-      },
+      ...grouped(),
       // By folder, the one talked in last first.
       if (_showArchived)
         for (final project in {
@@ -1064,9 +1107,11 @@ class _SidebarState extends State<Sidebar>
   Widget _buildContent() {
     return ListenableBuilder(
       listenable: _workspace,
-      builder: (context, _) => Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
+      builder: (context, _) {
+        _ensureRows();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
           // The toggle lives in the window's header on Windows (see
           // window_header/), which is where this row would have been.
           if (!WindowControls.drawsHeader) _buildTopBar(),
@@ -1147,7 +1192,8 @@ class _SidebarState extends State<Sidebar>
           Expanded(child: _buildList()),
           _buildFooter(),
         ],
-      ),
+      );
+      },
     );
   }
 
@@ -1292,7 +1338,7 @@ class _SidebarState extends State<Sidebar>
   /// shown where there are several to fold.
   Widget? _buildCollapseAll() {
     final groups = [
-      for (final group in _groups())
+      for (final group in _listGroups)
         if (_collapsible(group)) group.id,
     ];
     if (groups.length < 2) return null;
@@ -1645,112 +1691,295 @@ class _SidebarState extends State<Sidebar>
   final Map<Object, BuildContext> _slots = {};
   static const _listSlot = #list;
 
-  Widget _buildList() {
+  void _stopSelectionSlide() {
+    _selectionTicker?.stop();
+    _lastSlideElapsed = null;
+    _selectionSlideProgress.value = 0;
+    _selectionSliding = false;
+  }
+
+  void _resetSelectionSlide() {
+    _stopSelectionSlide();
+    _selectionThread = null;
+    _selectionFrom = null;
+    _selectionTo = null;
+  }
+
+  void _onSelectionSlideTick(Duration elapsed) {
+    final last = _lastSlideElapsed;
+    _lastSlideElapsed = elapsed;
+    if (last == null) return;
+    final rawMs = (elapsed - last).inMicroseconds / 1000.0;
+    if (rawMs <= 0) return;
+    // Cap per-frame advancement so a heavy chat-switch frame (especially in
+    // debug builds) cannot swallow the whole slide in a single jump.
+    final stepMs = math.min(rawMs, _selectionSlideMaxStepMs);
+    final next = (_selectionSlideProgress.value + stepMs / _selectionDurationMs)
+        .clamp(0.0, 1.0);
+    _selectionSlideProgress.value = next;
+    if (next >= 1.0) {
+      _selectionTicker?.stop();
+      _lastSlideElapsed = null;
+      if (_selectionSliding && mounted) {
+        _selectionSliding = false;
+        _selectionFrom = _selectionTo;
+        _selectionSlideDone.value++;
+      }
+    }
+  }
+
+  /// The single visible thread row currently highlighted, if any; multi-select
+  /// or an empty/hidden selection returns null so each row paints itself.
+  ({AgentThread thread, double top})? _singleSelectedRow() {
+    final AgentThread? thread;
+    if (_listSelection.values.length == 1) {
+      thread = _listSelection.values.single;
+    } else if (_listSelection.values.isEmpty &&
+        !_onPage &&
+        !_listFocus.hasFocus) {
+      thread = _current;
+    } else {
+      thread = null;
+    }
+    if (thread == null) return null;
+    final index = _threadIndices[thread];
+    if (index == null) return null;
+    return (thread: thread, top: _rowOffsets[index]);
+  }
+
+  double _currentSelectionTop() {
+    final from = _selectionFrom ?? _selectionTo ?? 0;
+    final to = _selectionTo ?? from;
+    if (!_selectionSliding) return to;
+    final t = Curves.easeOutCubic.transform(_selectionSlideProgress.value);
+    return from + (to - from) * t;
+  }
+
+  double _selectionSlideScreenY() {
+    final scroll = _listScroll.hasClients ? _listScroll.offset : 0.0;
+    return _currentSelectionTop() - scroll;
+  }
+
+  void _syncSelectionSlide(bool disableAnimations) {
+    final target = _singleSelectedRow();
+    if (target == null) {
+      if (_selectionThread != null || _selectionSliding) {
+        _resetSelectionSlide();
+      }
+      return;
+    }
+    if (_selectionThread == null) {
+      _selectionThread = target.thread;
+      _selectionFrom = target.top;
+      _selectionTo = target.top;
+      _selectionSliding = false;
+      return;
+    }
+    if (identical(target.thread, _selectionThread)) {
+      final previous = _selectionTo ?? target.top;
+      if (target.top != previous) {
+        if (_selectionSliding) {
+          final delta = target.top - previous;
+          _selectionFrom = (_selectionFrom ?? previous) + delta;
+        } else {
+          _selectionFrom = target.top;
+        }
+        _selectionTo = target.top;
+      }
+      return;
+    }
+    final currentTop = _selectionSliding
+        ? _currentSelectionTop()
+        : (_selectionTo ?? target.top);
+    final rawDelta = target.top - currentTop;
+    if (disableAnimations || rawDelta.abs() < 0.5) {
+      _stopSelectionSlide();
+      _selectionThread = target.thread;
+      _selectionFrom = target.top;
+      _selectionTo = target.top;
+      return;
+    }
+    // Keep the slide exact whenever the previous row is on screen; when
+    // jumping across a long list from far offscreen, cap the travel so the
+    // highlight enters smoothly from the right direction.
+    var start = currentTop;
+    if (_listScroll.hasClients) {
+      final scroll = _listScroll.offset;
+      final viewport = _listScroll.position.viewportDimension;
+      final inView =
+          currentTop + _rowHeight >= scroll && currentTop <= scroll + viewport;
+      final maxTravel = math.max(viewport, 320.0);
+      if (!inView && rawDelta.abs() > maxTravel) {
+        start = target.top - rawDelta.sign * maxTravel;
+      }
+    }
+    final distance = (target.top - start).abs();
+    _selectionDurationMs =
+        _selectionSlideMinMs +
+        (distance / 8).clamp(0.0, _selectionSlideMaxExtraMs);
+    _selectionThread = target.thread;
+    _selectionFrom = start;
+    _selectionTo = target.top;
+    _selectionSliding = true;
+    _selectionSlideProgress.value = 0;
+    final ticker = _selectionTicker ??= createTicker(_onSelectionSlideTick);
+    if (!ticker.isActive) {
+      _lastSlideElapsed = null;
+      ticker.start();
+    }
+  }
+
+  Widget _buildSelectionSlide(
+    BuildContext context, {
+    required bool foreground,
+  }) {
+    final radius = BorderRadius.circular(
+      Islands.on(context) ? Islands.rowRadius : 4,
+    );
+    final colors = themeColors;
+    final outline =
+        colors.get('list.focusAndSelectionOutline') ??
+        colors.get('contrastActiveBorder') ??
+        colors.get('list.focusOutline');
+    if (foreground && outline == null) return const SizedBox.shrink();
+    return Flow(
+      delegate: _SelectionSlideDelegate(
+        offsetOf: _selectionSlideScreenY,
+        repaint: _selectionSlideRepaint,
+      ),
+      children: [
+        RepaintBoundary(
+          child: Container(
+            key: foreground
+                ? const ValueKey('sidebar.selectionSlide.outline')
+                : const ValueKey('sidebar.selectionSlide.fill'),
+            height: _rowHeight,
+            margin: const EdgeInsets.symmetric(horizontal: IdeListColors.inset),
+            decoration: foreground
+                ? BoxDecoration(
+                    borderRadius: radius,
+                    border: Border.all(color: outline!),
+                  )
+                : BoxDecoration(
+                    borderRadius: radius,
+                    color: IdeListColors.activeSelection,
+                  ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _ensureRows() {
     final switched = !identical(_listedCurrent, _current);
     if (switched) _rowsDirty = true;
-    if (_rowsDirty) {
-      _listedCurrent = _current;
-      final all = [
-        for (final group in _groups())
-          // Empty projects stay to start an agent in; other empty groups go.
-          if (group.threads.isNotEmpty || group.project != null || group.pinned)
+    if (!_rowsDirty) return;
+    _listedCurrent = _current;
+    final all = [
+      for (final group in _groups())
+        // Empty projects stay to start an agent in; other empty groups go.
+        if (group.threads.isNotEmpty || group.project != null || group.pinned)
+          group,
+    ];
+    _listGroups = all;
+    _listProjects = [for (final group in all) ?group.project];
+    // Searching, only the projects it matches.
+    final groups = _speedQuery.isEmpty
+        ? all
+        : [
+            for (final group in all)
+              if (_speedHits.containsKey(group.id)) group,
+          ];
+    final rows = <_ListRow>[];
+    for (final group in groups) {
+      rows.add(_ListRow(_ListRowKind.header, group, ValueKey(group.id), 32));
+      if (group.pinned && group.threads.isEmpty) {
+        rows.add(
+          _ListRow(_ListRowKind.pinZone, group, const ValueKey(#pinZone), 30),
+        );
+      }
+      final shown = _rows(group);
+      for (final thread in shown.threads) {
+        rows.add(
+          _ListRow(
+            _ListRowKind.thread,
             group,
-      ];
-      _listGroups = all;
-      _listProjects = [for (final group in all) ?group.project];
-      // Searching, only the projects it matches.
-      final groups = _speedQuery.isEmpty
-          ? all
-          : [
-              for (final group in all)
-                if (_speedHits.containsKey(group.id)) group,
-            ];
-      final rows = <_ListRow>[];
-      for (final group in groups) {
-        rows.add(_ListRow(_ListRowKind.header, group, ValueKey(group.id), 32));
-        if (group.pinned && group.threads.isEmpty) {
-          rows.add(
-            _ListRow(_ListRowKind.pinZone, group, const ValueKey(#pinZone), 30),
-          );
-        }
-        final shown = _rows(group);
-        for (final thread in shown.threads) {
+            ObjectKey(thread),
+            _rowHeight,
+            thread: thread,
+          ),
+        );
+        for (final aside in _asidesListed(thread)) {
           rows.add(
             _ListRow(
               _ListRowKind.thread,
               group,
-              ObjectKey(thread),
+              ObjectKey(aside),
               _rowHeight,
-              thread: thread,
-            ),
-          );
-          for (final aside in _asidesListed(thread)) {
-            rows.add(
-              _ListRow(
-                _ListRowKind.thread,
-                group,
-                ObjectKey(aside),
-                _rowHeight,
-                thread: aside,
-                aside: true,
-              ),
-            );
-          }
-        }
-        if (shown.more > 0 || shown.less) {
-          rows.add(
-            _ListRow(
-              _ListRowKind.more,
-              group,
-              ValueKey('${group.id}.more'),
-              24,
-              more: shown,
+              thread: aside,
+              aside: true,
             ),
           );
         }
       }
-      _listRows = rows;
-      final offsets = <double>[0];
-      for (final row in rows) {
-        offsets.add(offsets.last + row.extent);
-      }
-      _rowOffsets = offsets;
-      _rowIndices = {for (final (index, row) in rows.indexed) row.key: index};
-      _threadIndices = {
-        for (final (index, row) in rows.indexed) ?row.thread: index,
-      };
-      // Another agent shown, opened from wherever (a new one, the search,
-      // a shortcut): the rows picked follow it, not left on the one before.
-      if (switched && !_listSelection.values.contains(_current)) {
-        _listSelection.select(
-          _onPage || !_threadIndices.containsKey(_current) ? null : _current,
+      if (shown.more > 0 || shown.less) {
+        rows.add(
+          _ListRow(
+            _ListRowKind.more,
+            group,
+            ValueKey('${group.id}.more'),
+            24,
+            more: shown,
+          ),
         );
       }
-      // And the list goes to it, laid out first; not from its own row,
-      // clicked: that moving away under the pointer.
-      if (switched) {
-        final clicked = identical(_current, _clickedOpen);
-        _clickedOpen = null;
-        if (!clicked) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) _revealCurrent();
-          });
-        }
-      }
-      // The rows picked stay while the search hides them.
-      if (_speedQuery.isEmpty) {
-        _listSelection.values.retainWhere(_threadIndices.containsKey);
-        if (!_threadIndices.containsKey(_listSelection.focused)) {
-          _listSelection.focused = null;
-        }
-        if (!_threadIndices.containsKey(_listSelection.anchor)) {
-          _listSelection.anchor = null;
-        }
-      }
-      _rowsDirty = false;
     }
+    _listRows = rows;
+    final offsets = <double>[0];
+    for (final row in rows) {
+      offsets.add(offsets.last + row.extent);
+    }
+    _rowOffsets = offsets;
+    _rowIndices = {for (final (index, row) in rows.indexed) row.key: index};
+    _threadIndices = {
+      for (final (index, row) in rows.indexed) ?row.thread: index,
+    };
+    // Another agent shown, opened from wherever (a new one, the search,
+    // a shortcut): the rows picked follow it, not left on the one before.
+    if (switched && !_listSelection.values.contains(_current)) {
+      _listSelection.select(
+        _onPage || !_threadIndices.containsKey(_current) ? null : _current,
+      );
+    }
+    // And the list goes to it, laid out first; not from its own row,
+    // clicked: that moving away under the pointer.
+    if (switched) {
+      final clicked = identical(_current, _clickedOpen);
+      _clickedOpen = null;
+      if (!clicked) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _revealCurrent();
+        });
+      }
+    }
+    // The rows picked stay while the search hides them.
+    if (_speedQuery.isEmpty) {
+      _listSelection.values.retainWhere(_threadIndices.containsKey);
+      if (!_threadIndices.containsKey(_listSelection.focused)) {
+        _listSelection.focused = null;
+      }
+      if (!_threadIndices.containsKey(_listSelection.anchor)) {
+        _listSelection.anchor = null;
+      }
+    }
+    _rowsDirty = false;
+  }
+
+  Widget _buildList() {
+    _ensureRows();
     final rows = _listRows;
     final projects = _listProjects;
+    _syncSelectionSlide(MediaQuery.disableAnimationsOf(context));
     if (rows.isEmpty && _speedQuery.isEmpty) {
       if (_workspace.sidebarHost case final host?) {
         return _buildNoProjectsOn(host);
@@ -1777,79 +2006,115 @@ class _SidebarState extends State<Sidebar>
             listClear();
           },
           // Faded out towards an edge scrolled past, as the conversation's
-          // list is.
-          child: ScrollEdgeFade(
-            child: ListView.builder(
-              controller: _listScroll,
-              padding: const EdgeInsets.only(bottom: 12),
-              itemCount: rows.length,
-              itemExtentBuilder: (index, _) =>
-                  index < rows.length ? rows[index].extent : null,
-              findChildIndexCallback: (key) => _rowIndices[key],
-              itemBuilder: (context, index) {
-                final row = rows[index];
-                final child = switch (row.kind) {
-                  _ListRowKind.header => _Slot(
-                    slot: row.group.id,
-                    slots: _slots,
-                    child: _buildHeader(row.group, projects),
-                  ),
-                  _ListRowKind.thread => _buildRow(
-                    row.thread!,
-                    row.group,
-                    aside: row.aside,
-                  ),
-                  _ListRowKind.pinZone => _PinZone(
-                    height: _rowHeight,
-                    active: _spot?.group.id == row.group.id,
-                  ),
-                  _ListRowKind.more => _MoreRow(
-                    label: row.more!.less
-                        ? context.l10n.sidebarShowLess
-                        : context.l10n.sidebarShowMore(row.more!.more),
-                    onTap: () => _workspace.toggleExpanded(row.group.id),
-                  ),
-                };
-                final spot = _spot;
-                final before =
-                    (row.thread != null &&
-                        identical(spot?.before, row.thread)) ||
-                    (row.kind == _ListRowKind.header &&
-                        row.group.project != null &&
-                        _projectSpot == projects.indexOf(row.group.project!));
-                final after =
-                    (row.thread != null &&
-                        identical(spot?.after, row.thread)) ||
-                    (row.kind == _ListRowKind.header &&
-                        spot != null &&
-                        spot.group.id == row.group.id &&
-                        spot.before == null &&
-                        spot.after == null &&
-                        row.group.threads.isNotEmpty) ||
-                    (index == rows.length - 1 &&
-                        _projectSpot == projects.length);
-                return Stack(
-                  key: row.key,
-                  clipBehavior: Clip.none,
-                  children: [
-                    Positioned.fill(child: child),
-                    if (before)
-                      const Positioned(
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        child: _DropLine(),
+          // list is. Keep the sliding highlight outside ScrollEdgeFade and in
+          // its own RepaintBoundary so animating frames never repaint the
+          // shader mask or list rows.
+          child: ClipRect(
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: RepaintBoundary(
+                      child: ListenableBuilder(
+                        listenable: _selectionSlideDone,
+                        builder: (context, _) => _selectionSliding
+                            ? _buildSelectionSlide(context, foreground: false)
+                            : const SizedBox.shrink(),
                       ),
-                    if (after)
-                      const Positioned(
-                        bottom: 0,
-                        left: 0,
-                        right: 0,
-                        child: _DropLine(),
+                    ),
+                  ),
+                ),
+                RepaintBoundary(
+                  child: ScrollEdgeFade(
+                    child: ListView.builder(
+                      controller: _listScroll,
+                      padding: const EdgeInsets.only(bottom: 12),
+                      itemCount: rows.length,
+                      itemExtentBuilder: (index, _) =>
+                          index < rows.length ? rows[index].extent : null,
+                      findChildIndexCallback: (key) => _rowIndices[key],
+                      itemBuilder: (context, index) {
+                        final row = rows[index];
+                        final child = switch (row.kind) {
+                          _ListRowKind.header => _Slot(
+                            slot: row.group.id,
+                            slots: _slots,
+                            child: _buildHeader(row.group, projects),
+                          ),
+                          _ListRowKind.thread => _buildRow(
+                            row.thread!,
+                            row.group,
+                            aside: row.aside,
+                          ),
+                          _ListRowKind.pinZone => _PinZone(
+                            height: _rowHeight,
+                            active: _spot?.group.id == row.group.id,
+                          ),
+                          _ListRowKind.more => _MoreRow(
+                            label: row.more!.less
+                                ? context.l10n.sidebarShowLess
+                                : context.l10n.sidebarShowMore(row.more!.more),
+                            onTap: () => _workspace.toggleExpanded(row.group.id),
+                          ),
+                        };
+                        final spot = _spot;
+                        final before =
+                            (row.thread != null &&
+                                identical(spot?.before, row.thread)) ||
+                            (row.kind == _ListRowKind.header &&
+                                row.group.project != null &&
+                                _projectSpot ==
+                                    projects.indexOf(row.group.project!));
+                        final after =
+                            (row.thread != null &&
+                                identical(spot?.after, row.thread)) ||
+                            (row.kind == _ListRowKind.header &&
+                                spot != null &&
+                                spot.group.id == row.group.id &&
+                                spot.before == null &&
+                                spot.after == null &&
+                                row.group.threads.isNotEmpty) ||
+                            (index == rows.length - 1 &&
+                                _projectSpot == projects.length);
+                        return Stack(
+                          key: row.key,
+                          clipBehavior: Clip.none,
+                          children: [
+                            Positioned.fill(child: child),
+                            if (before)
+                              const Positioned(
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                child: _DropLine(),
+                              ),
+                            if (after)
+                              const Positioned(
+                                bottom: 0,
+                                left: 0,
+                                right: 0,
+                                child: _DropLine(),
+                              ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: RepaintBoundary(
+                      child: ListenableBuilder(
+                        listenable: _selectionSlideDone,
+                        builder: (context, _) => _selectionSliding
+                            ? _buildSelectionSlide(context, foreground: true)
+                            : const SizedBox.shrink(),
                       ),
-                  ],
-                );
-              },
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -1969,28 +2234,34 @@ class _SidebarState extends State<Sidebar>
     _Group group, {
     bool aside = false,
   }) {
-    return _ThreadRow(
-      thread: thread,
-      status: _statusOf(thread),
-      model: () => _modelOf(thread),
-      height: _rowHeight,
-      stashes: switch ((widget.stashes, thread.id)) {
-        (final stashes?, final session?) => stashes.of(session),
-        _ => const [],
-      },
-      onOpenStash: widget.stashes?.open,
-      pulls: switch ((widget.stashes, thread.id)) {
-        (final stashes?, final session?) => stashes.pulls(session),
-        _ => const [],
-      },
-      onOpenPull: widget.stashes?.openPull,
-      selected:
-          _listSelection.values.contains(thread) ||
-          (!_onPage &&
-              !_listFocus.hasFocus &&
-              _listSelection.values.isEmpty &&
-              identical(thread, _current)),
-      focusedItem: identical(_listSelection.focused, thread),
+    final isSlideTarget =
+        _selectionSliding && identical(thread, _selectionThread);
+    return ListenableBuilder(
+      listenable: isSlideTarget ? _selectionSlideDone : _neverNotify,
+      builder: (context, _) => _ThreadRow(
+        thread: thread,
+        status: _statusOf(thread),
+        model: () => _modelOf(thread),
+        height: _rowHeight,
+        stashes: switch ((widget.stashes, thread.id)) {
+          (final stashes?, final session?) => stashes.of(session),
+          _ => const [],
+        },
+        onOpenStash: widget.stashes?.open,
+        pulls: switch ((widget.stashes, thread.id)) {
+          (final stashes?, final session?) => stashes.pulls(session),
+          _ => const [],
+        },
+        onOpenPull: widget.stashes?.openPull,
+        selected:
+            _listSelection.values.contains(thread) ||
+            (!_onPage &&
+                !_listFocus.hasFocus &&
+                _listSelection.values.isEmpty &&
+                identical(thread, _current)),
+        paintSelection:
+            !(_selectionSliding && identical(thread, _selectionThread)),
+        focusedItem: identical(_listSelection.focused, thread),
       focused: _listFocus.hasFocus,
       menuTargets: () => _targetsFor(thread),
       onContextMenu: () => _rowContext(thread),
@@ -2044,6 +2315,7 @@ class _SidebarState extends State<Sidebar>
         _ => null,
       },
       onDelete: () => _delete([thread]),
+      ),
     );
   }
 
@@ -2600,6 +2872,28 @@ class _SidebarState extends State<Sidebar>
       shown: Workspace.deleteDelay,
     );
   }
+}
+
+class _SelectionSlideDelegate extends FlowDelegate {
+  _SelectionSlideDelegate({required this.offsetOf, required super.repaint});
+
+  final double Function() offsetOf;
+
+  @override
+  BoxConstraints getConstraintsForChild(int i, BoxConstraints constraints) =>
+      BoxConstraints.tightFor(width: constraints.maxWidth);
+
+  @override
+  void paintChildren(FlowPaintingContext context) {
+    context.paintChild(
+      0,
+      transform: Matrix4.translationValues(0, offsetOf(), 0),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_SelectionSlideDelegate oldDelegate) =>
+      oldDelegate.offsetOf != offsetOf;
 }
 
 class _NewAgentButton extends StatelessWidget {
@@ -3473,6 +3767,7 @@ class _ThreadRow extends StatelessWidget {
     this.pulls = const [],
     this.onOpenPull,
     required this.selected,
+    this.paintSelection = true,
     required this.focusedItem,
     required this.focused,
     required this.drag,
@@ -3516,6 +3811,7 @@ class _ThreadRow extends StatelessWidget {
   final ValueChanged<String>? onOpenPull;
 
   final bool selected;
+  final bool paintSelection;
   final bool focusedItem;
   final bool focused;
 
@@ -3657,6 +3953,7 @@ class _ThreadRow extends StatelessWidget {
       builder: (context, menu) => IdeListRow(
         height: height,
         selected: selected,
+        paintSelection: paintSelection,
         focusedItem: focusedItem,
         focused: focused,
         keepSelectionActive: true,

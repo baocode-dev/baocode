@@ -12,6 +12,7 @@ import 'web_step_icons.dart';
 
 export 'web_step_icons.dart'
     show
+        FoldWebBrowserIcon,
         FoldWebIcon,
         FoldWebSearchIcon,
         FoldWebSiteIcon,
@@ -42,7 +43,11 @@ class StepsFoldLine extends StatelessWidget {
   final List<FoldWebIcon> webIcons;
 
   /// What the steps did, each phrase with its count in it.
-  static List<(String, int)> _actions(StepTally tally, AppLocalizations l10n) {
+  static List<(String, int)> _actions(
+    StepTally tally,
+    AppLocalizations l10n, {
+    bool capitalize = true,
+  }) {
     final actions = [
       for (final action in StepAction.values)
         if (tally.counts[action] case final count?)
@@ -60,8 +65,10 @@ class StepsFoldLine extends StatelessWidget {
           ),
     ];
     // The line starts as a sentence does.
-    if (actions.firstOrNull case (final first, final count)) {
-      actions[0] = (first[0].toUpperCase() + first.substring(1), count);
+    if (capitalize) {
+      if (actions.firstOrNull case (final first, final count)) {
+        actions[0] = (first[0].toUpperCase() + first.substring(1), count);
+      }
     }
     return actions;
   }
@@ -78,10 +85,19 @@ class StepsFoldLine extends StatelessWidget {
 
   /// The line as text, e.g. for copying; in [l10n]'s language (English
   /// when null).
-  static String text(StepTally tally, {AppLocalizations? l10n}) {
+  static String text(
+    StepTally tally, {
+    AppLocalizations? l10n,
+    bool capitalize = true,
+  }) {
     final strings = l10n ?? englishLocalizations;
+    final actions = _actions(
+      tally,
+      strings,
+      capitalize: capitalize,
+    ).map((a) => a.$1).join(strings.stepsSeparator);
     return [
-      _actions(tally, strings).map((a) => a.$1).join(strings.stepsSeparator),
+      if (actions.isNotEmpty) actions,
       ?_thought(tally, strings),
     ].join(' · ');
   }
@@ -136,7 +152,8 @@ class StepsFoldLine extends StatelessWidget {
 }
 
 /// A finished turn's work, folded before its answer: "Worked for 4m 32s",
-/// with the files it edited. Opens to the work.
+/// with the files it edited and (while closed) the tally of its steps.
+/// Opens to the work.
 class WorkFoldLine extends StatelessWidget {
   const WorkFoldLine({
     super.key,
@@ -144,6 +161,7 @@ class WorkFoldLine extends StatelessWidget {
     required this.edits,
     required this.expanded,
     required this.onToggle,
+    this.tally,
     this.images = const [],
     this.webIcons = const [],
     this.stopped = false,
@@ -154,13 +172,18 @@ class WorkFoldLine extends StatelessWidget {
   /// The user stopped the turn: "Stopped after 4m 32s".
   final bool stopped;
   final TurnEdits edits;
+
+  /// The turn's quick-step tally (reads, commands, browser actions, thinking),
+  /// shown while closed so the user sees what happened without opening it.
+  final StepTally? tally;
   final bool expanded;
   final VoidCallback onToggle;
 
   /// The turn's pictures (see [foldImages]), small after the line.
   final List<ChatImage> images;
 
-  /// The turn's web icons (see [foldWebIcons]), stacked before [images].
+  /// The turn's web and browser icons (see [foldWebIcons]), stacked before
+  /// [images].
   final List<FoldWebIcon> webIcons;
 
   /// The line as text, e.g. for copying; in [l10n]'s language (English
@@ -168,10 +191,14 @@ class WorkFoldLine extends StatelessWidget {
   static String text(
     Duration worked,
     TurnEdits edits, {
+    StepTally? tally,
     AppLocalizations? l10n,
     bool stopped = false,
   }) {
     final strings = l10n ?? englishLocalizations;
+    final steps = tally == null || tally.isEmpty
+        ? ''
+        : StepsFoldLine.text(tally, l10n: strings, capitalize: false);
     return [
       _worked(strings, worked, stopped: stopped),
       if (edits.files > 0)
@@ -180,6 +207,7 @@ class WorkFoldLine extends StatelessWidget {
           if (edits.added > 0) '+${edits.added}',
           if (edits.removed > 0) '-${edits.removed}',
         ].join(' '),
+      if (steps.isNotEmpty) steps,
     ].join(' · ');
   }
 
@@ -196,13 +224,26 @@ class WorkFoldLine extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final faint = TextStyle(color: AppColors.textFaint);
+    final stepCount = TextStyle(
+      color: AppColors.text,
+      fontWeight: FontWeight.w600,
+    );
     final count = TextStyle(
       fontFamily: AppFonts.mono,
       fontFamilyFallback: AppFonts.monoFallbacks,
       fontSize: 11.5,
     );
+    final shownTally = !expanded && tally != null && !tally!.isEmpty
+        ? tally
+        : null;
+    final actions = shownTally == null
+        ? const <(String, int)>[]
+        : StepsFoldLine._actions(shownTally, l10n, capitalize: false);
+    final thought = shownTally == null
+        ? null
+        : StepsFoldLine._thought(shownTally, l10n);
     final header = StepHeader(
-      verb: text(worked, edits, l10n: l10n, stopped: stopped),
+      verb: text(worked, edits, tally: shownTally, l10n: l10n, stopped: stopped),
       expanded: expanded,
       onToggle: onToggle,
       trailingGap: 0,
@@ -231,6 +272,14 @@ class WorkFoldLine extends StatelessWidget {
               ),
             ),
         ],
+        if (actions.isNotEmpty) ...[
+          TextSpan(text: ' · ', style: faint),
+          for (final (i, (phrase, n)) in actions.indexed) ...[
+            if (i > 0) TextSpan(text: l10n.stepsSeparator),
+            ...StepsFoldLine._withCount(phrase, n, stepCount),
+          ],
+        ],
+        if (thought != null) TextSpan(text: ' · $thought', style: faint),
       ],
     );
     return _FoldSemantics(
@@ -240,6 +289,64 @@ class WorkFoldLine extends StatelessWidget {
       child: Align(alignment: Alignment.centerLeft, child: header),
     );
   }
+}
+
+/// Everything a fold's header shows, collected in one pass over its items so
+/// long conversations do not allocate sublists or scan the fold repeatedly.
+class FoldSummary {
+  const FoldSummary({
+    required this.tally,
+    required this.edits,
+    required this.images,
+    required this.webIcons,
+  });
+
+  static final empty = FoldSummary(
+    tally: StepTally(),
+    edits: (files: 0, added: 0, removed: 0),
+    images: const [],
+    webIcons: const [],
+  );
+
+  /// Summarizes items `[start, end)` from [itemAt] in a single pass.
+  factory FoldSummary.of(
+    int start,
+    int end,
+    ChatItem Function(int index) itemAt,
+  ) {
+    if (start >= end) return empty;
+    final tally = StepTally();
+    final files = <String>{};
+    var added = 0;
+    var removed = 0;
+    final images = <ChatImage>[];
+    final webCollector = FoldWebIconCollector();
+    for (var i = start; i < end; i++) {
+      final item = itemAt(i);
+      tally.add(item);
+      if (item is CodeDiffItem) {
+        files.add('${item.directory}/${item.fileName}');
+        added += item.added;
+        removed += item.removed;
+      } else if (item is ToolCallItem && !standsOutOfWork(item)) {
+        if (item.images.isNotEmpty) {
+          images.addAll(toolImages(item));
+        }
+        webCollector.add(item);
+      }
+    }
+    return FoldSummary(
+      tally: tally,
+      edits: (files: files.length, added: added, removed: removed),
+      images: images,
+      webIcons: webCollector.icons,
+    );
+  }
+
+  final StepTally tally;
+  final TurnEdits edits;
+  final List<ChatImage> images;
+  final List<FoldWebIcon> webIcons;
 }
 
 /// A fold's stacked web icons (before its pictures) and small [images] after
