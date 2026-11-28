@@ -1068,8 +1068,17 @@ class AgyTransportCore {
   );
 
   static final _childCallConvPrefix = RegExp(
-    r'^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})_',
+    r'^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})[:/_]',
   );
+
+  /// Whether [acpCallId] belongs to a child conversation (swarm worker or
+  /// subagent) rather than the main coordinator session.
+  bool _isChildCallId(String? acpCallId) {
+    if (acpCallId == null) return false;
+    final match = _childCallConvPrefix.firstMatch(acpCallId);
+    if (match == null) return false;
+    return match.group(1) != _agySession;
+  }
 
   static final _bgTaskIdPattern = RegExp(
     r'background task with task id:\s*([^\s"]+)',
@@ -1311,20 +1320,29 @@ class AgyTransportCore {
   }
 
   /// Resolves the parent subagent / swarm worker `tool_use_id` for an
-  /// ACP-forwarded child tool call whose id is prefixed with `<convId>_`.
+  /// ACP-forwarded child tool call whose id is prefixed with `<convId>[:/_]`.
   String? _parentToolUseIdFor(String acpCallId) {
     final match = _childCallConvPrefix.firstMatch(acpCallId);
     if (match == null) return null;
     final convId = match.group(1)!;
     if (convId == _agySession) return null;
     if (_convToSubagentToolUseId[convId] case final parent?) return parent;
-    if (_swarm case final swarm?) {
-      for (final member in swarm.members) {
-        if (member.conversationId == convId) {
-          return 'swarm-worker:${member.name}';
+    String? swarmParent() {
+      if (_swarm case final swarm?) {
+        for (final member in swarm.members) {
+          if (member.conversationId == convId) {
+            return 'swarm-worker:${member.name}';
+          }
         }
       }
+      return null;
     }
+
+    if (swarmParent() case final parent?) return parent;
+    // Race guard: a newly spawned swarm worker may run its first tool before
+    // the periodic SwarmWatcher poll reads members.json. Refresh synchronously.
+    _swarmWatcher?.checkNow();
+    if (swarmParent() case final parent?) return parent;
     // Race guard: child call may arrive just before invoke_subagent finishes
     // or before its transcript line is claimed. Refresh from main transcript
     // first, else bind if there is a single unbound invoke_subagent call.
@@ -1358,7 +1376,10 @@ class AgyTransportCore {
       _bindSubagentConv(unbound.single, convId);
       return unbound.single.claudeId;
     }
-    return null;
+    // Never leak a foreign-conversation child tool call onto the main timeline
+    // with parent_tool_use_id == null (e.g. a worker-spawned helper or a
+    // freshly spawned worker before members.json flushes).
+    return 'subagent:$convId';
   }
 
   void _bindSubagentConv(_Call call, String convId) {
@@ -2084,7 +2105,9 @@ class AgyTransportCore {
     }
     final call = update == null ? null : _toolCall(update);
     if (call == null || _turn?.cancelled != false) return selected(null);
-    _closeOpen();
+    // Child calls (swarm workers / subagents) run concurrently with the
+    // coordinator and must not split its currently streaming text block.
+    if (!_isChildCallId(call.acp.id)) _closeOpen();
     _tell(call);
     final allowed = await _allows(call);
     if (!allowed) return selected(reject);
@@ -2296,7 +2319,7 @@ class AgyTransportCore {
       case 'agent_thought_chunk':
         _chunk(_BlockKind.thinking, _text(update['content']));
       case 'tool_call' || 'tool_call_update':
-        _closeOpen();
+        if (!_isChildCallId(update['toolCallId'] as String?)) _closeOpen();
         final call = _toolCall(update);
         if (call != null) _progress(call);
       case 'plan':
@@ -2601,15 +2624,27 @@ class AgyTransportCore {
     List<Map<String, Object?>> content, {
     String? parentToolUseId,
   }) {
+    final message = _message(id, content);
+    if (parentToolUseId != null) {
+      // Child conversation tool calls (swarm workers / subagents) are
+      // persisted in their own Antigravity transcripts; keep them off the
+      // main SessionStore branch so replay and cross-kernel handoff stay clean.
+      _emit({
+        'type': 'assistant',
+        'message': message,
+        'parent_tool_use_id': parentToolUseId,
+        'uuid': newUuid(),
+      });
+      return;
+    }
     final entry = _store.append({
       'type': 'assistant',
-      'message': _message(id, content),
-      'parent_tool_use_id': ?parentToolUseId,
+      'message': message,
     });
     _emit({
       'type': 'assistant',
       'message': entry['message'],
-      'parent_tool_use_id': parentToolUseId,
+      'parent_tool_use_id': null,
       'uuid': entry['uuid'],
     });
   }
@@ -2649,7 +2684,10 @@ class AgyTransportCore {
       final convId = _extractSubagentConvId(call);
       if (convId != null) _bindSubagentConv(call, convId);
     }
-    if (call.told && !call.done && call.name == 'Bash') {
+    if (call.told &&
+        !call.done &&
+        call.parentToolUseId == null &&
+        call.name == 'Bash') {
       _syncBackgroundCommands();
       _ensureBgCommandPolling();
     }
@@ -2669,9 +2707,9 @@ class AgyTransportCore {
       ..name = use.name
       ..input = use.input
       ..parentToolUseId = parentToolUseId;
-    // Count tool call JSON tokens in live turn output without skewing live
-    // streaming speed with non-streamed tool-call arrival latency.
-    if (use.input.isNotEmpty) {
+    // Count main-session tool call JSON tokens in live turn output without
+    // skewing live streaming speed with non-streamed tool-call arrival latency.
+    if (parentToolUseId == null && use.input.isNotEmpty) {
       _event({
         'type': 'content_block_delta',
         'index': -1,
@@ -2745,7 +2783,7 @@ class AgyTransportCore {
       isError: result.isError,
       structured: structured,
     );
-    if (call.name == 'Bash') {
+    if (call.parentToolUseId == null && call.name == 'Bash') {
       _settleBgCommand(
         call.claudeId,
         status: result.isError ? 'failed' : 'completed',
@@ -2791,26 +2829,36 @@ class AgyTransportCore {
     Map<String, Object?>? structured,
   }) {
     final parentToolUseId = call.parentToolUseId;
+    final message = {
+      'role': 'user',
+      'content': [
+        {
+          'type': 'tool_result',
+          'tool_use_id': call.claudeId,
+          'content': content,
+          if (isError) 'is_error': true,
+        },
+      ],
+    };
+    if (parentToolUseId != null) {
+      _emit({
+        'type': 'user',
+        'message': message,
+        'parent_tool_use_id': parentToolUseId,
+        'uuid': newUuid(),
+        'tool_use_result': ?structured,
+      });
+      return;
+    }
     final entry = _store.append({
       'type': 'user',
-      'message': {
-        'role': 'user',
-        'content': [
-          {
-            'type': 'tool_result',
-            'tool_use_id': call.claudeId,
-            'content': content,
-            if (isError) 'is_error': true,
-          },
-        ],
-      },
-      'parent_tool_use_id': ?parentToolUseId,
+      'message': message,
       'toolUseResult': ?structured,
     });
     _emit({
       'type': 'user',
       'message': entry['message'],
-      'parent_tool_use_id': parentToolUseId,
+      'parent_tool_use_id': null,
       'uuid': entry['uuid'],
       'tool_use_result': ?structured,
     });
@@ -2828,7 +2876,7 @@ class AgyTransportCore {
           ? 'The user interrupted this tool call.'
           : call.acp.output ?? '(no output)';
       _result(call, content, isError: interrupted);
-      if (call.name == 'Bash') {
+      if (call.parentToolUseId == null && call.name == 'Bash') {
         _settleBgCommand(
           call.claudeId,
           status: interrupted ? 'stopped' : 'completed',

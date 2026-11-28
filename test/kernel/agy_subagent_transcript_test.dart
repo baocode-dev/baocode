@@ -28,6 +28,8 @@ class _FakeAcpAgent implements AcpTransport {
   onRequest;
   final _out = StreamController<Map<String, Object?>>.broadcast();
   final _exit = Completer<AcpExit>();
+  final Map<Object?, Completer<Map<String, Object?>>> _pending = {};
+  var _nextId = 1;
 
   @override
   Stream<Map<String, Object?>> get messages => _out.stream;
@@ -54,7 +56,25 @@ class _FakeAcpAgent implements AcpTransport {
           }),
         ),
       );
+      return;
     }
+    if (message.containsKey('id')) {
+      final pending = _pending.remove(message['id']);
+      pending?.complete(
+        (message['result'] as Map? ?? const {}).cast<String, Object?>(),
+      );
+    }
+  }
+
+  Future<Map<String, Object?>> ask(
+    String method,
+    Map<String, Object?> params,
+  ) {
+    final id = 'srv_${_nextId++}';
+    final completer = Completer<Map<String, Object?>>();
+    _pending[id] = completer;
+    _send({'jsonrpc': '2.0', 'id': id, 'method': method, 'params': params});
+    return completer.future;
   }
 
   void _send(Map<String, Object?> message) {
@@ -898,6 +918,234 @@ void main() {
           CommandStatus.succeeded,
         );
         expect(cancelledSessions, isEmpty);
+      },
+    );
+
+    test(
+      'concurrent swarm worker permission requests and tool updates do not split coordinator streaming text or leak into main chat/jsonl',
+      () async {
+        const mainSession = '1032d3da-4a18-4467-b647-83820339d3ad';
+        const uiWorkerConv = '8cf1b98c-5afb-4252-946b-97cc2c7229a7';
+        const unknownWorkerConv = '55c88e01-b74f-4238-90ec-d0cc195225e5';
+
+        // Seed members.json with ui-auditor (not yet polled before its first
+        // tool call arrives) while leaving unknownWorkerConv absent to exercise
+        // the foreign-UUID fallback.
+        final swarmDir = Directory(
+          p.join(brainDir, mainSession, '.system_generated', 'swarm'),
+        )..createSync(recursive: true);
+        File(p.join(swarmDir.path, 'members.json')).writeAsStringSync(
+          jsonEncode({
+            'title': 'Audit desktop changes',
+            'members': {
+              'coordinator': {
+                'conversation_id': mainSession,
+                'role': 'coordinator',
+                'phase': 'RUNNING',
+              },
+              'ui-auditor': {
+                'conversation_id': uiWorkerConv,
+                'role': 'worker',
+                'phase': 'RUNNING',
+                'wake_mode': 'working',
+              },
+            },
+          }),
+        );
+
+        final runtime = _FakeAgyRuntime(
+          () => _FakeAcpAgent((agent, method, params) async {
+            switch (method) {
+              case 'initialize':
+                return {'protocolVersion': 1};
+              case 'session/new':
+                return {'sessionId': mainSession};
+              case 'session/set_config_option':
+                return {};
+              case 'session/prompt':
+                final session = params['sessionId'] as String;
+                // Coordinator begins streaming a bullet list.
+                agent.say(session, {
+                  'sessionUpdate': 'agent_message_chunk',
+                  'content': {
+                    'type': 'text',
+                    'text': '- **protocol-auditor**：核对通信协议、模型字段',
+                  },
+                });
+                // Meanwhile ui-auditor triggers session/request_permission
+                // with a colon-prefixed child toolCallId (`<convId>:call_...`).
+                final perm1 = await agent.ask('session/request_permission', {
+                  'sessionId': session,
+                  'toolCall': {
+                    'toolCallId': '$uiWorkerConv:call_1001',
+                    'name': 'run_command',
+                    'kind': 'execute',
+                    'status': 'pending',
+                    'rawInput': {
+                      'CommandLine': 'git log -n 5',
+                      'toolSummary': 'Monad recent git log with stats',
+                    },
+                  },
+                  'options': [
+                    {'optionId': 'allow', 'kind': 'allow_once', 'name': 'Allow'},
+                  ],
+                });
+                expect((perm1['outcome'] as Map)['optionId'], 'allow');
+
+                // Coordinator continues mid-sentence.
+                agent.say(session, {
+                  'sessionUpdate': 'agent_message_chunk',
+                  'content': {
+                    'type': 'text',
+                    'text': '、ACP/Swarm 适配；\n- **ui-auditor**：',
+                  },
+                });
+                // Worker tool completes while coordinator is right after `：`.
+                agent.say(session, {
+                  'sessionUpdate': 'tool_call_update',
+                  'toolCallId': '$uiWorkerConv:call_1001',
+                  'status': 'completed',
+                  'rawOutput': {'output': 'ok', 'exit_code': 0},
+                });
+
+                // Coordinator streams next part of sentence.
+                agent.say(session, {
+                  'sessionUpdate': 'agent_message_chunk',
+                  'content': {
+                    'type': 'text',
+                    'text': '核对聊天 UI。汇总后我立刻给你整理',
+                  },
+                });
+                // Unregistered worker triggers permission with slash separator.
+                final perm2 = await agent.ask('session/request_permission', {
+                  'sessionId': session,
+                  'toolCall': {
+                    'toolCallId': '$unknownWorkerConv/call_2002',
+                    'name': 'run_command',
+                    'kind': 'execute',
+                    'status': 'pending',
+                    'rawInput': {
+                      'CommandLine': 'git log -n 3',
+                      'toolSummary': 'Mobile recent git log with stats',
+                    },
+                  },
+                  'options': [
+                    {'optionId': 'allow', 'kind': 'allow_once', 'name': 'Allow'},
+                  ],
+                });
+                expect((perm2['outcome'] as Map)['optionId'], 'allow');
+                agent.say(session, {
+                  'sessionUpdate': 'tool_call_update',
+                  'toolCallId': '$unknownWorkerConv/call_2002',
+                  'status': 'completed',
+                  'rawOutput': {'output': 'ok', 'exit_code': 0},
+                });
+
+                // Coordinator finishes the sentence.
+                agent.say(session, {
+                  'sessionUpdate': 'agent_message_chunk',
+                  'content': {
+                    'type': 'text',
+                    'text': '清晰的同步清单。',
+                  },
+                });
+                return {'stopReason': 'end_turn'};
+            }
+            return {};
+          }),
+        );
+
+        final transport =
+            await AgyTransport.start(
+                  ClaudeLaunch(
+                    cwd: cwd,
+                    model: 'gemini-4-neon',
+                    permissionMode: 'bypassPermissions',
+                  ),
+                  runtime: runtime,
+                  brainDir: brainDir,
+                )
+                as AgyTransport;
+        addTearDown(transport.close);
+
+        final transcript = Transcript();
+        var seq = 0;
+        final translator = ClaudeTranslator(
+          emit: transcript.apply,
+          nextSeq: () => ++seq,
+        );
+        final seen = <Map<String, Object?>>[];
+        final results = <Map<String, Object?>>[];
+        transport.messages.listen((m) {
+          seen.add(m);
+          if (m['type'] == 'system' && m['subtype'] == 'swarm_update') {
+            translator.applySwarm(
+              SwarmSnapshot.fromJson(
+                (m['swarm'] as Map).cast<String, Object?>(),
+              ),
+            );
+          } else {
+            translator.translate(m);
+          }
+          if (m['type'] == 'result') results.add(m);
+        });
+
+        transport.write({
+          'type': 'user',
+          'uuid': 'u-swarm-stream',
+          'message': {
+            'role': 'user',
+            'content': [
+              {'type': 'text', 'text': '/swarm audit'},
+            ],
+          },
+        });
+        while (results.isEmpty) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+        await pumpEventQueue();
+
+        final mainItems = [
+          for (var i = 0; i < transcript.length; i++) transcript.itemAt(i),
+        ];
+        // 1. Coordinator's reply stays ONE unbroken AssistantTextItem.
+        final texts = mainItems.whereType<AssistantTextItem>().toList();
+        expect(texts, hasLength(1));
+        expect(
+          texts.single.text,
+          '- **protocol-auditor**：核对通信协议、模型字段、ACP/Swarm 适配；\n'
+          '- **ui-auditor**：核对聊天 UI。汇总后我立刻给你整理清晰的同步清单。',
+        );
+
+        // 2. Neither worker's Bash call leaked into the main chat feed.
+        expect(mainItems.whereType<TerminalItem>(), isEmpty);
+
+        // 3. Emitted child calls carried non-null parent_tool_use_id.
+        final uiChildMsg = seen.firstWhere(
+          (m) =>
+              m['type'] == 'assistant' &&
+              jsonEncode(m['message']).contains('call_1001'),
+        );
+        expect(uiChildMsg['parent_tool_use_id'], 'swarm-worker:ui-auditor');
+        final unknownChildMsg = seen.firstWhere(
+          (m) =>
+              m['type'] == 'assistant' &&
+              jsonEncode(m['message']).contains('call_2002'),
+        );
+        expect(
+          unknownChildMsg['parent_tool_use_id'],
+          'subagent:$unknownWorkerConv',
+        );
+
+        // 4. Persisted session jsonl does not contain leaked child tool calls.
+        final sessionId = seen.first['session_id']! as String;
+        final sessionFile = Directory(p.join(home.path, '.claude', 'projects'))
+            .listSync(recursive: true)
+            .whereType<File>()
+            .firstWhere((f) => f.path.endsWith('$sessionId.jsonl'));
+        final persisted = sessionFile.readAsStringSync();
+        expect(persisted, isNot(contains('call_1001')));
+        expect(persisted, isNot(contains('call_2002')));
       },
     );
   });
