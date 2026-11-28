@@ -6962,6 +6962,10 @@
       }
     }
   },
+  "generalSettingsComposerSendShortcut": "Send Shortcut",
+  "generalSettingsComposerSendShortcutDescription": "Choose whether Enter sends or inserts a new line.",
+  "generalSettingsComposerSendEnter": "Enter or Ctrl+Enter",
+  "generalSettingsComposerSendCtrlEnter": "Ctrl+Enter only",
   "generalSettingsComposerPolish": "Enhance Prompt button",
   "generalSettingsComposerPolishDescription": "A button in the message box that has the auxiliary model make what you wrote a clearer, more specific prompt before you send it",
   "generalSettingsLiveTurnStats": "Live Speed and Time",

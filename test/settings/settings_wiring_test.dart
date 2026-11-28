@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/ide/ide_notifications.dart';
 import 'package:baocode/kernel/commit_attribution.dart';
+import 'package:baocode/keybindings/chat_keybindings.dart';
 import 'package:baocode/keybindings/import_dialog.dart';
 import 'package:bao_editor/monaco/flutter/keybinding_entry.dart';
 import 'package:baocode/keybindings/keybinding_service.dart';
@@ -34,14 +35,14 @@ import '../keybindings/fake_home.dart';
 /// and Cursor installed) in temporary folders.
 void main() {
   late Directory data;
-  late Directory home;
+  Directory? home;
   late SettingsFiles files;
   late KeybindingsSync sync;
   late AppSettings settings;
 
   setUp(() async {
     data = await Directory.systemTemp.createTemp('baocode-settings-wiring');
-    home = await createFakeHome();
+    home = null;
     KeybindingService.instance = KeybindingService()
       ..debugPlatform = KeybindingPlatform.mac;
   });
@@ -51,11 +52,12 @@ void main() {
     files.dispose();
     KeybindingService.instance = KeybindingService();
     await data.delete(recursive: true);
-    await home.delete(recursive: true);
+    await home?.delete(recursive: true);
   });
 
   /// Makes the settings over the data folder, its files as they are now.
-  Future<void> start() async {
+  Future<void> start({bool fakeInstalls = true}) async {
+    final fakeHome = fakeInstalls ? (home ??= await createFakeHome()) : null;
     files = SettingsFiles(DataDirectory(data.path));
     await files.load();
     final catalog = KeymapCatalog(
@@ -72,11 +74,13 @@ void main() {
       files: files,
       catalog: catalog,
       sync: sync,
-      installs: VsCodeInstalls(
-        home: home.path,
-        environment: {'HOME': home.path},
-        platform: KeybindingPlatform.mac,
-      ),
+      installs: fakeHome == null
+          ? null
+          : VsCodeInstalls(
+              home: fakeHome.path,
+              environment: {'HOME': fakeHome.path},
+              platform: KeybindingPlatform.mac,
+            ),
     );
   }
 
@@ -371,6 +375,87 @@ void main() {
       tester,
       () => !files.settings.values.containsKey(MainWindow.settingKey),
     );
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+  testWidgets('the Send Shortcut setting updates Keyboard Shortcuts, the '
+      'default unwritten', (tester) async {
+    await tester.runAsync(() => start(fakeInstalls: false));
+    await pumpApp(tester);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.comma);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+    await tester.pumpAndSettle();
+
+    final l10n = englishLocalizations;
+    final dropdown = find.byWidgetPredicate(
+      (widget) =>
+          widget is SettingsDropdown &&
+          widget.semanticLabel ==
+              l10n.generalSettingsWindowLabel(
+                l10n.generalSettingsComposerSendShortcut,
+                widget.current,
+              ),
+    );
+    final key = ComposerSendShortcut.settingKey;
+    String current() => tester.widget<SettingsDropdown>(dropdown).current;
+    String saved() => File(files.settings.path).readAsStringSync();
+
+    expect(current(), l10n.generalSettingsComposerSendEnter);
+    expect(files.settings.values.containsKey(key), isFalse);
+
+    Future<void> choose(String label) async {
+      await tester.ensureVisible(dropdown);
+      await tester.pumpAndSettle();
+      await tester.tap(dropdown);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(label));
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> openTab(String title) async {
+      final tab = find.text(title);
+      await tester.ensureVisible(tab);
+      await tester.tap(tab);
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> expectSendRows({required bool plainEnter}) async {
+      await openTab(l10n.settingsSectionKeyboard);
+      final keyboardPage = find.byType(KeybindingsSettingsPage);
+      final search = find.descendant(
+        of: keyboardPage,
+        matching: find.byType(EditableText),
+      );
+      await tester.enterText(search, ChatCommandIds.submit);
+      await tester.pumpAndSettle();
+      expect(
+        find.byWidgetPredicate(
+          (widget) => widget is Text && widget.data == ChatCommandIds.submit,
+        ),
+        findsNWidgets(plainEnter ? 2 : 1),
+      );
+      expect(find.text('Enter'), plainEnter ? findsOneWidget : findsNothing);
+      expect(find.text('⌃Enter'), findsOneWidget);
+
+      await openTab(l10n.settingsSectionGeneral);
+    }
+
+    expect(tester.widget<SettingsDropdown>(dropdown).entries(), hasLength(2));
+    await expectSendRows(plainEnter: true);
+
+    await choose(l10n.generalSettingsComposerSendCtrlEnter);
+    await settle(tester, () => files.settings[key] == 'ctrlEnter');
+    await tester.pump();
+    expect(current(), l10n.generalSettingsComposerSendCtrlEnter);
+    expect(saved(), contains('"chat.composer.sendShortcut": "ctrlEnter"'));
+    await expectSendRows(plainEnter: false);
+
+    await choose(l10n.generalSettingsComposerSendEnter);
+    await settle(tester, () => !files.settings.values.containsKey(key));
+    await tester.pump();
+    expect(current(), l10n.generalSettingsComposerSendEnter);
+    expect(saved(), isNot(contains('"chat.composer.sendShortcut"')));
+    await expectSendRows(plainEnter: true);
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
   test('the language is kept in argv.json, its comments too, and read back '

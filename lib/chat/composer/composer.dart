@@ -11,6 +11,7 @@ import 'package:bao_markdown/bao_markdown.dart';
 import '../../kernel/agent_kernel.dart';
 import '../../kernel/kernel_types.dart';
 import '../../keybindings/chat_keybindings.dart';
+import '../../keybindings/keybinding_service.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show WorkbenchColors, themeColors;
@@ -2118,18 +2119,22 @@ class _SendButton extends StatelessWidget {
     final foreground = colors['button.foreground'];
     // With the keys that do the same, as the keybindings have them.
     const input = {ChatContextKeys.inChatInput: true};
-    return IdeHover(
-      message: streaming
-          ? ChatKeys.titleWithKey(
-              context.l10n.composerStop,
-              ChatCommandIds.cancel,
-              {...input, ChatContextKeys.requestInProgress: true},
-            )
-          : ChatKeys.titleWithKey(
-              context.l10n.cmdChatSubmit,
-              ChatCommandIds.submit,
-              input,
-            ),
+    return ListenableBuilder(
+      listenable: KeybindingService.instance,
+      builder: (context, child) => IdeHover(
+        message: streaming
+            ? ChatKeys.titleWithKey(
+                context.l10n.composerStop,
+                ChatCommandIds.cancel,
+                {...input, ChatContextKeys.requestInProgress: true},
+              )
+            : ChatKeys.titleWithKey(
+                context.l10n.cmdChatSubmit,
+                ChatCommandIds.submit,
+                input,
+              ),
+        child: child!,
+      ),
       child: HoverBuilder(
         cursor: active ? SystemMouseCursors.click : SystemMouseCursors.basic,
         builder: (context, hovered) => GestureDetector(

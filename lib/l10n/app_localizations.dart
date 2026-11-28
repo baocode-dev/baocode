@@ -15777,6 +15777,30 @@ abstract class AppLocalizations {
   /// **'Could not enhance the prompt: {error}'**
   String composerPolishFailed(String error);
 
+  /// No description provided for @generalSettingsComposerSendShortcut.
+  ///
+  /// In en, this message translates to:
+  /// **'Send Shortcut'**
+  String get generalSettingsComposerSendShortcut;
+
+  /// No description provided for @generalSettingsComposerSendShortcutDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose whether Enter sends or inserts a new line.'**
+  String get generalSettingsComposerSendShortcutDescription;
+
+  /// No description provided for @generalSettingsComposerSendEnter.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter or Ctrl+Enter'**
+  String get generalSettingsComposerSendEnter;
+
+  /// No description provided for @generalSettingsComposerSendCtrlEnter.
+  ///
+  /// In en, this message translates to:
+  /// **'Ctrl+Enter only'**
+  String get generalSettingsComposerSendCtrlEnter;
+
   /// No description provided for @generalSettingsComposerPolish.
   ///
   /// In en, this message translates to:
