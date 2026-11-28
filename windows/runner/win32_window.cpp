@@ -454,6 +454,13 @@ Win32Window::MessageHandler(HWND hwnd,
       SizeContent();
       return 0;
 
+    case WM_SETFOCUS:
+      if (child_content_ != nullptr) {
+        SetFocus(child_content_);
+        return 0;
+      }
+      break;
+
     case WM_ACTIVATE:
       if (child_content_ != nullptr) {
         SetFocus(child_content_);
