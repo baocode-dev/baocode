@@ -398,6 +398,19 @@ Map<String, Object?> _todo(String content, Object? status) => {
             input: {'file_path': path, 'content': content},
           );
         }
+        final oldText =
+            _string(input['Target']) ?? _string(input['TargetContent']);
+        if (oldText != null) {
+          return (
+            name: 'Edit',
+            input: {
+              'file_path': path,
+              'old_string': oldText,
+              'new_string':
+                  '${input['Replacement'] ?? input['ReplacementContent'] ?? ''}',
+            },
+          );
+        }
       }
     case 'read':
       if (call.path case final path?) {
