@@ -1258,4 +1258,104 @@ void main() {
       transport.close();
     },
   );
+
+  test(
+    'slash commands: populated on initialize with built-ins + local skills, and updated from early available_commands_update during session/new',
+    () async {
+      // Create a local project skill to verify ForeignBrief skills appear too.
+      final skillFile = File('$cwd/.claude/skills/deploy-check/SKILL.md')
+        ..parent.createSync(recursive: true);
+      skillFile.writeAsStringSync(
+        '---\n'
+        'name: deploy-check\n'
+        'description: Verify deployment checklist\n'
+        '---\n'
+        'Check health.\n',
+      );
+
+      final runtime = FakeRuntime(
+        () => FakeAgent((agent, method, params) async {
+          switch (method) {
+            case 'initialize':
+              return {'protocolVersion': 1};
+            case 'session/new':
+              // Simulate agy pushing available_commands_update BEFORE returning
+              // session/new's response (when _agySession is still null!).
+              agent.say('agy-cmd-sess', {
+                'sessionUpdate': 'available_commands_update',
+                'availableCommands': [
+                  {
+                    'name': 'swarm',
+                    'description': 'Live swarm from ACP',
+                    'input': {'hint': 'goal'},
+                  },
+                  {
+                    'name': 'review',
+                    'description': 'Live review from ACP',
+                  },
+                ],
+              });
+              return {'sessionId': 'agy-cmd-sess'};
+            case 'session/set_config_option':
+              return {};
+            case 'session/prompt':
+              final session = params['sessionId'] as String;
+              agent.say(session, {
+                'sessionUpdate': 'agent_message_chunk',
+                'content': {'type': 'text', 'text': 'ok'},
+              });
+              return {'stopReason': 'end_turn'};
+          }
+          return {};
+        }),
+      );
+
+      final transport = await AgyTransport.start(
+        ClaudeLaunch(cwd: cwd, model: 'gemini-4-neon'),
+        runtime: runtime,
+      );
+      final kernel = Kernel(transport);
+
+      // 1. Before any prompt is sent, initialize already returns built-ins + local skill.
+      transport.write({
+        'type': 'control_request',
+        'request_id': 'init-cmd',
+        'request': {'subtype': 'initialize'},
+      });
+      while (!kernel.seen.any(
+        (m) =>
+            m['type'] == 'control_response' &&
+            (m['response'] as Map?)?['request_id'] == 'init-cmd',
+      )) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      final initResp = kernel.seen.lastWhere(
+        (m) =>
+            m['type'] == 'control_response' &&
+            (m['response'] as Map?)?['request_id'] == 'init-cmd',
+      );
+      final initCmds =
+          (((initResp['response'] as Map)['response'] as Map)['commands'] as List)
+              .cast<Map>();
+      final initNames = initCmds.map((c) => c['name']).toSet();
+      expect(initNames, containsAll(['swarm', 'plan', 'goal', 'deploy-check']));
+
+      // 2. Sending a turn triggers session/new; the early available_commands_update
+      // is NOT dropped and emits commands_changed with live ACP commands + skill.
+      await kernel.send('hi', uuid: 'u-cmd');
+      final changed = kernel.seen
+          .where(
+            (m) => m['type'] == 'system' && m['subtype'] == 'commands_changed',
+          )
+          .toList();
+      expect(changed, isNotEmpty);
+      final liveCmds = (changed.last['commands'] as List).cast<Map>();
+      final liveNames = liveCmds.map((c) => c['name']).toSet();
+      expect(liveNames, containsAll(['swarm', 'review', 'deploy-check']));
+      final swarmCmd = liveCmds.firstWhere((c) => c['name'] == 'swarm');
+      expect(swarmCmd['description'], 'Live swarm from ACP');
+      expect(swarmCmd['argumentHint'], 'goal');
+      transport.close();
+    },
+  );
 }

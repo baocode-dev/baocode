@@ -1475,7 +1475,11 @@ class AgyTransportCore {
     if ((_agySession, _synced) case (final id?, final synced?)
         when _onChain(synced)) {
       try {
-        await connection.request('session/resume', {...base, 'sessionId': id});
+        final resumedInfo = await connection.request('session/resume', {
+          ...base,
+          'sessionId': id,
+        });
+        _updateCommands(resumedInfo);
         resumed = true;
       } on AcpError catch (error) {
         if (error.closed) rethrow;
@@ -1495,7 +1499,7 @@ class AgyTransportCore {
       _synced = null;
       _handedOff = 0;
       _used = null;
-      _commandsOf(started);
+      _updateCommands(started);
       if (_agySession == null) {
         throw const AcpError(-32603, 'Antigravity started no session');
       }
@@ -1957,9 +1961,17 @@ class AgyTransportCore {
 
   void _notification(String method, Map<String, Object?> params) {
     if (method != 'session/update') return;
-    if (params['sessionId'] != _agySession) return;
     final update = (params['update'] as Map?)?.cast<String, Object?>();
     if (update == null) return;
+    // agy sends `available_commands_update` while `session/new` is still
+    // completing, before `_agySession` is populated on this side: accept it
+    // when no session id is bound yet, or when it matches our session.
+    if (update['sessionUpdate'] == 'available_commands_update') {
+      if (_agySession != null && params['sessionId'] != _agySession) return;
+      _updateCommands(update);
+      return;
+    }
+    if (params['sessionId'] != _agySession) return;
     _turn?.heard = DateTime.now();
     switch (update['sessionUpdate']) {
       case 'agent_message_chunk':
@@ -1989,16 +2001,6 @@ class AgyTransportCore {
             });
           }
         }
-      case 'available_commands_update':
-        final before = jsonEncode(_commandList);
-        _commandsOf(update);
-        // Told again as each session starts: the same, as a rule.
-        if (jsonEncode(_commandList) == before) return;
-        _emit({
-          'type': 'system',
-          'subtype': 'commands_changed',
-          'commands': _commandList,
-        });
     }
   }
 
@@ -2056,27 +2058,129 @@ class AgyTransportCore {
     }
   }
 
-  List<Map<String, Object?>> _commands = const [];
+  /// Last command catalog reported by any Antigravity ACP session in this
+  /// process, used so newly opened sessions show slash commands immediately
+  /// before their lazy ACP process starts.
+  static List<Map<String, Object?>> _cachedCommands = const [];
 
-  List<Map<String, Object?>> get _commandList => [
-    for (final command in _commands)
-      {
-        'name': command['name'],
-        'description': '${command['description'] ?? ''}',
-        'argumentHint': switch (command['input']) {
-          {'hint': final String hint} => hint,
-          _ => '',
-        },
-      },
+  @visibleForTesting
+  static void resetCachedCommands() => _cachedCommands = const [];
+
+  /// Fallback built-in Antigravity slash commands shown before the first ACP
+  /// session in this process reports its live `availableCommands` catalog.
+  static const List<Map<String, Object?>> _defaultBuiltinCommands = [
+    {
+      'name': 'swarm',
+      'description': 'Coordinate a swarm of parallel agents on a shared board',
+    },
+    {
+      'name': 'plan',
+      'description': 'Create a step-by-step plan before implementing',
+    },
+    {
+      'name': 'goal',
+      'description': 'Run autonomously until the stated goal is verified',
+    },
+    {
+      'name': 'compact',
+      'description': 'Summarize conversation history to free context window',
+    },
+    {
+      'name': 'schedule',
+      'description': 'Run a recurring cron task or one-shot timer',
+    },
+    {
+      'name': 'browser',
+      'description': 'Browse the web or interact with shared browser tabs',
+    },
+    {
+      'name': 'grill-me',
+      'description': 'Align on design decisions through a short interview',
+    },
+    {
+      'name': 'teamwork',
+      'description': 'Run a coordinated team of subagents on a larger task',
+    },
+    {
+      'name': 'learn',
+      'description': 'Save a correction or workflow pattern for future tasks',
+    },
+    {
+      'name': 'boost',
+      'description': 'Deep planning, multiple perspectives, and rigorous checks',
+    },
   ];
 
-  void _commandsOf(Map<String, Object?> said) {
-    if (said['availableCommands'] case final List<Object?> commands) {
-      _commands = [
-        for (final command in commands)
-          if (command case {'name': final String _}) command.cast(),
-      ];
+  List<Map<String, Object?>> _commands = const [];
+
+  List<Map<String, Object?>> get _commandList {
+    final base = _commands.isNotEmpty
+        ? _commands
+        : (_cachedCommands.isNotEmpty
+              ? _cachedCommands
+              : _defaultBuiltinCommands);
+    final seen = <String>{};
+    final out = <Map<String, Object?>>[];
+    for (final command in base) {
+      final rawName = '${command['name'] ?? ''}'.trim();
+      final name = rawName.startsWith('/') ? rawName.substring(1) : rawName;
+      if (name.isEmpty || !seen.add(name)) continue;
+      out.add({
+        'name': name,
+        'description': '${command['description'] ?? ''}',
+        'builtin': true,
+        'argumentHint': switch (command['input']) {
+          {'hint': final String hint} => hint,
+          _ => '${command['argumentHint'] ?? ''}',
+        },
+      });
     }
+    final brief = _toldBrief ??= _brief(prepareAutoMemory: false);
+    for (final skill in brief.skills) {
+      final name = skill.name.trim();
+      if (name.isEmpty || !seen.add(name)) continue;
+      out.add({
+        'name': name,
+        'description': _skillDescription(skill.name, skill.text),
+        'builtin': false,
+        'argumentHint': '',
+      });
+    }
+    return out;
+  }
+
+  static String _skillDescription(String name, String line) {
+    var desc = line.trim();
+    final prefix = '- $name:';
+    if (desc.startsWith(prefix)) {
+      desc = desc.substring(prefix.length).trim();
+    }
+    // Strip trailing "(path/to/SKILL.md)" suffix used in the prompt brief.
+    final pathIdx = desc.lastIndexOf(' (');
+    if (pathIdx > 0 && desc.endsWith(')')) {
+      desc = desc.substring(0, pathIdx).trim();
+    }
+    return desc;
+  }
+
+  void _updateCommands(Map<String, Object?> said) {
+    final raw = said['availableCommands'];
+    if (raw is! List<Object?>) return;
+    final parsed = [
+      for (final command in raw)
+        if (command case {'name': final String _}) command.cast<String, Object?>(),
+    ];
+    if (parsed.isEmpty) return;
+    final before = jsonEncode(_commandList);
+    _commands = parsed;
+    _cachedCommands = parsed;
+    final after = _commandList;
+    if (jsonEncode(after) == before) return;
+    _emit({
+      'type': 'system',
+      'subtype': 'commands_changed',
+      'commands': after,
+    });
   }
 
   // --- Text and thoughts ----------------------------------------------------------
