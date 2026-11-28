@@ -1478,4 +1478,343 @@ void main() {
       expect(upstream.requests, hasLength(1));
     });
   });
+
+  group('Gemini-compatible protocol', () {
+    late FakeUpstream geminiUpstream;
+    late ModelProvider geminiProvider;
+    late ModelProvider mixedRelay;
+    late ModelProxy geminiProxy;
+    late List<String?> geminiErrors;
+    late NativeSearchSupport geminiSearchSupport;
+    late HttpServer searchEngine;
+    late List<String> localSearches;
+
+    setUp(() async {
+      geminiErrors = [];
+      localSearches = [];
+      geminiSearchSupport = NativeSearchSupport();
+      searchEngine = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      searchEngine.listen((request) async {
+        final query = request.uri.queryParameters['q'] ?? '';
+        localSearches.add(query);
+        request.response
+          ..headers.contentType = ContentType.html
+          ..write(
+            '<div class="r"><a href="https://local.test/$query">Local</a>'
+            '<p>snippet</p></div>',
+          );
+        await request.response.close();
+      });
+      geminiUpstream = await FakeUpstream.start();
+      final bareHost = 'http://127.0.0.1:${geminiUpstream._server.port}';
+      geminiProvider = ModelProvider(
+        id: 'gm',
+        name: 'Gemini',
+        protocol: ProviderProtocol.gemini,
+        baseUrl: bareHost,
+        models: const [
+          ProviderModel(id: 'gemini-3-flash'),
+          ProviderModel(id: 'example/model-demo'),
+          ProviderModel(id: 'custom-json', endpointUrl: ''),
+        ],
+      );
+      mixedRelay = ModelProvider(
+        id: 'mix',
+        name: 'Mixed Relay',
+        protocol: ProviderProtocol.openaiChat,
+        baseUrl: bareHost,
+        models: [
+          const ProviderModel(id: 'gpt-5'),
+          const ProviderModel(
+            id: 'gemini-4-carbon',
+            protocol: ProviderProtocol.gemini,
+          ),
+          ProviderModel(
+            id: 'gemini-custom',
+            protocol: ProviderProtocol.gemini,
+            endpointUrl:
+                '$bareHost/alt/v1beta/models/gemini-custom:generateContent',
+          ),
+        ],
+      );
+      geminiProxy = ModelProxy(
+        provider: (id) => {'gm': geminiProvider, 'mix': mixedRelay}[id],
+        key: (id) async => 'gkey-$id',
+        onError: (_, error) => geminiErrors.add(error),
+        findProxy: (_) => 'DIRECT',
+        token: 'tok',
+        searchSupport: geminiSearchSupport,
+        webSearch: WebSearch(
+          engines: [
+            HtmlEngine(
+              'local',
+              'http://127.0.0.1:${searchEngine.port}/search?q={query}',
+              result: 'div.r',
+              title: 'a',
+              link: 'a',
+              snippet: 'p',
+            ),
+          ],
+        ),
+      );
+    });
+
+    tearDown(() async {
+      await geminiProxy.close();
+      await geminiUpstream.close();
+      await searchEngine.close(force: true);
+    });
+
+    Future<Uri> urlFor(String id) async =>
+        Uri.parse('${(await geminiProxy.endpoint(id)).baseUrl}/v1/messages');
+
+    test('streams from /v1beta/models/{model}:streamGenerateContent?alt=sse '
+        'with x-goog-api-key and no envelope', () async {
+      geminiUpstream.reply = (_) => (
+        200,
+        [
+          'data: {"responseId":"g1","candidates":[{"content":{"parts":[{"thought":true,"text":"think"},{"text":"Hi "}]}}]}',
+          '',
+          'data: {"candidates":[{"content":{"parts":[{"text":"there"}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":12,"candidatesTokenCount":5,"thoughtsTokenCount":3}}',
+        ],
+      );
+      final answer = await post(
+        await urlFor('gm'),
+        {
+          'model': 'gemini-3-flash(medium)',
+          'max_tokens': 256,
+          'stream': true,
+          'system': 'Be concise.',
+          'messages': [
+            {'role': 'user', 'content': 'hello'},
+          ],
+        },
+        headers: {'x-api-key': 'tok'},
+      );
+      expect(answer.status, 200);
+      final sent = geminiUpstream.requests.single;
+      expect(sent.path, '/v1beta/models/gemini-3-flash:streamGenerateContent');
+      expect(sent.query, 'alt=sse');
+      expect(sent.headers['x-goog-api-key'], 'gkey-gm');
+      expect(sent.headers.containsKey('authorization'), isFalse);
+      expect(sent.headers.containsKey('anthropic-version'), isFalse);
+      final body = sent.body! as Map;
+      expect(body.containsKey('model'), isFalse);
+      expect(body.containsKey('stream'), isFalse);
+      expect(body['systemInstruction'], {
+        'parts': [
+          {'text': 'Be concise.'},
+        ],
+      });
+      expect(body['generationConfig'], {
+        'maxOutputTokens': 256,
+        'thinkingConfig': {'includeThoughts': true, 'thinkingLevel': 'medium'},
+      });
+
+      final deltas = [
+        for (final event in answer.data)
+          if (event['type'] == 'content_block_delta') event['delta'],
+      ];
+      expect(deltas, [
+        {'type': 'thinking_delta', 'thinking': 'think'},
+        {'type': 'text_delta', 'text': 'Hi '},
+        {'type': 'text_delta', 'text': 'there'},
+      ]);
+      expect(geminiErrors, [null]);
+    });
+
+    test('preserves slash in namespaced model IDs and round-trips '
+        'thoughtSignature across tool turns', () async {
+      geminiUpstream.reply = (_) => (
+        200,
+        [
+          'data: {"candidates":[{"content":{"parts":[{"functionCall":{"name":"Read","id":"fc1","args":{"path":"a.dart"}},"thoughtSignature":"sig-roundtrip"}]},"finishReason":"STOP"}]}',
+        ],
+      );
+      final first = await post(
+        await urlFor('gm'),
+        {
+          'model': 'example/model-demo',
+          'stream': false,
+          'messages': [
+            {'role': 'user', 'content': 'read a'},
+          ],
+          'tools': [
+            {
+              'name': 'Read',
+              'input_schema': {'type': 'object'},
+            },
+          ],
+        },
+        headers: {'x-api-key': 'tok'},
+      );
+      expect(first.status, 200);
+      expect(
+        geminiUpstream.requests.single.path,
+        '/v1beta/models/example/model-demo:streamGenerateContent',
+      );
+      final firstMsg = jsonDecode(first.text) as Map;
+      final toolBlock = (firstMsg['content'] as List).single as Map;
+      expect(toolBlock['type'], 'tool_use');
+      expect(toolBlock['name'], 'Read');
+      final signedId = toolBlock['id'] as String;
+
+      geminiUpstream.reply = (_) => (
+        200,
+        [
+          'data: {"candidates":[{"content":{"parts":[{"text":"Done"}]},"finishReason":"STOP"}]}',
+        ],
+      );
+      final second = await post(
+        await urlFor('gm'),
+        {
+          'model': 'example/model-demo',
+          'stream': false,
+          'messages': [
+            {'role': 'user', 'content': 'read a'},
+            {
+              'role': 'assistant',
+              'content': [
+                {
+                  'type': 'tool_use',
+                  'id': signedId,
+                  'name': 'Read',
+                  'input': {'path': 'a.dart'},
+                },
+              ],
+            },
+            {
+              'role': 'user',
+              'content': [
+                {
+                  'type': 'tool_result',
+                  'tool_use_id': signedId,
+                  'content': 'file text',
+                },
+              ],
+            },
+          ],
+        },
+        headers: {'x-api-key': 'tok'},
+      );
+      expect(second.status, 200);
+      final secondBody = geminiUpstream.requests.last.body! as Map;
+      final contents = secondBody['contents'] as List;
+      final modelPart = ((contents[1] as Map)['parts'] as List).single as Map;
+      expect(modelPart['thoughtSignature'], 'sig-roundtrip');
+      expect((modelPart['functionCall'] as Map)['id'], 'fc1');
+      final userPart = ((contents[2] as Map)['parts'] as List).single as Map;
+      expect(userPart['functionResponse'], {
+        'name': 'Read',
+        'id': 'fc1',
+        'response': {'output': 'file text'},
+      });
+    });
+
+    test('routes a per-model Gemini override on an OpenAI relay and handles '
+        'non-SSE JSON generateContent endpoints', () async {
+      geminiUpstream.reply = (_) => (
+        200,
+        [
+          'data: {"candidates":[{"content":{"parts":[{"text":"from gemini"}]},"finishReason":"STOP"}]}',
+        ],
+      );
+      final overrideAns = await post(
+        await urlFor('mix'),
+        {
+          'model': 'gemini-4-carbon(xhigh)',
+          'stream': false,
+          'messages': [
+            {'role': 'user', 'content': 'hi'},
+          ],
+        },
+        headers: {'x-api-key': 'tok'},
+      );
+      expect(overrideAns.status, 200);
+      final firstSent = geminiUpstream.requests.single;
+      expect(
+        firstSent.path,
+        '/v1beta/models/gemini-4-carbon:streamGenerateContent',
+      );
+      expect(firstSent.headers['x-goog-api-key'], 'gkey-mix');
+      expect(firstSent.headers.containsKey('authorization'), isFalse);
+      expect(
+        ((firstSent.body! as Map)['generationConfig'] as Map)['thinkingConfig'],
+        {'includeThoughts': true, 'thinkingLevel': 'xhigh'},
+      );
+
+      // Explicit non-stream :generateContent custom endpoint returns JSON.
+      geminiUpstream.reply = (_) => (
+        200,
+        [
+          '{"candidates":[{"content":{"parts":[{"text":"plain json"}]},"finishReason":"STOP"}]}',
+        ],
+      );
+      final customAns = await post(
+        await urlFor('mix'),
+        {
+          'model': 'gemini-custom',
+          'stream': false,
+          'messages': [
+            {'role': 'user', 'content': 'hi'},
+          ],
+        },
+        headers: {'x-api-key': 'tok'},
+      );
+      expect(customAns.status, 200);
+      expect(
+        geminiUpstream.requests.last.path,
+        '/alt/v1beta/models/gemini-custom:generateContent',
+      );
+      expect(((jsonDecode(customAns.text) as Map)['content'] as List).single, {
+        'type': 'text',
+        'text': 'plain json',
+      });
+    });
+
+    test('surfaces array-wrapped Gemini error responses and falls back '
+        'web_search when refused', () async {
+      geminiUpstream.reply = (_) =>
+          (400, ['[{"error":{"code":400,"message":"Invalid argument"}}]', '']);
+      final err = await post(
+        await urlFor('gm'),
+        {
+          'model': 'gemini-3-flash',
+          'stream': false,
+          'messages': [
+            {'role': 'user', 'content': 'hi'},
+          ],
+        },
+        headers: {'x-api-key': 'tok'},
+      );
+      expect(err.status, 400);
+      expect(
+        ((jsonDecode(err.text) as Map)['error'] as Map)['message'],
+        'HTTP 400: Invalid argument',
+      );
+
+      geminiUpstream.reply = (_) =>
+          (400, ['{"error":{"message":"googleSearch is not enabled"}}']);
+      final searched = await post(
+        await urlFor('gm'),
+        {
+          'model': 'gemini-3-flash',
+          'stream': true,
+          'messages': [
+            {'role': 'user', 'content': 'search dart'},
+          ],
+          'tools': [
+            {'type': 'web_search_20250305', 'name': 'web_search'},
+          ],
+        },
+        headers: {'x-api-key': 'tok'},
+      );
+      expect(searched.status, 200);
+      expect(localSearches, ['search dart']);
+      expect(
+        geminiSearchSupport.lookup('gm', 'gemini', 'gemini-3-flash'),
+        isFalse,
+      );
+    });
+  });
 }

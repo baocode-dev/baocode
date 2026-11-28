@@ -70,7 +70,52 @@ abstract final class UpstreamUrls {
     return versioned ? '$uri' : '$uri/v1';
   }
 
+  /// The base Gemini's API paths go under (`/models/…`): a bare host gets
+  /// `/v1beta`, an explicit path (such as `/v1beta`, `/v1`, `/gemini`) is
+  /// kept, and a pasted `/models` or `/models/{model}:…` endpoint (or
+  /// Google's `/v1beta/openai` bridge) is trimmed back to its base.
+  static String? geminiBase(String baseUrl) {
+    final uri = parse(baseUrl);
+    if (uri == null) return null;
+    final hadModels = RegExp(r'/models(?:/.*)?$').hasMatch(uri.path);
+    var path = uri.path.replaceFirst(RegExp(r'/+$'), '');
+    path = path.replaceFirst(RegExp(r'/models(?:/.*)?$'), '');
+    if (RegExp(
+      r'/v\d+[a-z0-9.]*/openai$',
+      caseSensitive: false,
+    ).hasMatch(path)) {
+      path = path.substring(0, path.length - '/openai'.length);
+    }
+    if (path.isEmpty) path = '/v1beta';
+    final clean = Uri(
+      scheme: uri.scheme,
+      userInfo: uri.userInfo,
+      host: uri.host,
+      port: uri.hasPort ? uri.port : null,
+      path: path,
+      query: uri.hasQuery && !hadModels ? uri.query : null,
+    );
+    return '$clean';
+  }
+
+  /// [model] encoded as a Gemini resource path under `/models/`: a leading
+  /// `models/` is stripped, and slash-separated namespaces (`vendor/model`)
+  /// keep their slashes unless any segment is empty or dot-traversal.
+  static String geminiModelPath(String model) {
+    var trimmed = model.trim();
+    if (trimmed.startsWith('models/')) {
+      trimmed = trimmed.substring('models/'.length);
+    }
+    if (trimmed.isEmpty) return '';
+    final segments = trimmed.split('/');
+    if (segments.any((s) => s.isEmpty || s == '.' || s == '..')) {
+      return Uri.encodeComponent(trimmed);
+    }
+    return segments.map(Uri.encodeComponent).join('/');
+  }
+
   static final _version = RegExp(r'^v\d+[a-z0-9.]*$', caseSensitive: false);
+  static final _geminiMethod = RegExp(r':(?:stream)?generateContent$');
 
   /// Where [provider] may list its models, to be tried in order: its own
   /// list's address ([ModelProvider.modelsUrl]) alone, when it has one,
@@ -99,11 +144,49 @@ abstract final class UpstreamUrls {
           final base? => _anthropicModels(Uri.parse(base)),
           null => const [],
         },
+        ProviderProtocol.gemini => switch (geminiBase(provider.baseUrl)) {
+          final base? => _geminiModels(Uri.parse(base)),
+          null => const [],
+        },
         _ => switch (openaiBase(provider.baseUrl)) {
           final base? => [Uri.parse('$base/models')],
           null => const [],
         },
       };
+
+  /// Gemini's own `/models` under [base] first, then OpenAI-style `/v1/models`
+  /// above it: multi-protocol relays often serve Gemini's `generateContent`
+  /// under `/v1beta/models/…` while listing every model only at `/v1/models`.
+  static List<Uri> _geminiModels(Uri base) {
+    final segments = base.pathSegments.where((s) => s.isNotEmpty).toList();
+    return {
+      _appendPath(base, '/models'),
+      for (var length = segments.length; length >= 0; length--)
+        if (length == 0 || !_version.hasMatch(segments[length - 1]))
+          Uri.parse(
+            length == 0
+                ? '${base.origin}/v1/models'
+                : '${base.origin}/${segments.take(length).map(Uri.encodeComponent).join('/')}/v1/models',
+          ),
+    }.toList();
+  }
+
+  static Uri _appendPath(
+    Uri base,
+    String suffix, {
+    Map<String, String>? query,
+  }) {
+    final path = '${base.path.replaceFirst(RegExp(r'/+$'), '')}$suffix';
+    final merged = <String, String>{...base.queryParameters, ...?query};
+    return Uri(
+      scheme: base.scheme,
+      userInfo: base.userInfo,
+      host: base.host,
+      port: base.hasPort ? base.port : null,
+      path: path,
+      queryParameters: merged.isEmpty ? null : merged,
+    );
+  }
 
   static List<Uri> _anthropicModels(Uri base) => {
     for (final list in _modelLists)
@@ -159,12 +242,74 @@ abstract final class UpstreamUrls {
             ProviderProtocol.openaiChat => Uri.parse('$base/chat/completions'),
             ProviderProtocol.openaiResponses => Uri.parse('$base/responses'),
             ProviderProtocol.anthropic ||
+            ProviderProtocol.gemini ||
             ProviderProtocol.codex ||
             ProviderProtocol.antigravity ||
             ProviderProtocol.agy => null,
           },
           null => null,
         };
+
+  /// Where [provider], one of Gemini's API, takes a request for [model]:
+  /// its own endpoint ([ModelProvider.endpointUrl], whether a full method
+  /// URL, a `{model}` template or a Gemini base URL), else under its base
+  /// URL ([geminiEndpointByBase]).
+  static Uri? geminiEndpoint(
+    ModelProvider provider, {
+    required String model,
+    bool stream = true,
+  }) {
+    final target = geminiModelPath(model);
+    if (target.isEmpty) return null;
+    if (provider.endpointUrl case final raw?) {
+      if (raw.contains('{model}')) {
+        return parse(raw.replaceAll('{model}', target));
+      }
+      final uri = parse(raw);
+      if (uri == null) return null;
+      if (_geminiMethod.hasMatch(uri.path)) return uri;
+      return _geminiMethodUri(geminiBase(raw), target, stream: stream);
+    }
+    return geminiEndpointByBase(provider, model: model, stream: stream);
+  }
+
+  /// Where [provider], one of Gemini's API, takes a request for [model] as
+  /// its base URL says.
+  static Uri? geminiEndpointByBase(
+    ModelProvider provider, {
+    required String model,
+    bool stream = true,
+  }) {
+    final target = geminiModelPath(model);
+    if (target.isEmpty) return null;
+    return _geminiMethodUri(
+      geminiBase(provider.baseUrl),
+      target,
+      stream: stream,
+    );
+  }
+
+  static Uri? _geminiMethodUri(
+    String? base,
+    String target, {
+    required bool stream,
+  }) {
+    if (base == null) return null;
+    final uri = Uri.parse(base);
+    final method = stream ? 'streamGenerateContent' : 'generateContent';
+    final path =
+        '${uri.path.replaceFirst(RegExp(r'/+$'), '')}/models/$target:$method';
+    final query = <String, String>{
+      ...uri.queryParameters,
+      if (stream) 'alt': 'sse',
+    };
+    final queryPart = query.isEmpty
+        ? ''
+        : '?${Uri(queryParameters: query).query}';
+    // Built as text so already-encoded segments in [target] are not encoded
+    // a second time.
+    return Uri.tryParse('${uri.origin}$path$queryPart');
+  }
 
   /// Where [provider], one of Anthropic's API, takes a conversation (its
   /// tokens counted at `/count_tokens` under it): its own endpoint
@@ -183,19 +328,68 @@ abstract final class UpstreamUrls {
         null => null,
       };
 
-  /// Where a conversation goes to [provider], its protocol Anthropic's or
-  /// OpenAI's.
-  static Uri? endpoint(ModelProvider provider) =>
-      provider.protocol == ProviderProtocol.anthropic
-      ? messages(provider)
-      : conversation(provider);
+  /// Where a conversation goes to [provider], its protocol Anthropic's,
+  /// OpenAI's or Gemini's.
+  static Uri? endpoint(ModelProvider provider, {String? model}) =>
+      switch (provider.protocol) {
+        ProviderProtocol.anthropic => messages(provider),
+        ProviderProtocol.gemini =>
+          model != null && model.trim().isNotEmpty
+              ? geminiEndpoint(provider, model: model)
+              : null,
+        _ => conversation(provider),
+      };
 
   /// Where a conversation goes as [provider]'s base URL says, its protocol
-  /// Anthropic's or OpenAI's: what its own endpoint stands in for.
-  static Uri? endpointByBase(ModelProvider provider) =>
-      provider.protocol == ProviderProtocol.anthropic
-      ? messagesByBase(provider)
-      : conversationByBase(provider);
+  /// Anthropic's, OpenAI's or Gemini's: what its own endpoint stands in for.
+  static Uri? endpointByBase(ModelProvider provider, {String? model}) =>
+      switch (provider.protocol) {
+        ProviderProtocol.anthropic => messagesByBase(provider),
+        ProviderProtocol.gemini =>
+          model != null && model.trim().isNotEmpty
+              ? geminiEndpointByBase(provider, model: model)
+              : null,
+        _ => conversationByBase(provider),
+      };
+
+  /// The grey placeholder an Endpoint URL field shows for [provider], using
+  /// [model] when known (else `{model}` for Gemini's per-model path).
+  static String endpointPlaceholder(
+    ModelProvider provider, {
+    String? model,
+    bool byBase = false,
+  }) {
+    if (provider.protocol != ProviderProtocol.gemini) {
+      return '${(byBase ? endpointByBase(provider) : endpoint(provider)) ?? ''}';
+    }
+    final target = model == null ? '' : geminiModelPath(model);
+    if (target.isNotEmpty) {
+      final uri = byBase
+          ? geminiEndpointByBase(provider, model: model!)
+          : geminiEndpoint(provider, model: model!);
+      return '${uri ?? ''}';
+    }
+    if (!byBase && provider.endpointUrl != null) {
+      final raw = provider.endpointUrl!.trim();
+      if (raw.contains('{model}')) return raw;
+      final parsed = parse(raw);
+      if (parsed != null && _geminiMethod.hasMatch(parsed.path)) {
+        return '$parsed';
+      }
+      final base = geminiBase(raw);
+      return base == null ? '' : _geminiPlaceholder(base);
+    }
+    final base = geminiBase(provider.baseUrl);
+    return base == null ? '' : _geminiPlaceholder(base);
+  }
+
+  static String _geminiPlaceholder(String base) {
+    final uri = Uri.parse(base);
+    final path =
+        '${uri.path.replaceFirst(RegExp(r'/+$'), '')}/models/{model}:streamGenerateContent';
+    final query = <String, String>{...uri.queryParameters, 'alt': 'sse'};
+    return '${uri.origin}$path?${Uri(queryParameters: query).query}';
+  }
 }
 
 /// Whether [provider]'s key goes as `x-api-key`: asked for, or left to
@@ -228,7 +422,9 @@ Map<String, String> upstreamHeaders(ModelProvider provider, String? key) => {
   if (provider.protocol == ProviderProtocol.anthropic)
     'anthropic-version': '2023-06-01',
   if (key != null && key.isNotEmpty)
-    if (sendsApiKeyHeader(provider))
+    if (provider.protocol == ProviderProtocol.gemini)
+      'x-goog-api-key': key
+    else if (sendsApiKeyHeader(provider))
       'x-api-key': key
     else
       'authorization': 'Bearer $key',
@@ -322,11 +518,22 @@ List<RemoteModel> parseModelList(Object? json) {
   final seen = <String>{};
   for (final item in list) {
     if (item is! Map) continue;
-    final id = switch (item['id'] ?? item['name']) {
-      final String id when id.trim().isNotEmpty => id.trim(),
+    // Gemini's `/models` lists embedding and other non-chat models beside
+    // `generateContent` ones: keep only those that answer it when the list
+    // declares methods.
+    if (item['supportedGenerationMethods'] case final List methods
+        when methods.isNotEmpty && !methods.contains('generateContent')) {
+      continue;
+    }
+    final rawId = item['id'];
+    final id = switch (rawId ?? item['name']) {
+      final String id when id.trim().isNotEmpty =>
+        rawId == null && id.trim().startsWith('models/')
+            ? id.trim().substring('models/'.length)
+            : id.trim(),
       _ => null,
     };
-    if (id == null || !seen.add(id)) continue;
+    if (id == null || id.isEmpty || !seen.add(id)) continue;
     final label = switch (item['magpie_label'] ??
         item['display_name'] ??
         item['displayName']) {
@@ -341,6 +548,7 @@ List<RemoteModel> parseModelList(Object? json) {
       'max_input_tokens',
       'max_context_length',
       'max_model_len',
+      'inputTokenLimit',
     ]) {
       if (item[key] case final num tokens when tokens > 0) {
         window = tokens.toInt();
@@ -510,6 +718,8 @@ String upstreamErrorMessage(int status, String body) {
     decoded = null;
   }
   final message = switch (decoded) {
+    [{'error': {'message': final String message}}, ...] => message,
+    [{'error': final String message}, ...] => message,
     {'error': {'message': final String message}} => message,
     {'error': final String message} => message,
     {'message': final String message} => message,

@@ -24,6 +24,7 @@ import 'prompt_cache_key.dart';
 import 'translate/antigravity_request.dart';
 import 'translate/antigravity_response.dart';
 import 'translate/antigravity_signature.dart';
+import 'translate/gemini_request.dart';
 import 'translate/openai_chat_request.dart';
 import 'translate/openai_chat_response.dart';
 import 'translate/responses_request.dart';
@@ -469,6 +470,20 @@ class ModelProxy {
         meter: meter,
       );
     }
+    if (provider.protocol == ProviderProtocol.gemini) {
+      return _forwardGemini(
+        provider,
+        body,
+        response,
+        modelId: modelId,
+        effort: effort,
+        stream: stream,
+        session: session,
+        meter: meter,
+        search: search,
+        probe: probe,
+      );
+    }
     final Map<String, Object?> outgoing;
     if (provider.protocol == ProviderProtocol.openaiChat) {
       outgoing = convertClaudeRequestToOpenAI(
@@ -685,6 +700,14 @@ class ModelProxy {
       switch (provider.protocol) {
         ProviderProtocol.openaiChat => false,
         ProviderProtocol.antigravity => antigravitySupportsWebSearch(model),
+        ProviderProtocol.gemini =>
+          antigravitySupportsWebSearch(model)
+              ? _searchSupport.lookup(
+                  provider.id,
+                  provider.protocol.name,
+                  model,
+                )
+              : false,
         _ => _searchSupport.lookup(provider.id, provider.protocol.name, model),
       };
 
@@ -1315,6 +1338,231 @@ class ModelProxy {
       }
       tried.add(account.id);
     }
+  }
+
+  /// [body] to a Gemini-compatible provider (`generateContent` /
+  /// `streamGenerateContent?alt=sse`), using its API key (`x-goog-api-key`),
+  /// translated back into Anthropic Messages SSE or JSON.
+  Future<void> _forwardGemini(
+    ModelProvider provider,
+    Map<String, Object?> body,
+    HttpResponse response, {
+    required String modelId,
+    required String effort,
+    required bool stream,
+    String? session,
+    UsageMeter? meter,
+    Map<String, Object?>? search,
+    _Probe? probe,
+  }) async {
+    final url = UpstreamUrls.geminiEndpoint(
+      provider,
+      model: modelId,
+      stream: true,
+    );
+    if (url == null) {
+      return _fail(response, 400, '${provider.name} has no valid base URL');
+    }
+    final outgoing = convertClaudeRequestToGemini(
+      body,
+      model: modelId,
+      effort: effort.isEmpty ? null : effort,
+      store: _signatures,
+    );
+    final client = await _upstream();
+    final upstreamRequest = await client.postUrl(url);
+    final key = await _key(provider.id);
+    upstreamHeaders(provider, key).forEach(upstreamRequest.headers.set);
+    customUpstreamHeaders(
+      provider,
+      session: session,
+      model: modelId,
+    ).forEach(upstreamRequest.headers.set);
+    final expectsSse =
+        url.path.endsWith(':streamGenerateContent') &&
+        url.queryParameters['alt'] == 'sse';
+    upstreamRequest.headers
+      ..contentType = ContentType.json
+      ..set(
+        HttpHeaders.acceptHeader,
+        expectsSse ? 'text/event-stream' : 'application/json',
+      );
+    final (payload, encoded) = await _encodeJson(outgoing);
+    meter?.trace?.sending(
+      method: 'POST',
+      url: url,
+      headers: UsageTraceMessage.headersOf(upstreamRequest.headers.forEach),
+      body: payload,
+    );
+    upstreamRequest.add(encoded);
+    _dropWithClient(response, upstreamRequest);
+    final answer = await upstreamRequest.close();
+    meter?.answered();
+    meter?.trace?.answered(
+      answer.statusCode,
+      UsageTraceMessage.headersOf(answer.headers.forEach),
+    );
+    if (answer.statusCode >= 400) {
+      final text = await utf8.decodeStream(answer);
+      meter?.trace?.upstreamText(text);
+      if (search != null) {
+        return _searchRefused(provider, probe, answer.statusCode, text, () {
+          return _searchHere(body, search, response, meter: meter);
+        });
+      }
+      final message = upstreamErrorMessage(answer.statusCode, text);
+      meter?.fail(message);
+      _onError?.call(provider.id, message);
+      return _json(
+        response,
+        answer.statusCode,
+        anthropicError(answer.statusCode, message),
+      );
+    }
+    _onError?.call(provider.id, null);
+
+    final trace = meter?.trace;
+    final translator = AntigravityResponseTranslator(
+      model: '${body['model'] ?? modelId}',
+      store: _signatures,
+      errorFallback: '${provider.name} failed',
+    );
+    final contentType = answer.headers.contentType?.mimeType.toLowerCase();
+    final isJsonBody =
+        contentType == 'application/json' ||
+        (!expectsSse && contentType != 'text/event-stream');
+
+    if (isJsonBody) {
+      final text = await utf8.decodeStream(_whileClient(answer));
+      trace?.upstreamText(text);
+      meter?.upstreamLine(text);
+      Object? decoded;
+      try {
+        decoded = jsonDecode(text);
+      } on FormatException {
+        decoded = null;
+      }
+      if (decoded == null) {
+        final message = '${provider.name} returned invalid JSON';
+        meter?.fail(message);
+        return _fail(response, 502, message);
+      }
+      final frames = '${translator.convertJson(decoded)}${translator.finish()}';
+      if (!stream) {
+        final message = antigravityMessage(translator.events);
+        if (message == null) {
+          meter?.fail('${provider.name} ended without a reply');
+          return _fail(response, 502, '${provider.name} ended without a reply');
+        }
+        meter?.message(message);
+        if (probe != null && !_searched(provider, probe, jsonEncode(message))) {
+          return _searchHere(body, probe.search, response, meter: meter);
+        }
+        return _json(response, 200, message);
+      }
+      if (probe != null && !_searched(provider, probe, frames)) {
+        return _searchHere(body, probe.search, response, meter: meter);
+      }
+      _startEvents(response);
+      if (frames.isNotEmpty) {
+        response.write(frames);
+        meter?.events(frames);
+      }
+      return response.close();
+    }
+
+    final lines = _whileClient(answer)
+        .transform(const Utf8Decoder(allowMalformed: true))
+        .transform(const LineSplitter());
+    var sawData = false;
+    final rawFallback = StringBuffer();
+    const fallbackCap = 4 << 20;
+
+    void recordLine(String line) {
+      if (line.startsWith('data:')) {
+        if (!sawData) {
+          sawData = true;
+          rawFallback.clear();
+        }
+      } else if (!sawData && rawFallback.length < fallbackCap) {
+        rawFallback.writeln(line);
+      }
+    }
+
+    String finishOrFallback() {
+      if (!sawData) {
+        final raw = rawFallback.toString().trim();
+        if (raw.startsWith('{') || raw.startsWith('[')) {
+          try {
+            final decoded = jsonDecode(raw);
+            return '${translator.convertJson(decoded)}${translator.finish()}';
+          } on FormatException {
+            // Fall through to translator.finish().
+          }
+        }
+      }
+      return translator.finish();
+    }
+
+    if (!stream) {
+      await for (final line in lines) {
+        trace?.upstreamText('$line\n');
+        meter?.upstreamLine(line);
+        recordLine(line);
+        translator.convert(line);
+      }
+      finishOrFallback();
+      final message = antigravityMessage(translator.events);
+      if (message == null) {
+        meter?.fail('${provider.name} ended without a reply');
+        return _fail(response, 502, '${provider.name} ended without a reply');
+      }
+      meter?.message(message);
+      if (probe != null && !_searched(provider, probe, jsonEncode(message))) {
+        return _searchHere(body, probe.search, response, meter: meter);
+      }
+      return _json(response, 200, message);
+    }
+    if (probe != null) {
+      final held = StringBuffer();
+      await for (final line in lines) {
+        trace?.upstreamText('$line\n');
+        meter?.upstreamLine(line);
+        recordLine(line);
+        final frames = translator.convert(line);
+        if (frames.isEmpty) continue;
+        held.write(frames);
+        meter?.events(frames);
+      }
+      final end = finishOrFallback();
+      if (end.isNotEmpty) {
+        held.write(end);
+        meter?.events(end);
+      }
+      if (!_searched(provider, probe, '$held')) {
+        return _searchHere(body, probe.search, response, meter: meter);
+      }
+      _startEvents(response);
+      response.write(held);
+      return response.close();
+    }
+    _startEvents(response);
+    await for (final line in lines) {
+      trace?.upstreamText('$line\n');
+      meter?.upstreamLine(line);
+      recordLine(line);
+      final frames = translator.convert(line);
+      if (frames.isEmpty) continue;
+      response.write(frames);
+      meter?.events(frames);
+      await response.flush();
+    }
+    final end = finishOrFallback();
+    if (end.isNotEmpty) {
+      response.write(end);
+      meter?.events(end);
+    }
+    return response.close();
   }
 
   /// A version 4 UUID.

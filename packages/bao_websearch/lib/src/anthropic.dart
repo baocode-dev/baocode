@@ -280,5 +280,9 @@ bool refusesWebSearchTool(int status, String body) {
   if (status != 400 && status != 404 && status != 422) return false;
   // The request has no tool but this one: a tool it names is this one.
   final lower = body.toLowerCase();
-  return lower.contains('tool') || lower.contains('web_search');
+  return lower.contains('tool') ||
+      lower.contains('web_search') ||
+      lower.contains('googlesearch') ||
+      lower.contains('google_search') ||
+      lower.contains('grounding');
 }

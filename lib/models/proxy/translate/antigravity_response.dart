@@ -16,11 +16,18 @@ import 'common.dart';
 /// thought signature rides in its id ([signedToolId]). A call Gemini wrote
 /// out as text (`call:default_api:Bash{…}`) is made the call it meant.
 class AntigravityResponseTranslator {
-  AntigravityResponseTranslator({required this.model, this.store});
+  AntigravityResponseTranslator({
+    required this.model,
+    this.store,
+    this.errorFallback = 'Antigravity failed',
+  });
 
   /// The model the reply is told to be of: the one Claude Code asked.
   final String model;
   final SignatureStore? store;
+
+  /// Fallback message when an upstream error payload has no `message`.
+  final String errorFallback;
 
   bool _started = false;
   bool _stopped = false;
@@ -53,6 +60,20 @@ class AntigravityResponseTranslator {
     } on FormatException {
       return '';
     }
+    return convertJson(json);
+  }
+
+  /// The events of one decoded Gemini / Code Assist chunk, as server-sent
+  /// events. Accepts either a single JSON object or a JSON array of chunks.
+  String convertJson(Object? json) {
+    if (_failed) return '';
+    if (json is List) {
+      final buffer = StringBuffer();
+      for (final item in json) {
+        buffer.write(convertJson(item));
+      }
+      return '$buffer';
+    }
     final out = <Map<String, Object?>>[];
     if (json case {'error': final Map error}) {
       _failed = true;
@@ -61,7 +82,7 @@ class AntigravityResponseTranslator {
         'type': 'error',
         'error': {
           'type': 'api_error',
-          'message': '${error['message'] ?? 'Antigravity failed'}',
+          'message': '${error['message'] ?? errorFallback}',
         },
       });
       return _frames(out);

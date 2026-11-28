@@ -19,9 +19,9 @@ class UpstreamImport {
   });
 
   /// What the link asks: `baocode://provider/import`, then `v` (1),
-  /// `name`, `protocol` (`anthropic`, the default, `openai-chat` or
-  /// `openai-responses`), `url` (the base URL, http or https) and `key`;
-  /// null for any other URL, or one without a base URL to go to.
+  /// `name`, `protocol` (`anthropic`, the default, `openai-chat`,
+  /// `openai-responses` or `gemini`), `url` (the base URL, http or https)
+  /// and `key`; null for any other URL, or one without a base URL to go to.
   static UpstreamImport? parse(String link) {
     final uri = Uri.tryParse(link.trim());
     if (uri == null ||
@@ -59,6 +59,7 @@ class UpstreamImport {
     ProviderProtocol.anthropic,
     ProviderProtocol.openaiChat,
     ProviderProtocol.openaiResponses,
+    ProviderProtocol.gemini,
   ];
 
   /// [text] on one line, without control characters, at most [max] long.
@@ -106,7 +107,9 @@ class UpstreamImport {
     return null;
   }
 
-  String? _requestBase(String url) => protocol == ProviderProtocol.anthropic
-      ? UpstreamUrls.anthropicBase(url)
-      : UpstreamUrls.openaiBase(url);
+  String? _requestBase(String url) => switch (protocol) {
+    ProviderProtocol.anthropic => UpstreamUrls.anthropicBase(url),
+    ProviderProtocol.gemini => UpstreamUrls.geminiBase(url),
+    _ => UpstreamUrls.openaiBase(url),
+  };
 }

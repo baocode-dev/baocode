@@ -211,6 +211,7 @@ abstract class AccountAdapter {
     }
     return switch (key.platform) {
       'openai' => ProviderProtocol.openaiResponses,
+      'gemini' => ProviderProtocol.gemini,
       _ => ProviderProtocol.anthropic,
     };
   }

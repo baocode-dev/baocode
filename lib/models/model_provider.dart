@@ -18,6 +18,10 @@ enum ProviderProtocol {
   /// OpenAI's Responses API: through the local proxy, translated.
   openaiResponses('openai-responses'),
 
+  /// Google's Gemini API (`generateContent`), or a compatible upstream:
+  /// through the local proxy, translated.
+  gemini('gemini'),
+
   /// ChatGPT's Codex backend, signed in with ChatGPT accounts (OAuth), not
   /// a key: through the local proxy, as Responses.
   codex('codex'),
@@ -52,7 +56,7 @@ enum ProviderProtocol {
   /// Those a model may be spoken to at instead of its upstream's
   /// ([ProviderModel.protocol]): at the same base URL and key, so not
   /// Codex's, signed in to.
-  static const forModels = [anthropic, openaiChat, openaiResponses];
+  static const forModels = [anthropic, openaiChat, openaiResponses, gemini];
 
   static ProviderProtocol parse(Object? id) =>
       values.where((value) => value.id == id).firstOrNull ?? anthropic;
@@ -1112,6 +1116,7 @@ bool isHeaderName(String name) =>
 const reservedHeaderNames = {
   'authorization',
   'x-api-key',
+  'x-goog-api-key',
   'proxy-authorization',
   'cookie',
   'set-cookie',

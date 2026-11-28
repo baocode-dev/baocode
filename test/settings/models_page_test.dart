@@ -958,6 +958,74 @@ void main() {
     expect(find.text('Authentication'), findsNothing);
   });
 
+  testWidgets('Gemini-compatible protocol can be picked on a provider and '
+      'per model, with /v1beta hints and Gemini badge', (tester) async {
+    await providers.save(
+      const ModelProvider(
+        id: 'gw',
+        name: 'Relay',
+        protocol: ProviderProtocol.openaiResponses,
+        baseUrl: 'https://relay.example',
+        models: [ProviderModel(id: 'gemini-4-carbon')],
+      ),
+    );
+    await pump(tester);
+    await tester.tap(find.text('Relay'));
+    await tester.pumpAndSettle();
+
+    // Pick Gemini-compatible on the model in Edit Model dialog.
+    await tester.tap(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is IdeActionButton && widget.tooltip == 'More Actions',
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Edit…'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ModelEditDialog), findsOneWidget);
+    await tester.tap(
+      find.descendant(
+        of: find.byType(ModelEditDialog),
+        matching: find.text('As the upstream (OpenAI Responses)'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Gemini-compatible').last);
+    await tester.pumpAndSettle();
+    expect(
+      find.text(
+        'https://relay.example/v1beta/models/gemini-4-carbon:streamGenerateContent?alt=sse',
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    expect(
+      providers.provider('gw')!.models.single.protocol,
+      ProviderProtocol.gemini,
+    );
+    expect(find.text('Gemini'), findsOneWidget);
+
+    // Switch the provider's own protocol to Gemini-compatible too.
+    await tester.tap(find.text('OpenAI Responses'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Gemini-compatible').last);
+    await tester.pumpAndSettle();
+    expect(providers.provider('gw')!.protocol, ProviderProtocol.gemini);
+    expect(find.textContaining('/v1beta'), findsWidgets);
+    // Custom URLs shows Gemini's {model} endpoint preview.
+    await tester.tap(find.text('Custom URLs'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text(
+        'https://relay.example/v1beta/models/{model}:streamGenerateContent?alt=sse',
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('a ChatGPT upstream\'s models have no endpoint of their own', (
     tester,
   ) async {

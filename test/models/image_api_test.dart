@@ -1,8 +1,12 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:baocode/images/image_tools.dart';
+import 'package:baocode/models/antigravity/antigravity_accounts_io.dart';
+import 'package:baocode/models/codex/codex_accounts_io.dart';
 import 'package:baocode/models/image_api.dart';
+import 'package:baocode/models/image_generation_io.dart';
 import 'package:baocode/models/model_provider.dart';
 import 'package:baocode/models/model_providers.dart';
 import 'package:baocode/models/model_runtime.dart' show UpstreamException;
@@ -416,6 +420,27 @@ void main() {
         '',
       ].join('\n');
       expect(parseAntigravityImages(events).single.bytes, _png);
+      expect(
+        parseAntigravityImages(
+          jsonEncode({
+            'candidates': [
+              {
+                'content': {
+                  'parts': [
+                    {
+                      'inlineData': {
+                        'mimeType': 'image/png',
+                        'data': base64Encode(_png),
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          }),
+        ).single.bytes,
+        _png,
+      );
 
       expect(
         () => parseAntigravityImages(
@@ -487,6 +512,71 @@ void main() {
         'image/jpeg',
       );
       expect(imageMediaType(Uint8List.fromList([1, 2, 3])), isNull);
+    });
+
+    test('ImageGenerator sends Gemini-compatible providers to :generateContent '
+        'with x-goog-api-key', () async {
+      HttpOverrides.global = null;
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      final paths = <String>[];
+      final keys = <String?>[];
+      server.listen((request) async {
+        await utf8.decodeStream(request);
+        paths.add(request.uri.path);
+        keys.add(request.headers.value('x-goog-api-key'));
+        request.response.write(
+          jsonEncode({
+            'candidates': [
+              {
+                'content': {
+                  'parts': [
+                    {
+                      'inlineData': {
+                        'mimeType': 'image/png',
+                        'data': base64Encode(_png),
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          }),
+        );
+        await request.response.close();
+      });
+      final providers = ModelProviders.memory();
+      final codex = CodexAccounts(providers: () => providers);
+      final antigravity = AntigravityAccounts(providers: () => providers);
+      addTearDown(() {
+        codex.close();
+        antigravity.close();
+      });
+      final generator = ImageGenerator(
+        codex: codex,
+        antigravity: antigravity,
+        key: (_) async => 'g-img-key',
+      );
+      final images = await generator.generate(
+        ModelProvider(
+          id: 'gm',
+          name: 'Gemini',
+          protocol: ProviderProtocol.gemini,
+          baseUrl: 'http://127.0.0.1:${server.port}',
+        ),
+        const ProviderModel(
+          id: 'gemini-3.1-flash-image',
+          kind: ModelKind.image,
+        ),
+        const ImageRequest(prompt: 'A blue bird', count: 2),
+      );
+      expect(images, hasLength(2));
+      expect(images.first.bytes, _png);
+      expect(paths, [
+        '/v1beta/models/gemini-3.1-flash-image:generateContent',
+        '/v1beta/models/gemini-3.1-flash-image:generateContent',
+      ]);
+      expect(keys, ['g-img-key', 'g-img-key']);
     });
   });
 }

@@ -21,8 +21,8 @@
 | 参数 | 必填 | 说明 |
 | --- | --- | --- |
 | `v` | 否 | 版本，目前只有 `1`；其他值拒绝 |
-| `url` | 是 | Base URL，http 或 https。new-api 用 `{address}` 即可：Anthropic 协议 Claude Code 自己加 `/v1`，OpenAI 协议缺版本时 BaoCode 补 `/v1`（`UpstreamUrls`） |
-| `protocol` | 否 | `anthropic`（默认）、`openai-chat`、`openai-responses`。不接受 `codex`（它用账号登录，没有 key） |
+| `url` | 是 | Base URL，http 或 https。new-api 用 `{address}` 即可：Anthropic 协议 Claude Code 自己加 `/v1`，OpenAI 协议缺版本时 BaoCode 补 `/v1`，Gemini 协议裸域名补 `/v1beta`（`UpstreamUrls`） |
+| `protocol` | 否 | `anthropic`（默认）、`openai-chat`、`openai-responses`、`gemini`。不接受 `codex`（它用账号登录，没有 key） |
 | `name` | 否 | 显示名，最长 64；缺省用 host |
 | `key` | 否 | API key，最长 512；缺省时导入后再填 |
 

@@ -876,6 +876,126 @@ void main() {
       expect(UpstreamUrls.conversation(at('https://x.example')), isNull);
     });
 
+    test('Gemini base URLs, model paths, endpoints and placeholders', () {
+      expect(
+        UpstreamUrls.geminiBase('https://generativelanguage.googleapis.com'),
+        'https://generativelanguage.googleapis.com/v1beta',
+      );
+      expect(
+        UpstreamUrls.geminiBase(
+          'https://generativelanguage.googleapis.com/v1beta/',
+        ),
+        'https://generativelanguage.googleapis.com/v1beta',
+      );
+      expect(
+        UpstreamUrls.geminiBase(
+          'https://generativelanguage.googleapis.com/v1beta/openai',
+        ),
+        'https://generativelanguage.googleapis.com/v1beta',
+      );
+      expect(
+        UpstreamUrls.geminiBase(
+          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:streamGenerateContent?alt=sse',
+        ),
+        'https://generativelanguage.googleapis.com/v1beta',
+      );
+      expect(
+        UpstreamUrls.geminiBase('https://relay.example/v1beta/models'),
+        'https://relay.example/v1beta',
+      );
+      expect(
+        UpstreamUrls.geminiBase('https://relay.example/gemini'),
+        'https://relay.example/gemini',
+      );
+      expect(
+        UpstreamUrls.geminiBase('https://relay.example/proxy/v1'),
+        'https://relay.example/proxy/v1',
+      );
+
+      expect(UpstreamUrls.geminiModelPath('gemini-2.5-pro'), 'gemini-2.5-pro');
+      expect(
+        UpstreamUrls.geminiModelPath('models/gemini-2.5-pro'),
+        'gemini-2.5-pro',
+      );
+      expect(
+        UpstreamUrls.geminiModelPath('example/model-demo'),
+        'example/model-demo',
+      );
+      expect(UpstreamUrls.geminiModelPath('../secret'), '..%2Fsecret');
+      expect(UpstreamUrls.geminiModelPath('a//b'), 'a%2F%2Fb');
+
+      final bare = at('https://relay.example', ProviderProtocol.gemini);
+      expect(UpstreamUrls.models(bare).map((u) => '$u'), [
+        'https://relay.example/v1beta/models',
+        'https://relay.example/v1/models',
+      ]);
+      expect(
+        UpstreamUrls.models(
+          at('https://relay.example/proxy/v1beta', ProviderProtocol.gemini),
+        ).map((u) => '$u'),
+        [
+          'https://relay.example/proxy/v1beta/models',
+          'https://relay.example/proxy/v1/models',
+          'https://relay.example/v1/models',
+        ],
+      );
+      expect(
+        UpstreamUrls.models(
+          at('https://relay.example/v1', ProviderProtocol.gemini),
+        ).map((u) => '$u'),
+        ['https://relay.example/v1/models'],
+      );
+      expect(
+        '${UpstreamUrls.geminiEndpoint(bare, model: 'gemini-4-carbon')}',
+        'https://relay.example/v1beta/models/gemini-4-carbon:streamGenerateContent?alt=sse',
+      );
+      expect(
+        '${UpstreamUrls.geminiEndpoint(bare, model: 'example/model-demo', stream: false)}',
+        'https://relay.example/v1beta/models/example/model-demo:generateContent',
+      );
+      expect(
+        UpstreamUrls.endpointPlaceholder(bare, byBase: true),
+        'https://relay.example/v1beta/models/{model}:streamGenerateContent?alt=sse',
+      );
+      expect(
+        UpstreamUrls.endpointPlaceholder(bare, model: 'gemini-4-carbon'),
+        'https://relay.example/v1beta/models/gemini-4-carbon:streamGenerateContent?alt=sse',
+      );
+
+      // Custom endpoint URL: full method URL, {model} template, or base URL.
+      final full = bare.copyWith(
+        endpointUrl: () =>
+            'https://custom.example/v1beta/models/fixed:generateContent',
+      );
+      expect(
+        '${UpstreamUrls.geminiEndpoint(full, model: 'ignored')}',
+        'https://custom.example/v1beta/models/fixed:generateContent',
+      );
+      final templated = bare.copyWith(
+        endpointUrl: () =>
+            'https://custom.example/alt/{model}:streamGenerateContent?alt=sse',
+      );
+      expect(
+        '${UpstreamUrls.geminiEndpoint(templated, model: 'vendor/g3')}',
+        'https://custom.example/alt/vendor/g3:streamGenerateContent?alt=sse',
+      );
+      final customBase = bare.copyWith(
+        endpointUrl: () => 'https://custom.example/gemini-proxy',
+      );
+      expect(
+        '${UpstreamUrls.geminiEndpoint(customBase, model: 'gemini-3-flash')}',
+        'https://custom.example/gemini-proxy/models/gemini-3-flash:streamGenerateContent?alt=sse',
+      );
+
+      // Serialization and reserved auth header.
+      expect(ProviderProtocol.parse('gemini'), ProviderProtocol.gemini);
+      expect(ProviderProtocol.forModels, contains(ProviderProtocol.gemini));
+      expect(ProviderProtocol.gemini.proxied, isTrue);
+      expect(ProviderProtocol.gemini.selectable, isTrue);
+      expect(ProviderProtocol.gemini.usesAccounts, isFalse);
+      expect(isSettableHeader('x-goog-api-key'), isFalse);
+    });
+
     test('an upstream\'s own addresses over its base URL\'s, a model\'s '
         'over its upstream\'s whatever its endpoint type', () {
       final chat =
@@ -1001,6 +1121,16 @@ void main() {
           ),
           {'user-agent': claudeCodeUserAgent, 'authorization': 'Bearer k'},
         );
+        expect(
+          upstreamHeaders(
+            at(
+              'https://generativelanguage.googleapis.com/v1beta',
+              ProviderProtocol.gemini,
+            ),
+            'k',
+          ),
+          {'user-agent': claudeCodeUserAgent, 'x-goog-api-key': 'k'},
+        );
         expect(upstreamHeaders(at('https://gw.example'), ''), {
           'user-agent': claudeCodeUserAgent,
           'anthropic-version': '2023-06-01',
@@ -1121,6 +1251,29 @@ void main() {
         }).single.id,
         'llama3',
       );
+
+      final gemini = parseModelList({
+        'models': [
+          {
+            'name': 'models/gemini-2.5-pro',
+            'displayName': 'Gemini 2.5 Pro',
+            'inputTokenLimit': 1048576,
+            'supportedGenerationMethods': ['generateContent', 'countTokens'],
+          },
+          {
+            'name': 'models/text-embedding-004',
+            'displayName': 'Text Embedding 004',
+            'supportedGenerationMethods': ['embedContent'],
+          },
+          {'name': 'models/gemini-relay-custom'},
+        ],
+      });
+      expect(gemini.map((m) => m.id), [
+        'gemini-2.5-pro',
+        'gemini-relay-custom',
+      ]);
+      expect(gemini.first.label, 'Gemini 2.5 Pro');
+      expect(gemini.first.contextWindow, 1048576);
       expect(parseModelList('nope'), isEmpty);
     });
 
@@ -1165,6 +1318,13 @@ void main() {
       );
       expect(upstreamErrorMessage(502, ''), 'HTTP 502');
       expect(upstreamErrorMessage(500, 'oops'), 'HTTP 500: oops');
+      expect(
+        upstreamErrorMessage(
+          400,
+          '[{"error":{"code":400,"message":"API key not valid"}}]',
+        ),
+        'HTTP 400: API key not valid',
+      );
       expect(anthropicError(429, 'slow down'), {
         'type': 'error',
         'error': {'type': 'rate_limit_error', 'message': 'slow down'},
@@ -1836,6 +1996,154 @@ void main() {
         ),
       );
       expect(asked, ['/anthropic/v1/models', '/v1/models']);
+    });
+
+    test(
+      'Gemini lists models with x-goog-api-key and follows nextPageToken',
+      () async {
+        final geminiServer = await HttpServer.bind(
+          InternetAddress.loopbackIPv4,
+          0,
+        );
+        final queries = <String>[];
+        final headers = <String?>[];
+        geminiServer.listen((request) async {
+          queries.add('${request.uri.path}?${request.uri.query}');
+          headers.add(request.headers.value('x-goog-api-key'));
+          final token = request.uri.queryParameters['pageToken'];
+          if (token == null) {
+            request.response.write(
+              jsonEncode({
+                'models': [
+                  {
+                    'name': 'models/gemini-2.5-pro',
+                    'displayName': 'Gemini 2.5 Pro',
+                    'inputTokenLimit': 1048576,
+                    'supportedGenerationMethods': ['generateContent'],
+                  },
+                  {
+                    'name': 'models/embedding-001',
+                    'supportedGenerationMethods': ['embedContent'],
+                  },
+                ],
+                'nextPageToken': 'page-2',
+              }),
+            );
+          } else {
+            request.response.write(
+              jsonEncode({
+                'models': [
+                  {
+                    'name': 'models/gemini-3-flash',
+                    'supportedGenerationMethods': ['generateContent'],
+                  },
+                ],
+              }),
+            );
+          }
+          await request.response.close();
+        });
+        try {
+          final models = await listUpstreamModels(
+            ModelProvider(
+              id: 'gm',
+              name: 'Gemini',
+              protocol: ProviderProtocol.gemini,
+              baseUrl: 'http://127.0.0.1:${geminiServer.port}',
+            ),
+            'g-key',
+          );
+          expect(models.map((m) => m.id), ['gemini-2.5-pro', 'gemini-3-flash']);
+          expect(headers, ['g-key', 'g-key']);
+          expect(queries, [
+            '/v1beta/models?pageSize=1000',
+            '/v1beta/models?pageSize=1000&pageToken=page-2',
+          ]);
+        } finally {
+          await geminiServer.close(force: true);
+        }
+      },
+    );
+
+    test('Gemini falls back to /v1/models with Bearer auth when a relay '
+        'returns 404 for /v1beta/models', () async {
+      final relayServer = await HttpServer.bind(
+        InternetAddress.loopbackIPv4,
+        0,
+      );
+      final seen = <(String, String?, String?)>[];
+      relayServer.listen((request) async {
+        seen.add((
+          '${request.uri.path}${request.uri.hasQuery ? '?${request.uri.query}' : ''}',
+          request.headers.value('x-goog-api-key'),
+          request.headers.value('authorization'),
+        ));
+        if (request.uri.path == '/v1beta/models') {
+          request.response
+            ..statusCode = 404
+            ..write(
+              jsonEncode({
+                'error': {'message': 'Invalid URL (GET /v1beta/models)'},
+              }),
+            );
+        } else if (request.uri.path == '/v1/models') {
+          if (request.headers.value('authorization') != 'Bearer relay-key') {
+            request.response
+              ..statusCode = 401
+              ..write(
+                jsonEncode({
+                  'error': {'message': 'missing token'},
+                }),
+              );
+          } else {
+            request.response.write(
+              jsonEncode({
+                'data': [
+                  {'id': 'gemini-2.5-pro'},
+                  {'id': 'gemini-3-flash'},
+                ],
+              }),
+            );
+          }
+        } else {
+          request.response.statusCode = 404;
+        }
+        await request.response.close();
+      });
+      try {
+        final base = 'http://127.0.0.1:${relayServer.port}/v1beta';
+        final models = await listUpstreamModels(
+          ModelProvider(
+            id: 'gm-relay',
+            name: 'Gemini Relay',
+            protocol: ProviderProtocol.gemini,
+            baseUrl: base,
+          ),
+          'relay-key',
+        );
+        expect(models.map((m) => m.id), ['gemini-2.5-pro', 'gemini-3-flash']);
+        expect(seen, [
+          ('/v1beta/models?pageSize=1000', 'relay-key', null),
+          ('/v1/models', null, 'Bearer relay-key'),
+        ]);
+
+        // Also works when the user enters /v1/models directly as custom URL.
+        seen.clear();
+        final custom = await listUpstreamModels(
+          ModelProvider(
+            id: 'gm-relay-custom',
+            name: 'Gemini Relay Custom',
+            protocol: ProviderProtocol.gemini,
+            baseUrl: base,
+            modelsUrl: 'http://127.0.0.1:${relayServer.port}/v1/models',
+          ),
+          'relay-key',
+        );
+        expect(custom.map((m) => m.id), ['gemini-2.5-pro', 'gemini-3-flash']);
+        expect(seen.last, ('/v1/models', null, 'Bearer relay-key'));
+      } finally {
+        await relayServer.close(force: true);
+      }
     });
   });
 

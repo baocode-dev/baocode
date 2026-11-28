@@ -163,6 +163,17 @@ void main() {
       expect(key.platform, 'openai');
       expect(key.masked, isNot(contains('0123456789abcdef')));
       expect(adapter.protocolFor(key), ProviderProtocol.openaiResponses);
+      expect(
+        adapter.protocolFor(
+          const AccountKey(
+            id: 'g',
+            name: 'G',
+            masked: '***',
+            platform: 'gemini',
+          ),
+        ),
+        ProviderProtocol.gemini,
+      );
       expect(await adapter.reveal(key), 'sk-0123456789abcdef0123');
     });
 

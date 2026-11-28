@@ -126,11 +126,38 @@ Future<List<RemoteModel>> listUpstreamModels(
     _Refused? refusedFirst;
     var answered = false;
     for (final (i, url) in urls.indexed) {
+      // For Gemini providers, fallback URLs after the first are OpenAI-style
+      // `/v1/models` endpoints on multi-protocol relays, which authenticate
+      // with Bearer tokens and do not take Gemini's `pageSize` query param.
+      final listProvider = provider.protocol == ProviderProtocol.gemini && i > 0
+          ? provider.copyWith(protocol: ProviderProtocol.openaiChat)
+          : provider;
       try {
-        final models = await _listModels(client, url, provider, key);
+        final models = await _listModels(client, url, listProvider, key);
         if (models.isNotEmpty) return models;
         answered = true;
       } on UpstreamException catch (failed) {
+        // A custom `/v1/models` URL set on a Gemini provider (e.g. a relay
+        // without `/v1beta/models`) may require Bearer instead of
+        // `x-goog-api-key`.
+        if (failed is _Refused &&
+            listProvider.protocol == ProviderProtocol.gemini &&
+            url.path.endsWith('/v1/models') &&
+            !url.host.toLowerCase().endsWith('googleapis.com')) {
+          try {
+            final models = await _listModels(
+              client,
+              url,
+              provider.copyWith(protocol: ProviderProtocol.openaiChat),
+              key,
+            );
+            if (models.isNotEmpty) return models;
+            answered = true;
+            continue;
+          } on UpstreamException {
+            // Fall through to report the original failure.
+          }
+        }
         if (i == 0 && failed is _Refused) refusedFirst = failed;
         if (error == null || error is _NotFound && failed is! _NotFound) {
           error = failed;
@@ -161,19 +188,28 @@ Future<List<RemoteModel>> _listModels(
   String? key,
 ) async {
   final models = <RemoteModel>[];
-  // Anthropic's list comes in pages.
+  // Anthropic's (`after_id`) and Gemini's (`pageToken`) lists come in pages.
   String? after;
+  String? pageToken;
   for (var page = 0; page < 20; page++) {
     // Its own query kept (magpie's `kind`).
-    final pageUrl = provider.protocol == ProviderProtocol.anthropic
-        ? url.replace(
-            queryParameters: {
-              ...url.queryParameters,
-              'limit': '1000',
-              'after_id': ?after,
-            },
-          )
-        : url;
+    final pageUrl = switch (provider.protocol) {
+      ProviderProtocol.anthropic => url.replace(
+        queryParameters: {
+          ...url.queryParameters,
+          'limit': '1000',
+          'after_id': ?after,
+        },
+      ),
+      ProviderProtocol.gemini => url.replace(
+        queryParameters: {
+          ...url.queryParameters,
+          'pageSize': '1000',
+          'pageToken': ?pageToken,
+        },
+      ),
+      _ => url,
+    };
     final request = await client.getUrl(pageUrl);
     upstreamHeaders(provider, key).forEach(request.headers.set);
     // The provider's own headers too, so a listing an upstream gates on
@@ -205,6 +241,13 @@ Future<List<RemoteModel>> _listModels(
     if (json case {'has_more': true, 'last_id': final String last}) {
       after = last;
       continue;
+    }
+    if (provider.protocol == ProviderProtocol.gemini) {
+      if (json case {'nextPageToken': final String next}
+          when next.trim().isNotEmpty) {
+        pageToken = next.trim();
+        continue;
+      }
     }
     break;
   }

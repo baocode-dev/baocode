@@ -47,26 +47,33 @@ class ImageGenerator {
       ..connectionTimeout = const Duration(seconds: 30)
       ..findProxy = route.findProxy;
     try {
-      final images = switch ((provider.protocol, model.kind)) {
+      final speaking = provider.speakingFor(model.id);
+      final images = switch ((speaking.protocol, model.kind)) {
         (ProviderProtocol.codex, _) => await _codex(
-          provider,
+          speaking,
           model,
           request,
           session,
         ),
         (ProviderProtocol.antigravity, _) => await _antigravity(
-          provider,
+          speaking,
           model,
           request,
           session,
         ),
-        (_, ModelKind.imageChat) => await _chat(
+        (ProviderProtocol.gemini, _) => await _gemini(
           client,
-          provider,
+          speaking,
           model,
           request,
         ),
-        _ => await _images(client, provider, model, request),
+        (_, ModelKind.imageChat) => await _chat(
+          client,
+          speaking,
+          model,
+          request,
+        ),
+        _ => await _images(client, speaking, model, request),
       };
       return [for (final image in images) await _fetched(client, image)];
     } on SocketException catch (error) {
@@ -239,6 +246,38 @@ class ImageGenerator {
         );
       }
       out.addAll(parseAntigravityImages(events));
+    }
+    return out.length > want ? out.sublist(0, want) : out;
+  }
+
+  /// Through Gemini's `generateContent` endpoint with an API key.
+  Future<List<GeneratedImage>> _gemini(
+    HttpClient client,
+    ModelProvider provider,
+    ProviderModel model,
+    ImageRequest request,
+  ) async {
+    final url = UpstreamUrls.geminiEndpoint(
+      provider,
+      model: model.id,
+      stream: false,
+    );
+    if (url == null) {
+      throw const UpstreamException('The base URL is not an http(s) URL.');
+    }
+    final payload = utf8.encode(jsonEncode(antigravityImageRequest(request)));
+    final want = request.count < 1 ? 1 : request.count;
+    final out = <GeneratedImage>[];
+    for (var i = 0; i < want && out.length < want; i++) {
+      final text = await _post(
+        client,
+        provider,
+        model,
+        url,
+        payload,
+        ContentType.json,
+      );
+      out.addAll(parseAntigravityImages(text));
     }
     return out.length > want ? out.sublist(0, want) : out;
   }

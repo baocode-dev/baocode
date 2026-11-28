@@ -679,9 +679,15 @@ class _ModelEditDialogState extends State<ModelEditDialog> {
         if (_tried) setState(() {});
       });
     }
-    // What it is for, as the name typed tells, until one is picked.
+    // What it is for, as the name typed tells, until one is picked; and
+    // Gemini's per-model endpoint URL preview while the id changes.
     _id.addListener(() {
-      if (_kind == null && !_tried) setState(() {});
+      if ((_kind == null ||
+              (_protocol ?? widget.provider.protocol) ==
+                  ProviderProtocol.gemini) &&
+          !_tried) {
+        setState(() {});
+      }
     });
   }
 
@@ -724,7 +730,7 @@ class _ModelEditDialogState extends State<ModelEditDialog> {
       endpointUrl: () =>
           protocol == provider.protocol ? provider.endpointUrl : null,
     );
-    return '${UpstreamUrls.endpoint(speaking) ?? ''}';
+    return UpstreamUrls.endpointPlaceholder(speaking, model: _id.text.trim());
   }
 
   /// What the Endpoint choice shows [protocol] as; the upstream's for
