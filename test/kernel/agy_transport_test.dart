@@ -1358,4 +1358,143 @@ void main() {
       transport.close();
     },
   );
+
+  test(
+    'duringTurn (priority: next) queues while a foreground tool runs, allows cancel, and steers once the tool finishes',
+    () async {
+      final firstPrompt = Completer<Object?>();
+      final toolFinish = Completer<void>();
+      final prompts = <String>[];
+
+      Future<Object?> agent(FakeAgent agent, String method, Map params) async {
+        if (method != 'session/prompt') {
+          return agentSaying('')(agent, method, params);
+        }
+        final session = params['sessionId'] as String;
+        final text = ((params['prompt'] as List).last as Map)['text'] as String;
+        prompts.add(text);
+        if (text == 'run slow command') {
+          agent.say(session, {
+            'sessionUpdate': 'tool_call',
+            'toolCallId': 'fg_cmd',
+            'name': 'run_command',
+            'kind': 'execute',
+            'status': 'in_progress',
+            'rawInput': {'CommandLine': 'sleep 5'},
+          });
+          unawaited(
+            toolFinish.future.then((_) {
+              agent.say(session, {
+                'sessionUpdate': 'tool_call_update',
+                'toolCallId': 'fg_cmd',
+                'status': 'completed',
+                'rawOutput': {'output': 'done', 'exit_code': 0},
+              });
+            }),
+          );
+          return firstPrompt.future;
+        }
+        // Steered prompt completes the prior prompt and finishes the turn.
+        if (!firstPrompt.isCompleted) {
+          firstPrompt.complete({'stopReason': 'end_turn'});
+        }
+        agent.say(session, {
+          'sessionUpdate': 'agent_message_chunk',
+          'content': {'type': 'text', 'text': 'Handled steered message.'},
+        });
+        return {'stopReason': 'end_turn'};
+      }
+
+      final runtime = FakeRuntime(() => FakeAgent(agent));
+      final transport = await AgyTransport.start(
+        ClaudeLaunch(cwd: cwd, model: 'gemini-4-neon'),
+        runtime: runtime,
+      );
+      final kernel = Kernel(transport);
+      final sent = kernel.send('run slow command', uuid: 'u1');
+
+      // Wait until the foreground tool call has been reported.
+      while (!kernel.seen.any(
+        (m) =>
+            m['type'] == 'assistant' &&
+            ((m['message'] as Map)['content'] as List).any(
+              (b) => (b as Map)['type'] == 'tool_use',
+            ),
+      )) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+
+      // 1. Send a priority: next message while the foreground tool is running:
+      // it must stay queued (not immediately started/steered).
+      transport.write({
+        'type': 'user',
+        'uuid': 'u-cancel',
+        'priority': 'next',
+        'message': {
+          'role': 'user',
+          'content': [
+            {'type': 'text', 'text': 'never mind'},
+          ],
+        },
+      });
+      transport.write({
+        'type': 'user',
+        'uuid': 'u-steer',
+        'priority': 'next',
+        'message': {
+          'role': 'user',
+          'content': [
+            {'type': 'text', 'text': 'switch to plan B'},
+          ],
+        },
+      });
+      await Future<void>.delayed(const Duration(milliseconds: 25));
+
+      expect(prompts, ['run slow command']);
+      expect(
+        kernel.seen.any(
+          (m) =>
+              m['type'] == 'command_lifecycle' &&
+              (m['command_uuid'] == 'u-cancel' ||
+                  m['command_uuid'] == 'u-steer') &&
+              m['state'] == 'started',
+        ),
+        isFalse,
+      );
+
+      // 2. User can cancel the first queued message while the tool is still running.
+      transport.write({
+        'type': 'control_request',
+        'request_id': 'cancel-1',
+        'request': {
+          'subtype': 'cancel_async_message',
+          'message_uuid': 'u-cancel',
+        },
+      });
+      while (!kernel.seen.any(
+        (m) =>
+            m['type'] == 'command_lifecycle' &&
+            m['command_uuid'] == 'u-cancel' &&
+            m['state'] == 'cancelled',
+      )) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+
+      // 3. Once the foreground tool finishes, the remaining priority: next
+      // message automatically steers into the active turn.
+      toolFinish.complete();
+      await sent;
+      expect(prompts, ['run slow command', 'switch to plan B']);
+      expect(
+        kernel.seen.any(
+          (m) =>
+              m['type'] == 'command_lifecycle' &&
+              m['command_uuid'] == 'u-steer' &&
+              m['state'] == 'started',
+        ),
+        isTrue,
+      );
+      transport.close();
+    },
+  );
 }

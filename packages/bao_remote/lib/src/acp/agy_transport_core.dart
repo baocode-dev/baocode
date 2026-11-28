@@ -463,17 +463,34 @@ class AgyTransportCore {
     });
   }
 
+  /// Whether any foreground tool call of the main session is still executing
+  /// (excluding backgrounded commands and child subagent tool calls).
+  bool get _hasRunningForegroundTool => _calls.values.any(
+    (c) =>
+        c.told &&
+        !c.done &&
+        c.acp.running &&
+        !_bgCommands.containsKey(c.claudeId) &&
+        c.parentToolUseId == null,
+  );
+
   /// Folds [message] into the turn running, where the user would have it
   /// so (`priority` next or now, as the CLI folds one in between its tool
   /// calls): agy takes a prompt sent mid-turn in, ending the one before at
-  /// once, the turn going on in the new one's. Not while a question or an
-  /// approval waits on the user.
+  /// once, the turn going on in the new one's. While a foreground tool call
+  /// is still running, `priority: next` waits in `_queue` (visible and
+  /// editable/cancellable in the QueuePanel) until the tool finishes, then
+  /// folds in via [_drainSteerableQueued]; `priority: now` steers at once.
+  /// Not while a question or an approval waits on the user.
   bool _steer(Map<String, Object?> message) {
     final turn = _turn;
     final connection = _connection;
     final session = _agySession;
-    if (message['priority'] case 'next' || 'now') {
-    } else {
+    final priority = message['priority'];
+    if (priority != 'next' && priority != 'now') {
+      return false;
+    }
+    if (priority == 'next' && _hasRunningForegroundTool) {
       return false;
     }
     if (turn == null ||
@@ -496,6 +513,16 @@ class AgyTransportCore {
         'prompt': _acpPrompt(content),
       });
     return true;
+  }
+
+  /// Steers the next queued `priority: next`/`now` message into the active
+  /// turn once no foreground tool call is running.
+  void _drainSteerableQueued() {
+    if (_queue.isEmpty || _hasRunningForegroundTool) return;
+    final next = _queue.first;
+    if (_steer(next)) {
+      _queue.removeAt(0);
+    }
   }
 
   Future<void> _run(Map<String, Object?> message) async {
@@ -1201,6 +1228,7 @@ class AgyTransportCore {
       'stoppable': false,
       'output_file': ?logPath,
     });
+    _drainSteerableQueued();
   }
 
   void _settleBgCommand(
@@ -2452,6 +2480,7 @@ class AgyTransportCore {
         _hook(call.acp.failed ? 'PostToolUseFailure' : 'PostToolUse', call),
       );
     }
+    _drainSteerableQueued();
   }
 
   /// [content] is text, or Claude's blocks (an MCP tool's image).
