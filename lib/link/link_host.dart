@@ -1024,7 +1024,11 @@ class LinkHost extends ChangeNotifier {
             lastSeen: DateTime.now(),
           );
           unawaited(_save());
-          _connect(connection, _phones[phone.id]!);
+          _connect(
+            connection,
+            _phones[phone.id]!,
+            acks: params['ack'] == true,
+          );
           return {'device': _deviceInfo().toJson()};
         }
         final offer = _offer;
@@ -1121,7 +1125,11 @@ class LinkHost extends ChangeNotifier {
     return {'device': _deviceInfo().toJson()};
   }
 
-  void _connect(_Connection connection, PairedPhone phone) {
+  void _connect(
+    _Connection connection,
+    PairedPhone phone, {
+    bool acks = false,
+  }) {
     // One connection a phone: an older one is gone, not closed yet.
     for (final other in [..._connections]) {
       if (other != connection && other.phone?.id == phone.id) {
@@ -1141,6 +1149,7 @@ class LinkHost extends ChangeNotifier {
         customizations: customizations,
         bots: bots,
         quota: quota,
+        acks: acks,
       )..start());
     notifyListeners();
   }

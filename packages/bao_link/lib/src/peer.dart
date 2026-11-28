@@ -367,16 +367,15 @@ class LinkPeer {
     _ => throw const LinkRemoteException('failed', 'Bad answer'),
   };
 
-  /// Tells the other end [name].
-  void emit(String name, [Object? data]) {
-    if (!isClosed) _write(_control, {'ev': name, 'p': data});
-  }
+  /// Tells the other end [name]; completes once handed to the stream
+  /// (subject to its flow control).
+  Future<void> emit(String name, [Object? data]) =>
+      isClosed ? Future.value() : _write(_control, {'ev': name, 'p': data});
 
-  void _write(LinkStream stream, Map<String, Object?> message) {
-    stream
-        .send(Uint8List.fromList(utf8.encode(jsonEncode(message))))
-        .catchError((Object _) {});
-  }
+  Future<void> _write(LinkStream stream, Map<String, Object?> message) =>
+      stream
+          .send(Uint8List.fromList(utf8.encode(jsonEncode(message))))
+          .catchError((Object _) {});
 
   static Object? _decode(Uint8List bytes) {
     try {
@@ -461,6 +460,9 @@ class LinkPeer {
     if (name == LinkEvents.session &&
         data is Map<String, Object?> &&
         mirror != null) {
+      if (data case {'session': final String session, 'seq': final int seq}) {
+        unawaited(emit(LinkEvents.ack, {'session': session, 'seq': seq}));
+      }
       if (mirror.stale(data)) return;
       final whole = mirror.apply(data);
       _events.add(

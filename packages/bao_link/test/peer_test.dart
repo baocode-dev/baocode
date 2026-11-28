@@ -637,6 +637,36 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 10));
       expect(events, hasLength(4));
     });
+
+    test('sequenced session updates are acknowledged back to the desktop', () async {
+      final mirror = LinkSessionMirror();
+      final slimmer = LinkSessionSlimmer();
+      final (phone, desktop, _) = await pair(
+        mirror: mirror,
+        onRequest: (method, params) => switch (method) {
+          LinkMethods.open => slimmer.encode(
+            update(0, [message('Hel')], 1),
+            full: true,
+          ),
+          _ => null,
+        },
+      );
+      final acks = <LinkEvent>[];
+      desktop.events
+          .where((e) => e.name == LinkEvents.ack)
+          .listen(acks.add);
+      await phone.call(LinkMethods.open, {'session': 's'});
+      await desktop.emit(LinkEvents.session, {
+        ...slimmer.encode(
+          update(0, [message('Hello')], 1),
+          before: message('Hel'),
+        ),
+        'seq': 7,
+      });
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(acks, hasLength(1));
+      expect(acks.single.data, {'session': 's', 'seq': 7});
+    });
   });
 
   group('JSON append patches', () {

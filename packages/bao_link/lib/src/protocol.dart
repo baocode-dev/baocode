@@ -464,6 +464,12 @@ abstract final class LinkEvents {
   /// A [LinkSessionUpdate] of a session followed.
   static const session = 'session';
 
+  /// `{"session", "seq"}`: phone -> desktop acknowledgement that a
+  /// [session] update carrying `seq` arrived, so the desktop caps in-flight
+  /// updates and coalesces changes instead of queueing stale frames over a
+  /// slow link.
+  static const ack = 'ack';
+
   /// The desktop unpaired the phone; the connection ends.
   static const unpaired = 'unpaired';
 

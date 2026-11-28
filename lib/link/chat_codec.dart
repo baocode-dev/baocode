@@ -274,7 +274,9 @@ abstract final class ChatCodec {
     ThinkingItem() => {
       't': 'thinking',
       'text': item.text,
-      'tokens': item.tokens,
+      // While streaming, tokens ticks alongside text and would defeat
+      // LinkSessionSlimmer's single-string append patch on every chunk.
+      'tokens': item.streaming ? 0 : item.tokens,
       'seconds': ?item.seconds,
       'startedAt': ?item.startedAt?.millisecondsSinceEpoch,
     },

@@ -1005,6 +1005,131 @@ void main() {
       ],
     });
   });
+
+  test(
+    'with acks, a stalled phone never accumulates stale updates and jumps '
+    'straight to the latest state once it acks',
+    () async {
+      // A fresh pair without a mirror so we control acks manually.
+      final (rawPhone, rawDesktop) = await peers();
+      final ackBridge = WorkspaceBridge(
+        workspace: workspace,
+        peer: rawDesktop,
+        device: () => const DeviceInfo(name: 'M', kind: 'mac', system: 'macOS'),
+        throttle: const Duration(milliseconds: 5),
+        acks: true,
+        maxInFlight: 1,
+      )..start();
+      addTearDown(() async {
+        ackBridge.dispose();
+        await rawPhone.close();
+        await rawDesktop.close();
+      });
+      final received = <Map<String, Object?>>[];
+      rawPhone.events
+          .where((e) => e.name == LinkEvents.session)
+          .listen((e) => received.add(e.data! as Map<String, Object?>));
+
+      final id = WorkspaceBridge.idOf(workspace.threads.first);
+      await ackBridge.handle(LinkMethods.open, {'session': id});
+
+      final session = workspace.threads.first.session;
+      session.send(const ComposerMessage(text: 'go'));
+      await Future<void>.delayed(const Duration(milliseconds: 25));
+      // First update went out (seq 1); without an ack, further chunks coalesce.
+      expect(received, hasLength(1));
+      expect(received.first['seq'], 1);
+
+      for (final chunk in ['one ', 'two ', 'three ', 'four']) {
+        cli.push({
+          'type': 'stream_event',
+          'event': {
+            'type': 'content_block_delta',
+            'index': 0,
+            'delta': {'type': 'text_delta', 'text': chunk},
+          },
+        });
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      cli.push({'type': 'result', 'is_error': false});
+      await Future<void>.delayed(const Duration(milliseconds: 25));
+
+      // Still paused at 1 unacked frame — zero queue buildup!
+      expect(received, hasLength(1));
+
+      // Phone catches up and acks seq 1 -> desktop sends ONE update with the
+      // final finished state (live: false) instead of replaying every chunk.
+      await rawPhone.emit(LinkEvents.ack, {'session': id, 'seq': 1});
+      await Future<void>.delayed(const Duration(milliseconds: 25));
+      expect(received, hasLength(2));
+      expect(received.last['seq'], 2);
+      expect(received.last['live'], isFalse);
+    },
+  );
+
+  test('streaming thinking items use append patches', () {
+    final slimmer = LinkSessionSlimmer();
+    final t0 = DateTime(2026, 11, 27, 10, 0);
+    final first = ChatCodec.encode(
+      ThinkingItem(text: 'step 1', tokens: 10, startedAt: t0),
+    );
+    final second = ChatCodec.encode(
+      ThinkingItem(text: 'step 1\nstep 2', tokens: 25, startedAt: t0),
+    );
+    final patch = jsonAppendPatch(first, second);
+    expect(patch?.$1, ['text']);
+    expect(patch?.$2, '\nstep 2');
+    final wire = slimmer.encode(
+      LinkSessionUpdate(
+        session: 's',
+        start: 0,
+        count: 1,
+        items: [second],
+        live: true,
+      ),
+      before: first,
+    );
+    expect(wire['append'], {
+      'index': 0,
+      'path': ['text'],
+      'text': '\nstep 2',
+    });
+  });
+
+  test(
+    'reopening with have snaps to the latest window when many items came since',
+    () async {
+      final id = WorkspaceBridge.idOf(workspace.threads.first);
+      final session = workspace.threads.first.session;
+      session.send(const ComposerMessage(text: 'm0'));
+      cli.push({'type': 'result', 'is_error': false});
+      await settle();
+      final first = LinkSessionUpdate.fromJson(
+        (await bridge.handle(LinkMethods.open, {'session': id, 'window': 2}))!
+            as Map<String, Object?>,
+      );
+      final have = [for (final item in first.items) linkDigest(item)];
+
+      // Add more turns than the window (2) so the gap exceeds window.
+      for (var i = 1; i <= 4; i++) {
+        session.send(ComposerMessage(text: 'm$i'));
+        cli.push({'type': 'result', 'is_error': false});
+        await settle();
+      }
+      final again = LinkSessionUpdate.fromJson(
+        (await bridge.handle(LinkMethods.open, {
+              'session': id,
+              'window': 2,
+              'have': have,
+            }))!
+            as Map<String, Object?>,
+      );
+      expect(again.start, 0);
+      expect(again.count, 2);
+      expect(again.items, hasLength(2));
+      expect(again.earlier, isTrue);
+    },
+  );
 }
 
 /// A phone's end and a desktop's, connected.
