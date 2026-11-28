@@ -806,7 +806,7 @@ class ClaudeCodeKernel
             .request('rename_session', {'title': title, 'source': 'host'})
             .catchError((_) => const <String, Object?>{});
       }
-      unawaited(_refreshContext());
+      unawaited(_refreshContext(completed: _onAgy));
     } on ClaudeUnavailable catch (error) {
       _fail(
         error.message,
@@ -1452,7 +1452,7 @@ class ClaudeCodeKernel
           _toldContext = null;
           _resultsReading++;
           _resultsKnown = _resultsKnown && _results.rewind(itemId);
-          unawaited(_refreshContext());
+          unawaited(_refreshContext(completed: _onAgy));
           rewound.complete(true);
         })
         .catchError((Object error) {
@@ -2100,6 +2100,14 @@ class ClaudeCodeKernel
           commands: _commandsFrom(message['commands']),
         );
         emitInfoChanged();
+      case 'system' when message['subtype'] == 'context_usage':
+        if (message['usage'] case final Map<Object?, Object?> usage) {
+          _applyContextUsage(
+            usage.cast<String, Object?>(),
+            completed: true,
+            contextRequest: _usage?.mainContextRequest,
+          );
+        }
       case 'assistant':
         final told = _toldContext;
         if (_countRequest(message)) _reportStats();
@@ -2372,7 +2380,7 @@ class ClaudeCodeKernel
         _ => TurnUsage(costUsd: turnCost),
       },
     );
-    unawaited(_refreshContext(completed: _custom == null));
+    unawaited(_refreshContext(completed: _custom == null || _onAgy));
   }
 
   // --- Goal ------------------------------------------------------------------------
@@ -2860,37 +2868,49 @@ class ClaudeCodeKernel
       final usage = await control.request('get_context_usage', {
         'detail': 'full',
       }, const Duration(seconds: 20));
-      final max = usage['maxTokens'] as int? ?? _contextWindow;
-      _contextWindow = max;
-      _contextReported = true;
-      emitInfoChanged();
-      _contextDetail = ContextDetail.parse(usage);
-      _counted = (
-        total: usage['totalTokens'] as int? ?? 0,
-        segments: [
-          for (final raw in usage['categories'] as List? ?? const [])
-            if (raw is Map && raw['tokens'] is int)
-              ContextSegment(
-                '${raw['name']}',
-                raw['tokens'] as int,
-                kind: switch (raw['kind']) {
-                  'free' => ContextKind.free,
-                  'buffer' => ContextKind.buffer,
-                  'deferred' => ContextKind.deferred,
-                  _ => ContextKind.used,
-                },
-              ),
-        ],
+      _applyContextUsage(
+        usage,
+        completed: completed,
+        contextRequest: contextRequest,
       );
-      // Only the same request's fresh count supersedes its final total.
-      if (completed && identical(_usage?.mainContextRequest, contextRequest)) {
-        _usage?.clearContext();
-        _toldContext = null;
-      }
-      _reportContext();
     } on Object {
       // Context usage is a nicety: an older CLI may not answer.
     }
+  }
+
+  void _applyContextUsage(
+    Map<String, Object?> usage, {
+    bool completed = false,
+    Object? contextRequest,
+  }) {
+    final max = usage['maxTokens'] as int? ?? _contextWindow;
+    _contextWindow = max;
+    _contextReported = true;
+    emitInfoChanged();
+    _contextDetail = ContextDetail.parse(usage);
+    _counted = (
+      total: usage['totalTokens'] as int? ?? 0,
+      segments: [
+        for (final raw in usage['categories'] as List? ?? const [])
+          if (raw is Map && raw['tokens'] is int)
+            ContextSegment(
+              '${raw['name']}',
+              raw['tokens'] as int,
+              kind: switch (raw['kind']) {
+                'free' => ContextKind.free,
+                'buffer' => ContextKind.buffer,
+                'deferred' => ContextKind.deferred,
+                _ => ContextKind.used,
+              },
+            ),
+      ],
+    );
+    // Only the same request's fresh count supersedes its final total.
+    if (completed && identical(_usage?.mainContextRequest, contextRequest)) {
+      _usage?.clearContext();
+      _toldContext = null;
+    }
+    _reportContext();
   }
 
   /// What fills the context: as much as the model last told
@@ -3328,7 +3348,7 @@ class ClaudeCodeKernel
       }
       if (!identical(control, _control)) return;
       _refreshApplied();
-      await _refreshContext();
+      await _refreshContext(completed: _onAgy);
     });
   }
 

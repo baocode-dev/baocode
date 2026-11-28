@@ -947,4 +947,160 @@ void main() {
       second.close();
     },
   );
+
+  test(
+    'context usage streams on usage_update, persists across resume, and resets on rewind',
+    () async {
+      final midTurn = Completer<void>();
+      var turns = 0;
+      Future<Object?> agent(FakeAgent agent, String method, Map params) async {
+        if (method != 'session/prompt') {
+          return agentSaying('')(agent, method, params);
+        }
+        final session = params['sessionId'] as String;
+        turns++;
+        if (turns == 1) {
+          agent.say(session, {
+            'sessionUpdate': 'usage_update',
+            'used': 0,
+            'size': 1048576,
+          });
+          agent.say(session, {
+            'sessionUpdate': 'usage_update',
+            'used': 9800,
+            'size': 1048576,
+          });
+          await midTurn.future;
+          agent.say(session, {
+            'sessionUpdate': 'agent_message_chunk',
+            'content': {'type': 'text', 'text': 'Done.'},
+          });
+          agent.say(session, {
+            'sessionUpdate': 'usage_update',
+            'used': 14500,
+            'size': 1048576,
+          });
+          return {'stopReason': 'end_turn'};
+        }
+        // Stray zero after resume must not wipe restored context; positive updates do.
+        agent.say(session, {
+          'sessionUpdate': 'usage_update',
+          'used': 0,
+          'size': 1048576,
+        });
+        agent.say(session, {
+          'sessionUpdate': 'usage_update',
+          'used': 18200,
+          'size': 1048576,
+        });
+        agent.say(session, {
+          'sessionUpdate': 'agent_message_chunk',
+          'content': {'type': 'text', 'text': 'Again.'},
+        });
+        return {'stopReason': 'end_turn'};
+      }
+
+      List<Map<String, Object?>> contextEvents(Kernel kernel) => [
+        for (final message in kernel.seen)
+          if (message['type'] == 'system' &&
+              message['subtype'] == 'context_usage')
+            (message['usage'] as Map).cast<String, Object?>(),
+      ];
+
+      Future<Map<String, Object?>> askContext(
+        ClaudeCodeTransport transport,
+        Kernel kernel,
+        String requestId,
+      ) async {
+        transport.write({
+          'type': 'control_request',
+          'request_id': requestId,
+          'request': {'subtype': 'get_context_usage', 'detail': 'full'},
+        });
+        while (!kernel.seen.any(
+          (m) =>
+              m['type'] == 'control_response' &&
+              (m['response'] as Map?)?['request_id'] == requestId,
+        )) {
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+        final response = kernel.seen.lastWhere(
+          (m) =>
+              m['type'] == 'control_response' &&
+              (m['response'] as Map?)?['request_id'] == requestId,
+        );
+        return ((response['response'] as Map)['response'] as Map)
+            .cast<String, Object?>();
+      }
+
+      final runtime = FakeRuntime(() => FakeAgent(agent));
+      final first = await AgyTransport.start(
+        ClaudeLaunch(cwd: cwd, model: 'gemini-4-neon', autocompact: 400000),
+        runtime: runtime,
+      );
+      final kernel = Kernel(first);
+      final turn1 = kernel.send('first', uuid: 'u1');
+
+      // Live updates arrive while the turn is still running.
+      while (contextEvents(kernel).length < 2) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      expect(kernel.results, isEmpty);
+      expect(contextEvents(kernel).map((u) => u['totalTokens']), [0, 9800]);
+      expect(contextEvents(kernel).last['maxTokens'], 1048576);
+
+      midTurn.complete();
+      await turn1;
+      expect(contextEvents(kernel).map((u) => u['totalTokens']), [
+        0,
+        9800,
+        14500,
+      ]);
+
+      final id = kernel.seen.first['session_id']! as String;
+      final sync = lines(id).lastWhere((l) => l['type'] == AgyTransport.syncType);
+      expect(sync['used'], 14500);
+      expect(sync['size'], 1048576);
+      first.close();
+
+      // Reopening / switching back restores persisted usage before any message is sent.
+      final second = await AgyTransport.start(
+        ClaudeLaunch(
+          cwd: cwd,
+          model: 'gemini-4-neon',
+          autocompact: 400000,
+          resume: id,
+        ),
+        runtime: runtime,
+      );
+      final resumed = Kernel(second);
+      final beforePrompt = await askContext(second, resumed, 'ctx-1');
+      expect(beforePrompt['totalTokens'], 14500);
+      expect(beforePrompt['maxTokens'], 1048576);
+
+      // Next turn ignores a stray 0 and streams the new total.
+      await resumed.send('second', uuid: 'u2');
+      expect(contextEvents(resumed).map((u) => u['totalTokens']), [18200]);
+
+      // Rewinding past syncedUuid clears cached usage.
+      second.write({
+        'type': 'control_request',
+        'request_id': 'rw-1',
+        'request': {
+          'subtype': 'rewind_conversation',
+          'target_message_uuid': 'u1',
+        },
+      });
+      while (!resumed.seen.any(
+        (m) =>
+            m['type'] == 'control_response' &&
+            (m['response'] as Map?)?['request_id'] == 'rw-1',
+      )) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      final afterRewind = await askContext(second, resumed, 'ctx-2');
+      expect(afterRewind['totalTokens'], 0);
+      second.close();
+    },
+  );
 }

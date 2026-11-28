@@ -38,6 +38,8 @@ class AgyTransport implements ClaudeCodeTransport {
       _agySession = line.session;
       _synced = line.synced;
       _handedOff = line.handedOff;
+      _used = line.used;
+      _size = line.size;
     }
     _running[_store.sessionId] = this;
   }
@@ -244,16 +246,7 @@ class AgyTransport implements ClaudeCodeTransport {
           'title': title,
         });
       case 'get_context_usage':
-        _respond(
-          id,
-          agyContextUsage(
-            used: _used ?? 0,
-            size: _size ?? launch.autocompact ?? 0,
-            brief: _toldBrief ??= _brief(),
-            chain: _store.chain,
-            handedOff: _handedOff,
-          ),
-        );
+        _respond(id, _contextUsage());
       case 'rewind_conversation':
         _respond(id, await _rewind(request));
       case 'mcp_status':
@@ -436,6 +429,8 @@ class AgyTransport implements ClaudeCodeTransport {
         'agySessionId': _agySession,
         'syncedUuid': _synced,
         'handedOff': _handedOff,
+        'used': ?_used,
+        'size': ?_size,
       });
     }
     _turn = null;
@@ -561,6 +556,7 @@ class AgyTransport implements ClaudeCodeTransport {
       _synced = null;
       _agySession = null;
       _handedOff = 0;
+      _used = null;
     }
     return {'rewound': true};
   }
@@ -573,13 +569,16 @@ class AgyTransport implements ClaudeCodeTransport {
   static const syncType = 'antigravity-session';
 
   /// The last note of agy's session in the conversation's file.
-  ({String session, String? synced, int handedOff})? get _syncLine {
+  ({String session, String? synced, int handedOff, int? used, int? size})?
+  get _syncLine {
     for (final entry in _store.extras.reversed) {
       if (entry case {'type': syncType, 'agySessionId': final String id}) {
         return (
           session: id,
           synced: entry['syncedUuid'] as String?,
           handedOff: (entry['handedOff'] as num?)?.toInt() ?? 0,
+          used: (entry['used'] as num?)?.toInt(),
+          size: (entry['size'] as num?)?.toInt(),
         );
       }
     }
@@ -657,6 +656,7 @@ class AgyTransport implements ClaudeCodeTransport {
       _agySession = started['sessionId'] as String?;
       _synced = null;
       _handedOff = 0;
+      _used = null;
       _commandsOf(started);
       if (_agySession == null) {
         throw const AcpError(-32603, 'Antigravity started no session');
@@ -1097,11 +1097,30 @@ class AgyTransport implements ClaudeCodeTransport {
   int? _used;
   int? _size;
 
+  Map<String, Object?> _contextUsage() => agyContextUsage(
+    used: _used ?? 0,
+    size: _size ?? launch.autocompact ?? 0,
+    brief: _toldBrief ??= _brief(),
+    chain: _store.chain,
+    handedOff: _handedOff,
+  );
+
   void _usageOf(Object? usage) {
     if (usage is! Map) return;
-    if (usage['used'] case final num used) _used = used.toInt();
+    final beforeUsed = _used;
+    final beforeSize = _size;
+    if (usage['used'] case final num used when used > 0 || _used == null) {
+      _used = used.toInt();
+    }
     if (usage['size'] case final num size when size > 0) {
       _size = size.toInt();
+    }
+    if (_used != beforeUsed || _size != beforeSize) {
+      _emit({
+        'type': 'system',
+        'subtype': 'context_usage',
+        'usage': _contextUsage(),
+      });
     }
     // A prompt's, added up: a turn the user folded a message into is
     // told in two prompts or more (see [_steer]).

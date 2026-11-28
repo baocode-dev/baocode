@@ -5679,6 +5679,124 @@ void main() {
           claudeSession.kernel.dispose();
         },
       );
+
+      test(
+        'on Antigravity ACP, live context_usage updates during a turn and supersedes stale totals',
+        () async {
+          final providers = ModelProviders.memory(
+            providers: [
+              ModelProvider.fromJson({
+                'id': 'agy',
+                'name': 'Antigravity',
+                'protocol': 'antigravity-cli',
+                'models': [
+                  {'id': 'gemini-4-neon', 'contextWindow': 400000},
+                ],
+              })!,
+            ],
+          );
+          final answers = <String, Map<String, Object?>>{
+            'get_context_usage': {
+              'totalTokens': 0,
+              'maxTokens': 400000,
+              'categories': [
+                {'name': 'Free space', 'tokens': 400000, 'kind': 'free'},
+              ],
+            },
+          };
+          final cli = FakeCli(answers: answers);
+          final session = SessionRecord(
+            id: 's-agy',
+            cwd: '/p',
+            title: 'mixed',
+            updatedAt: DateTime(2026),
+          );
+          final agyKernel = ClaudeCodeKernel(
+            MockKernels.claudeCode,
+            KernelContext(
+              cwd: '/p',
+              resume: session,
+              settings: const {'model': '@agy/gemini-4-neon'},
+            ),
+            providers: providers,
+            start: (_) async => cli,
+            // Replayed history from an earlier Claude turn sets a stale _toldContext.
+            readHistory: (_) async => [
+              {
+                'type': 'assistant',
+                'parent_tool_use_id': null,
+                'message': {
+                  'id': 'msg_prev',
+                  'model': 'claude-sonnet-5',
+                  'role': 'assistant',
+                  'content': const [],
+                  'usage': {'input_tokens': 50000, 'output_tokens': 500},
+                },
+              },
+            ],
+          );
+          final transcript = Transcript();
+          agyKernel.events.listen(transcript.apply);
+
+          agyKernel.send(const KernelTurn(id: 'u1', text: 'hi'));
+          await pumpEventQueue();
+          // Launching on Antigravity ACP supersedes the stale Claude total with agy's count.
+          expect(transcript.usage!.used, 0);
+          expect(transcript.usage!.window, 400000);
+
+          // Live context_usage from agy updates immediately mid-turn.
+          cli.push({
+            'type': 'system',
+            'subtype': 'context_usage',
+            'usage': {
+              'totalTokens': 9800,
+              'maxTokens': 1048576,
+              'categories': [
+                {'name': 'System prompt', 'tokens': 8000, 'kind': 'used'},
+                {'name': 'Messages', 'tokens': 1800, 'kind': 'used'},
+                {'name': 'Free space', 'tokens': 1038776, 'kind': 'free'},
+              ],
+            },
+          });
+          await pumpEventQueue();
+          expect(transcript.usage!.used, 9800);
+          expect(transcript.usage!.window, 1048576);
+
+          // A second mid-turn update refreshes again before result.
+          cli.push({
+            'type': 'system',
+            'subtype': 'context_usage',
+            'usage': {
+              'totalTokens': 15200,
+              'maxTokens': 1048576,
+              'categories': [
+                {'name': 'System prompt', 'tokens': 8000, 'kind': 'used'},
+                {'name': 'Messages', 'tokens': 7200, 'kind': 'used'},
+                {'name': 'Free space', 'tokens': 1033376, 'kind': 'free'},
+              ],
+            },
+          });
+          await pumpEventQueue();
+          expect(transcript.usage!.used, 15200);
+
+          // Turn end refreshes final breakdown and still supersedes any stale total.
+          answers['get_context_usage'] = {
+            'totalTokens': 16000,
+            'maxTokens': 1048576,
+            'categories': [
+              {'name': 'System prompt', 'tokens': 8000, 'kind': 'used'},
+              {'name': 'Messages', 'tokens': 8000, 'kind': 'used'},
+              {'name': 'Free space', 'tokens': 1032576, 'kind': 'free'},
+            ],
+          };
+          cli.push({'type': 'result', 'subtype': 'success'});
+          await pumpEventQueue();
+          expect(transcript.usage!.used, 16000);
+          expect(transcript.usage!.window, 1048576);
+
+          agyKernel.dispose();
+        },
+      );
     });
 
     test('one that exits while starting says what it printed', () async {
