@@ -26,6 +26,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import '../../settings/user_settings.dart';
 import 'terminal_mouse.dart';
 import 'terminal_selection.dart';
 
@@ -164,7 +165,7 @@ String terminalPasteData(
 /// macOS, Ctrl+Shift+C elsewhere and also Ctrl+C (copy and clear) on
 /// Windows, with a selection; paste is Cmd+V on macOS, Ctrl+V or
 /// Ctrl+Shift+V on Windows, Ctrl+Shift+V on Linux; Shift+Insert pastes the
-/// selection on Linux.
+/// selection on Linux and pastes the clipboard elsewhere.
 TerminalClipboardCommand? terminalClipboardCommandFor(
   IKeyboardEvent ev, {
   required bool hasSelection,
@@ -204,15 +205,60 @@ TerminalClipboardCommand? terminalClipboardCommandFor(
       return TerminalClipboardCommand.paste;
     }
   }
-  if (isLinux &&
-      ev.keyCode == insert &&
+  if (ev.keyCode == insert &&
       ev.shiftKey &&
       !ev.ctrlKey &&
       !ev.altKey &&
       !ev.metaKey) {
-    return TerminalClipboardCommand.pasteSelection;
+    return isLinux
+        ? TerminalClipboardCommand.pasteSelection
+        : TerminalClipboardCommand.paste;
   }
   return null;
+}
+
+/// Whether selecting text in a terminal copies it to the clipboard:
+/// settings.json's `terminal.integrated.copyOnSelection` (off by default),
+/// one choice for every terminal. Settings → General and the terminal's
+/// context menu toggle it, and the file edited by hand applies at once.
+abstract final class TerminalCopyOnSelection {
+  static const settingKey = 'terminal.integrated.copyOnSelection';
+
+  /// Whether copy-on-selection is on now.
+  static final ValueNotifier<bool> on = ValueNotifier(false);
+
+  static UserSettings? _settings;
+
+  /// [value] as settings.json has it.
+  static bool parse(Object? value) => value == true;
+
+  /// [copy] as settings.json keeps it; null (not written) for off.
+  static bool? setting(bool copy) => copy ? true : null;
+
+  /// Sets [on] from [settings] now and whenever it changes, and keeps
+  /// what is chosen there.
+  static void follow(UserSettings settings) {
+    _settings = settings;
+    void update() => on.value = parse(settings[settingKey]);
+    update();
+    settings.addListener(update);
+  }
+
+  /// Turns copy-on-selection on or off, and keeps the choice.
+  static void set(bool copy) {
+    on.value = copy;
+    final settings = _settings;
+    if (settings == null) return;
+    unawaited(
+      settings.update(settingKey, setting(copy)).catchError((Object error) {
+        // A settings file that does not parse is left as it is; its error
+        // is shown, and the choice holds for the run.
+        debugPrint('$settingKey not kept: $error');
+      }),
+    );
+  }
+
+  static void toggle() => set(!on.value);
 }
 
 Future<String?> _readSystemClipboard() async =>

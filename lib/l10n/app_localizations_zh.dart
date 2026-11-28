@@ -13849,4 +13849,13 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get tailReadOnlyHint => '实时追踪(tail -f)中为只读，关闭追踪后可编辑';
+
+  @override
+  String get terminalCopyOnSelectionSetting => '终端选中时自动复制';
+
+  @override
+  String get terminalCopyOnSelectionSettingDescription => '在终端中选中文本时自动复制到剪贴板。';
+
+  @override
+  String get termCopyOnSelection => '选中时自动复制';
 }

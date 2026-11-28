@@ -9264,5 +9264,17 @@
   "tailReadOnlyHint": "Read-only while tailing (tail -f). Stop tailing to edit.",
   "@tailReadOnlyHint": {
     "description": "Inline tooltip shown at the caret when trying to edit a file while tail mode is active."
+  },
+  "terminalCopyOnSelectionSetting": "Terminal: Copy on Selection",
+  "@terminalCopyOnSelectionSetting": {
+    "description": "Settings label for terminal.integrated.copyOnSelection."
+  },
+  "terminalCopyOnSelectionSettingDescription": "Copy text selected in the terminal to the clipboard automatically.",
+  "@terminalCopyOnSelectionSettingDescription": {
+    "description": "Settings description for terminal.integrated.copyOnSelection."
+  },
+  "termCopyOnSelection": "Copy on Selection",
+  "@termCopyOnSelection": {
+    "description": "Terminal context menu toggle for copying selected text automatically."
   }
 }

@@ -3946,5 +3946,8 @@
   "tailSaveFirst": "请先保存更改后再开启实时追踪",
   "tailResume": "滚动到底部并继续追踪",
   "cmdToggleTail": "切换实时追踪(tail -f)",
-  "tailReadOnlyHint": "实时追踪(tail -f)中为只读，关闭追踪后可编辑"
+  "tailReadOnlyHint": "实时追踪(tail -f)中为只读，关闭追踪后可编辑",
+  "terminalCopyOnSelectionSetting": "终端选中时自动复制",
+  "terminalCopyOnSelectionSettingDescription": "在终端中选中文本时自动复制到剪贴板。",
+  "termCopyOnSelection": "选中时自动复制"
 }

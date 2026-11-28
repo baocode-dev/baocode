@@ -217,7 +217,9 @@ class TerminalInstance extends ChangeNotifier {
       selection: selection,
       coreService: terminal.coreService,
       optionsService: terminal.optionsService,
+      copyOnSelection: TerminalCopyOnSelection.on.value,
     );
+    TerminalCopyOnSelection.on.addListener(_updateCopyOnSelection);
     mouse = TerminalMouse(
       bufferService: terminal.bufferService,
       coreService: terminal.coreService,
@@ -460,6 +462,10 @@ class TerminalInstance extends ChangeNotifier {
   /// remeasure terminal cells.
   void _updateFont() {
     xterm.options.fontFamily = vscodeTerminalFontFamily();
+  }
+
+  void _updateCopyOnSelection() {
+    clipboard.copyOnSelection = TerminalCopyOnSelection.on.value;
   }
 
   /// The find widget's theme listener, with `_updateFindColors`' new colors.
@@ -833,6 +839,7 @@ class TerminalInstance extends ChangeNotifier {
     _colorTheme.removeListener(_updateTheme);
     CodeFont.families.removeListener(_updateFont);
     LinuxCodeFonts.resolved.removeListener(_updateFont);
+    TerminalCopyOnSelection.on.removeListener(_updateCopyOnSelection);
     if (!_exited) _pty?.kill();
     unawaited(_printing?.cancel());
     unawaited(_output.close());

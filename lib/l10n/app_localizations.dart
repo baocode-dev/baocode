@@ -23736,6 +23736,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Read-only while tailing (tail -f). Stop tailing to edit.'**
   String get tailReadOnlyHint;
+
+  /// Settings label for terminal.integrated.copyOnSelection.
+  ///
+  /// In en, this message translates to:
+  /// **'Terminal: Copy on Selection'**
+  String get terminalCopyOnSelectionSetting;
+
+  /// Settings description for terminal.integrated.copyOnSelection.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy text selected in the terminal to the clipboard automatically.'**
+  String get terminalCopyOnSelectionSettingDescription;
+
+  /// Terminal context menu toggle for copying selected text automatically.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy on Selection'**
+  String get termCopyOnSelection;
 }
 
 class _AppLocalizationsDelegate

@@ -977,6 +977,12 @@ final List<KeybindingEntry> workbenchExtraKeybindings = [
     when: _terminalFocus,
   ),
   const KeybindingEntry(
+    win: 'shift+insert',
+    mac: 'shift+insert',
+    command: 'workbench.action.terminal.paste',
+    when: _terminalFocus,
+  ),
+  const KeybindingEntry(
     linux: 'shift+insert',
     command: 'workbench.action.terminal.pasteSelection',
     when: _terminalFocus,
