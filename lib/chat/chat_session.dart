@@ -1206,14 +1206,14 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
   /// the user wrote it (null for what the app sends): the agent is told as
   /// that changes ([UserPlace]). [notes] go to the agent with it, not
   /// shown (each a `<system-reminder>`).
-  void send(
+  String? send(
     ComposerMessage message, {
     bool now = false,
     OpenEditor? Function()? editor,
     UserPlace? from,
     List<String> notes = const [],
   }) {
-    if (message.isEmpty || !canSend) return;
+    if (message.isEmpty || !canSend) return null;
     int? targetIndex;
     final isAgentMessage = message.text.trimLeft().startsWith('<agent-message');
     if (!isAgentMessage && _editBeforeIds != null) {
@@ -1255,6 +1255,7 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
         kernel.moveQueued(turn.id, targetIndex);
       }
     }
+    return turn.id;
   }
 
   /// Where the agent finds [images] as files: they reach it as pictures
@@ -1295,11 +1296,13 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
   /// their ids: the next first. Not in the conversation until taken up.
   List<(String, UserMessageItem)> get queued => _transcript.queued;
 
-  /// Takes back the queued message [id].
-  void cancelQueued(String id) {
+  /// Takes back the queued message [id]; returns whether it was cancelled
+  /// before starting.
+  Future<bool> cancelQueued(String id) async {
     if (_kernel case final QueuesMessages kernel) {
-      unawaited(kernel.cancelQueued(id));
+      return kernel.cancelQueued(id);
     }
+    return false;
   }
 
   /// Queued ids that followed a message taken back via [editQueued]: resending

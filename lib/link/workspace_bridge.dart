@@ -558,13 +558,13 @@ class WorkspaceBridge {
     if (!session.canSend) {
       throw const LinkRemoteException('busy', 'The agent is at work');
     }
-    session.send(
+    final turnId = session.send(
       _message(thread, params, images),
       now: params['now'] == true,
       from: _from(thread),
       notes: notes,
     );
-    return {'session': idOf(thread)};
+    return {'session': idOf(thread), 'turn': ?turnId};
   }
 
   Future<Object?> handle(String method, Map<String, Object?> params) async {
@@ -660,6 +660,30 @@ class WorkspaceBridge {
         };
       case LinkMethods.stop:
         _thread(params['session']).session.stop();
+        return null;
+      case LinkMethods.cancelQueued:
+        final session = _thread(params['session']).session;
+        final id = params['id'];
+        if (id is! String) {
+          throw const LinkRemoteException('bad', 'No queued message id');
+        }
+        return {'cancelled': await session.cancelQueued(id)};
+      case LinkMethods.sendQueuedNow:
+        final session = _thread(params['session']).session;
+        final id = params['id'];
+        if (id is! String) {
+          throw const LinkRemoteException('bad', 'No queued message id');
+        }
+        session.sendQueuedNow(id);
+        return null;
+      case LinkMethods.moveQueued:
+        final session = _thread(params['session']).session;
+        final id = params['id'];
+        final index = params['index'];
+        if (id is! String || index is! int) {
+          throw const LinkRemoteException('bad', 'Bad queued move');
+        }
+        session.moveQueued(id, index);
         return null;
       case LinkMethods.answer:
         final session = _thread(params['session']).session;
@@ -1798,6 +1822,12 @@ class _Follow {
     final goal = _goal(session.goal);
     final context = _context(session.context);
     final quota = this.quota?.of(session);
+    final queued = session.canQueue
+        ? [
+            for (final (id, item) in session.queued)
+              {'id': id, 'item': _encode(item)},
+          ]
+        : null;
     final restText = jsonEncode([
       earlier,
       goal,
@@ -1808,6 +1838,7 @@ class _Follow {
       changes,
       [for (final task in tasks) task.toJson()],
       quota,
+      queued,
     ]);
     if (!full &&
         start == count &&
@@ -1842,6 +1873,7 @@ class _Follow {
       goal: goal,
       context: context,
       quota: quota,
+      queued: queued,
     );
   }
 

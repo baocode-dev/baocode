@@ -1130,6 +1130,81 @@ void main() {
       expect(again.earlier, isTrue);
     },
   );
+
+  test(
+    'queued messages sync to the phone and can be moved, cancelled, or sent now',
+    () async {
+      final opened = await open();
+      expect(opened.queued, isEmpty);
+
+      // Start a turn, then send three messages with now: false so they queue
+      // (q1 is handed to the CLI, q2 & q3 are held in the kernel queue).
+      await bridge.handle(LinkMethods.send, {'session': id, 'text': 'turn 1'});
+      final r1 =
+          (await bridge.handle(LinkMethods.send, {
+                'session': id,
+                'text': 'queued 1',
+                'now': false,
+              }))!
+              as Map<String, Object?>;
+      final r2 =
+          (await bridge.handle(LinkMethods.send, {
+                'session': id,
+                'text': 'queued 2',
+                'now': false,
+              }))!
+              as Map<String, Object?>;
+      final r3 =
+          (await bridge.handle(LinkMethods.send, {
+                'session': id,
+                'text': 'queued 3',
+                'now': false,
+              }))!
+              as Map<String, Object?>;
+      final q1 = r1['turn'] as String;
+      final q2 = r2['turn'] as String;
+      final q3 = r3['turn'] as String;
+      await settle();
+
+      List<String> queuedTexts(LinkSessionUpdate u) => [
+        for (final entry in u.queued ?? const <Map<String, Object?>>[])
+          (ChatCodec.decode(entry['item']) as UserMessageItem).text,
+      ];
+      expect(queuedTexts(updates.last), ['queued 1', 'queued 2', 'queued 3']);
+
+      // Reorder q3 ahead of q2.
+      await bridge.handle(LinkMethods.moveQueued, {
+        'session': id,
+        'id': q3,
+        'index': 1,
+      });
+      await settle();
+      expect(queuedTexts(updates.last), ['queued 1', 'queued 3', 'queued 2']);
+
+      // Cancel q2 (held in queue, so it cancels immediately).
+      final cancelled =
+          (await bridge.handle(LinkMethods.cancelQueued, {
+                'session': id,
+                'id': q2,
+              }))!
+              as Map<String, Object?>;
+      expect(cancelled['cancelled'], isTrue);
+      await settle();
+      expect(queuedTexts(updates.last), ['queued 1', 'queued 3']);
+
+      // Send q1 now (interrupts turn 1).
+      await bridge.handle(LinkMethods.sendQueuedNow, {'session': id, 'id': q1});
+      await settle();
+      expect(
+        cli.written.any(
+          (m) =>
+              m['type'] == 'control_request' &&
+              (m['request'] as Map?)?['subtype'] == 'interrupt',
+        ),
+        isTrue,
+      );
+    },
+  );
 }
 
 /// A phone's end and a desktop's, connected.

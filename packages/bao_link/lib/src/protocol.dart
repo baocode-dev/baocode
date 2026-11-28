@@ -80,6 +80,20 @@ abstract final class LinkMethods {
   /// `{"session"}`: stops the turn under way.
   static const stop = 'stop';
 
+  /// `{"session", "id"}`: takes back the queued message `id` before its turn
+  /// starts. Answered with `{"cancelled": bool}`. `unknown` from a desktop
+  /// before queue sync.
+  static const cancelQueued = 'cancelQueued';
+
+  /// `{"session", "id"}`: takes up the queued message `id` at once, stopping
+  /// the turn running for it. `unknown` from a desktop before queue sync.
+  static const sendQueuedNow = 'sendQueuedNow';
+
+  /// `{"session", "id", "index"}`: puts the queued message `id` at `index`
+  /// among those queued (0 is next). `unknown` from a desktop before queue
+  /// sync.
+  static const moveQueued = 'moveQueued';
+
   /// `{"session", "request", "answer"}`: answers what the agent asked (see
   /// [LinkSessionUpdate.interaction]).
   static const answer = 'answer';
@@ -883,6 +897,7 @@ class LinkSessionUpdate {
     this.goal,
     this.context,
     this.quota,
+    this.queued,
   });
 
   factory LinkSessionUpdate.fromJson(Map<String, Object?> json) =>
@@ -919,6 +934,10 @@ class LinkSessionUpdate {
         },
         quota: switch (json['quota']) {
           final Map<String, Object?> map => map,
+          _ => null,
+        },
+        queued: switch (json['queued']) {
+          final List<Object?> list => [for (final entry in list) _map(entry)],
           _ => null,
         },
       );
@@ -971,6 +990,12 @@ class LinkSessionUpdate {
   /// learned; `left`, a percentage. Times in milliseconds since the epoch.
   final Map<String, Object?>? quota;
 
+  /// The messages waiting in the desktop's queue for this session: each
+  /// `{"id", "item"}` (`item` a `UserMessageItem` encoded by `chat_codec.dart`),
+  /// the next first. Present (empty when none wait) when the desktop and this
+  /// session's kernel support server-side queueing; null when they do not.
+  final List<Map<String, Object?>>? queued;
+
   Map<String, Object?> toJson() => {
     'session': session,
     'start': start,
@@ -985,6 +1010,7 @@ class LinkSessionUpdate {
     'goal': ?goal,
     'context': ?context,
     'quota': ?quota,
+    'queued': ?queued,
   };
 }
 

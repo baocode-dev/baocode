@@ -26,6 +26,7 @@ abstract final class LinkSessionWire {
     'goal',
     'context',
     'quota',
+    'queued',
   ];
 }
 
