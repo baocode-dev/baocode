@@ -8,6 +8,8 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
 import '../platform/data_dir.dart';
+import 'windows_local_app_data.dart'
+    if (dart.library.ffi) 'windows_local_app_data_ffi.dart';
 
 /// The user's own browsers, reached through BaoCode's extension in them
 /// (browser_extension/): each runs the app's native messaging host
@@ -85,11 +87,19 @@ class BrowserBridge extends ChangeNotifier {
   /// that cannot have it leaves them to it.
   static String get _lockPath => p.join(_folder, 'baocode-browser.lock');
 
-  /// The user's own temporary folder. On Linux, `$XDG_RUNTIME_DIR` (the
-  /// user's alone) before `$TMPDIR` or /tmp (shared with every user): as
-  /// host.c finds it.
+  /// The user's own folder for the bridge's socket or port file.
+  /// On Windows, `%LOCALAPPDATA%\BaoCode` via `SHGetKnownFolderPath` (the
+  /// user's own, immune to differing `TEMP`/`TMP` environment variables across
+  /// launchers): as host.cpp finds it; falling back to [Directory.systemTemp]
+  /// if unavailable.
+  /// On Linux, `$XDG_RUNTIME_DIR` (the user's alone) before `$TMPDIR` or /tmp
+  /// (shared with every user): as host.c finds it.
   static String get _folder {
     if (socketFolder case final folder?) return folder;
+    if (Platform.isWindows) {
+      final local = windowsLocalAppData();
+      if (local != null && local.isNotEmpty) return p.join(local, 'BaoCode');
+    }
     if (Platform.isLinux) {
       final runtime = Platform.environment['XDG_RUNTIME_DIR'];
       if (runtime != null && runtime.isNotEmpty) return runtime;
@@ -286,6 +296,7 @@ class BrowserBridge extends ChangeNotifier {
   Future<ServerSocket?> _bindLoopback() async {
     final RandomAccessFile lock;
     try {
+      await Directory(_folder).create(recursive: true);
       // Not truncated: another BaoCode may hold it.
       lock = await File(_lockPath).open(mode: FileMode.append);
     } on FileSystemException catch (error) {
@@ -307,9 +318,22 @@ class BrowserBridge extends ChangeNotifier {
         for (var i = 0; i < 32; i++)
           random.nextInt(256).toRadixString(16).padLeft(2, '0'),
       ].join();
+      final payload = '${server.port} $token';
       final written = File('$portPath.${server.port}');
-      await written.writeAsString('${server.port} $token', flush: true);
-      await written.rename(portPath);
+      try {
+        await written.writeAsString(payload, flush: true);
+        try {
+          await written.rename(portPath);
+        } on FileSystemException {
+          await File(portPath).writeAsString(payload, flush: true);
+        }
+      } finally {
+        try {
+          if (await written.exists()) await written.delete();
+        } on FileSystemException {
+          // Already renamed or cleaned up.
+        }
+      }
       _lock = lock;
       _token = token;
       return server;

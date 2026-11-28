@@ -8,9 +8,12 @@
 //
 // Dart has no Unix sockets on Windows: BaoCode (lib/browser/
 // browser_bridge.dart) listens on 127.0.0.1, at the port its file in the
-// user's temporary folder says, baocode-browser.port: "<port> <token>".
-// Any program may connect there, so the host's hello says the token, which
-// only the user can read; BaoCode lets in no one who does not.
+// user's LocalAppData\BaoCode folder says, baocode-browser.port:
+// "<port> <token>" (resolved via SHGetKnownFolderPath so differing TEMP/TMP
+// environment variables across launchers never separate the host from BaoCode,
+// with a fallback to the temporary folder for older builds). Any program may
+// connect there, so the host's hello says the token, which only the user can
+// read; BaoCode lets in no one who does not.
 //
 // Both ways a message is the browser's: its length (4 bytes, this
 // machine's order), then that much JSON. The host says what goes on with
@@ -20,6 +23,8 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>
+#include <objbase.h>
+#include <shlobj.h>
 #include <tlhelp32.h>
 
 #include <stdint.h>
@@ -175,13 +180,12 @@ static void escape_json(const char* text, char* out, size_t size) {
   out[j] = 0;
 }
 
-// BaoCode's port and token, from its file: false while there is none
-// (BaoCode is not running) or it is not whole yet.
-static bool find_bao(unsigned* port, char* token, size_t size) {
-  wchar_t path[MAX_PATH + 32];
-  const DWORD n = GetTempPathW(MAX_PATH + 1, path);
-  if (n == 0 || n > MAX_PATH) return false;
-  if (wcscat_s(path, L"baocode-browser.port") != 0) return false;
+// BaoCode's port and token, from [path]: false while there is none (BaoCode
+// is not running) or it is not whole yet.
+static bool read_port_file(const wchar_t* path,
+                           unsigned* port,
+                           char* token,
+                           size_t size) {
   HANDLE file = CreateFileW(
       path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
       nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
@@ -221,17 +225,45 @@ static SOCKET connect_bao(unsigned port) {
   return fd;
 }
 
+static SOCKET connect_port_file(const wchar_t* path, char* token, size_t size) {
+  unsigned port = 0;
+  if (!read_port_file(path, &port, token, size)) return INVALID_SOCKET;
+  return connect_bao(port);
+}
+
+// Connects to BaoCode using LocalAppData\BaoCode\baocode-browser.port (the
+// user's own known folder, immune to TEMP/TMP differences across launchers),
+// falling back to %TEMP%\baocode-browser.port for older BaoCode builds.
+static SOCKET connect_known_bao(char* token, size_t size) {
+  PWSTR local = nullptr;
+  const HRESULT hr =
+      SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &local);
+  if (SUCCEEDED(hr) && local && local[0] != 0) {
+    wchar_t path[1024];
+    const int n = swprintf_s(path, sizeof path / sizeof path[0],
+                             L"%ls\\BaoCode\\baocode-browser.port", local);
+    CoTaskMemFree(local);
+    if (n > 0) {
+      SOCKET fd = connect_port_file(path, token, size);
+      if (fd != INVALID_SOCKET) return fd;
+    }
+  } else if (local) {
+    CoTaskMemFree(local);
+  }
+  wchar_t temp[MAX_PATH + 32];
+  const DWORD n = GetTempPathW(MAX_PATH + 1, temp);
+  if (n > 0 && n <= MAX_PATH && wcscat_s(temp, L"baocode-browser.port") == 0) {
+    return connect_port_file(temp, token, size);
+  }
+  return INVALID_SOCKET;
+}
+
 // BaoCode's messages, to the browser; connecting again each time BaoCode
 // comes back.
 static DWORD WINAPI from_bao(void*) {
   for (;;) {
-    unsigned port = 0;
     char token[128];
-    if (!find_bao(&port, token, sizeof token)) {
-      Sleep(1000);
-      continue;
-    }
-    SOCKET fd = connect_bao(port);
+    SOCKET fd = connect_known_bao(token, sizeof token);
     if (fd == INVALID_SOCKET) {
       Sleep(1000);
       continue;
