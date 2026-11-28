@@ -702,17 +702,23 @@ class _ModelEditDialogState extends State<ModelEditDialog> {
 
   bool get _adding => widget.model == null;
 
+  bool get _isAgy => widget.provider.protocol == ProviderProtocol.agy;
+
   /// [_protocol] as kept: none for a picture's model, or on an upstream
-  /// signed in to (Codex), whose models all go as it does.
+  /// signed in to (Codex) or Antigravity ACP, whose models all go as it does.
   ProviderProtocol? get _keptProtocol =>
-      _shownKind.generatesImages || widget.provider.protocol.usesAccounts
+      _shownKind.generatesImages ||
+          widget.provider.protocol.usesAccounts ||
+          _isAgy
       ? null
       : _protocol;
 
   /// Its address as kept: none where [_keptProtocol] is none for want of
   /// an endpoint of its own to speak to.
   String? get _keptEndpointUrl =>
-      _shownKind.generatesImages || widget.provider.protocol.usesAccounts
+      _shownKind.generatesImages ||
+          widget.provider.protocol.usesAccounts ||
+          _isAgy
       ? null
       : switch (_endpointUrl.text.trim()) {
           '' => null,
@@ -774,13 +780,14 @@ class _ModelEditDialogState extends State<ModelEditDialog> {
 
   void _save() {
     final l10n = context.l10n;
-    final tokens = parseTokens(_context.text);
+    final tokens = _isAgy ? null : parseTokens(_context.text);
     if (_idError(l10n) != null || tokens == -1) {
       setState(() => _tried = true);
       return;
     }
     final label = _label.text.trim();
     final model = widget.model;
+    final contexts = _isAgy ? null : _contexts;
     Navigator.pop(
       context,
       model == null
@@ -789,7 +796,7 @@ class _ModelEditDialogState extends State<ModelEditDialog> {
               label: label.isEmpty ? null : label,
               contextWindow: tokens,
               efforts: _efforts,
-              contexts: _contexts,
+              contexts: contexts,
               images: _images,
               custom: true,
               kind: _keptKind,
@@ -800,7 +807,7 @@ class _ModelEditDialogState extends State<ModelEditDialog> {
               label: () => label.isEmpty ? null : label,
               contextWindow: () => tokens,
               efforts: () => _efforts,
-              contexts: () => _contexts,
+              contexts: () => contexts,
               images: _images,
               kind: () => _keptKind,
               protocol: () => _keptProtocol,
@@ -928,7 +935,7 @@ class _ModelEditDialogState extends State<ModelEditDialog> {
                 ),
               )
             else ...[
-              if (!widget.provider.protocol.usesAccounts)
+              if (!widget.provider.protocol.usesAccounts && !_isAgy)
                 _field(
                   l10n.modelsEndpoint,
                   Column(
@@ -965,7 +972,7 @@ class _ModelEditDialogState extends State<ModelEditDialog> {
                     ],
                   ),
                 ),
-              if (!widget.provider.protocol.usesAccounts)
+              if (!widget.provider.protocol.usesAccounts && !_isAgy)
                 _field(
                   l10n.modelsEndpointUrl,
                   Column(
@@ -988,18 +995,19 @@ class _ModelEditDialogState extends State<ModelEditDialog> {
                     ],
                   ),
                 ),
-              _field(
-                l10n.modelsContextWindow,
-                IdeInputBox(
-                  controller: _context,
-                  placeholder: l10n.modelsContextWindowHint,
-                  semanticsLabel: l10n.modelsContextWindow,
-                  onSubmitted: (_) => _save(),
-                  validation: contextError == null
-                      ? null
-                      : IdeInputValidation(contextError),
+              if (!_isAgy)
+                _field(
+                  l10n.modelsContextWindow,
+                  IdeInputBox(
+                    controller: _context,
+                    placeholder: l10n.modelsContextWindowHint,
+                    semanticsLabel: l10n.modelsContextWindow,
+                    onSubmitted: (_) => _save(),
+                    validation: contextError == null
+                        ? null
+                        : IdeInputValidation(contextError),
+                  ),
                 ),
-              ),
               _field(
                 l10n.modelsEffortOptions,
                 _OptionList<String>(
@@ -1017,27 +1025,28 @@ class _ModelEditDialogState extends State<ModelEditDialog> {
                   ),
                 ),
               ),
-              _field(
-                l10n.modelsContextOptions,
-                _OptionList<int>(
-                  options: _contexts ?? ProviderModel.defaultContexts,
-                  description: l10n.modelsContextOptionsDescription,
-                  label: formatTokens,
-                  parse: (text) => switch (parseTokens(text)) {
-                    final tokens? when tokens > 0 => tokens,
-                    _ => null,
-                  },
-                  addHint: l10n.modelsContextAddHint,
-                  invalid: l10n.modelsContextInvalid,
-                  sorted: true,
-                  onChanged: (contexts) => setState(
-                    () => _contexts = _sameAs(
-                      contexts,
-                      ProviderModel.defaultContexts,
+              if (!_isAgy)
+                _field(
+                  l10n.modelsContextOptions,
+                  _OptionList<int>(
+                    options: _contexts ?? ProviderModel.defaultContexts,
+                    description: l10n.modelsContextOptionsDescription,
+                    label: formatTokens,
+                    parse: (text) => switch (parseTokens(text)) {
+                      final tokens? when tokens > 0 => tokens,
+                      _ => null,
+                    },
+                    addHint: l10n.modelsContextAddHint,
+                    invalid: l10n.modelsContextInvalid,
+                    sorted: true,
+                    onChanged: (contexts) => setState(
+                      () => _contexts = _sameAs(
+                        contexts,
+                        ProviderModel.defaultContexts,
+                      ),
                     ),
                   ),
                 ),
-              ),
               _check(
                 l10n.modelsNoImages,
                 !_images,

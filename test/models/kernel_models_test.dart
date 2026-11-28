@@ -66,6 +66,19 @@ const _codex = ModelProvider(
   models: [ProviderModel(id: 'gpt-5')],
 );
 
+const _agy = ModelProvider(
+  id: 'agy',
+  name: 'Antigravity',
+  protocol: ProviderProtocol.agy,
+  models: [
+    ProviderModel(
+      id: 'gemini-4-neon',
+      label: 'Gemini 4 Neon',
+      efforts: ['low', 'medium', 'high'],
+    ),
+  ],
+);
+
 /// A Claude Code kernel over [providers], each start a CLI of its own,
 /// its launches kept; the environment of a provider's session made up.
 ({
@@ -1077,6 +1090,57 @@ void main() {
     expect(launches.last.model, startsWith('plain'));
     expect(launches.last.env, isNotNull);
     expect(clis.last.users.single['uuid'], 'u2');
+    kernel.dispose();
+  });
+
+  test('Antigravity ACP models offer no context size choice and use the '
+      'window reported by ACP instead of picked values', () async {
+    await providers.save(_agy);
+    final (:kernel, :launches, :clis, environments: _) = start(providers, {
+      'model': '@agy/gemini-4-neon',
+      'context': '400000',
+      modelSettingKey(KernelChoiceKind.context, '@agy/gemini-4-neon'): '400000',
+    });
+    final contextSize = (kernel as SelectsContextSize).contextSize;
+    expect(contextSize.optionsFor('@agy/gemini-4-neon'), isEmpty);
+    expect(contextSize.selected, isNull);
+    expect(contextSize.selectedFor('@agy/gemini-4-neon'), isNull);
+    // Before ACP reports its real window, do not fabricate 200K/400K.
+    expect(kernel.contextWindow, 0);
+
+    kernel.prepare();
+    await pumpEventQueue();
+    expect(launches.single.agy, isTrue);
+    expect(launches.single.autocompact, isNull);
+
+    // ACP reports the model's real 1M window.
+    clis.single.push({
+      'type': 'system',
+      'subtype': 'context_usage',
+      'usage': {
+        'totalTokens': 224000,
+        'maxTokens': 1000000,
+        'categories': [
+          {'name': 'Messages', 'tokens': 224000, 'kind': 'used'},
+          {'name': 'Free space', 'tokens': 776000, 'kind': 'free'},
+        ],
+      },
+    });
+    await pumpEventQueue();
+    expect(kernel.contextWindow, 1000000);
+    expect(contextSize.selected, isNull);
+
+    // Selecting a context size on an ACP model is ignored and does not restart.
+    contextSize.select('@agy/gemini-4-neon', '400000');
+    await pumpEventQueue();
+    expect(contextSize.selected, isNull);
+    kernel.send(const KernelTurn(id: 'u1', text: 'hi'));
+    await pumpEventQueue();
+    expect(launches, hasLength(1));
+
+    // Other providers keep their own context size choices unaffected.
+    expect(contextSize.optionsFor('@gw/gpt-5'), isNotEmpty);
+    expect(contextSize.selectedFor('@gw/gpt-5'), '400000');
     kernel.dispose();
   });
 }

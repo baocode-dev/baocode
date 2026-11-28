@@ -214,11 +214,17 @@ class ClaudeCodeKernel
     }
     // A provider's model goes by what was picked for it, else its own
     // (#914): a session resumed on one, on the context it had; a new one
-    // not on the context another model was last on.
-    if ((_context.resume, _model, _window)
-        case (_?, final model?, final window?)
-        when _providers.resolve(model) != null) {
-      _pickedWindows[model] = window;
+    // not on the context another model was last on. Antigravity ACP manages
+    // its own context window and ignores picked values.
+    if ((_context.resume, _model, _window) case (
+      _?,
+      final model?,
+      final window?,
+    )) {
+      if (_providers.resolve(model) case (final provider, final info)
+          when provider.protocolOf(info) != ProviderProtocol.agy) {
+        _pickedWindows[model] = window;
+      }
     }
     Future<ClaudeHistoryPage> wholePage(
       SessionRecord session, {
@@ -1275,8 +1281,7 @@ class ClaudeCodeKernel
       usage = TurnUsage(
         inputTokens: usage.inputTokens,
         outputTokens: usage.outputTokens,
-        tokensPerSecond:
-            _translator.averageSpeed ?? _translator.estimatedSpeed,
+        tokensPerSecond: _translator.averageSpeed ?? _translator.estimatedSpeed,
         costUsd: usage.costUsd,
       );
     }
@@ -3189,11 +3194,13 @@ class ClaudeCodeKernel
     final content = (line['message'] as Map?)?['content'];
     if (content is! List) return;
     for (final block in content) {
-      if (block case {
-        'type': 'tool_use',
-        'id': final String id,
-        'name': 'Agent' || 'Task',
-      } when id.isNotEmpty) {
+      if (block
+          case {
+            'type': 'tool_use',
+            'id': final String id,
+            'name': 'Agent' || 'Task',
+          }
+          when id.isNotEmpty) {
         ids.add(id);
       }
     }
@@ -3207,10 +3214,8 @@ class ClaudeCodeKernel
     final content = (line['message'] as Map?)?['content'];
     if (content is! List) return;
     for (final block in content) {
-      if (block case {
-        'type': 'tool_result',
-        'tool_use_id': final String id,
-      } when agentToolUseIds.contains(id)) {
+      if (block case {'type': 'tool_result', 'tool_use_id': final String id}
+          when agentToolUseIds.contains(id)) {
         final text = switch (block['content']) {
           final String s => s,
           final List blocks => [
@@ -3527,12 +3532,13 @@ class ClaudeCodeKernel
   List<KernelCommand>? _commandCache;
 
   /// What the CLI counted, once it runs with the window now picked; before
-  /// that, the window it is to start with (200K when none is picked), so
-  /// the context reads the same before the first message as after it.
+  /// that, the window it is to start with (200K when none is picked; 0 on
+  /// Antigravity ACP until agy reports the model's real window), so the
+  /// context reads the same before the first message as after it.
   @override
   int get contextWindow => _contextReported && _launchedWindow == _autocompact
       ? _contextWindow
-      : _autocompact ?? 200000;
+      : _autocompact ?? (_onAgy ? 0 : 200000);
 
   _ModelInfo? get _currentModel {
     final models = _catalog.models;
@@ -3811,7 +3817,14 @@ class ClaudeCodeKernel
     final target = _resolveCustom(id);
     final sameProvider = _providerKeyOf(id) == _onProvider;
     // Its own effort and context, if it had them: not the one before's.
-    if (_pickedWindows[id] case final window?) _window = window;
+    final targetIsAgy = switch (target) {
+      (final provider, final info) =>
+        provider.protocolOf(info) == ProviderProtocol.agy,
+      null => false,
+    };
+    if (!targetIsAgy) {
+      if (_pickedWindows[id] case final window?) _window = window;
+    }
     final recalled = _pickedEfforts[id];
     if (recalled != null) _effort = recalled;
     final variant = target != null
@@ -3921,9 +3934,13 @@ class ClaudeCodeKernel
     _ => info.initialContext,
   };
 
-  /// The context the session compacts at: a provider's model's, else as
-  /// picked (null for the CLI's own).
+  /// The context the session compacts at: a provider's model's (none for
+  /// Antigravity ACP, whose CLI manages its own context window and
+  /// compaction), else as picked (null for the CLI's own).
   int? get _autocompact => switch (_custom) {
+    (final provider, final info)
+        when provider.protocolOf(info) == ProviderProtocol.agy =>
+      null,
     (_, final info) => _windowFor(info),
     null => _window,
   };
@@ -4031,7 +4048,10 @@ class ClaudeCodeKernel
   late final ModelSetting contextSize = _ModelSetting(
     optionsFor: (model) {
       // A provider's model: what it offers, by the number of tokens.
-      if (_providers.resolve(model) case (_, final info)) {
+      // Antigravity ACP manages its own context window and compaction, so it
+      // offers no context size choice.
+      if (_providers.resolve(model) case (final provider, final info)) {
+        if (provider.protocolOf(info) == ProviderProtocol.agy) return const [];
         return [
           for (final tokens in info.contextOptions)
             KernelOption(
@@ -4051,7 +4071,10 @@ class ClaudeCodeKernel
       ];
     },
     selected: () {
-      if (_custom case (_, final info)) return '${_windowFor(info)}';
+      if (_custom case (final provider, final info)) {
+        if (provider.protocolOf(info) == ProviderProtocol.agy) return null;
+        return '${_windowFor(info)}';
+      }
       // Shown as picked until the process restarts with it, as the next
       // message is sent.
       final window = _window != _launchedWindow
@@ -4066,7 +4089,8 @@ class ClaudeCodeKernel
     },
     selectedFor: (model) {
       if (model == this.model.selected) return contextSize.selected;
-      if (_providers.resolve(model) case (_, final info)) {
+      if (_providers.resolve(model) case (final provider, final info)) {
+        if (provider.protocolOf(info) == ProviderProtocol.agy) return null;
         final picked = _pickedWindows[model];
         return '${info.contextOptions.contains(picked) ? picked : info.initialContext}';
       }
@@ -4077,6 +4101,10 @@ class ClaudeCodeKernel
           ?.key;
     },
     select: (model, id) {
+      if (_providers.resolve(model) case (final provider, final info)
+          when provider.protocolOf(info) == ProviderProtocol.agy) {
+        return;
+      }
       final switching = model != this.model.selected;
       if (switching) _keepModelSettings();
       if (_providers.resolve(model) != null) {
