@@ -4153,6 +4153,12 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
 
 /// [child] where it would be laid out, but in the overlay: over what floats
 /// over the chat (the side panel's rail, which is outside it).
+///
+/// The anchor this hangs by can leave the tree and come back (another
+/// conversation shown): the portal then shows again from a new controller,
+/// so the engines' accessibility trees are sent the overlay's subtree anew
+/// rather than an update that names children their trees do not have (see
+/// FloatingLayer, which this follows).
 class _OverRail extends StatefulWidget {
   const _OverRail({required this.child});
 
@@ -4163,7 +4169,23 @@ class _OverRail extends StatefulWidget {
 }
 
 class _OverRailState extends State<_OverRail> {
-  final _portal = OverlayPortalController()..show();
+  final _portal = OverlayPortalController();
+
+  @override
+  void initState() {
+    super.initState();
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _portal.show();
+    });
+  }
+
+  @override
+  void dispose() {
+    // Out before this goes, in the same frame it would be torn down with
+    // its anchor's semantics already sent as gone.
+    if (_portal.isShowing) _portal.hide();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) => OverlayPortal.overlayChildLayoutBuilder(
