@@ -73,8 +73,7 @@ class KeyChord {
   /// modifiers [keyboard] holds now; null for a modifier alone.
   static KeyChord? fromEvent(KeyEvent event, [HardwareKeyboard? keyboard]) {
     final pressed = keyboard ?? HardwareKeyboard.instance;
-    _WindowsVirtualKeys.watch();
-    var key = _WindowsVirtualKeys.meant(event) ?? event.logicalKey;
+    var key = windowsVirtualKeyFor(event) ?? event.logicalKey;
     if (_modifierKeys.contains(key)) return null;
     // macOS types Shift+Tab as a back tab (U+0019). The Shift itself may
     // not reach the app (an input method keeps it, e.g. Pinyin's to switch
@@ -302,6 +301,13 @@ abstract final class _WindowsVirtualKeys {
     LogicalKeyboardKey.numpad9,
     LogicalKeyboardKey.numpadDecimal,
   };
+}
+
+/// The key a Windows keypad key down meant by its virtual key (e.g. Insert on
+/// Numpad 0 with NumLock off), or null when [event.logicalKey] stands as it is.
+LogicalKeyboardKey? windowsVirtualKeyFor(KeyEvent event) {
+  _WindowsVirtualKeys.watch();
+  return _WindowsVirtualKeys.meant(event);
 }
 
 /// Hands [event] to what reads Windows' virtual keys, as the raw keyboard

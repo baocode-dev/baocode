@@ -7,6 +7,8 @@ import '../../bash_exe/bao_bash.dart';
 import '../../bash_exe/bao_bash_view.dart';
 import '../../ide/explorer_excludes.dart';
 import '../../ide/git/git_repository.dart' show GitAutoFetchSetting;
+import '../../ide/terminal/terminal_clipboard.dart'
+    show TerminalCopyOnSelection;
 import '../../ide/ide_button.dart';
 import '../../ide/ide_menu.dart';
 import '../../ide/ide_notifications.dart' show IdeSeverity;
@@ -323,7 +325,7 @@ class GeneralSettingsPage extends StatelessWidget {
     final l10n = context.l10n;
     final settings = this.settings;
     return ListenableBuilder(
-      listenable: settings ?? Listenable.merge(const []),
+      listenable: Listenable.merge([?settings, TerminalCopyOnSelection.on]),
       builder: (context, _) {
         final current = CommitAttribution.parse(
           settings?[CommitAttribution.settingKey],
@@ -530,6 +532,23 @@ class GeneralSettingsPage extends StatelessWidget {
                       ),
                     ),
                     _gitAutoFetchRow(context),
+                    SettingsSwitchRow(
+                      label: l10n.terminalCopyOnSelectionSetting,
+                      description:
+                          l10n.terminalCopyOnSelectionSettingDescription,
+                      value: TerminalCopyOnSelection.on.value,
+                      onChanged: (on) {
+                        TerminalCopyOnSelection.on.value = on;
+                        if (settings != null) {
+                          _write(
+                            TerminalCopyOnSelection.settingKey,
+                            TerminalCopyOnSelection.setting(on),
+                          );
+                        } else {
+                          TerminalCopyOnSelection.set(on);
+                        }
+                      },
+                    ),
                   ],
                 ),
               ],

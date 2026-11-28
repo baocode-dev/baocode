@@ -171,6 +171,10 @@ void main() {
       );
       expect(command(key(c, meta: true), mac, hasSelection: false), isNull);
       expect(command(key(v, meta: true), mac), TerminalClipboardCommand.paste);
+      expect(
+        command(key(insert, shift: true), mac),
+        TerminalClipboardCommand.paste,
+      );
       expect(command(key(c, ctrl: true), mac), isNull);
       expect(command(key(v, meta: true, shift: true), mac), isNull);
     });
@@ -193,7 +197,10 @@ void main() {
         command(key(v, ctrl: true, shift: true), windows),
         TerminalClipboardCommand.paste,
       );
-      expect(command(key(insert, shift: true), windows), isNull);
+      expect(
+        command(key(insert, shift: true), windows),
+        TerminalClipboardCommand.paste,
+      );
     });
 
     test('Linux', () {
@@ -407,6 +414,22 @@ void main() {
       selection.clearSelection();
       await clipboard.run(TerminalClipboardCommand.pasteSelection);
       expect(coreService.data, ['foo']);
+    });
+
+    test('TerminalCopyOnSelection parses, writes and toggles', () {
+      addTearDown(() => TerminalCopyOnSelection.on.value = false);
+      expect(TerminalCopyOnSelection.parse(null), isFalse);
+      expect(TerminalCopyOnSelection.parse(false), isFalse);
+      expect(TerminalCopyOnSelection.parse('true'), isFalse);
+      expect(TerminalCopyOnSelection.parse(true), isTrue);
+      expect(TerminalCopyOnSelection.setting(false), isNull);
+      expect(TerminalCopyOnSelection.setting(true), isTrue);
+
+      TerminalCopyOnSelection.on.value = false;
+      TerminalCopyOnSelection.toggle();
+      expect(TerminalCopyOnSelection.on.value, isTrue);
+      TerminalCopyOnSelection.toggle();
+      expect(TerminalCopyOnSelection.on.value, isFalse);
     });
   });
 }

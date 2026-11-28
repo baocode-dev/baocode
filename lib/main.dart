@@ -48,6 +48,7 @@ import 'ide/lsp/language_features.dart';
 import 'ide/lsp/lsp_process.dart';
 import 'ide/lsp/packs/language_packs.dart';
 import 'ide/terminal/pty.dart';
+import 'ide/terminal/terminal_clipboard.dart' show TerminalCopyOnSelection;
 import 'ide/terminal/terminal_colors.dart';
 import 'ide/terminal/terminal_instance.dart';
 import 'icons/emoji_sheet.dart';
@@ -700,6 +701,8 @@ void followSettingsFiles(SettingsFiles files) {
   EditorWordWrap.follow(files.settings);
   // Whether the code editors show their minimap.
   EditorMinimap.follow(files.settings);
+  // Whether selecting text in a terminal copies it to the clipboard.
+  TerminalCopyOnSelection.follow(files.settings);
   // settings.json's git.autofetchInterval: seconds between background
   // fetches of the current branch's remote (180 s by default, 0 for off).
   GitAutoFetchSetting.follow(files.settings);

@@ -229,6 +229,15 @@ void main() {
     debugDefaultTargetPlatformOverride = null;
   });
 
+  testWidgets('Windows: Shift+Insert pastes clipboard text', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    clipboard(tester, text: 'echo win');
+    final pty = await pumpTerminal(tester);
+    await press(tester, LogicalKeyboardKey.insert, shift: true);
+    expect(pty.written, 'echo win');
+    debugDefaultTargetPlatformOverride = null;
+  });
+
   testWidgets('find: Ctrl+F, then Enter / Shift+Enter, the toggles and '
       'Escape in its input; F3 and Escape from the terminal; Search '
       'Workspace', (tester) async {

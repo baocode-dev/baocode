@@ -14661,4 +14661,14 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get tailReadOnlyHint =>
       'Read-only while tailing (tail -f). Stop tailing to edit.';
+
+  @override
+  String get terminalCopyOnSelectionSetting => 'Terminal: Copy on Selection';
+
+  @override
+  String get terminalCopyOnSelectionSettingDescription =>
+      'Copy text selected in the terminal to the clipboard automatically.';
+
+  @override
+  String get termCopyOnSelection => 'Copy on Selection';
 }

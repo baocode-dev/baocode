@@ -35,6 +35,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart' show KeyEventResult;
 
+import '../../keybindings/key_chord.dart' show windowsVirtualKeyFor;
 import 'terminal_clipboard.dart';
 import 'terminal_mouse.dart' show LogicalKeysPressed;
 import 'terminal_selection.dart';
@@ -77,8 +78,9 @@ class TerminalKeyboardEvent extends IKeyboardEvent {
       LogicalKeyboardKey.shiftLeft,
       LogicalKeyboardKey.shiftRight,
     );
+    final logicalKey = windowsVirtualKeyFor(event) ?? event.logicalKey;
     final code = domCodeOf(event.physicalKey);
-    final key = domKeyOf(event, shiftKey: shiftKey);
+    final key = domKeyOf(event, shiftKey: shiftKey, logicalKey: logicalKey);
     final character = event.character;
     return TerminalKeyboardEvent(
       altKey: pressed(LogicalKeyboardKey.altLeft, LogicalKeyboardKey.altRight),
@@ -91,7 +93,7 @@ class TerminalKeyboardEvent extends IKeyboardEvent {
         LogicalKeyboardKey.metaLeft,
         LogicalKeyboardKey.metaRight,
       ),
-      keyCode: domKeyCodeOf(code: code, key: key, logicalKey: event.logicalKey),
+      keyCode: domKeyCodeOf(code: code, key: key, logicalKey: logicalKey),
       key: key,
       type: event is KeyUpEvent ? 'keyup' : 'keydown',
       code: code,
@@ -777,8 +779,12 @@ String domCodeOf(PhysicalKeyboardKey key) => _domCodes[key] ?? '';
 
 /// DOM's `key` for [event]: the character it types, else the key's name
 /// (`Enter`, `ArrowUp`, `Shift`, ...), else the logical key's character.
-String domKeyOf(KeyEvent event, {required bool shiftKey}) {
-  final logical = event.logicalKey;
+String domKeyOf(
+  KeyEvent event, {
+  required bool shiftKey,
+  LogicalKeyboardKey? logicalKey,
+}) {
+  final logical = logicalKey ?? event.logicalKey;
   final modifier = switch (logical) {
     LogicalKeyboardKey.shiftLeft || LogicalKeyboardKey.shiftRight => 'Shift',
     LogicalKeyboardKey.controlLeft ||

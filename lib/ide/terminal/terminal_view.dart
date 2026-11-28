@@ -905,6 +905,11 @@ class _TerminalViewState extends State<TerminalView>
             keybinding: keys('selectAll', mac ? '⌘A' : null),
             onSelected: instance.selection.selectAll,
           ),
+          IdeMenuAction(
+            context.l10n.termCopyOnSelection,
+            checked: TerminalCopyOnSelection.on.value,
+            onSelected: TerminalCopyOnSelection.toggle,
+          ),
         ],
         [
           IdeMenuAction(
