@@ -13,8 +13,10 @@ import '../side_panel/file_link.dart';
 import '../side_panel/file_link_menu.dart';
 import '../composer/composer_embeds.dart' show FileImageChip;
 import '../side_panel/file_open.dart';
+import '../selection/chat_selection.dart' show ChatUnselectable;
 import 'code_citation.dart';
 import 'content_image.dart';
+import 'hover_builder.dart';
 import 'hover_scrollbar.dart';
 import 'inline_code.dart';
 import 'lazy_segment.dart';
@@ -955,7 +957,7 @@ class _Table extends StatefulWidget {
   State<_Table> createState() => _TableState();
 }
 
-class _TableState extends State<_Table> {
+class _TableState extends State<_Table> with SidewaysWrap {
   final _scroll = ScrollController();
 
   @override
@@ -986,8 +988,13 @@ class _TableState extends State<_Table> {
         .map((row) => row.$2.length)
         .reduce((a, b) => a > b ? a : b);
     final line = BorderSide(color: themeColors['chat.requestBorder']);
+    final wrap = wrapped;
     final table = Table(
-      defaultColumnWidth: const IntrinsicColumnWidth(),
+      // Wrapped, the columns give up width, down to their longest word's,
+      // to fit in the width there is: their text wraps.
+      defaultColumnWidth: wrap
+          ? const IntrinsicColumnWidth(flex: 1)
+          : const IntrinsicColumnWidth(),
       // The card draws the edge.
       border: TableBorder.symmetric(inside: line),
       children: [
@@ -1024,28 +1031,72 @@ class _TableState extends State<_Table> {
           ),
       ],
     );
+    Widget scroll(Widget table) =>
+        NotificationListener<ScrollMetricsNotification>(
+          onNotification: onScrollMetrics,
+          child: SingleChildScrollView(
+            controller: _scroll,
+            scrollDirection: Axis.horizontal,
+            child: TableSelection(
+              registrar: SelectionContainer.maybeOf(context),
+              child: WillChangePaint(child: table),
+            ),
+          ),
+        );
     return Align(
       alignment: AlignmentDirectional.centerStart,
-      child: Container(
-        // The edge over the cells, the header's color clipped to the corners.
-        foregroundDecoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          border: Border.fromBorderSide(line),
-        ),
-        decoration: BoxDecoration(borderRadius: BorderRadius.circular(8)),
-        clipBehavior: Clip.antiAlias,
-        child: HoverScrollbar(
-          controller: _scroll,
-          // The table's selection is its own, not the scroll view's.
-          child: SelectionContainer.disabled(
-            child: SingleChildScrollView(
-              controller: _scroll,
-              scrollDirection: Axis.horizontal,
-              child: TableSelection(
-                registrar: SelectionContainer.maybeOf(context),
-                child: WillChangePaint(child: table),
+      child: HoverBuilder(
+        builder: (context, hovered) => Container(
+          // The edge over the cells, the header's color clipped to the
+          // corners.
+          foregroundDecoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.fromBorderSide(line),
+          ),
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(8)),
+          clipBehavior: Clip.antiAlias,
+          child: Stack(
+            children: [
+              HoverScrollbar(
+                controller: _scroll,
+                // The table's selection is its own, not the scroll view's.
+                child: SelectionContainer.disabled(
+                  child: wrap
+                      // No wider than there is room for.
+                      ? LayoutBuilder(
+                          builder: (_, constraints) => scroll(
+                            ConstrainedBox(
+                              constraints: BoxConstraints(
+                                maxWidth: constraints.maxWidth,
+                              ),
+                              child: table,
+                            ),
+                          ),
+                        )
+                      : scroll(table),
+                ),
               ),
-            ),
+              // Over the header's corner, only while hovered: no title
+              // row to keep it in, as a code card has.
+              if (canWrap && hovered)
+                Positioned(
+                  top: 3,
+                  right: 4,
+                  child: ChatUnselectable(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        // Opaque, to hide the header under it.
+                        color: Color.alphaBlend(
+                          AppColors.surfaceRaised,
+                          themeColors['editor.background'],
+                        ),
+                        borderRadius: BorderRadius.circular(5),
+                      ),
+                      child: wrapButton(context),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
       ),

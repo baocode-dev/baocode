@@ -673,4 +673,115 @@ void main() {}
       expect(asked, isFalse);
     });
   });
+
+  group('wider than there is room for', () {
+    /// The sideways scroll view in [of].
+    ScrollPosition sideways(WidgetTester tester, Finder of) => tester
+        .stateList<ScrollableState>(
+          find.descendant(of: of, matching: find.byType(Scrollable)),
+        )
+        .singleWhere((scroll) => scroll.position.axis == Axis.horizontal)
+        .position;
+
+    /// Near [over]'s top left: its center may be off the screen.
+    Future<void> hover(WidgetTester tester, Finder over) async {
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(
+        location: tester.getTopLeft(over) + const Offset(20, 10),
+      );
+      addTearDown(mouse.removePointer);
+      await tester.pump();
+    }
+
+    final wrap = find.byIcon(Codicons.wordWrap);
+    final long = List.filled(60, 'word').join(' ');
+
+    testWidgets('a code block offers to wrap, and wraps', (tester) async {
+      await pumpMarkdownInPage(tester, '```sh\necho $long\nshort\n```');
+      await tester.pump();
+      final card = find.byType(MarkdownCodeBlock);
+      expect(sideways(tester, card).maxScrollExtent, greaterThan(0));
+      final height = tester.getSize(card).height;
+
+      await tester.tap(wrap);
+      await tester.pump();
+      expect(sideways(tester, card).maxScrollExtent, 0);
+      expect(tester.getSize(card).height, greaterThan(height));
+      // Still there, to scroll sideways again.
+      await tester.tap(wrap);
+      await tester.pump();
+      await tester.pump();
+      expect(sideways(tester, card).maxScrollExtent, greaterThan(0));
+      expect(tester.getSize(card).height, height);
+    });
+
+    testWidgets('one that fits does not', (tester) async {
+      await pumpMarkdownInPage(tester, '```sh\necho hi\n```');
+      await tester.pump();
+      await hover(tester, find.byType(MarkdownCodeBlock));
+      expect(wrap, findsNothing);
+    });
+
+    testWidgets('plain text offers it while hovered', (tester) async {
+      await pumpMarkdownInPage(tester, '```\n$long\n```');
+      await tester.pump();
+      expect(wrap, findsNothing);
+      await hover(tester, find.byType(MarkdownCodeBlock));
+      expect(wrap, findsOneWidget);
+      await tester.tap(wrap);
+      await tester.pump();
+      expect(
+        sideways(tester, find.byType(MarkdownCodeBlock)).maxScrollExtent,
+        0,
+      );
+    });
+
+    testWidgets('a citation wrapped keeps each number beside its line', (
+      tester,
+    ) async {
+      // Numbers of more than one digit, each on one row.
+      await pumpMarkdownInPage(tester, '```98:100:a.txt\n$long\nb\nc\n```');
+      await tester.pump();
+      await tester.tap(wrap);
+      await tester.pump();
+      final card = find.byType(CodeCitationCard);
+      expect(sideways(tester, card).maxScrollExtent, 0);
+      final row = tester.getSize(find.text('b')).height;
+      for (final (number, line) in [('99', 'b'), ('100', 'c')]) {
+        expect(
+          tester.getTopLeft(find.text(number)).dy,
+          tester.getTopLeft(find.text(line)).dy,
+        );
+        expect(tester.getSize(find.text(number)).height, row);
+      }
+      // The wrapped first line pushes the second down past one row.
+      expect(
+        tester.getTopLeft(find.text('99')).dy -
+            tester.getTopLeft(find.text('98')).dy,
+        greaterThan(row * 1.5),
+      );
+    });
+
+    testWidgets('a table offers it while hovered, and fits the width', (
+      tester,
+    ) async {
+      await pumpMarkdownInPage(
+        tester,
+        '| a | b |\n| --- | --- |\n| $long | $long |\n',
+      );
+      await tester.pump();
+      final table = find.byType(Table);
+      expect(wrap, findsNothing);
+      await hover(tester, table);
+      expect(wrap, findsOneWidget);
+
+      await tester.tap(wrap);
+      await tester.pump();
+      expect(sideways(tester, find.byType(MarkdownView)).maxScrollExtent, 0);
+      expect(
+        tester.getSize(table).width,
+        lessThanOrEqualTo(tester.getSize(find.byType(MarkdownView)).width),
+      );
+    });
+  });
 }

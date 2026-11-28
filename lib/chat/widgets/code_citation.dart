@@ -322,7 +322,7 @@ class _CodeCard extends StatefulWidget {
   State<_CodeCard> createState() => _CodeCardState();
 }
 
-class _CodeCardState extends State<_CodeCard> {
+class _CodeCardState extends State<_CodeCard> with SidewaysWrap {
   final _horizontal = ScrollController();
   bool _expanded = true;
   bool _hovered = false;
@@ -483,7 +483,16 @@ class _CodeCardState extends State<_CodeCard> {
                         ),
                         borderRadius: BorderRadius.circular(5),
                       ),
-                      child: _copyButton(context),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Only while hovered, not to hide more of the
+                          // text under it the rest of the time.
+                          if (canWrap && _hovered)
+                            ChatUnselectable(child: wrapButton(context)),
+                          _copyButton(context),
+                        ],
+                      ),
                     ),
                   ),
                 ],
@@ -565,6 +574,7 @@ class _CodeCardState extends State<_CodeCard> {
                     tooltip: l10n.sidePanelPreview,
                     onTap: onPreview,
                   ),
+                if (canWrap && _expanded) wrapButton(context),
                 _copyButton(context),
               ],
             ),
@@ -636,24 +646,32 @@ class _CodeCardState extends State<_CodeCard> {
   /// style are the same.
   List<_CodeParagraph> _paragraphs = const [];
 
+  /// Line [index]'s colors, if it was colored as it is.
+  List<TextSpan>? _colorsOf(int index, String line) =>
+      index < _colors.length &&
+          index < _coloredLines.length &&
+          _coloredLines[index] == line
+      ? _colors[index]
+      : null;
+
   /// Paragraph [index] of [lines]: the one last built if it is the same.
-  _CodeParagraph _paragraph(int index, List<String> lines, TextStyle style) {
+  _CodeParagraph _paragraph(
+    int index,
+    List<String> lines,
+    TextStyle style,
+    bool wrap,
+  ) {
     final start = index * _linesPerParagraph;
     final own = lines.sublist(
       start,
       math.min(start + _linesPerParagraph, lines.length),
     );
     final colors = [
-      for (final (i, line) in own.indexed)
-        start + i < _colors.length &&
-                start + i < _coloredLines.length &&
-                _coloredLines[start + i] == line
-            ? _colors[start + i]
-            : null,
+      for (final (i, line) in own.indexed) _colorsOf(start + i, line),
     ];
     if (index < _paragraphs.length) {
       final built = _paragraphs[index];
-      if (built.isOf(own, colors, style)) return built;
+      if (built.isOf(own, colors, style, wrap)) return built;
     }
     final widget = ChatFindMarks(
       child: Text.rich(
@@ -669,10 +687,65 @@ class _CodeCardState extends State<_CodeCard> {
             ],
           ],
         ),
-        softWrap: false,
+        softWrap: wrap,
       ),
     );
-    return _CodeParagraph(own, colors, style, widget);
+    return _CodeParagraph(own, colors, style, wrap, widget);
+  }
+
+  /// Wrapped, a citation's lines one by one, each its number beside it: a
+  /// line may take several rows, which a column of numbers beside the
+  /// paragraphs would not follow.
+  Widget _numberedLines(
+    List<String> lines,
+    CodeCitation citation,
+    TextStyle style,
+  ) {
+    // The numbers' column's width, its padding on the left (the card's
+    // edge here) left out.
+    final width =
+        _numbersWidth('${citation.start + lines.length - 1}', style) - 12;
+    final numberStyle = style.copyWith(
+      color: themeColors['editorLineNumber.foreground'],
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final (i, line) in lines.indexed)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ChatUnselectable(
+                child: SizedBox(
+                  width: width,
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 14),
+                    // Its box is as wide as the widest number, to the
+                    // pixel: one wide as that must not wrap for rounding.
+                    child: Text(
+                      '${citation.start + i}',
+                      textAlign: TextAlign.right,
+                      softWrap: false,
+                      overflow: TextOverflow.visible,
+                      style: numberStyle,
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: ChatFindMarks(
+                  child: Text.rich(
+                    TextSpan(
+                      style: style,
+                      children: _colorsOf(i, line) ?? [TextSpan(text: line)],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+      ],
+    );
   }
 
   /// Line numbers from the citation's first, beside the code; the code
@@ -684,9 +757,11 @@ class _CodeCardState extends State<_CodeCard> {
     final style = AppFonts.uiCodeStyle(12)
         .copyWith(color: themeColors['editor.foreground'], height: 1.5);
     final count = (lines.length + _linesPerParagraph - 1) ~/ _linesPerParagraph;
+    final wrap = wrapped;
     final numbers = switch (citation) {
       // As the code's paragraphs, so a line's number lies beside it.
-      final citation? => ChatUnselectable(
+      // Wrapped, each line has its own ([_numberedLines]).
+      final citation? when !wrap => ChatUnselectable(
         child: Padding(
           padding: const EdgeInsets.only(left: 12, right: 14),
           child: Column(
@@ -711,21 +786,43 @@ class _CodeCardState extends State<_CodeCard> {
           ),
         ),
       ),
-      null => const SizedBox(width: 12),
+      _ => const SizedBox(width: 12),
     };
     // Where the code starts: the sideways scrollbar's track from there.
     final gutter = switch (citation) {
-      final citation? => _numbersWidth(
+      final citation? when !wrap => _numbersWidth(
         '${citation.start + lines.length - 1}',
         style,
       ),
-      null => 12.0,
+      _ => 12.0,
     };
-    _paragraphs = [for (var j = 0; j < count; j++) _paragraph(j, lines, style)];
-    final code = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [for (final paragraph in _paragraphs) paragraph.widget],
-    );
+    final Widget code;
+    if (wrap && citation != null) {
+      _paragraphs = const [];
+      code = _numberedLines(lines, citation, style);
+    } else {
+      _paragraphs = [
+        for (var j = 0; j < count; j++) _paragraph(j, lines, style, wrap),
+      ];
+      code = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [for (final paragraph in _paragraphs) paragraph.widget],
+      );
+    }
+    Widget scroll(Widget code) =>
+        NotificationListener<ScrollMetricsNotification>(
+          onNotification: onScrollMetrics,
+          child: SingleChildScrollView(
+            controller: _horizontal,
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.only(right: 12),
+            // Copied a line to a line, as one paragraph was.
+            child: TableSelection.lines(
+              registrar: SelectionContainer.maybeOf(context),
+              child: WillChangePaint(child: code),
+            ),
+          ),
+        );
     // As tall as its lines, so nothing scrolls down in it: the page does.
     return MediaQuery(
       // The scrollbar's padding is the media's.
@@ -743,16 +840,18 @@ class _CodeCardState extends State<_CodeCard> {
               Expanded(
                 // The code's selection is its own, not the scroll view's.
                 child: SelectionContainer.disabled(
-                  child: SingleChildScrollView(
-                    controller: _horizontal,
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.only(right: 12),
-                    // Copied a line to a line, as one paragraph was.
-                    child: TableSelection.lines(
-                      registrar: SelectionContainer.maybeOf(context),
-                      child: WillChangePaint(child: code),
-                    ),
-                  ),
+                  child: wrap
+                      // As wide as there is room for (its padding left
+                      // out), so its lines wrap there and nothing scrolls.
+                      ? LayoutBuilder(
+                          builder: (_, constraints) => scroll(
+                            SizedBox(
+                              width: math.max(0, constraints.maxWidth - 12),
+                              child: code,
+                            ),
+                          ),
+                        )
+                      : scroll(code),
                 ),
               ),
             ],
@@ -777,22 +876,74 @@ class _CodeCardState extends State<_CodeCard> {
 
 /// A paragraph of a [_CodeCard]'s code, and what it was built of.
 class _CodeParagraph {
-  const _CodeParagraph(this.lines, this.colors, this.style, this.widget);
+  const _CodeParagraph(
+    this.lines,
+    this.colors,
+    this.style,
+    this.wrap,
+    this.widget,
+  );
 
   final List<String> lines;
 
   /// Each line's spans, the very ones; null for one not colored.
   final List<List<TextSpan>?> colors;
   final TextStyle style;
+
+  /// Whether its lines wrap.
+  final bool wrap;
   final Widget widget;
 
-  bool isOf(List<String> lines, List<List<TextSpan>?> colors, TextStyle style) {
-    if (style != this.style || !listEquals(lines, this.lines)) return false;
+  bool isOf(
+    List<String> lines,
+    List<List<TextSpan>?> colors,
+    TextStyle style,
+    bool wrap,
+  ) {
+    if (style != this.style ||
+        wrap != this.wrap ||
+        !listEquals(lines, this.lines)) {
+      return false;
+    }
     for (var i = 0; i < colors.length; i++) {
       if (!identical(colors[i], this.colors[i])) return false;
     }
     return true;
   }
+}
+
+/// Content that scrolls sideways when wider than there is room for (a code
+/// card's lines, a table), which the reader may wrap to the width there is
+/// instead: the button to, shown once it is wider ([canWrap]).
+///
+/// [onScrollMetrics] listens to the sideways scroll view's metrics.
+mixin SidewaysWrap<T extends StatefulWidget> on State<T> {
+  /// Wrapped to the width there is, rather than scrolling sideways.
+  bool wrapped = false;
+
+  /// Wider than there is room for, as last laid out unwrapped.
+  bool _overflows = false;
+
+  /// Whether there is anything to wrap, or it is wrapped: when to offer
+  /// the button.
+  bool get canWrap => _overflows || wrapped;
+
+  bool onScrollMetrics(ScrollMetricsNotification notification) {
+    if (notification.depth != 0) return false;
+    final overflows = notification.metrics.maxScrollExtent > 0;
+    // Wrapped, nothing overflows: whether it would unwrapped is kept.
+    if (!wrapped && overflows != _overflows) {
+      setState(() => _overflows = overflows);
+    }
+    return false;
+  }
+
+  Widget wrapButton(BuildContext context) => CodeBlockIconButton(
+    icon: Codicons.wordWrap,
+    tooltip: context.l10n.cmdToggleWordWrap,
+    selected: wrapped,
+    onTap: () => setState(() => wrapped = !wrapped),
+  );
 }
 
 /// A small icon button of a code card's title, or a diagram's toolbar.
@@ -802,11 +953,15 @@ class CodeBlockIconButton extends StatelessWidget {
     required this.icon,
     required this.tooltip,
     required this.onTap,
+    this.selected = false,
   });
 
   final IconData icon;
   final String tooltip;
   final VoidCallback onTap;
+
+  /// On (a toggle's): in the accent's color.
+  final bool selected;
 
   @override
   Widget build(BuildContext context) => IdeHover(
@@ -814,6 +969,7 @@ class CodeBlockIconButton extends StatelessWidget {
     excludeFromSemantics: true,
     child: Semantics(
       button: true,
+      toggled: selected ? true : null,
       label: tooltip,
       child: HoverBuilder(
         cursor: SystemMouseCursors.click,
@@ -831,7 +987,11 @@ class CodeBlockIconButton extends StatelessWidget {
             child: Icon(
               icon,
               size: 14,
-              color: hovered ? AppColors.text : AppColors.textMuted,
+              color: selected
+                  ? AppColors.accent
+                  : hovered
+                  ? AppColors.text
+                  : AppColors.textMuted,
             ),
           ),
         ),
