@@ -182,16 +182,25 @@ class Kernel {
   final List<Map<String, Object?>> results = [];
 
   Future<void> send(String text, {String? uuid}) async {
+    await sendContent(
+      [
+        {'type': 'text', 'text': text},
+      ],
+      uuid: uuid,
+    );
+  }
+
+  Future<void> sendContent(
+    List<Map<String, Object?>> content, {
+    String? uuid,
+    String? priority,
+  }) async {
     final before = results.length;
     transport.write({
       'type': 'user',
       'uuid': ?uuid,
-      'message': {
-        'role': 'user',
-        'content': [
-          {'type': 'text', 'text': text},
-        ],
-      },
+      'priority': ?priority,
+      'message': {'role': 'user', 'content': content},
     });
     while (results.length == before) {
       await Future<void>.delayed(const Duration(milliseconds: 5));
@@ -1494,6 +1503,261 @@ void main() {
         ),
         isTrue,
       );
+      transport.close();
+    },
+  );
+
+  test(
+    '/compact strips leading system reminders, emits compacting status & compact_boundary, and persists checkpoint summary',
+    () async {
+      final brainDir = '${home.path}/brain';
+      final receivedPrompts = <List<Map<String, Object?>>>[];
+      final runtime = FakeRuntime(
+        () => FakeAgent((agent, method, params) async {
+          switch (method) {
+            case 'initialize':
+              return {'protocolVersion': 1};
+            case 'session/new':
+              return {'sessionId': 'agy-compact-sess'};
+            case 'session/set_config_option':
+              return {};
+            case 'session/prompt':
+              final session = params['sessionId'] as String;
+              final prompt = (params['prompt'] as List)
+                  .cast<Map<Object?, Object?>>()
+                  .map((b) => b.cast<String, Object?>())
+                  .toList();
+              receivedPrompts.add(prompt);
+              if (receivedPrompts.length == 1) {
+                agent.say(session, {
+                  'sessionUpdate': 'agent_message_chunk',
+                  'content': {
+                    'type': 'text',
+                    'text': 'Long history reply. ' * 2000,
+                  },
+                });
+                agent.say(session, {
+                  'sessionUpdate': 'usage_update',
+                  'used': 50000,
+                  'size': 400000,
+                });
+                return {
+                  'stopReason': 'end_turn',
+                  'usage': {'inputTokens': 49000, 'outputTokens': 1000},
+                };
+              }
+              // Second turn: /compact writes a CHECKPOINT to agy's transcript
+              // and reports the compaction call's own usage (higher than 50k).
+              final tlog = File(
+                '$brainDir/agy-compact-sess/.system_generated/logs/transcript.jsonl',
+              )..parent.createSync(recursive: true);
+              tlog.writeAsStringSync(
+                '${jsonEncode({'step_index': 2, 'source': 'SYSTEM', 'type': 'CHECKPOINT', 'status': 'DONE', 'content': '# Resuming from a compaction\n\nCompact summary.'})}\n',
+              );
+              agent.say(session, {
+                'sessionUpdate': 'usage_update',
+                'used': 52000,
+                'size': 400000,
+              });
+              return {
+                'stopReason': 'end_turn',
+                'usage': {'inputTokens': 51000, 'outputTokens': 200},
+              };
+          }
+          return {};
+        }),
+      );
+
+      final transport = await AgyTransport.start(
+        ClaudeLaunch(cwd: cwd, model: 'gemini-4-neon'),
+        runtime: runtime,
+        brainDir: brainDir,
+      );
+      final kernel = Kernel(transport);
+
+      await kernel.send('first turn', uuid: 'u1');
+      final sessionId = kernel.seen.first['session_id']! as String;
+
+      // Send /compact with a leading <system-reminder> (as ClaudeCodeKernel
+      // sends when reply suggestions or editor notes are enabled).
+      await kernel.sendContent([
+        {
+          'type': 'text',
+          'text': '<system-reminder>Reply suggestions still on</system-reminder>',
+        },
+        {'type': 'text', 'text': '/compact'},
+      ], uuid: 'u2');
+
+      // 1. agy receives ONLY `/compact`, with synthetic reminders stripped.
+      expect(receivedPrompts[1], [
+        {'type': 'text', 'text': '/compact'},
+      ]);
+
+      // 2. Status transitions compacting -> null, and compact_boundary emits.
+      final statuses = [
+        for (final m in kernel.seen)
+          if (m['type'] == 'system' && m['subtype'] == 'status') m['status'],
+      ];
+      expect(statuses, containsAllInOrder(['compacting', null]));
+
+      final boundary = kernel.seen.lastWhere(
+        (m) => m['type'] == 'system' && m['subtype'] == 'compact_boundary',
+      );
+      final meta = (boundary['compact_metadata'] as Map).cast<String, Object?>();
+      expect(meta['trigger'], 'manual');
+      expect(meta['pre_tokens'], 50000);
+      expect(meta['context_window'], 400000);
+      // post_tokens drops well below pre_tokens (no inflation to 52000).
+      expect(meta['post_tokens'], isA<int>());
+      expect(meta['post_tokens'] as int, lessThan(50000));
+
+      // 3. Session jsonl persists both compact_boundary and hidden summary.
+      final saved = lines(sessionId);
+      expect(
+        saved.any(
+          (l) => l['type'] == 'system' && l['subtype'] == 'compact_boundary',
+        ),
+        isTrue,
+      );
+      final summaryEntry = saved.lastWhere(
+        (l) => l['isCompactSummary'] == true,
+      );
+      expect(
+        ((summaryEntry['message'] as Map)['content'] as String),
+        contains('Compact summary.'),
+      );
+      transport.close();
+    },
+  );
+
+  test(
+    'other slash commands (/plan, /swarm, skills) are placed first ahead of reminders, images, and handoff; paths keep normal order',
+    () async {
+      // Seed a prior Claude turn so AgyTransportCore prepends a handoff reminder.
+      final firstRuntime = FakeRuntime(() => FakeAgent(agentSaying('One.')));
+      final first = await AgyTransport.start(
+        ClaudeLaunch(cwd: cwd, model: 'gemini-4-neon'),
+        runtime: firstRuntime,
+      );
+      final firstKernel = Kernel(first);
+      await firstKernel.send('earlier turn');
+      final sessionId = firstKernel.seen.first['session_id']! as String;
+      first.close();
+
+      // Add a Claude turn that agy has not seen -> triggers handoff on resume.
+      final projects = Directory('${home.path}/.claude/projects');
+      final sessionFile = projects
+          .listSync()
+          .whereType<Directory>()
+          .map((dir) => File('${dir.path}/$sessionId.jsonl'))
+          .firstWhere((file) => file.existsSync());
+      final priorLines = sessionFile.readAsLinesSync();
+      final lastUuid = (jsonDecode(priorLines.lastWhere(
+        (l) => (jsonDecode(l) as Map)['uuid'] != null,
+      )) as Map)['uuid'];
+      sessionFile.writeAsStringSync(
+        '${jsonEncode({'type': 'user', 'uuid': 'c-u', 'parentUuid': lastUuid, 'message': {'role': 'user', 'content': 'from claude'}})}\n'
+        '${jsonEncode({'type': 'assistant', 'uuid': 'c-a', 'parentUuid': 'c-u', 'message': {'role': 'assistant', 'content': [{'type': 'text', 'text': 'claude reply'}]}})}\n',
+        mode: FileMode.append,
+      );
+
+      final receivedPrompts = <List<Map<String, Object?>>>[];
+      final runtime = FakeRuntime(
+        () => FakeAgent((agent, method, params) async {
+          switch (method) {
+            case 'initialize':
+              return {'protocolVersion': 1};
+            case 'session/resume':
+              return {'sessionId': 'agy-slash-sess'};
+            case 'session/set_config_option':
+              return {};
+            case 'session/prompt':
+              final session = params['sessionId'] as String;
+              final prompt = (params['prompt'] as List)
+                  .cast<Map<Object?, Object?>>()
+                  .map((b) => b.cast<String, Object?>())
+                  .toList();
+              receivedPrompts.add(prompt);
+              agent.say(session, {
+                'sessionUpdate': 'agent_message_chunk',
+                'content': {'type': 'text', 'text': 'ok'},
+              });
+              return {'stopReason': 'end_turn'};
+          }
+          return {};
+        }),
+      );
+
+      final transport = await AgyTransport.start(
+        ClaudeLaunch(cwd: cwd, model: 'gemini-4-neon', resume: sessionId),
+        runtime: runtime,
+      );
+      final kernel = Kernel(transport);
+
+      // 1. `/plan` with handoff, image + label, and leading `<system-reminder>`.
+      await kernel.sendContent([
+        {'type': 'text', 'text': '[Image #1]'},
+        {
+          'type': 'image',
+          'source': {
+            'type': 'base64',
+            'media_type': 'image/png',
+            'data': 'AAAA',
+          },
+        },
+        {
+          'type': 'text',
+          'text': '<system-reminder>Reply suggestions still on</system-reminder>',
+        },
+        {'type': 'text', 'text': '/plan [Image #1] design this'},
+      ], uuid: 'u-plan');
+
+      final planPrompt = receivedPrompts[0];
+      expect(planPrompt.first, {
+        'type': 'text',
+        'text': '/plan [Image #1] design this',
+      });
+      // Handoff, image label, image, and reminder all follow with leading `\n`.
+      expect(planPrompt[1]['text'], startsWith('\n<system-reminder>'));
+      expect(planPrompt[1]['text'], contains('claude reply'));
+      expect(planPrompt[2], {'type': 'text', 'text': '\n[Image #1]'});
+      expect(planPrompt[3], {
+        'type': 'image',
+        'mimeType': 'image/png',
+        'data': 'AAAA',
+      });
+      expect(planPrompt[4], {
+        'type': 'text',
+        'text': '\n<system-reminder>Reply suggestions still on</system-reminder>',
+      });
+
+      // 2. Bare `/swarm` still gets `\n` before trailing `<system-reminder>`.
+      await kernel.sendContent([
+        {
+          'type': 'text',
+          'text': '<system-reminder>Reply suggestions still on</system-reminder>',
+        },
+        {'type': 'text', 'text': '/swarm'},
+      ], uuid: 'u-swarm');
+      expect(receivedPrompts[1], [
+        {'type': 'text', 'text': '/swarm'},
+        {
+          'type': 'text',
+          'text': '\n<system-reminder>Reply suggestions still on</system-reminder>',
+        },
+      ]);
+
+      // 3. A filesystem path like `/Users/me/app.dart` is NOT treated as a command.
+      await kernel.sendContent([
+        {
+          'type': 'text',
+          'text': '<system-reminder>Reply suggestions still on</system-reminder>',
+        },
+        {'type': 'text', 'text': '/Users/me/app.dart'},
+      ], uuid: 'u-path');
+      expect(receivedPrompts[2].first['text'], contains('<system-reminder>'));
+      expect(receivedPrompts[2].last['text'], '/Users/me/app.dart');
+
       transport.close();
     },
   );

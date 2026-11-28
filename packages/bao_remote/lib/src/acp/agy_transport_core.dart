@@ -504,6 +504,11 @@ class AgyTransportCore {
     }
     final uuid = message['uuid'] as String? ?? newUuid();
     final content = _contentOf(message);
+    // Never steer `/compact` into an active turn: it needs its own turn so
+    // compacting status, usage tracking, and compact_boundary emit cleanly.
+    if (_slashCommandIn(content)?.name == 'compact') {
+      return false;
+    }
     _closeOpen();
     _takeUp(uuid, content);
     turn
@@ -530,6 +535,10 @@ class AgyTransportCore {
     final turn = _turn = _Turn(uuid);
     _idleTimer?.cancel();
     final content = _contentOf(message);
+    final slash = _slashCommandIn(content);
+    final isCompact = slash?.name == 'compact';
+    turn.compacting = isCompact;
+    final preCompactUsed = _used;
     _emit({
       'type': 'system',
       'subtype': 'init',
@@ -547,8 +556,12 @@ class AgyTransportCore {
     // What agy has not seen: the conversation as it was before this.
     final before = [..._store.chain];
     _takeUp(uuid, content);
+    if (isCompact) {
+      _emit({'type': 'system', 'subtype': 'status', 'status': 'compacting'});
+    }
     String? error;
     String? stopReason;
+    var preCheckpoints = 0;
     var checked = DateTime.now();
     final watchdog = Timer.periodic(checkEvery, (_) {
       final now = DateTime.now();
@@ -566,14 +579,12 @@ class AgyTransportCore {
     });
     try {
       final session = await _session();
+      preCheckpoints = _readMainCheckpoints().length;
       final handoff = handoffReminder(before, syncedUuid: _synced);
       if (handoff != null) _handedOff += agyTokens(handoff);
       turn.prompt = _connection!.request('session/prompt', {
         'sessionId': session,
-        'prompt': [
-          if (handoff != null) {'type': 'text', 'text': handoff},
-          ..._acpPrompt(content),
-        ],
+        'prompt': _acpPrompt(content, handoff: handoff),
       });
       // Ended by one the user folded in ([_steer]): on in that one.
       while (true) {
@@ -597,12 +608,29 @@ class AgyTransportCore {
       if (failure.closed) _dropConnection();
     } finally {
       watchdog.cancel();
+      if (isCompact) {
+        _emit({'type': 'system', 'subtype': 'status', 'status': null});
+      }
     }
     _closeOpen();
     final interrupted = turn.cancelled || stopReason == 'cancelled';
     _settleCalls(interrupted: interrupted || error != null);
     if (interrupted) {
       _appendUser('[Request interrupted by user]');
+    }
+    if (error == null && !interrupted) {
+      final postCheckpoints = _readMainCheckpoints();
+      final newCheckpoint = postCheckpoints.length > preCheckpoints
+          ? postCheckpoints.last
+          : null;
+      if (newCheckpoint != null ||
+          (isCompact && (_brainDir == null || !turn.emittedText))) {
+        _recordCompaction(
+          trigger: isCompact ? 'manual' : 'auto',
+          beforeUsed: preCompactUsed,
+          summary: newCheckpoint,
+        );
+      }
     }
     if (error == null && _agySession != null) {
       _synced = _store.leaf;
@@ -646,11 +674,54 @@ class AgyTransportCore {
     _next();
   }
 
-  /// [content] (Claude's blocks) as ACP's.
-  static List<Map<String, Object?>> _acpPrompt(
+  static final _slashCommandPattern = RegExp(
+    r'^/([A-Za-z0-9][A-Za-z0-9:_-]*)(?:\s+([\s\S]*))?$',
+  );
+
+  static bool _isSystemReminderText(String text) =>
+      text.trimLeft().startsWith('<system-reminder>');
+
+  /// Parses a leading `/command` from [text] (trimmed left), returning its
+  /// lowercase name (without `/`) and trimmed remainder, or null when [text]
+  /// is not a slash command (e.g. plain prose or a path like `/Users/a/b`).
+  static ({String name, String args})? _parseSlashCommand(String text) {
+    final trimmed = text.trimLeft();
+    if (!trimmed.startsWith('/')) return null;
+    final match = _slashCommandPattern.firstMatch(trimmed);
+    if (match == null) return null;
+    return (
+      name: match.group(1)!.toLowerCase(),
+      args: (match.group(2) ?? '').trim(),
+    );
+  }
+
+  /// Finds the user's leading slash command text block in [content] (always
+  /// the last non-reminder text block in Claude Code's content array), or null
+  /// when the message is not a slash command.
+  static ({int index, String name, String args, String text})? _slashCommandIn(
     List<Map<String, Object?>> content,
-  ) => [
-    for (final block in content)
+  ) {
+    for (var i = content.length - 1; i >= 0; i--) {
+      final block = content[i];
+      if (block['type'] != 'text') continue;
+      final text = block['text'];
+      if (text is! String) continue;
+      final trimmed = text.trim();
+      if (trimmed.isEmpty) continue;
+      if (_isSystemReminderText(trimmed)) continue;
+      final parsed = _parseSlashCommand(trimmed);
+      if (parsed == null) return null;
+      return (
+        index: i,
+        name: parsed.name,
+        args: parsed.args,
+        text: trimmed,
+      );
+    }
+    return null;
+  }
+
+  static Map<String, Object?>? _acpBlock(Map<String, Object?> block) =>
       switch (block) {
         {'type': 'text', 'text': final String text} => {
           'type': 'text',
@@ -666,8 +737,177 @@ class AgyTransportCore {
         } =>
           {'type': 'image', 'mimeType': type, 'data': data},
         _ => null,
+      };
+
+  /// [content] (Claude's blocks) as ACP's, with optional [handoff] reminder.
+  ///
+  /// Claude Code expects the user's text last (after `<system-reminder>` notes
+  /// and `[Image #N]` labels), whereas `agy acp` concatenates text blocks in
+  /// order and only triggers a slash command (`/compact`, `/plan`, `/swarm`,
+  /// `/goal`, `/grill-me`, built-in skills, …) when `<USER_REQUEST>` starts
+  /// with `/<command>`. For slash commands, the command block is placed first
+  /// with `\n`-separated trailing blocks; for `/compact`, synthetic
+  /// `<system-reminder>` notes are dropped so `agy` does not treat them as
+  /// compaction instructions or run an unwanted follow-up reply.
+  static List<Map<String, Object?>> _acpPrompt(
+    List<Map<String, Object?>> content, {
+    String? handoff,
+  }) {
+    final slash = _slashCommandIn(content);
+    if (slash == null) {
+      return [
+        if (handoff != null) {'type': 'text', 'text': handoff},
+        for (final block in content) ?_acpBlock(block),
+      ];
+    }
+
+    final out = <Map<String, Object?>>[
+      {'type': 'text', 'text': slash.text},
+    ];
+    void appendText(String text) {
+      if (text.isEmpty) return;
+      out.add({
+        'type': 'text',
+        'text': text.startsWith('\n') ? text : '\n$text',
+      });
+    }
+
+    if (handoff != null) {
+      appendText(handoff);
+    }
+    final isCompact = slash.name == 'compact';
+    for (var i = 0; i < content.length; i++) {
+      if (i == slash.index) continue;
+      final block = content[i];
+      if (block['type'] == 'text') {
+        final text = block['text'];
+        if (text is! String || text.isEmpty) continue;
+        if (isCompact && _isSystemReminderText(text)) continue;
+        appendText(text);
+      } else if (_acpBlock(block) case final mapped?) {
+        out.add(mapped);
+      }
+    }
+    return out;
+  }
+
+  /// All `CHECKPOINT` compaction summaries written by `agy` in the current
+  /// session's local `transcript.jsonl`.
+  List<String> _readMainCheckpoints() {
+    final brainDir = _brainDir;
+    final session = _agySession;
+    if (brainDir == null || session == null) return const [];
+    final file = File(
+      p.join(
+        brainDir,
+        session,
+        '.system_generated',
+        'logs',
+        'transcript.jsonl',
+      ),
+    );
+    final String content;
+    try {
+      if (!file.existsSync()) return const [];
+      content = file.readAsStringSync();
+    } on FileSystemException {
+      return const [];
+    }
+    final summaries = <String>[];
+    for (final rawLine in const LineSplitter().convert(content)) {
+      if (!rawLine.contains('"CHECKPOINT"')) continue;
+      final Object? decoded;
+      try {
+        decoded = jsonDecode(rawLine);
+      } on FormatException {
+        continue;
+      }
+      if (decoded case {
+        'type': 'CHECKPOINT',
+        'content': final String text,
+      } when text.trim().isNotEmpty) {
+        summaries.add(text);
+      }
+    }
+    return summaries;
+  }
+
+  /// Emits (and, when [summary] is available, persists) a `compact_boundary`
+  /// after `agy` compacts the conversation.
+  void _recordCompaction({
+    required String trigger,
+    required int? beforeUsed,
+    String? summary,
+  }) {
+    final int? afterUsed;
+    if (beforeUsed != null && beforeUsed > 0 && summary != null) {
+      final breakdown = _contextUsage();
+      final categories = breakdown['categories'] as List? ?? const [];
+      var base = 0;
+      for (final category in categories) {
+        if (category case {
+          'kind': 'used',
+          'name': final String name,
+          'tokens': final int tokens,
+        } when name != 'Messages') {
+          base += tokens;
+        }
+      }
+      final estimated = base + agyTokens(summary);
+      afterUsed = estimated > 0 && estimated < beforeUsed ? estimated : null;
+    } else {
+      afterUsed = null;
+    }
+    _handedOff = 0;
+    if (afterUsed != null) {
+      _used = afterUsed;
+    }
+    String? boundaryUuid;
+    // Only write compact_boundary into SessionStore when we also have the
+    // checkpoint summary to follow it; otherwise switching back to Claude
+    // Code / bao_agent would resume after the boundary with an empty context.
+    if (summary != null) {
+      final boundary = _store.append({
+        'type': 'system',
+        'subtype': 'compact_boundary',
+        'content': 'Conversation compacted',
+        'isMeta': false,
+        'level': 'info',
+        'parentUuid': null,
+        'logicalParentUuid': _store.leaf,
+        'compactMetadata': {
+          'trigger': trigger,
+          if (beforeUsed != null && beforeUsed > 0) 'preTokens': beforeUsed,
+          if (_size != null && _size! > 0) 'contextWindow': _size,
+        },
+      });
+      boundaryUuid = boundary['uuid'] as String?;
+      _store.append({
+        'type': 'user',
+        'message': {'role': 'user', 'content': summary},
+        'isCompactSummary': true,
+        'isVisibleInTranscriptOnly': true,
+      });
+    }
+    _emit({
+      'type': 'system',
+      'subtype': 'compact_boundary',
+      'compact_metadata': {
+        'trigger': trigger,
+        if (beforeUsed != null && beforeUsed > 0) 'pre_tokens': beforeUsed,
+        'post_tokens': ?afterUsed,
+        if (_size != null && _size! > 0) 'context_window': _size,
       },
-  ].nonNulls.toList();
+      'uuid': boundaryUuid ?? newUuid(),
+    });
+    if (afterUsed != null) {
+      _emit({
+        'type': 'system',
+        'subtype': 'context_usage',
+        'usage': _contextUsage(),
+      });
+    }
+  }
 
   static String _said(String message, Object? data) => switch (data) {
     final String detail when detail.isNotEmpty => '$message: $detail',
@@ -2052,8 +2292,14 @@ class AgyTransportCore {
     if (usage is! Map) return;
     final beforeUsed = _used;
     final beforeSize = _size;
+    final compacting = _turn?.compacting == true;
     if (usage['used'] case final num used when used > 0 || _used == null) {
-      _used = used.toInt();
+      final value = used.toInt();
+      // During `/compact`, agy's usage_update reflects the compaction prompt
+      // itself (larger than the pre-compaction context); don't inflate `_used`.
+      if (!compacting || _used == null || value < _used!) {
+        _used = value;
+      }
     }
     if (usage['size'] case final num size when size > 0) {
       _size = size.toInt();
@@ -2228,6 +2474,7 @@ class AgyTransportCore {
 
   void _chunk(_BlockKind kind, String text) {
     if (text.isEmpty) return;
+    if (kind == _BlockKind.text) _turn?.emittedText = true;
     var block = _block;
     if (block == null || block.kind != kind) {
       _closeOpen();
@@ -2606,6 +2853,8 @@ class _Turn {
   DateTime heard = DateTime.now();
   bool cancelled = false;
   bool stalled = false;
+  bool compacting = false;
+  bool emittedText = false;
 
   /// The prompt it waits on: the last sent.
   Future<Map<String, Object?>>? prompt;
