@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:baocode/chat/chat_find.dart' show ChatFindMarks;
 import 'package:baocode/chat/widgets/code_citation.dart';
 import 'package:baocode/chat/widgets/table_selection.dart';
 import 'package:baocode/chat/widgets/markdown_view.dart';
@@ -736,21 +737,43 @@ void main() {}
       );
     });
 
+    /// The code's paragraphs, as find marks them: its line numbers left out.
+    List<RenderParagraph> codeParagraphs(WidgetTester tester) => tester
+        .renderObjectList<RenderParagraph>(
+          find.descendant(
+            of: find.byType(ChatFindMarks),
+            matching: find.byType(RichText),
+          ),
+        )
+        .toList();
+
     testWidgets('a citation wrapped keeps each number beside its line', (
       tester,
     ) async {
       // Numbers of more than one digit, each on one row.
-      await pumpMarkdownInPage(tester, '```98:100:a.txt\n$long\nb\nc\n```');
+      final code = '$long\nb\nc';
+      await pumpMarkdownInPage(tester, '```98:100:a.txt\n$code\n```');
       await tester.pump();
       await tester.tap(wrap);
       await tester.pump();
       final card = find.byType(CodeCitationCard);
       expect(sideways(tester, card).maxScrollExtent, 0);
-      final row = tester.getSize(find.text('b')).height;
-      for (final (number, line) in [('99', 'b'), ('100', 'c')]) {
+      final paragraph = codeParagraphs(tester).single;
+      // Where line [offset] starts, on the screen.
+      double top(int offset) => paragraph
+          .localToGlobal(
+            paragraph.getOffsetForCaret(
+              TextPosition(offset: offset),
+              Rect.zero,
+            ),
+          )
+          .dy;
+      final row = tester.getSize(find.text('98')).height;
+      for (final (number, line) in [('98', 0), ('99', 1), ('100', 2)]) {
+        final start = code.split('\n').take(line).join('\n').length;
         expect(
           tester.getTopLeft(find.text(number)).dy,
-          tester.getTopLeft(find.text(line)).dy,
+          moreOrLessEquals(top(line == 0 ? 0 : start + 1)),
         );
         expect(tester.getSize(find.text(number)).height, row);
       }
@@ -760,6 +783,159 @@ void main() {}
             tester.getTopLeft(find.text('98')).dy,
         greaterThan(row * 1.5),
       );
+    });
+
+    // Find, copy and the selection all go by the code's paragraphs: wrapped,
+    // they are the very ones, their text whole, only laid out narrower.
+    testWidgets('a citation wrapped keeps its paragraphs as they were', (
+      tester,
+    ) async {
+      final lines = [long, '', for (var i = 0; i < 45; i++) 'line_$i'];
+      await pumpMarkdownInPage(
+        tester,
+        '```1:${lines.length}:a.txt\n${lines.join('\n')}\n```',
+      );
+      await tester.pump();
+      final before = codeParagraphs(tester);
+      expect(before, hasLength(2));
+      String text(List<RenderParagraph> shown) =>
+          shown.map((paragraph) => paragraph.text.toPlainText()).join('\n');
+      expect(text(before), lines.join('\n'));
+
+      final card = find.byType(CodeCitationCard);
+      for (final wrapped in [true, false]) {
+        await tester.tap(wrap);
+        await tester.pump();
+        await tester.pump();
+        // It did wrap, and back: a number of its own beside each line.
+        expect(find.text('3'), wrapped ? findsOneWidget : findsNothing);
+        expect(
+          sideways(tester, card).maxScrollExtent,
+          wrapped ? 0 : greaterThan(0),
+        );
+        final after = codeParagraphs(tester);
+        expect(after, hasLength(2));
+        for (var j = 0; j < 2; j++) {
+          expect(after[j], same(before[j]));
+        }
+        expect(text(after), lines.join('\n'));
+        // A search across lines still finds them in one paragraph.
+        expect(
+          RegExp(r'line_0\s+line_1').hasMatch(after[0].text.toPlainText()),
+          isTrue,
+        );
+        if (!wrapped) continue;
+        // The second paragraph's numbers beside their lines too.
+        final second = after[1];
+        for (final (number, offset) in [
+          ('41', 0),
+          ('42', lines[40].length + 1),
+        ]) {
+          expect(
+            tester.getTopLeft(find.text(number)).dy,
+            moreOrLessEquals(
+              second
+                  .localToGlobal(
+                    second.getOffsetForCaret(
+                      TextPosition(offset: offset),
+                      Rect.zero,
+                    ),
+                  )
+                  .dy,
+            ),
+          );
+        }
+      }
+    });
+
+    testWidgets('a citation wrapped, written on, builds only its new numbers', (
+      tester,
+    ) async {
+      final lines = [long, for (var i = 0; i < 50; i++) 'line_$i'];
+      Future<void> pump() => pumpMarkdownInPage(
+        tester,
+        '```1:${lines.length}:a.txt\n${lines.join('\n')}',
+      );
+      await pump();
+      await tester.pump();
+      await tester.tap(wrap);
+      await tester.pump();
+      Widget number(String text) => tester.widget<Text>(find.text(text));
+      final before = [
+        for (final n in ['1', '41', '51']) number(n),
+      ];
+
+      lines.add('line_50');
+      await pump();
+      final after = [
+        for (final n in ['1', '41', '51']) number(n),
+      ];
+      for (var i = 0; i < before.length; i++) {
+        expect(after[i], same(before[i]));
+      }
+      expect(find.text('52'), findsOneWidget);
+    });
+
+    testWidgets('a citation wrapped copies its blank lines', (tester) async {
+      String? copied;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copied = (call.arguments as Map)['text'] as String;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      final code = '$long\nfirst\n\nlast';
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Shortcuts(
+              shortcuts: const {
+                SingleActivator(LogicalKeyboardKey.keyC, control: true):
+                    CopySelectionTextIntent.copy,
+              },
+              child: SelectionArea(
+                child: CodeCitationScope(
+                  root: '/p',
+                  child: SingleChildScrollView(
+                    child: MarkdownView('```1:4:a.txt\n$code\n```'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.tap(wrap);
+      await tester.pumpAndSettle();
+      final paragraph = codeParagraphs(tester).single;
+      Offset at(int offset) => paragraph.localToGlobal(
+        paragraph.getOffsetForCaret(TextPosition(offset: offset), Rect.zero),
+      );
+      final from = code.indexOf('first');
+      final mouse = await tester.startGesture(
+        at(from) + const Offset(0.5, 4),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+      await mouse.moveTo(at(code.length) + const Offset(-0.5, 4));
+      await tester.pump();
+      await mouse.up();
+      await tester.pump();
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyC);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pump();
+      expect(copied, 'first\n\nlast');
     });
 
     testWidgets('a table offers it while hovered, and fits the width', (

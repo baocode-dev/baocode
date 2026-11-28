@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:bao_editor/textmate/textmate_syntax.dart' show TextMateSyntax;
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:markdown/markdown.dart' as md;
 
@@ -324,6 +325,10 @@ class _CodeCard extends StatefulWidget {
 
 class _CodeCardState extends State<_CodeCard> with SidewaysWrap {
   final _horizontal = ScrollController();
+
+  /// The code's, to keep its paragraphs (their boxes, the selection in them)
+  /// while wrapping moves them to another place in the tree.
+  final _code = GlobalKey();
   bool _expanded = true;
   bool _hovered = false;
   bool _copied = false;
@@ -693,60 +698,71 @@ class _CodeCardState extends State<_CodeCard> with SidewaysWrap {
     return _CodeParagraph(own, colors, style, wrap, widget);
   }
 
-  /// Wrapped, a citation's lines one by one, each its number beside it: a
-  /// line may take several rows, which a column of numbers beside the
-  /// paragraphs would not follow.
-  Widget _numberedLines(
+  /// Wrapped, a citation's [code] with each line's number beside where the
+  /// line starts: a line may take several rows, which a column of numbers
+  /// beside the paragraphs would not follow. The code stays the paragraphs
+  /// it is unwrapped, so find, copy and the selection go by the same text.
+  Widget _numbered(
+    Widget code,
     List<String> lines,
     CodeCitation citation,
     TextStyle style,
   ) {
-    // The numbers' column's width, its padding on the left (the card's
-    // edge here) left out.
-    final width =
-        _numbersWidth('${citation.start + lines.length - 1}', style) - 12;
     final numberStyle = style.copyWith(
       color: themeColors['editorLineNumber.foreground'],
     );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (final (i, line) in lines.indexed)
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ChatUnselectable(
-                child: SizedBox(
-                  width: width,
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: 14),
-                    // Its box is as wide as the widest number, to the
-                    // pixel: one wide as that must not wrap for rounding.
-                    child: Text(
-                      '${citation.start + i}',
-                      textAlign: TextAlign.right,
-                      softWrap: false,
-                      overflow: TextOverflow.visible,
-                      style: numberStyle,
-                    ),
-                  ),
-                ),
-              ),
-              Expanded(
-                child: ChatFindMarks(
-                  child: Text.rich(
-                    TextSpan(
-                      style: style,
-                      children: _colorsOf(i, line) ?? [TextSpan(text: line)],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-      ],
+    final starts = <({int paragraph, int offset})>[];
+    var offset = 0;
+    for (final (i, line) in lines.indexed) {
+      if (i % _linesPerParagraph == 0) offset = 0;
+      starts.add((paragraph: i ~/ _linesPerParagraph, offset: offset));
+      offset += line.length + 1;
+    }
+    if (_numbersOf != (citation.start, numberStyle)) {
+      _numbersOf = (citation.start, numberStyle);
+      _numbers = const [];
+    }
+    _numbers = _numbers.length >= lines.length
+        ? _numbers.sublist(0, lines.length)
+        : [
+            ..._numbers,
+            for (var i = _numbers.length; i < lines.length; i++)
+              _number(citation.start + i, numberStyle),
+          ];
+    return _LineNumbers(
+      // The numbers' column's width, its padding on the left (the card's
+      // edge here) left out.
+      gutter: _numbersWidth('${citation.start + lines.length - 1}', style) - 12,
+      starts: starts,
+      code: code,
+      numbers: _numbers,
     );
   }
+
+  /// The line numbers last built wrapped, and the first number and style
+  /// they were built of: code the agent writes on adds numbers, not builds
+  /// them all again.
+  List<Widget> _numbers = const [];
+  (int, TextStyle)? _numbersOf;
+
+  // Not read out: a screen reader reads the code, then would read all the
+  // numbers after it.
+  static Widget _number(int number, TextStyle style) => ExcludeSemantics(
+    child: ChatUnselectable(
+      child: Padding(
+        padding: const EdgeInsets.only(right: 14),
+        // Its box is as wide as the widest number, to the pixel: one wide as
+        // that must not wrap for rounding.
+        child: Text(
+          '$number',
+          textAlign: TextAlign.right,
+          softWrap: false,
+          overflow: TextOverflow.visible,
+          style: style,
+        ),
+      ),
+    ),
+  );
 
   /// Line numbers from the citation's first, beside the code; the code
   /// scrolls sideways alone, its scrollbar at the card's bottom, not the
@@ -760,7 +776,7 @@ class _CodeCardState extends State<_CodeCard> with SidewaysWrap {
     final wrap = wrapped;
     final numbers = switch (citation) {
       // As the code's paragraphs, so a line's number lies beside it.
-      // Wrapped, each line has its own ([_numberedLines]).
+      // Wrapped, beside the code where each line starts ([_numbered]).
       final citation? when !wrap => ChatUnselectable(
         child: Padding(
           padding: const EdgeInsets.only(left: 12, right: 14),
@@ -796,18 +812,18 @@ class _CodeCardState extends State<_CodeCard> with SidewaysWrap {
       ),
       _ => 12.0,
     };
-    final Widget code;
-    if (wrap && citation != null) {
-      _paragraphs = const [];
-      code = _numberedLines(lines, citation, style);
-    } else {
-      _paragraphs = [
-        for (var j = 0; j < count; j++) _paragraph(j, lines, style, wrap),
-      ];
-      code = Column(
+    _paragraphs = [
+      for (var j = 0; j < count; j++) _paragraph(j, lines, style, wrap),
+    ];
+    Widget code = KeyedSubtree(
+      key: _code,
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [for (final paragraph in _paragraphs) paragraph.widget],
-      );
+      ),
+    );
+    if (wrap && citation != null) {
+      code = _numbered(code, lines, citation, style);
     }
     Widget scroll(Widget code) =>
         NotificationListener<ScrollMetricsNotification>(
@@ -910,6 +926,209 @@ class _CodeParagraph {
     }
     return true;
   }
+}
+
+/// A wrapped citation's code, its line numbers in a [gutter] before it, each
+/// level with where its line starts as the code is laid out.
+class _LineNumbers extends MultiChildRenderObjectWidget {
+  _LineNumbers({
+    required this.gutter,
+    required this.starts,
+    required Widget code,
+    required List<Widget> numbers,
+  }) : super(children: [code, ...numbers]);
+
+  final double gutter;
+
+  /// Each number's line: the code's paragraph it is in, and where it
+  /// starts in that paragraph's text.
+  final List<({int paragraph, int offset})> starts;
+
+  @override
+  _RenderLineNumbers createRenderObject(BuildContext context) =>
+      _RenderLineNumbers(gutter, starts);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderLineNumbers renderObject,
+  ) {
+    renderObject
+      ..gutter = gutter
+      ..starts = starts;
+  }
+}
+
+class _LineNumbersParentData extends ContainerBoxParentData<RenderBox> {}
+
+/// Lays the code out first, its first child, then each number after it
+/// where the code's paragraphs put the start of its line.
+class _RenderLineNumbers extends RenderBox
+    with
+        ContainerRenderObjectMixin<RenderBox, _LineNumbersParentData>,
+        RenderBoxContainerDefaultsMixin<RenderBox, _LineNumbersParentData> {
+  _RenderLineNumbers(this._gutter, this._starts);
+
+  double _gutter;
+  set gutter(double value) {
+    if (value == _gutter) return;
+    _gutter = value;
+    markNeedsLayout();
+  }
+
+  List<({int paragraph, int offset})> _starts;
+  set starts(List<({int paragraph, int offset})> value) {
+    if (listEquals(value, _starts)) return;
+    _starts = value;
+    markNeedsLayout();
+  }
+
+  @override
+  void setupParentData(RenderBox child) {
+    if (child.parentData is! _LineNumbersParentData) {
+      child.parentData = _LineNumbersParentData();
+    }
+  }
+
+  BoxConstraints _codeConstraints(BoxConstraints constraints) =>
+      BoxConstraints(maxWidth: math.max(0, constraints.maxWidth - _gutter));
+
+  @override
+  double computeMinIntrinsicWidth(double height) =>
+      _gutter + (firstChild?.getMinIntrinsicWidth(height) ?? 0);
+
+  @override
+  double computeMaxIntrinsicWidth(double height) =>
+      _gutter + (firstChild?.getMaxIntrinsicWidth(height) ?? 0);
+
+  @override
+  double computeMinIntrinsicHeight(double width) =>
+      firstChild?.getMinIntrinsicHeight(math.max(0, width - _gutter)) ?? 0;
+
+  @override
+  double computeMaxIntrinsicHeight(double width) =>
+      firstChild?.getMaxIntrinsicHeight(math.max(0, width - _gutter)) ?? 0;
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) {
+    final code =
+        firstChild?.getDryLayout(_codeConstraints(constraints)) ?? Size.zero;
+    return constraints.constrain(Size(_gutter + code.width, code.height));
+  }
+
+  @override
+  void performLayout() {
+    final code = firstChild;
+    if (code == null) {
+      size = constraints.smallest;
+      return;
+    }
+    code.layout(_codeConstraints(constraints), parentUsesSize: true);
+    (code.parentData! as _LineNumbersParentData).offset = Offset(_gutter, 0);
+    final paragraphs = <RenderParagraph>[];
+    void collect(RenderObject node) {
+      if (node is RenderParagraph) {
+        paragraphs.add(node);
+      } else {
+        node.visitChildren(collect);
+      }
+    }
+
+    code.visitChildren(collect);
+
+    // Each line's top in the code: its paragraph's, and where the line
+    // starts below that.
+    final tops = List.filled(_starts.length, 0.0);
+    final laid = <_LaidParagraph>[];
+    var i = 0;
+    for (final (j, paragraph) in paragraphs.indexed) {
+      final from = i;
+      while (i < _starts.length && _starts[i].paragraph == j) {
+        i++;
+      }
+      final offsets = [for (var k = from; k < i; k++) _starts[k].offset];
+      final was = j < _laid.length ? _laid[j] : null;
+      final within = was != null && was.isOf(paragraph, offsets)
+          ? was
+          : _LaidParagraph.of(paragraph, offsets);
+      laid.add(within);
+      final top = MatrixUtils.transformPoint(
+        paragraph.getTransformTo(code),
+        Offset.zero,
+      ).dy;
+      for (var k = from; k < i; k++) {
+        tops[k] = top + within.tops[k - from];
+      }
+    }
+    _laid = laid;
+
+    var height = code.size.height;
+    i = 0;
+    for (var number = childAfter(code); number != null; i++) {
+      number.layout(
+        BoxConstraints.tightFor(width: _gutter),
+        parentUsesSize: true,
+      );
+      final top = i < tops.length ? tops[i] : 0.0;
+      (number.parentData! as _LineNumbersParentData).offset = Offset(0, top);
+      height = math.max(height, top + number.size.height);
+      number = childAfter(number);
+    }
+    size = constraints.constrain(Size(_gutter + code.size.width, height));
+  }
+
+  /// The code's paragraphs as last laid out, each with where its lines
+  /// start: code the agent writes on lays out its last paragraph again,
+  /// whose lines alone are found again.
+  List<_LaidParagraph> _laid = const [];
+
+  @override
+  void paint(PaintingContext context, Offset offset) =>
+      defaultPaint(context, offset);
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) =>
+      defaultHitTestChildren(result, position: position);
+}
+
+/// A paragraph of a wrapped citation's code as laid out, and how far below
+/// its top each of its lines starts.
+class _LaidParagraph {
+  _LaidParagraph(
+    this.paragraph,
+    this.text,
+    this.constraints,
+    this.offsets,
+    this.tops,
+  );
+
+  factory _LaidParagraph.of(RenderParagraph paragraph, List<int> offsets) =>
+      _LaidParagraph(
+        paragraph,
+        paragraph.text,
+        paragraph.constraints,
+        offsets,
+        [
+          for (final offset in offsets)
+            paragraph
+                .getOffsetForCaret(TextPosition(offset: offset), Rect.zero)
+                .dy,
+        ],
+      );
+
+  final RenderParagraph paragraph;
+  final InlineSpan text;
+  final BoxConstraints constraints;
+  final List<int> offsets;
+  final List<double> tops;
+
+  /// Whether [paragraph] is laid out as this was, its lines starting at
+  /// [offsets] as these did.
+  bool isOf(RenderParagraph paragraph, List<int> offsets) =>
+      identical(paragraph, this.paragraph) &&
+      identical(paragraph.text, text) &&
+      paragraph.constraints == constraints &&
+      listEquals(offsets, this.offsets);
 }
 
 /// Content that scrolls sideways when wider than there is room for (a code
