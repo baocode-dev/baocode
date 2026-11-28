@@ -1184,15 +1184,19 @@ class _ChatScreenState extends State<ChatScreen>
   }
 
   /// Routes a direct message composed in a swarm worker's subagent view to the
-  /// conversation's coordinator prefixed with `@<workerName>`.
+  /// conversation's coordinator prefixed with `@<workerName>`, then returns to
+  /// the main conversation where the message is delivered.
   void _sendToSwarmWorker(String workerName, String text) {
     final trimmed = text.trim();
-    if (trimmed.isEmpty) return;
+    if (trimmed.isEmpty || !_session.canSend) return;
     final prefix = '@$workerName';
-    final payload = trimmed.toLowerCase().startsWith(prefix.toLowerCase())
-        ? trimmed
-        : '$prefix $trimmed';
-    _session.send(ComposerMessage(text: payload));
+    final alreadyPrefixed =
+        trimmed.toLowerCase().startsWith(prefix.toLowerCase()) &&
+        (trimmed.length == prefix.length ||
+            !RegExp(r'[A-Za-z0-9_-]').hasMatch(trimmed[prefix.length]));
+    final payload = alreadyPrefixed ? trimmed : '$prefix $trimmed';
+    final sent = _session.send(ComposerMessage(text: payload));
+    if (sent != null) _back(0);
   }
 
   @override
@@ -1610,7 +1614,7 @@ class _ChatScreenState extends State<ChatScreen>
                       when ClaudeTranslator.isSwarmWorkerId(
                         layer.feed.agent?.id,
                       ) =>
-                    _SwarmWorkerComposer(
+                    SwarmWorkerComposer(
                       key: ValueKey(('swarm-composer', layer.feed.agent!.id)),
                       workerName: layer.feed.agent!.id!.substring(
                         ClaudeTranslator.swarmWorkerPrefix.length,
@@ -2203,31 +2207,83 @@ class _SoftSlot extends StatelessWidget {
 
 /// Compact native reply composer docked at the bottom of a swarm worker's
 /// subagent view so the user can directly message/steer `@<workerName>`.
-class _SwarmWorkerComposer extends StatefulWidget {
-  const _SwarmWorkerComposer({
+@visibleForTesting
+class SwarmWorkerComposer extends StatefulWidget {
+  const SwarmWorkerComposer({
     super.key,
     required this.workerName,
     required this.canSend,
     required this.onSend,
+    this.controller,
+    this.focusNode,
   });
 
   final String workerName;
   final bool canSend;
   final ValueChanged<String> onSend;
+  final TextEditingController? controller;
+  final FocusNode? focusNode;
 
   @override
-  State<_SwarmWorkerComposer> createState() => _SwarmWorkerComposerState();
+  State<SwarmWorkerComposer> createState() => _SwarmWorkerComposerState();
 }
 
-class _SwarmWorkerComposerState extends State<_SwarmWorkerComposer> {
-  final TextEditingController _controller = TextEditingController();
-  final FocusNode _focus = FocusNode();
+class _SwarmWorkerComposerState extends State<SwarmWorkerComposer> {
+  static const _fontSize = 13.5;
+  static const _lineHeight = 1.5;
+  // 13.5 * 1.5 = 20.25px line box; with 3px vertical padding on each side,
+  // a single-line field is 26.25px tall — aligning cleanly with the 26px send button.
+  static const _fieldVerticalPadding = 3.0;
+  static const _buttonSize = 26.0;
+  static const _strutStyle = StrutStyle(
+    fontSize: _fontSize,
+    height: _lineHeight,
+    leadingDistribution: TextLeadingDistribution.even,
+    forceStrutHeight: true,
+  );
+
+  late TextEditingController _controller;
+  late FocusNode _focus;
+  late bool _ownsController;
+  late bool _ownsFocus;
   bool _focused = false;
+  bool _hasText = false;
+  bool _isEmpty = true;
 
   @override
   void initState() {
     super.initState();
+    _ownsController = widget.controller == null;
+    _controller = widget.controller ?? TextEditingController();
+    _ownsFocus = widget.focusNode == null;
+    _focus = widget.focusNode ?? FocusNode(debugLabel: 'SwarmWorkerComposer');
+    _focused = _focus.hasFocus;
+    _isEmpty = _controller.text.isEmpty;
+    _hasText = _controller.text.trim().isNotEmpty;
+    _controller.addListener(_onTextChanged);
     _focus.addListener(_onFocus);
+  }
+
+  @override
+  void didUpdateWidget(SwarmWorkerComposer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      _controller.removeListener(_onTextChanged);
+      if (_ownsController) _controller.dispose();
+      _ownsController = widget.controller == null;
+      _controller = widget.controller ?? TextEditingController();
+      _isEmpty = _controller.text.isEmpty;
+      _hasText = _controller.text.trim().isNotEmpty;
+      _controller.addListener(_onTextChanged);
+    }
+    if (oldWidget.focusNode != widget.focusNode) {
+      _focus.removeListener(_onFocus);
+      if (_ownsFocus) _focus.dispose();
+      _ownsFocus = widget.focusNode == null;
+      _focus = widget.focusNode ?? FocusNode(debugLabel: 'SwarmWorkerComposer');
+      _focused = _focus.hasFocus;
+      _focus.addListener(_onFocus);
+    }
   }
 
   void _onFocus() {
@@ -2236,11 +2292,23 @@ class _SwarmWorkerComposerState extends State<_SwarmWorkerComposer> {
     }
   }
 
+  void _onTextChanged() {
+    final empty = _controller.text.isEmpty;
+    final hasText = _controller.text.trim().isNotEmpty;
+    if (empty != _isEmpty || hasText != _hasText) {
+      setState(() {
+        _isEmpty = empty;
+        _hasText = hasText;
+      });
+    }
+  }
+
   @override
   void dispose() {
+    _controller.removeListener(_onTextChanged);
     _focus.removeListener(_onFocus);
-    _focus.dispose();
-    _controller.dispose();
+    if (_ownsFocus) _focus.dispose();
+    if (_ownsController) _controller.dispose();
     super.dispose();
   }
 
@@ -2248,9 +2316,35 @@ class _SwarmWorkerComposerState extends State<_SwarmWorkerComposer> {
     if (!widget.canSend) return;
     final text = _controller.text.trim();
     if (text.isEmpty) return;
-    widget.onSend(text);
     _controller.clear();
-    setState(() {});
+    widget.onSend(text);
+    if (mounted) setState(() {});
+  }
+
+  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    final isEnter =
+        event.logicalKey == LogicalKeyboardKey.enter ||
+        event.logicalKey == LogicalKeyboardKey.numpadEnter;
+    if (!isEnter) return KeyEventResult.ignored;
+    final composing = _controller.value.composing;
+    if (composing.isValid && !composing.isCollapsed) {
+      return KeyEventResult.ignored;
+    }
+    final hardware = HardwareKeyboard.instance;
+    if (hardware.isShiftPressed ||
+        hardware.isControlPressed ||
+        hardware.isAltPressed ||
+        hardware.isMetaPressed) {
+      return KeyEventResult.ignored;
+    }
+    if (event is KeyDownEvent) {
+      _submit();
+      return KeyEventResult.handled;
+    }
+    if (event is KeyRepeatEvent) {
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
   }
 
   @override
@@ -2259,67 +2353,95 @@ class _SwarmWorkerComposerState extends State<_SwarmWorkerComposer> {
     final hint = zh
         ? '给 @${widget.workerName} 发消息…'
         : 'Message @${widget.workerName}…';
-    final hasText = _controller.text.trim().isNotEmpty;
-    final enabled = widget.canSend && hasText;
+    final enabled = widget.canSend && _hasText;
+    final baseStyle = TextStyle(
+      color: AppColors.textPrimary,
+      fontSize: _fontSize,
+      height: _lineHeight,
+      leadingDistribution: TextLeadingDistribution.even,
+    );
+    final prefixStyle = baseStyle.copyWith(
+      color: AppColors.accent,
+      fontWeight: FontWeight.w500,
+    );
+    final hintStyle = baseStyle.copyWith(color: AppColors.textFaint);
 
-    return Container(
-      margin: const EdgeInsets.only(top: 6),
-      decoration: BoxDecoration(
-        color: AppColors.bubbleFill,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.bubbleBorder(focused: _focused)),
-      ),
-      padding: const EdgeInsets.fromLTRB(12, 6, 8, 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(bottom: 5, right: 6),
-            child: Text(
-              '@${widget.workerName}',
-              style: TextStyle(
-                color: AppColors.accent,
-                fontSize: 12.5,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Focus(
-              onKeyEvent: (node, event) {
-                if (event is KeyDownEvent &&
-                    event.logicalKey == LogicalKeyboardKey.enter &&
-                    !HardwareKeyboard.instance.isShiftPressed) {
-                  _submit();
-                  return KeyEventResult.handled;
-                }
-                return KeyEventResult.ignored;
-              },
-              child: TextField(
-                controller: _controller,
-                focusNode: _focus,
-                enabled: widget.canSend,
-                minLines: 1,
-                maxLines: 5,
-                onChanged: (_) => setState(() {}),
-                style: TextStyle(color: AppColors.text, fontSize: 13.5),
-                decoration: InputDecoration(
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 5),
-                  border: InputBorder.none,
-                  hintText: hint,
-                  hintStyle: TextStyle(
-                    color: AppColors.textFaint,
-                    fontSize: 13.5,
-                  ),
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: widget.canSend ? _focus.requestFocus : null,
+      child: Container(
+        margin: const EdgeInsets.only(top: 6),
+        decoration: BoxDecoration(
+          color: AppColors.bubbleFill,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.bubbleBorder(focused: _focused)),
+        ),
+        padding: const EdgeInsets.fromLTRB(12, 6, 8, 6),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  vertical: _fieldVerticalPadding,
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 220),
+                        child: Text(
+                          '@${widget.workerName}',
+                          maxLines: 1,
+                          softWrap: false,
+                          overflow: TextOverflow.ellipsis,
+                          style: prefixStyle,
+                          strutStyle: _strutStyle,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Focus(
+                        canRequestFocus: false,
+                        skipTraversal: true,
+                        onKeyEvent: _handleKeyEvent,
+                        child: Stack(
+                          alignment: Alignment.topLeft,
+                          children: [
+                            if (_isEmpty)
+                              IgnorePointer(
+                                child: Text(
+                                  hint,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: hintStyle,
+                                  strutStyle: _strutStyle,
+                                ),
+                              ),
+                            TextField(
+                              controller: _controller,
+                              focusNode: _focus,
+                              enabled: widget.canSend,
+                              minLines: 1,
+                              maxLines: 5,
+                              style: baseStyle,
+                              strutStyle: _strutStyle,
+                              decoration: const InputDecoration.collapsed(
+                                hintText: null,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-          ),
-          const SizedBox(width: 6),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 1),
-            child: MouseRegion(
+            const SizedBox(width: 6),
+            MouseRegion(
               cursor: enabled
                   ? SystemMouseCursors.click
                   : SystemMouseCursors.basic,
@@ -2327,8 +2449,8 @@ class _SwarmWorkerComposerState extends State<_SwarmWorkerComposer> {
                 onTap: enabled ? _submit : null,
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 120),
-                  width: 26,
-                  height: 26,
+                  width: _buttonSize,
+                  height: _buttonSize,
                   decoration: BoxDecoration(
                     color: enabled
                         ? AppColors.accent
@@ -2343,8 +2465,8 @@ class _SwarmWorkerComposerState extends State<_SwarmWorkerComposer> {
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
