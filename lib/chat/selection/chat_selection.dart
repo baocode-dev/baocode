@@ -67,6 +67,17 @@ abstract interface class ChatTextLeaf {
   /// place of a character (a formula's TeX for its placeholder).
   String copyOf(int start, int end);
 
+  /// Lazy rich copy of this whole leaf for BaoCode's composer; null when it
+  /// copies as plain text.
+  String Function()? get richCopy => null;
+
+  /// Rich copy of [start] to [end] for BaoCode's composer.
+  String richCopyOf(int start, int end) => copyOf(start, end);
+
+  /// Lazy rich copy thunk for each U+FFFC placeholder in [text], in order;
+  /// null entries copy as their plain placeholder text.
+  List<String Function()?> richPlaceholders() => const [];
+
   /// The offset nearest [local], a point in [box].
   int positionAt(Offset local);
 
@@ -85,7 +96,7 @@ abstract interface class ChatTextLeafSource {
 
 /// A piece of text selected whole or not at all, copied as [text].
 class AtomicChatTextLeaf implements ChatTextLeaf {
-  AtomicChatTextLeaf(this.box, String copied) : _copied = copied;
+  AtomicChatTextLeaf(this.box, this._copied, {this.richCopy});
 
   @override
   final RenderBox box;
@@ -97,6 +108,16 @@ class AtomicChatTextLeaf implements ChatTextLeaf {
 
   @override
   String copyOf(int start, int end) => start < end ? _copied : '';
+
+  @override
+  final String Function()? richCopy;
+
+  @override
+  String richCopyOf(int start, int end) =>
+      start < end ? (richCopy?.call() ?? _copied) : '';
+
+  @override
+  List<String Function()?> richPlaceholders() => const [];
 
   @override
   int positionAt(Offset local) => local.dx < box.size.width / 2 ? 0 : 1;
@@ -123,7 +144,15 @@ class _ParagraphLeaf implements ChatTextLeaf {
   final String text;
 
   @override
-  String copyOf(int start, int end) {
+  String Function()? get richCopy => null;
+
+  @override
+  String copyOf(int start, int end) => _copyRange(start, end, rich: false);
+
+  @override
+  String richCopyOf(int start, int end) => _copyRange(start, end, rich: true);
+
+  String _copyRange(int start, int end, {required bool rich}) {
     start = start.clamp(0, text.length);
     end = end.clamp(start, text.length);
     final part = text.substring(start, end);
@@ -132,7 +161,7 @@ class _ParagraphLeaf implements ChatTextLeaf {
     final shown = <String>[];
     var child = paragraph.firstChild;
     while (child != null) {
-      shown.add(_copiedIn(child));
+      shown.add(_copiedIn(child, rich: rich));
       child = paragraph.childAfter(child);
     }
     var placeholder = '￼'.allMatches(text.substring(0, start)).length;
@@ -148,11 +177,43 @@ class _ParagraphLeaf implements ChatTextLeaf {
     return buffer.toString();
   }
 
+  @override
+  List<String Function()?> richPlaceholders() {
+    if (!text.contains('￼')) return const [];
+    final thunks = <String Function()?>[];
+    var child = paragraph.firstChild;
+    while (child != null) {
+      final leaves = <ChatTextLeaf>[];
+      _collect(child, leaves);
+      final hasRich = leaves.any(
+        (leaf) =>
+            leaf.richCopy != null ||
+            leaf.richPlaceholders().any((fn) => fn != null),
+      );
+      if (hasRich) {
+        final captured = [
+          for (final leaf in leaves)
+            leaf.richCopy ?? () => leaf.richCopyOf(0, leaf.text.length),
+        ];
+        thunks.add(() => [for (final fn in captured) fn()].join());
+      } else {
+        thunks.add(null);
+      }
+      child = paragraph.childAfter(child);
+    }
+    return thunks;
+  }
+
   /// What a placeholder's widget copies as: the text of the pieces in it.
-  static String _copiedIn(RenderObject object) {
+  static String _copiedIn(RenderObject object, {required bool rich}) {
     final leaves = <ChatTextLeaf>[];
     _collect(object, leaves);
-    return [for (final leaf in leaves) leaf.copyOf(0, leaf.text.length)].join();
+    return [
+      for (final leaf in leaves)
+        rich
+            ? leaf.richCopyOf(0, leaf.text.length)
+            : leaf.copyOf(0, leaf.text.length),
+    ].join();
   }
 
   @override
@@ -371,7 +432,7 @@ List<ChatTextLeaf> chatTextLeaves(RenderObject root) => [
 /// from once it is no longer built.
 @immutable
 class ChatItemText {
-  const ChatItemText(this.pieces);
+  const ChatItemText(this.pieces, {this.rich = const []});
 
   /// Each piece's text, its copy, how it joins the one before, and what
   /// each placeholder character in its text copies as (a chip's label, a
@@ -381,19 +442,69 @@ class ChatItemText {
   >
   pieces;
 
+  /// Optional lazy rich copy thunks parallel to [pieces], for BaoCode's
+  /// composer.
+  final List<
+    ({String Function()? copied, List<String Function()?> placeholders})
+  >
+  rich;
+
   /// The text from [start] to [end] (null for its start or end), pieces
   /// joined as they show.
-  String copy(ChatTextPos? start, ChatTextPos? end) {
+  String copy(ChatTextPos? start, ChatTextPos? end) =>
+      _copy(start, end, rich: false).text;
+
+  /// Rich copy from [start] to [end] for BaoCode's composer, and whether any
+  /// rich token was included in the copied range.
+  ({String text, bool hasRich}) copyRich(ChatTextPos? start, ChatTextPos? end) =>
+      _copy(start, end, rich: true);
+
+  ({String text, bool hasRich}) _copy(
+    ChatTextPos? start,
+    ChatTextPos? end, {
+    required bool rich,
+  }) {
     final buffer = StringBuffer();
+    var hasRich = false;
     for (var i = 0; i < pieces.length; i++) {
       if (start != null && i < start.leaf) continue;
       if (end != null && i > end.leaf) break;
       final piece = pieces[i];
+      final richPiece = i < this.rich.length ? this.rich[i] : null;
+      final richPlaceholders = richPiece?.placeholders ?? const [];
       final from = start != null && i == start.leaf ? start.offset : 0;
       final to = end != null && i == end.leaf ? end.offset : piece.text.length;
-      final part = from == 0 && to >= piece.text.length
-          ? piece.copied
-          : _slice(piece.text, piece.placeholders, from, to);
+      final String part;
+      if (from == 0 && to >= piece.text.length) {
+        if (rich && richPiece?.copied != null) {
+          part = richPiece!.copied!();
+          hasRich = true;
+        } else if (rich && richPlaceholders.any((fn) => fn != null)) {
+          final sliced = _slice(
+            piece.text,
+            piece.placeholders,
+            richPlaceholders,
+            0,
+            piece.text.length,
+            rich: true,
+          );
+          part = sliced.text;
+          hasRich = hasRich || sliced.hasRich;
+        } else {
+          part = piece.copied;
+        }
+      } else {
+        final sliced = _slice(
+          piece.text,
+          piece.placeholders,
+          richPlaceholders,
+          from,
+          to,
+          rich: rich,
+        );
+        part = sliced.text;
+        hasRich = hasRich || sliced.hasRich;
+      }
       if (part.isEmpty) continue;
       if (buffer.isNotEmpty) {
         final written = buffer.toString();
@@ -409,40 +520,59 @@ class ChatItemText {
       }
       buffer.write(part);
     }
-    return buffer.toString();
+    return (text: buffer.toString(), hasRich: hasRich);
   }
 
   // A part of a piece: its text's, each placeholder in it as it copies.
-  static String _slice(
+  static ({String text, bool hasRich}) _slice(
     String text,
     List<String> placeholders,
+    List<String Function()?> richPlaceholders,
     int from,
-    int to,
-  ) {
+    int to, {
+    required bool rich,
+  }) {
     from = from.clamp(0, text.length);
     to = to.clamp(from, text.length);
     final part = text.substring(from, to);
-    if (!part.contains('￼')) return part;
+    if (!part.contains('￼')) return (text: part, hasRich: false);
     var next = '￼'.allMatches(text.substring(0, from)).length;
     final buffer = StringBuffer();
+    var hasRich = false;
     for (final unit in part.split('')) {
       if (unit == '￼') {
-        if (next < placeholders.length) buffer.write(placeholders[next]);
+        if (rich &&
+            next < richPlaceholders.length &&
+            richPlaceholders[next] != null) {
+          buffer.write(richPlaceholders[next]!());
+          hasRich = true;
+        } else if (next < placeholders.length) {
+          buffer.write(placeholders[next]);
+        }
         next++;
       } else {
         buffer.write(unit);
       }
     }
-    return buffer.toString();
+    return (text: buffer.toString(), hasRich: hasRich);
   }
 }
 
 /// The selection of a conversation, and what is shown of it to ask.
 class ChatSelectionController extends ChangeNotifier {
-  ChatSelectionController({required this.plainTextOf, required this.itemCount});
+  ChatSelectionController({
+    required this.plainTextOf,
+    required this.itemCount,
+    this.richTextOf,
+  });
 
   /// The text of item [index], from the conversation (built or not).
   final String Function(int index) plainTextOf;
+
+  /// Rich composer markdown of unbuilt item [index], when it contains
+  /// composer embeds (images, code refs, pastes, stashes, tokens); null for
+  /// plain items.
+  final String? Function(int index)? richTextOf;
   final int Function() itemCount;
 
   ChatTextPos? _anchor;
@@ -878,6 +1008,62 @@ class ChatSelectionController extends ChangeNotifier {
     return text.isEmpty ? null : text;
   }
 
+  /// The selected text as plain text (for other apps) and, when any selected
+  /// item contains rich composer tokens, as composer markdown carrying those
+  /// embeds.
+  ({String plain, String? rich})? selectedCopy() {
+    _syncEnds();
+    final range = this.range;
+    if (range == null) return null;
+    final (start, end) = range;
+    final count = itemCount();
+    final plainParts = <String>[];
+    final richParts = <String>[];
+    var hasRich = false;
+    for (var index = start.item; index <= end.item && index < count; index++) {
+      final from = index == start.item ? start : null;
+      final to = index == end.item ? end : null;
+      final String plain;
+      final String rich;
+      if (_items[index] case final item? when item.attached) {
+        final itemText = item.text();
+        plain = itemText.copy(from, to);
+        final copied = itemText.copyRich(from, to);
+        rich = copied.text;
+        hasRich = hasRich || copied.hasRich;
+      } else if (from == null && to == null) {
+        plain = plainTextOf(index);
+        if (richTextOf?.call(index) case final encoded?) {
+          rich = encoded;
+          hasRich = true;
+        } else {
+          rich = plain;
+        }
+      } else if (_endText[index] case final kept?) {
+        plain = kept.copy(from, to);
+        final copied = kept.copyRich(from, to);
+        rich = copied.text;
+        hasRich = hasRich || copied.hasRich;
+      } else if (_all) {
+        plain = plainTextOf(index);
+        if (richTextOf?.call(index) case final encoded?) {
+          rich = encoded;
+          hasRich = true;
+        } else {
+          rich = plain;
+        }
+      } else {
+        plain = '';
+        rich = '';
+      }
+      if (plain.isNotEmpty) plainParts.add(plain);
+      if (rich.isNotEmpty) richParts.add(rich);
+    }
+    final plain = plainParts.join('\n');
+    if (plain.isEmpty) return null;
+    return (plain: plain, rich: hasRich ? richParts.join('\n') : null);
+  }
+
   // --- Places ------------------------------------------------------------------
 
   /// The place in the text nearest [global], among the items built (of
@@ -1219,6 +1405,8 @@ class RenderChatSelectionItem extends RenderProxyBox {
         <
           ({String text, String copied, String join, List<String> placeholders})
         >[];
+    final rich =
+        <({String Function()? copied, List<String Function()?> placeholders})>[];
     Rect? previous;
     List<RenderChatTextRow> previousGroups = const [];
     for (final (:leaf, :groups) in found) {
@@ -1239,9 +1427,10 @@ class RenderChatSelectionItem extends RenderProxyBox {
             if (leaf.text.codeUnitAt(i) == 0xFFFC) leaf.copyOf(i, i + 1),
         ],
       ));
+      rich.add((copied: leaf.richCopy, placeholders: leaf.richPlaceholders()));
       previous = box ?? previous;
     }
-    return ChatItemText(pieces);
+    return ChatItemText(pieces, rich: rich);
   }
 
   Rect? _bounds(ChatTextLeaf leaf) {

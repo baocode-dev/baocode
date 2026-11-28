@@ -53,6 +53,7 @@ class MarkdownEditor extends StatefulWidget {
     this.physics,
     this.onKey,
     this.onPaste,
+    this.onCopy,
     this.onPasteCopy,
     this.colorize,
     this.onClick,
@@ -87,6 +88,11 @@ class MarkdownEditor extends StatefulWidget {
   /// pasted it (files, pictures, HTML made markdown…), else the text is
   /// put in as it is.
   final Future<bool> Function()? onPaste;
+
+  /// A copy of this editor's text, before it goes on the clipboard: its
+  /// markdown as another editor of its kind is to paste it (e.g. carrying
+  /// the images its references point to); as it is without.
+  final String Function(String markdown)? onCopy;
 
   /// A paste of what an editor of its kind copied: its markdown as it is
   /// to go in (its tags numbered on from those here, say); as it is
@@ -2170,9 +2176,10 @@ class MarkdownEditorState extends State<MarkdownEditor>
   Future<void> copy({bool cut = false}) async {
     final selection = controller.selection;
     if (!selection.isValid || selection.isCollapsed) return;
+    final raw = controller.substring(selection.start, selection.end);
     final clip = MdClip(
       plain: plainText(selection.start, selection.end),
-      markdown: controller.substring(selection.start, selection.end),
+      markdown: widget.onCopy?.call(raw) ?? raw,
       fromPlain: controller.plain,
     );
     if (cut && !widget.readOnly) {

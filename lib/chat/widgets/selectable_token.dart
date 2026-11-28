@@ -12,14 +12,26 @@ import '../selection/chat_selection.dart';
 /// nested containers each replay the last edge positions they saw when
 /// their content re-registers, which in a scrolling list goes stale.
 class SelectableToken extends SingleChildRenderObjectWidget {
-  const SelectableToken({super.key, required this.text, required super.child});
+  const SelectableToken({
+    super.key,
+    required this.text,
+    this.richText,
+    required super.child,
+  });
 
   final String text;
 
+  /// What this token copies as for BaoCode's own composer (an atom, evaluated
+  /// lazily on copy); null for tokens that copy as plain [text].
+  final String Function()? richText;
+
   @override
   RenderSelectableToken createRenderObject(BuildContext context) =>
-      RenderSelectableToken(text, _selectionColor(context))
-        ..registrar = SelectionContainer.maybeOf(context);
+      RenderSelectableToken(
+        text,
+        _selectionColor(context),
+        richText: richText,
+      )..registrar = SelectionContainer.maybeOf(context);
 
   @override
   void updateRenderObject(
@@ -28,6 +40,7 @@ class SelectableToken extends SingleChildRenderObjectWidget {
   ) {
     renderObject
       ..text = text
+      ..richText = richText
       ..selectionColor = _selectionColor(context)
       ..registrar = SelectionContainer.maybeOf(context);
   }
@@ -40,12 +53,17 @@ class SelectableToken extends SingleChildRenderObjectWidget {
 class RenderSelectableToken extends RenderProxyBox
     with Selectable, SelectionRegistrant
     implements ChatTextLeafSource {
-  RenderSelectableToken(this.text, this._selectionColor);
+  RenderSelectableToken(this.text, this._selectionColor, {this.richText});
 
   @override
-  ChatTextLeaf get chatTextLeaf => AtomicChatTextLeaf(this, text);
+  ChatTextLeaf get chatTextLeaf =>
+      AtomicChatTextLeaf(this, text, richCopy: richText);
 
   String text;
+  String Function()? richText;
+
+  /// Whether this token is currently selected under a [SelectionArea].
+  bool get isSelected => _selected;
 
   Color _selectionColor;
   set selectionColor(Color value) {

@@ -970,6 +970,15 @@ class _LiveLeaf implements ChatTextLeaf {
   }
 
   @override
+  String Function()? get richCopy => null;
+
+  @override
+  String richCopyOf(int start, int end) => copyOf(start, end);
+
+  @override
+  List<String Function()?> richPlaceholders() => const [];
+
+  @override
   int positionAt(Offset local) => _render._painter
       .getPositionForOffset(local)
       .offset

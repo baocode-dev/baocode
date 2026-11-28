@@ -341,6 +341,43 @@ class ChatComposerState extends State<ChatComposer>
     return true;
   }
 
+  /// The local project's root for rebasing relative file/code tags across
+  /// projects; null on a remote host (whose paths are not this machine's).
+  String? get _localRoot =>
+      widget.hostFiles == null ? widget.session.root : null;
+
+  /// Enriches a copy of this composer's text with the images it refers to
+  /// and its local project root, so pasting into another composer keeps them
+  /// working.
+  String _encodeCopy(String markdown) =>
+      encodeComposerCopy(markdown, images: _pool, root: _localRoot);
+
+  /// Imports a copy made inside BaoCode: brings its images into [_pool]
+  /// with non-conflicting numbers, renumbers long pastes/quotes, and rebases
+  /// relative paths from another project.
+  String _pasteCopy(String markdown) {
+    final prepared = prepareComposerPaste(
+      markdown,
+      acceptsImages: widget.session.acceptsImages,
+      pool: _pool,
+      nextImageNumber:
+          math.max(
+            widget.session.lastImageNumber,
+            _pool.keys.fold(0, math.max),
+          ) +
+          1,
+      currentImageCount: _images.length,
+      maxImages: _maxImages,
+      nextPastedNumber: _nextPastedNumber(),
+      nextQuoteNumber: _nextPastedNumber(quoted: true),
+      targetRoot: _localRoot,
+    );
+    if (prepared.addedImages.isNotEmpty) {
+      _pool = {..._pool, ...prepared.addedImages};
+    }
+    return prepared.content;
+  }
+
   /// The number for a long paste (a quote): one past the highest the text
   /// has.
   int _nextPastedNumber({bool quoted = false}) {
@@ -1948,11 +1985,8 @@ class ChatComposerState extends State<ChatComposer>
         placeholder: context.l10n.composerPlaceholder,
         onKey: _handleKey,
         onPaste: _paste,
-        onPasteCopy: (markdown) => renumberPastes(
-          markdown,
-          from: _nextPastedNumber(),
-          quotesFrom: _nextPastedNumber(quoted: true),
-        ),
+        onCopy: _encodeCopy,
+        onPasteCopy: _pasteCopy,
         style: MarkdownEditorStyle(
           text: base,
           selection: AppColors.textSelection,

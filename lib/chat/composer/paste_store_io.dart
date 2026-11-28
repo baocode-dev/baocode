@@ -69,7 +69,23 @@ String? readPasteNow(String path) {
   return null;
 }
 
+Uint8List? readImageNow(String path) {
+  for (final candidate in _imageCandidates(path)) {
+    try {
+      return File(candidate).readAsBytesSync();
+    } on Object {
+      // Not there.
+    }
+  }
+  return null;
+}
+
 Set<String> _candidates(String path) => {
   path,
   p.join(DataDirectory.current.pastesDir, p.basename(path)),
+};
+
+Set<String> _imageCandidates(String path) => {
+  path,
+  p.join(DataDirectory.current.pastesDir, 'images', p.basename(path)),
 };

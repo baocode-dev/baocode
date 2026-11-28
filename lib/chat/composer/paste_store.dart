@@ -47,6 +47,10 @@ abstract final class PasteStore {
   /// [read], at once: for a copy, which has to have it now.
   static String? readNow(String path) => platform.readPasteNow(path);
 
+  /// An image kept at [path] (see [saveImage]), read at once: null where it
+  /// is gone.
+  static Uint8List? readImageNow(String path) => platform.readImageNow(path);
+
   /// [text], a message with its [codeAppendix], with the pastes in it that
   /// are too long ([isStored]) kept in files, and named in their place.
   static String offload(String text) {

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' show lerpDouble;
 
+import 'package:bao_markdown/bao_markdown.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -35,9 +36,11 @@ import 'chat_models.dart';
 import 'chat_session.dart';
 import 'composer/composer.dart';
 import 'composer/composer_draft.dart';
+import 'composer/composer_embeds.dart';
 import 'reply_scroll.dart';
 import 'rewind_files_prompt.dart';
 import 'side_panel/file_link_menu.dart';
+import 'side_panel/file_open.dart';
 import 'steadiness.dart';
 import 'step_folds.dart';
 import 'user_message_style.dart';
@@ -470,6 +473,63 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     return null;
   }
 
+  /// Row [index] as composer markdown when it is a user message carrying
+  /// embeds (images, code refs, pastes, stashes, tokens), for copying unbuilt
+  /// rows without losing their rich tags; null for plain rows.
+  String? _richTextOf(int index) {
+    final row = _rowAt(index);
+    if (!row.item) return null;
+    final item = _shownAt(index);
+    if (item is! UserMessageItem) return null;
+    final byNumber = {for (final image in item.images) ?image.number: image};
+    var content = composerContentFromText(
+      item.text,
+      ComposerVocabulary.read(context),
+      images: byNumber.keys.toSet(),
+    );
+    final tagged = {
+      for (final (:embed, start: _, end: _) in composerEmbedsIn(content))
+        if (embed.type == ComposerImageEmbed.type)
+          ComposerImageEmbed.decode(embed.data),
+    };
+    final untagged = [
+      for (final (i, image) in item.images.indexed)
+        if (!tagged.contains(image.number)) (image.number ?? i + 1, image),
+    ];
+    final images = {
+      ...byNumber,
+      for (final (number, image) in untagged) number: image,
+    };
+    if (untagged.isNotEmpty) {
+      final extra = [
+        for (final (number, _) in untagged) ComposerImageEmbed.of(number).atom,
+      ].join(' ');
+      content = content.isEmpty ? extra : '$content $extra';
+    }
+    if (!content.contains(MdAtoms.open)) return null;
+    final scope = FileOpenScope.find(context);
+    final localRoot = scope != null && scope.local ? scope.root : null;
+    final encoded = encodeComposerCopy(
+      content,
+      images: images,
+      root: localRoot,
+    );
+    final body = item.fromAgent == null ? encoded : '${item.fromAgent}: $encoded';
+    final l10n = context.l10n;
+    return [
+      if (row.work case StepFold(:final worked?) && final fold)
+        WorkFoldLine.text(
+          worked,
+          turnEdits(_itemsIn(fold)),
+          l10n: l10n,
+          stopped: fold.stopped,
+        ),
+      if (row.steps case final fold?)
+        StepsFoldLine.text(StepTally(_itemsIn(fold)), l10n: l10n),
+      body,
+    ].where((text) => text.isNotEmpty).join('\n');
+  }
+
   /// Row [index] as text, as it shows: the lines of the folds it begins,
   /// and its item unless folded away.
   String _plainTextOf(int index) {
@@ -816,6 +876,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   /// [ChatSelectionController]).
   late final ChatSelectionController _selection = ChatSelectionController(
     plainTextOf: _plainTextOf,
+    richTextOf: _richTextOf,
     itemCount: () => _feed.itemCount,
   );
   bool _reselectScheduled = false;
@@ -2081,9 +2142,17 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   }
 
   void _copySelection() {
-    final text = _selection.selectedText();
-    if (text == null) return;
-    unawaited(Clipboard.setData(ClipboardData(text: text)));
+    final copy = _selection.selectedCopy();
+    if (copy == null) return;
+    if (copy.rich case final rich?) {
+      unawaited(
+        MdClipboard.instance.write(
+          MdClip(plain: copy.plain, markdown: rich, fromPlain: true),
+        ),
+      );
+      return;
+    }
+    unawaited(Clipboard.setData(ClipboardData(text: copy.plain)));
   }
 
   late final Map<Type, Action<Intent>> _selectionActions = {

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:bao_markdown/bao_markdown.dart';
@@ -146,6 +147,267 @@ String renumberPastes(
   }
   if (at == 0) return content;
   return (renumbered..write(content.substring(at))).toString();
+}
+
+/// Images carried by a copy made inside BaoCode (from a composer or from the
+/// conversation history): kept in memory by key (fast, works on web and in
+/// tests) and also persisted to [PasteStore.saveImage] so a copy survives an
+/// app restart.
+abstract final class CopiedComposerImages {
+  static const _maxEntries = 100;
+  static int _nextKey = 0;
+  static final Map<String, ImageAttachment> _kept = {};
+
+  /// A clipboard-ready [ComposerImageEmbed] carrying [image] (originally
+  /// numbered [number]).
+  static ComposerEmbed embed(int number, ImageAttachment image) {
+    final key = '${++_nextKey}';
+    if (_kept.length >= _maxEntries) _kept.remove(_kept.keys.first);
+    _kept[key] = image;
+    final file = PasteStore.saveImage(image.bytes, image.mediaType);
+    return ComposerEmbed(
+      ComposerImageEmbed.type,
+      jsonEncode({
+        'n': number,
+        'k': key,
+        'f': ?file,
+        't': image.mediaType,
+        'name': ?image.name,
+      }),
+    );
+  }
+
+  /// Decodes a [ComposerImageEmbed] atom's data from a clipboard copy: its
+  /// original [number] and its [image] (null for a bare number or when the
+  /// stored image is gone).
+  static ({int number, ImageAttachment? image}) decode(String data) {
+    if (!data.startsWith('{')) {
+      return (number: ComposerImageEmbed.decode(data), image: null);
+    }
+    try {
+      final map = jsonDecode(data) as Map<String, Object?>;
+      final number = map['n'] as int;
+      final key = map['k'] as String?;
+      if (key != null) {
+        if (_kept[key] case final kept?) {
+          return (number: number, image: kept);
+        }
+      }
+      final file = map['f'] as String?;
+      if (file != null) {
+        if (PasteStore.readImageNow(file) case final bytes?) {
+          return (
+            number: number,
+            image: ImageAttachment(
+              bytes: bytes,
+              mediaType: map['t'] as String? ?? 'image/png',
+              name: map['name'] as String?,
+            ),
+          );
+        }
+      }
+      return (number: number, image: null);
+    } on Object {
+      return (number: 0, image: null);
+    }
+  }
+
+  @visibleForTesting
+  static void clear() => _kept.clear();
+}
+
+/// Encodes [content] (a composer's text, its embeds as atoms) for the
+/// clipboard: image atoms carry their [images] via [CopiedComposerImages],
+/// relative local file/code references carry [root] so a paste into another
+/// project resolves them, and transient drag ghosts are stripped.
+String encodeComposerCopy(
+  String content, {
+  Map<int, ImageAttachment> images = const {},
+  String? root,
+}) {
+  if (!content.contains(MdAtoms.open)) return content;
+  final out = StringBuffer();
+  var at = 0;
+  for (final (:start, :end, :embed) in composerEmbedsIn(content)) {
+    final String? replacement = switch (embed.type) {
+      ComposerGhostEmbed.type => '',
+      ComposerImageEmbed.type when !embed.data.startsWith('{') => switch (
+        images[ComposerImageEmbed.decode(embed.data)]
+      ) {
+        final image? => CopiedComposerImages.embed(
+          ComposerImageEmbed.decode(embed.data),
+          image,
+        ).atom,
+        null => null,
+      },
+      ComposerTokenEmbed.type when root != null => _tagTokenWithRoot(
+        embed.data,
+        root,
+      ),
+      ComposerCodeEmbed.type when root != null => _tagCodeWithRoot(
+        embed.data,
+        root,
+      ),
+      _ => null,
+    };
+    if (replacement == null) continue;
+    out
+      ..write(content.substring(at, start))
+      ..write(replacement);
+    at = end;
+  }
+  if (at == 0) return content;
+  return (out..write(content.substring(at))).toString();
+}
+
+String? _tagTokenWithRoot(String data, String root) {
+  final map = jsonDecode(data) as Map<String, Object?>;
+  final kind = SuggestionKind.values.byName(map['kind'] as String);
+  if (kind != SuggestionKind.file && kind != SuggestionKind.folder) return null;
+  final value = map['value'] as String;
+  if (p.isAbsolute(value)) return null;
+  return ComposerEmbed(
+    ComposerTokenEmbed.type,
+    jsonEncode({...map, 'root': root}),
+  ).atom;
+}
+
+String? _tagCodeWithRoot(String data, String root) {
+  final map = jsonDecode(data) as Map<String, Object?>;
+  final path = map['path'] as String;
+  if (p.isAbsolute(path)) return null;
+  return ComposerEmbed(
+    ComposerCodeEmbed.type,
+    jsonEncode({...map, 'root': root}),
+  ).atom;
+}
+
+String _rebasePath(String path, String? sourceRoot, String? targetRoot) {
+  if (sourceRoot != null && !p.isAbsolute(path)) {
+    if (targetRoot == sourceRoot) return path;
+    final absolute = p.normalize(p.join(sourceRoot, path));
+    return displayPath(absolute, targetRoot);
+  }
+  if (targetRoot != null && p.isAbsolute(path)) {
+    return displayPath(path, targetRoot);
+  }
+  return path;
+}
+
+/// Prepares [content] (a copy made in BaoCode, its embeds as atoms) to be
+/// pasted into a composer:
+/// - Images are imported into the target pool (reusing an identical image
+///   already present, else numbered from [nextImageNumber] up to [maxImages])
+///   and rewritten to clean [ComposerImageEmbed] atoms; unavailable images or
+///   sessions that do not accept them fall back to plain text references.
+/// - Long pastes and quotes are numbered on from [nextPastedNumber] and
+///   [nextQuoteNumber].
+/// - File/folder and code references carrying a source project root are
+///   rebased against [targetRoot] and stripped of clipboard metadata.
+/// - Transient drag ghosts are dropped.
+({String content, Map<int, ImageAttachment> addedImages}) prepareComposerPaste(
+  String content, {
+  required bool acceptsImages,
+  required Map<int, ImageAttachment> pool,
+  required int nextImageNumber,
+  required int currentImageCount,
+  required int maxImages,
+  required int nextPastedNumber,
+  required int nextQuoteNumber,
+  String? targetRoot,
+}) {
+  if (!content.contains(MdAtoms.open)) {
+    return (content: content, addedImages: const {});
+  }
+  var nextPaste = nextPastedNumber;
+  var nextQuote = nextQuoteNumber;
+  var nextImage = nextImageNumber;
+  final added = <int, ImageAttachment>{};
+  final mappedImages = <String, int>{};
+
+  bool sameImage(ImageAttachment a, ImageAttachment b) =>
+      identical(a.bytes, b.bytes) ||
+      (a.bytes.length == b.bytes.length &&
+          a.mediaType == b.mediaType &&
+          listEquals(a.bytes, b.bytes));
+
+  int? existingImageNumber(int preferred, ImageAttachment image) {
+    if (pool[preferred] case final exact? when sameImage(exact, image)) {
+      return preferred;
+    }
+    for (final MapEntry(:key, :value) in pool.entries) {
+      if (sameImage(value, image)) return key;
+    }
+    for (final MapEntry(:key, :value) in added.entries) {
+      if (sameImage(value, image)) return key;
+    }
+    return null;
+  }
+
+  final out = StringBuffer();
+  var at = 0;
+  for (final (:start, :end, :embed) in composerEmbedsIn(content)) {
+    String? replacement;
+    switch (embed.type) {
+      case ComposerGhostEmbed.type:
+        replacement = '';
+      case ComposerPastedTextEmbed.type:
+        final pasted = ComposerPastedTextEmbed.decode(embed.data);
+        final number = pasted.quoted ? nextQuote++ : nextPaste++;
+        replacement = ComposerPastedTextEmbed.of(pasted.numbered(number)).atom;
+      case ComposerImageEmbed.type:
+        final (:number, :image) = CopiedComposerImages.decode(embed.data);
+        final resolved =
+            image ?? (!embed.data.startsWith('{') ? pool[number] : null);
+        if (!acceptsImages || resolved == null) {
+          replacement = imageReference(number > 0 ? number : 1);
+        } else if (mappedImages[embed.data] case final assigned?) {
+          replacement = ComposerImageEmbed.of(assigned).atom;
+        } else if (existingImageNumber(number, resolved) case final existing?) {
+          mappedImages[embed.data] = existing;
+          replacement = ComposerImageEmbed.of(existing).atom;
+        } else if (currentImageCount + added.length < maxImages) {
+          final assigned = nextImage++;
+          added[assigned] = resolved.withNumber(assigned);
+          mappedImages[embed.data] = assigned;
+          replacement = ComposerImageEmbed.of(assigned).atom;
+        } else {
+          replacement = imageReference(number > 0 ? number : 1);
+        }
+      case ComposerTokenEmbed.type:
+        final map = jsonDecode(embed.data) as Map<String, Object?>;
+        final kind = SuggestionKind.values.byName(map['kind'] as String);
+        if (kind == SuggestionKind.file || kind == SuggestionKind.folder) {
+          final sourceRoot = map['root'] as String?;
+          final value = map['value'] as String;
+          final rebased = _rebasePath(value, sourceRoot, targetRoot);
+          if (sourceRoot != null || rebased != value) {
+            replacement = ComposerTokenEmbed.file(
+              rebased,
+              directory: kind == SuggestionKind.folder,
+            ).atom;
+          }
+        }
+      case ComposerCodeEmbed.type:
+        final map = jsonDecode(embed.data) as Map<String, Object?>;
+        final sourceRoot = map['root'] as String?;
+        final ref = CodeReference.fromJson(map);
+        final rebased = _rebasePath(ref.path, sourceRoot, targetRoot);
+        if (sourceRoot != null || rebased != ref.path) {
+          replacement = ComposerCodeEmbed.of(ref.withPath(rebased)).atom;
+        }
+    }
+    if (replacement == null) continue;
+    out
+      ..write(content.substring(at, start))
+      ..write(replacement);
+    at = end;
+  }
+  if (at == 0) return (content: content, addedImages: added);
+  return (
+    content: (out..write(content.substring(at))).toString(),
+    addedImages: added,
+  );
 }
 
 /// The composer's text as it shows, each thing in it one character
@@ -335,7 +597,14 @@ class ComposerImageEmbed {
 
   static ComposerEmbed of(int number) => ComposerEmbed(type, '$number');
 
-  static int decode(Object? data) => int.parse('$data');
+  static int decode(Object? data) {
+    final raw = '$data';
+    if (raw.startsWith('{')) {
+      final map = jsonDecode(raw) as Map<String, Object?>;
+      return map['n'] as int;
+    }
+    return int.parse(raw);
+  }
 
   /// Text it contributes to the sent message and to plain-text copies.
   static String plainText(Object? data) => imageReference(decode(data));
@@ -738,8 +1007,14 @@ class ComposerTokenChip extends StatelessWidget {
     if (_opener(context, token) case final open?) {
       tag = PreviewClick(onOpen: open, child: tag);
     }
+    final scope = FileOpenScope.find(context);
+    final localRoot = scope != null && scope.local ? scope.root : null;
     return SelectableToken(
       text: ComposerTokenEmbed.plainText(data),
+      richText: () => encodeComposerCopy(
+        ComposerEmbed(ComposerTokenEmbed.type, data as String).atom,
+        root: localRoot,
+      ),
       child: tag,
     );
   }
@@ -858,8 +1133,14 @@ class ComposerCodeChip extends StatelessWidget {
         ),
       ),
     );
+    final scope = FileOpenScope.find(context);
+    final localRoot = scope != null && scope.local ? scope.root : null;
     return SelectableToken(
       text: reference.reference,
+      richText: () => encodeComposerCopy(
+        ComposerEmbed(ComposerCodeEmbed.type, data as String).atom,
+        root: localRoot,
+      ),
       child: HoverTooltip(
         content: (context) =>
             _TextPreview(label: reference.label, text: reference.code),
@@ -1032,6 +1313,8 @@ class ComposerPastedTextChip extends StatelessWidget {
     );
     return SelectableToken(
       text: pasted.reference,
+      richText: () =>
+          ComposerEmbed(ComposerPastedTextEmbed.type, data as String).atom,
       child: HoverTooltip(
         content: (context) => switch (pasted.file) {
           final file? => _KeptTextPreview(label: name, file: file),
@@ -1163,6 +1446,8 @@ class ComposerStashChip extends StatelessWidget {
     final label = title.isEmpty ? name : '$name · $title';
     return SelectableToken(
       text: stash.reference,
+      richText: () =>
+          ComposerEmbed(ComposerStashEmbed.type, data as String).atom,
       child: HoverTooltip(
         content: (context) => _TextPreview(label: label, text: stash.text),
         child: PreviewClick(
@@ -1365,7 +1650,13 @@ class ComposerImageChip extends StatelessWidget {
         child: FileLinkMenuRegion(menu: ImageMenu(image), child: chip),
       );
     }
-    return SelectableToken(text: imageReference(number), child: chip);
+    return SelectableToken(
+      text: imageReference(number),
+      richText: image == null
+          ? null
+          : () => CopiedComposerImages.embed(number, image).atom,
+      child: chip,
+    );
   }
 }
 
@@ -1544,7 +1835,13 @@ class _FileImageChipState extends State<FileImageChip> {
             child: chip,
           );
         }
-        return SelectableToken(text: label, child: chip);
+        return SelectableToken(
+          text: label,
+          richText: () => image != null
+              ? CopiedComposerImages.embed(1, image).atom
+              : ComposerTokenEmbed.file(path).atom,
+          child: chip,
+        );
       },
     );
   }

@@ -1,5 +1,8 @@
+import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:bao_markdown/bao_markdown.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -14,6 +17,7 @@ import 'assistant_text.dart';
 import 'fade_curve.dart';
 import 'image_thumbnails.dart';
 import 'inline_code.dart';
+import 'selectable_token.dart';
 
 /// A sent user message, echoed as text: `@paths`, `[path:lines]` and a
 /// leading `/command` in it show as the same inline tags as in the composer.
@@ -339,10 +343,16 @@ class _UserMessageViewerState extends State<UserMessageViewer> {
   /// Taken as it opens, as the editor's is: from the history, which had it
   /// for the click.
   final FocusNode _focus = FocusNode(debugLabel: 'Message viewer');
+  final FocusNode _selectionFocus = FocusNode(
+    debugLabel: 'Message viewer selection',
+  );
+  final GlobalKey _contentKey = GlobalKey();
+  String? _selectedPlain;
 
   @override
   void initState() {
     super.initState();
+    _selectionFocus.onKeyEvent = _handleSelectionKey;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _focus.requestFocus();
     });
@@ -351,7 +361,69 @@ class _UserMessageViewerState extends State<UserMessageViewer> {
   @override
   void dispose() {
     _focus.dispose();
+    _selectionFocus.dispose();
     super.dispose();
+  }
+
+  KeyEventResult _handleSelectionKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    if (event.logicalKey == LogicalKeyboardKey.escape) {
+      widget.onClose();
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey != LogicalKeyboardKey.keyC) {
+      return KeyEventResult.ignored;
+    }
+    final keys = HardwareKeyboard.instance;
+    final primary = defaultTargetPlatform == TargetPlatform.macOS
+        ? keys.isMetaPressed && !keys.isControlPressed && !keys.isAltPressed
+        : keys.isControlPressed && !keys.isMetaPressed && !keys.isAltPressed;
+    if (!primary || keys.isShiftPressed) return KeyEventResult.ignored;
+    return _copyRichSelection()
+        ? KeyEventResult.handled
+        : KeyEventResult.ignored;
+  }
+
+  /// Copies the current selection with rich composer atoms when any selected
+  /// chip carries one; returns false to let [SelectionArea] do plain copy.
+  bool _copyRichSelection() {
+    final plain = _selectedPlain;
+    final root = _contentKey.currentContext?.findRenderObject();
+    if (plain == null || plain.isEmpty || root == null) return false;
+    final selectedTokens = <RenderSelectableToken>[];
+    void visit(RenderObject node) {
+      if (node is RenderSelectableToken) {
+        if (node.isSelected) selectedTokens.add(node);
+        return;
+      }
+      node.visitChildren(visit);
+    }
+
+    visit(root);
+    if (!selectedTokens.any((token) => token.richText != null)) return false;
+    final rich = StringBuffer();
+    var at = 0;
+    var hasRich = false;
+    for (final token in selectedTokens) {
+      final index = plain.indexOf(token.text, at);
+      if (index < 0) continue;
+      rich.write(plain.substring(at, index));
+      if (token.richText case final richFn?) {
+        rich.write(richFn());
+        hasRich = true;
+      } else {
+        rich.write(token.text);
+      }
+      at = index + token.text.length;
+    }
+    if (!hasRich) return false;
+    rich.write(plain.substring(at));
+    unawaited(
+      MdClipboard.instance.write(
+        MdClip(plain: plain, markdown: rich.toString(), fromPlain: true),
+      ),
+    );
+    return true;
   }
 
   @override
@@ -395,8 +467,12 @@ class _UserMessageViewerState extends State<UserMessageViewer> {
                   padding: const EdgeInsets.fromLTRB(12, 10, 12, 11),
                   // Its own selection: not the history's.
                   child: SelectionArea(
+                    focusNode: _selectionFocus,
+                    onSelectionChanged: (content) =>
+                        _selectedPlain = content?.plainText,
                     child: InlineCodeText(
                       _messageSpan(text, vocabulary, images),
+                      key: _contentKey,
                     ),
                   ),
                 ),
