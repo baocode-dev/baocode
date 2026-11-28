@@ -4,6 +4,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/chat/chat_feed.dart';
+import 'package:baocode/chat/chat_find.dart' show ChatFindMarks;
 import 'package:baocode/chat/chat_history_view.dart';
 import 'package:baocode/chat/chat_models.dart';
 import 'package:baocode/chat/chat_session.dart';
@@ -12,6 +13,7 @@ import 'package:baocode/chat/composer/composer_draft.dart';
 import 'package:baocode/chat/widgets/step_header.dart';
 import 'package:baocode/ide/selection_bubble.dart';
 import 'package:baocode/theme/app_theme.dart';
+import 'package:baocode/theme/codicons.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 
 /// The conversation's selection, as a test reads it.
@@ -814,6 +816,74 @@ void main() {
         last = pos;
       }
     }
+  });
+
+  testWidgets('a cited file wrapped copies its blank lines, across its '
+      'paragraphs', (tester) async {
+    tester.view
+      ..devicePixelRatio = 1
+      ..physicalSize = const Size(700, 1600);
+    addTearDown(tester.view.reset);
+    final long = List.filled(40, 'word').join(' ');
+    // Its blank lines in the first of its paragraphs (40 lines each) and
+    // across into the second.
+    final lines = [
+      long,
+      for (var i = 0; i < 36; i++) 'line_$i',
+      'first',
+      '',
+      '',
+      'last',
+    ];
+    final feed = _Feed([
+      const UserMessageItem(text: 'Cite'),
+      AssistantTextItem('```1:${lines.length}:a.txt\n${lines.join('\n')}\n```'),
+    ])..streaming = false;
+    addTearDown(feed.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(body: ChatHistoryView(feed: feed)),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Codicons.wordWrap));
+    await tester.pumpAndSettle();
+
+    final code = tester
+        .renderObjectList<RenderParagraph>(
+          find.descendant(
+            of: find.byType(ChatFindMarks),
+            matching: find.byType(RichText),
+          ),
+        )
+        .where((paragraph) => paragraph.text.toPlainText().contains('line_0'))
+        .toList();
+    final first = code.single;
+    final second = tester.renderObject<RenderParagraph>(
+      find.byWidgetPredicate(
+        (w) => w is RichText && w.text.toPlainText() == 'last',
+      ),
+    );
+    Offset at(RenderParagraph paragraph, int offset) => paragraph.localToGlobal(
+      paragraph.getOffsetForCaret(TextPosition(offset: offset), Rect.zero),
+    );
+    final mouse = await tester.startGesture(
+      at(first, first.text.toPlainText().indexOf('first')) +
+          const Offset(0.5, 4),
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pump();
+    await mouse.moveTo(at(second, 'last'.length) + const Offset(-0.5, 4));
+    await tester.pump();
+    await mouse.up();
+    await tester.pump();
+    final controller = tester
+        .renderObject<RenderChatSelectionItem>(
+          find.byType(ChatSelectionItem).first,
+        )
+        .controller;
+    expect(controller.selectedText(), 'first\n\n\nlast');
   });
 
   testWidgets('a selection in a long reply holds its text as the reply\'s '
