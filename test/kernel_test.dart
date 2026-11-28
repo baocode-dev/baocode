@@ -278,6 +278,8 @@ List<String> shown(Transcript transcript) => [
         'diff: $fileName +${lines.length}',
       AgentItem(:final description) => 'agent: $description',
       NoticeItem(:final kind, :final text) => 'notice ${kind.name}: $text',
+      KernelSwitchItem(:final fromKernel, :final toKernel) =>
+        'switch: $fromKernel -> $toKernel',
       PlanItem(:final round, :final status, :final writes) =>
         'plan v$round ${status.name} ×$writes',
       LiveStatusItem(:final label) => 'status: $label',

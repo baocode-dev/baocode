@@ -2896,6 +2896,11 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String noticeKernelSwitch(String target) {
+    return '已无缝传递上下文到 $target';
+  }
+
+  @override
   String get activityPlanning => '正在规划下一步';
 
   @override

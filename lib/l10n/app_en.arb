@@ -1795,6 +1795,15 @@
   "@noticeCompactedTokens": {"placeholders": {"tokens": {"type": "String"}}},
   "noticeCompactedFromTo": "{before} → {after} tokens",
   "@noticeCompactedFromTo": {"placeholders": {"before": {"type": "String"}, "after": {"type": "String"}}},
+  "noticeKernelSwitch": "Context seamlessly handed off to {target}",
+  "@noticeKernelSwitch": {
+    "description": "Shown on the inline divider when a conversation switches between kernels (e.g. Claude Code to Antigravity ACP or back).",
+    "placeholders": {
+      "target": {
+        "type": "String"
+      }
+    }
+  },
   "activityPlanning": "Planning next move",
   "activityMusings": "Pondering\nNoodling\nPercolating\nCogitating\nSimmering\nMarinating\nTinkering\nGrokking\nMulling it over\nConnecting the dots\nChasing a hunch\nBrewing a plan\nHatching a plan\nWeighing the options\nUntangling threads\nHerding tokens\nSummoning context\nAsking the rubber duck\nReading the tea leaves\nSketching on a napkin\nDoodling in the margins\nSquinting at the diff\nCounting parentheses\nBefriending the compiler\nNegotiating with types\nWrangling edge cases\nTracing the stack\nFlipping through the docs\nSpelunking the codebase\nLining up the ducks\nShaking the magic 8-ball\nWarming up the neurons\nFolding thoughts\nBinding the monad\nAsking the oracle\nStirring the pot\nPolishing the plan",
   "@activityMusings": {

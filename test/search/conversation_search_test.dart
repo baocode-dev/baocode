@@ -83,6 +83,40 @@ void main() {
     expect(await search.search('rotation'), isEmpty);
   });
 
+  test('persists incremental index across restarts and handles appends', () async {
+    final indexDir = p.join(temp.path, 'idx');
+    session('s1', [
+      user('How does the turn index work?'),
+      assistant([
+        {'type': 'text', 'text': 'It stores sparse text and byte offsets.'},
+      ]),
+    ]);
+
+    final first = ClaudeConversationSearch(
+      configDir: temp.path,
+      indexDir: indexDir,
+    );
+    expect((await first.search('byte offsets')).single.sessionId, 's1');
+    expect(Directory(indexDir).listSync(), isNotEmpty);
+
+    // A fresh instance (simulating app restart) reuses the persisted index.
+    final second = ClaudeConversationSearch(
+      configDir: temp.path,
+      indexDir: indexDir,
+    );
+    expect((await second.search('byte offsets')).single.sessionId, 's1');
+
+    // Appending a new line incrementally updates the index.
+    final file = File(p.join(temp.path, 'projects', '-tmp-app', 's1.jsonl'));
+    file.writeAsStringSync(
+      '\n${line(user('New appended keyword: zeppelin'))}',
+      mode: FileMode.append,
+    );
+    file.setLastModifiedSync(DateTime.now().add(const Duration(minutes: 1)));
+    expect((await second.search('zeppelin')).single.sessionId, 's1');
+    expect((await second.search('byte offsets')).single.sessionId, 's1');
+  });
+
   test('a snippet is one line around the match, cut where it was', () {
     final text = '${'a' * 50}\nThe Needle\nis here${'b' * 200}';
     final hit = findIn('id', text, 'needle')!;

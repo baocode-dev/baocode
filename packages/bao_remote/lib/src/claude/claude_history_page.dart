@@ -21,3 +21,18 @@ class ClaudeHistoryPage {
 
   Map<String, Object?> toJson() => {'entries': entries, 'earlier': earlier};
 }
+
+/// A match found inside an unloaded earlier turn of a session's index.
+class IndexedTurnHit {
+  const IndexedTurnHit({
+    required this.promptUuid,
+    required this.occurrences,
+  });
+
+  /// The `uuid` of the user prompt starting the matching turn (or the
+  /// matching row's `uuid` if it precedes the first prompt).
+  final String promptUuid;
+
+  /// How many matches the search pattern had in that turn's searchable text.
+  final int occurrences;
+}

@@ -3,6 +3,8 @@
 // marked where it shows and stepped through, the history scrolling to each
 // match.
 
+import 'dart:async';
+
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
@@ -12,27 +14,42 @@ import '../ide/ide_find_widget.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import 'chat_feed.dart';
 import 'chat_models.dart';
+import 'chat_session.dart';
 import 'widgets/markdown_tags.dart';
 import 'widgets/markdown_view.dart';
 
 /// A match: in row [item] of the conversation, its [occurrence]th there,
-/// [fraction] of the way through the row's text.
+/// [fraction] of the way through the row's text; or an unloaded earlier
+/// match in the turn starting at [promptUuid] (found via the session index).
 @immutable
 class ChatFindMatch {
-  const ChatFindMatch(this.item, this.occurrence, this.fraction);
+  const ChatFindMatch(this.item, this.occurrence, this.fraction)
+    : promptUuid = null;
+
+  /// A match inside an unloaded earlier turn, resolved once that turn loads.
+  const ChatFindMatch.earlier(this.promptUuid, this.occurrence)
+    : item = -1,
+      fraction = 0;
 
   final int item;
   final int occurrence;
   final double fraction;
 
+  /// Prompt UUID of the unloaded earlier turn holding this match; null for
+  /// matches in already-loaded rows.
+  final String? promptUuid;
+
+  bool get isEarlier => promptUuid != null;
+
   @override
   bool operator ==(Object other) =>
       other is ChatFindMatch &&
       other.item == item &&
-      other.occurrence == occurrence;
+      other.occurrence == occurrence &&
+      other.promptUuid == promptUuid;
 
   @override
-  int get hashCode => Object.hash(item, occurrence);
+  int get hashCode => Object.hash(item, occurrence, promptUuid);
 }
 
 /// The find of a conversation: whether its bar shows, what it looks for,
@@ -54,6 +71,7 @@ class ChatFind extends ChangeNotifier {
     _feed = feed;
     if (_visible) feed?.addListener(_feedChanged);
     _texts.clear();
+    _pendingEarlier = null;
     _search(keep: false);
   }
 
@@ -131,8 +149,12 @@ class ChatFind extends ChangeNotifier {
     if (!_visible) return;
     _visible = false;
     _revealFound = false;
+    _pendingEarlier = null;
+    _searchGen++;
     _feed?.removeListener(_feedChanged);
     _matches = const [];
+    _loadedMatches = const [];
+    _earlierMatches = const [];
     _current = -1;
     notifyListeners();
   }
@@ -142,22 +164,36 @@ class ChatFind extends ChangeNotifier {
 
   void toggleMatchCase() {
     matchCase = !matchCase;
+    _pendingEarlier = null;
     _search(keep: false, reveal: true);
   }
 
   void toggleWholeWord() {
     wholeWord = !wholeWord;
+    _pendingEarlier = null;
     _search(keep: false, reveal: true);
   }
 
   void toggleRegex() {
     regex = !regex;
+    _pendingEarlier = null;
     _search(keep: false, reveal: true);
+  }
+
+  /// Notes that the view is loading earlier history to reveal [match] so the
+  /// next search pass selects and reveals the corresponding loaded match.
+  void expectingEarlier(ChatFindMatch match) {
+    if (!match.isEarlier) return;
+    _pendingEarlier = (
+      promptUuid: match.promptUuid!,
+      occurrence: match.occurrence,
+    );
   }
 
   void _step(int by) {
     if (_matches.isEmpty) return;
     _revealFound = false;
+    _pendingEarlier = null;
     _current = _current < 0
         ? (by > 0 ? 0 : _matches.length - 1)
         : (_current + by) % _matches.length;
@@ -171,6 +207,7 @@ class ChatFind extends ChangeNotifier {
     if (value.text == _searched) return;
     if (value.composing.isValid && !value.composing.isCollapsed) return;
     _revealFound = false;
+    _pendingEarlier = null;
     _search(keep: false, reveal: true);
   }
 
@@ -192,6 +229,10 @@ class ChatFind extends ChangeNotifier {
   }
 
   String? _searched;
+  int _searchGen = 0;
+  List<ChatFindMatch> _loadedMatches = const [];
+  List<ChatFindMatch> _earlierMatches = const [];
+  ({String promptUuid, int occurrence})? _pendingEarlier;
 
   /// Each item's text as last searched: an item streamed or edited is a
   /// new one, its text found anew.
@@ -202,6 +243,7 @@ class ChatFind extends ChangeNotifier {
   void _search({required bool keep, bool reveal = false}) {
     _due = false;
     _searched = text.text;
+    final gen = ++_searchGen;
     final before = currentMatch;
     final pattern = _pattern = _compile();
     final feed = _feed;
@@ -222,17 +264,68 @@ class ChatFind extends ChangeNotifier {
         ..clear()
         ..addAll(texts);
     }
+    _loadedMatches = found;
+    _earlierMatches = const [];
     _matches = found;
-    if (_revealFound && found.isNotEmpty) {
+    if (_pendingEarlier case final pending? when found.isNotEmpty) {
+      _pendingEarlier = null;
       _revealFound = false;
-      keep = false;
-      reveal = true;
-    }
-    if (keep && before != null && found.contains(before)) {
+      _current = pending.occurrence.clamp(0, found.length - 1);
+      _reveals++;
+    } else if (_revealFound && found.isNotEmpty) {
+      _revealFound = false;
+      _current = 0;
+      _reveals++;
+    } else if (keep && before != null && found.contains(before)) {
       _current = found.indexOf(before);
     } else {
       _current = found.isEmpty ? -1 : 0;
       if (reveal && found.isNotEmpty) _reveals++;
+    }
+    notifyListeners();
+
+    if (_visible &&
+        pattern != null &&
+        feed is ChatSession &&
+        feed.hasEarlierHistory) {
+      unawaited(
+        _searchEarlier(
+          gen,
+          feed,
+          pattern,
+          revealIfNone: (reveal || _revealFound) && found.isEmpty,
+        ),
+      );
+    }
+  }
+
+  Future<void> _searchEarlier(
+    int gen,
+    ChatSession session,
+    RegExp pattern, {
+    required bool revealIfNone,
+  }) async {
+    final hits = await session.searchEarlier(pattern);
+    if (gen != _searchGen || !_visible || !identical(_feed, session)) return;
+    if (hits.isEmpty) return;
+    final earlier = <ChatFindMatch>[
+      for (final hit in hits)
+        for (var o = 0; o < hit.occurrences; o++)
+          ChatFindMatch.earlier(hit.promptUuid, o),
+    ];
+    if (earlier.isEmpty) return;
+    final before = currentMatch;
+    _earlierMatches = earlier;
+    _matches = [..._earlierMatches, ..._loadedMatches];
+    if (before != null && !before.isEarlier) {
+      final at = _matches.indexOf(before);
+      if (at >= 0) _current = at;
+    } else if (revealIfNone) {
+      _revealFound = false;
+      _current = 0;
+      _reveals++;
+    } else if (_current < 0) {
+      _current = 0;
     }
     notifyListeners();
   }

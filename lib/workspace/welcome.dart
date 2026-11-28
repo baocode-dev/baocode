@@ -172,6 +172,14 @@ KernelDescriptor welcomeKernel(
       context,
       start: (launch) async => WelcomeTransport(recording, launch),
       readHistoryPage: readClaudeHistoryPage,
+      readHistoryUntil: (session, {required turns, before, required until}) =>
+          readClaudeHistoryPage(
+            session,
+            turns: turns,
+            before: before,
+            until: until,
+          ),
+      searchEarlierHistory: searchClaudeEarlierHistory,
     ),
   );
   return descriptor;

@@ -19,6 +19,14 @@ abstract final class KernelRegistry {
       start: startClaude,
       readHistory: readClaudeHistory,
       readHistoryPage: readClaudeHistoryPage,
+      readHistoryUntil: (session, {required turns, before, required until}) =>
+          readClaudeHistoryPage(
+            session,
+            turns: turns,
+            before: before,
+            until: until,
+          ),
+      searchEarlierHistory: searchClaudeEarlierHistory,
       readGoal: readClaudeGoal,
       forkSession: forkClaudeSession,
       usageOffBy: () => claudeUsageOffByAt(context.cwd),

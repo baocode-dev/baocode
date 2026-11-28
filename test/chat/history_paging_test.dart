@@ -252,4 +252,184 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 5));
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+  testWidgets('prepending the earlier half of a split turn keeps it open '
+      'instead of suddenly folding visible items away', (tester) async {
+    final earlier = Completer<ClaudeHistoryPage>();
+    tester.view.physicalSize = const Size(1000, 700);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    // Split turn: page 1 has only the tail (a tool call + intermediate text +
+    // final answer, NO prompt yet -> shown expanded). Page 2 brings in the
+    // prompt + earlier tool call, completing the turn so StepFolds creates a
+    // WorkFold spanning across index 0 of page 1.
+    final tailEntries = <Map<String, Object?>>[
+      {
+        'type': 'assistant',
+        'uuid': 'a_mid',
+        'timestamp': '2026-11-28T10:00:10.000Z',
+        'message': {
+          'id': 'm_mid',
+          'role': 'assistant',
+          'content': [
+            {'type': 'text', 'text': 'Intermediate step visible on page 1.'},
+          ],
+        },
+      },
+      {
+        'type': 'assistant',
+        'uuid': 'a_tu2',
+        'timestamp': '2026-11-28T10:00:12.000Z',
+        'message': {
+          'id': 'm_tu2',
+          'role': 'assistant',
+          'content': [
+            {
+              'type': 'tool_use',
+              'id': 'call2',
+              'name': 'Read',
+              'input': {'file_path': '/p/tail.dart'},
+            },
+          ],
+        },
+      },
+      {
+        'type': 'user',
+        'uuid': 'u_tr2',
+        'timestamp': '2026-11-28T10:00:13.000Z',
+        'message': {
+          'role': 'user',
+          'content': [
+            {
+              'type': 'tool_result',
+              'tool_use_id': 'call2',
+              'content': 'tail content',
+            },
+          ],
+        },
+      },
+      {
+        'type': 'assistant',
+        'uuid': 'a_ans',
+        'timestamp': '2026-11-28T10:00:20.000Z',
+        'message': {
+          'id': 'm_ans',
+          'role': 'assistant',
+          'content': [
+            {'type': 'text', 'text': 'Final answer of the split turn.'},
+          ],
+        },
+      },
+    ];
+    final headEntries = <Map<String, Object?>>[
+      {
+        'type': 'user',
+        'uuid': 'u_split',
+        'timestamp': '2026-11-28T10:00:00.000Z',
+        'message': {'role': 'user', 'content': 'Split turn prompt'},
+      },
+      {
+        'type': 'assistant',
+        'uuid': 'a_tu1',
+        'timestamp': '2026-11-28T10:00:02.000Z',
+        'message': {
+          'id': 'm_tu1',
+          'role': 'assistant',
+          'content': [
+            {
+              'type': 'tool_use',
+              'id': 'call1',
+              'name': 'Read',
+              'input': {'file_path': '/p/head.dart'},
+            },
+          ],
+        },
+      },
+      {
+        'type': 'user',
+        'uuid': 'u_tr1',
+        'timestamp': '2026-11-28T10:00:03.000Z',
+        'message': {
+          'role': 'user',
+          'content': [
+            {
+              'type': 'tool_result',
+              'tool_use_id': 'call1',
+              'content': 'head content',
+            },
+          ],
+        },
+      },
+    ];
+
+    late final KernelDescriptor descriptor;
+    descriptor = KernelDescriptor(
+      id: 'claude-code',
+      label: 'Claude Code',
+      icon: Icons.auto_awesome_rounded,
+      description: '',
+      create: (context) => ClaudeCodeKernel(
+        descriptor,
+        context,
+        start: (_) async => FakeCli(),
+        readHistoryPage: (session, {required turns, before}) async =>
+            before == null
+            ? ClaudeHistoryPage(tailEntries, earlier: 'a_mid')
+            : earlier.future,
+      ),
+    );
+    final session = ChatSession(
+      kernel: descriptor,
+      kernels: [descriptor, ...MockKernels.all.skip(1)],
+      kernelContext: KernelContext(
+        cwd: '/p',
+        resume: SessionRecord(
+          id: 's_split',
+          title: 'split',
+          updatedAt: DateTime(2026),
+          cwd: '/p',
+        ),
+      ),
+      historyCount: 0,
+    );
+    addTearDown(session.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(body: ChatHistoryView(feed: session)),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    // Before loadEarlier: the intermediate text is visible.
+    expect(
+      find.textContaining(
+        'Intermediate step visible on page 1.',
+        findRichText: true,
+      ),
+      findsOneWidget,
+    );
+
+    // Load earlier half (brings in prompt + worked duration -> WorkFold forms).
+    final load = session.loadEarlier();
+    earlier.complete(ClaudeHistoryPage(headEntries));
+    await load;
+    for (var i = 0; i < 4; i++) {
+      await tester.pump();
+    }
+
+    // Must NOT suddenly collapse away the text the user was already reading!
+    expect(
+      find.textContaining(
+        'Intermediate step visible on page 1.',
+        findRichText: true,
+      ),
+      findsOneWidget,
+    );
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 5));
+  });
 }

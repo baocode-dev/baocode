@@ -2113,6 +2113,8 @@ class _Sampler {
             math.min(text.length, 60).toDouble(),
             tone: kind == NoticeKind.error ? _Tone.removed : _Tone.faint,
           );
+        case KernelSwitchItem():
+          _step(28, tone: _Tone.faint);
         case LiveStatusItem(:final label):
           _step(label.length.toDouble());
       }

@@ -1,23 +1,35 @@
-import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 
+import 'package:bao_remote/local.dart' show SessionIndexStore;
 import 'package:path/path.dart' as p;
 
 import '../kernel/claude_code/claude_environment.dart';
+import '../platform/data_dir.dart';
 import 'conversation_search.dart';
 
 /// Searches the sessions Claude Code keeps (`<config>/projects/*/*.jsonl`):
-/// what the user and Claude said in each, read once and kept in memory
-/// until its file changes.
+/// backed by [SessionIndexStore]'s incremental persisted turn index so
+/// restarts and appended messages avoid re-reading multi-MB `.jsonl` files.
 class ClaudeConversationSearch implements ConversationSearch {
-  ClaudeConversationSearch({this.configDir});
+  ClaudeConversationSearch({this.configDir, this.indexDir});
 
   /// Claude Code's config folder; by default as its kernel finds it.
   final String? configDir;
 
+  /// Directory where `.idx.gz` sidecar indexes are persisted; defaults to
+  /// `<cacheDir>/session-index` when [configDir] is null (production), and
+  /// null when a custom [configDir] is passed without [indexDir] (tests).
+  final String? indexDir;
+
   final Map<String, _Kept> _kept = {};
   Future<void>? _preparing;
+
+  String? get _resolvedIndexDir =>
+      indexDir ??
+      (configDir == null
+          ? p.join(DataDirectory.current.cacheDir, 'session-index')
+          : null);
 
   @override
   Future<void> prepare() =>
@@ -32,7 +44,8 @@ class ClaudeConversationSearch implements ConversationSearch {
       for (final MapEntry(:key, :value) in _kept.entries)
         key: (size: value.size, modified: value.modified),
     };
-    final read = await Isolate.run(() => _readChanged(root, known));
+    final dir = _resolvedIndexDir;
+    final read = await Isolate.run(() => _readChanged(root, known, dir));
     _kept.removeWhere((path, _) => !read.present.contains(path));
     for (final session in read.changed) {
       _kept[session.path] = _Kept(
@@ -78,13 +91,19 @@ typedef _Read = ({
   List<({String path, int size, int modified, String text})> changed,
 });
 
-/// The session files under [root], and the text of those not as [known]
-/// had them.
-_Read _readChanged(String root, Map<String, ({int size, int modified})> known) {
+/// The session files under [root], and the searchable text of those whose
+/// size or modification time differs from [known], read via
+/// [SessionIndexStore] so unchanged or appended files skip full re-scans.
+_Read _readChanged(
+  String root,
+  Map<String, ({int size, int modified})> known,
+  String? indexDir,
+) {
   final present = <String>{};
   final changed = <({String path, int size, int modified, String text})>[];
   final dir = Directory(root);
   if (!dir.existsSync()) return (present: present, changed: changed);
+  final store = SessionIndexStore(cacheDir: indexDir);
   for (final project in dir.listSync().whereType<Directory>()) {
     for (final file in project.listSync().whereType<File>()) {
       if (!file.path.endsWith('.jsonl')) continue;
@@ -96,87 +115,19 @@ _Read _readChanged(String root, Map<String, ({int size, int modified})> known) {
       if (was != null && was.size == size && was.modified == modified) {
         continue;
       }
-      changed.add((
-        path: file.path,
-        size: size,
-        modified: modified,
-        text: _conversationText(file),
-      ));
+      String text;
+      try {
+        final index = store.openSync(
+          file.path,
+          fileSize: size,
+          fileModified: modified,
+        );
+        text = index.searchableText();
+      } on Object {
+        text = '';
+      }
+      changed.add((path: file.path, size: size, modified: modified, text: text));
     }
   }
   return (present: present, changed: changed);
 }
-
-/// What the user typed and Claude answered, a message a line or more:
-/// not tools' input or output, thoughts, subagents' or injected notes.
-String _conversationText(File file) {
-  final String text;
-  try {
-    text = file.readAsStringSync();
-  } on Object {
-    return '';
-  }
-  final buffer = StringBuffer();
-  for (final line in const LineSplitter().convert(text)) {
-    if (!line.contains('"type":"user"') &&
-        !line.contains('"type":"assistant"')) {
-      continue;
-    }
-    final Object? entry;
-    try {
-      entry = jsonDecode(line);
-    } on Object {
-      continue;
-    }
-    if (entry is! Map<String, Object?>) continue;
-    if (entry['isSidechain'] == true || entry['isMeta'] == true) continue;
-    final type = entry['type'];
-    if (type != 'user' && type != 'assistant') continue;
-    final message = entry['message'];
-    if (message is! Map<String, Object?>) continue;
-    final content = message['content'];
-    final parts = switch (content) {
-      final String text => [text],
-      final List<Object?> blocks => [
-        for (final block in blocks)
-          if (block is Map<String, Object?> &&
-              block['type'] == 'text' &&
-              block['text'] is String)
-            block['text']! as String,
-      ],
-      _ => const <String>[],
-    };
-    for (final part in parts) {
-      var trimmed = part.trim();
-      if (trimmed.isEmpty) continue;
-      if (type == 'user') {
-        if (_agentMessage.firstMatch(trimmed) case final match?) {
-          trimmed = match[1]!.trim();
-          if (trimmed.isEmpty) continue;
-        } else if (_cliWrapper(trimmed)) {
-          // Command wrappers and the CLI's own notes, not what was said.
-          continue;
-        }
-      }
-      buffer.writeln(trimmed);
-    }
-  }
-  return buffer.toString();
-}
-
-final _agentMessage = RegExp(
-  r'^<agent-message\b[^>]*>([\s\S]*)</agent-message>$',
-);
-
-bool _cliWrapper(String trimmed) =>
-    trimmed.startsWith('<command-name>') ||
-    trimmed.startsWith('<command-message>') ||
-    trimmed.startsWith('<command-args>') ||
-    trimmed.startsWith('<local-command-') ||
-    trimmed.startsWith('<system-reminder>') ||
-    trimmed.startsWith('<task-notification>') ||
-    trimmed.startsWith('<bash-input>') ||
-    trimmed.startsWith('<bash-stdout>') ||
-    trimmed.startsWith('<bash-stderr>') ||
-    trimmed.startsWith('<ide_opened_file>') ||
-    trimmed.startsWith('<ide_selection>');

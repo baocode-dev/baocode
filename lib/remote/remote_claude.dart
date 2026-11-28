@@ -130,14 +130,39 @@ Future<ClaudeHistoryPage> readClaudeHistoryPage(
   SessionRecord session, {
   required int turns,
   String? before,
+  String? until,
 }) async {
   final host = RemoteLocation.hostOf(session.cwd);
   final path = session.path;
   if (host == null || path == null) {
-    return ClaudeStorage.readPage(session, turns: turns, before: before);
+    return ClaudeStorage.readPage(
+      session,
+      turns: turns,
+      before: before,
+      until: until,
+    );
   }
   final client = await SshHosts.instance[host].ready;
   return client.claudeHistoryPage(path, turns: turns, before: before);
+}
+
+/// Searches unloaded earlier turns of [session] before [before] using the
+/// persisted turn index (local sessions).
+Future<List<IndexedTurnHit>> searchClaudeEarlierHistory(
+  SessionRecord session,
+  String patternSource, {
+  required bool caseSensitive,
+  String? before,
+}) async {
+  final host = RemoteLocation.hostOf(session.cwd);
+  final path = session.path;
+  if (host != null || path == null) return const [];
+  return ClaudeStorage.searchEarlier(
+    session,
+    patternSource,
+    caseSensitive: caseSensitive,
+    before: before,
+  );
 }
 
 /// What the session [id], run in [cwd], kept of its goal, read where it

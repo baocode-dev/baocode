@@ -2982,6 +2982,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String noticeKernelSwitch(String target) {
+    return 'Context seamlessly handed off to $target';
+  }
+
+  @override
   String get activityPlanning => 'Planning next move';
 
   @override

@@ -11,6 +11,7 @@ import 'agent_message_card.dart';
 import 'agent_step.dart';
 import 'assistant_text.dart';
 import 'command_step.dart';
+import 'kernel_switch_block.dart';
 import 'notice_row.dart';
 import 'plan_card.dart';
 import 'session_step.dart';
@@ -141,6 +142,7 @@ class ChatItemView extends StatelessWidget {
         onMoveToBackground: onMoveToBackground,
       ),
       final NoticeItem notice => NoticeRow(item: notice),
+      final KernelSwitchItem switched => KernelSwitchBlock.fromItem(switched),
       final PlanItem plan => PlanCard(item: plan),
       TerminalItem(
         :final command,
@@ -264,6 +266,10 @@ String chatItemPlainText(
       ].join('\n'),
     final AgentItem agent => AgentStep.plainText(agent, l10n: strings),
     NoticeItem(:final text) => text,
+    final KernelSwitchItem switched => KernelSwitchBlock.plainText(
+      switched,
+      l10n: strings,
+    ),
     final PlanItem plan => PlanCard.plainText(plan, l10n: strings),
     TerminalItem(
       :final command,

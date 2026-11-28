@@ -95,6 +95,12 @@ class SshHost extends ChangeNotifier implements ProjectHost {
   };
 
   @override
+  String? get dataDir => switch (hello?.dataDir) {
+    final dir? when dir.isNotEmpty => dir,
+    _ => null,
+  };
+
+  @override
   String pathOf(String location) => RemoteLocation.pathOf(location);
 
   @override

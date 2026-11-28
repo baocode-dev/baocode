@@ -1,3 +1,4 @@
+import 'package:bao_remote/claude.dart' show ClaudeHistoryPage, IndexedTurnHit;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,7 +11,12 @@ import 'package:baocode/chat/chat_session.dart';
 import 'package:baocode/chat/composer/composer_draft.dart';
 import 'package:baocode/chat/widgets/user_message_bubble.dart';
 import 'package:baocode/ide/ide_find_widget.dart';
+import 'package:baocode/kernel/agent_kernel.dart';
+import 'package:baocode/kernel/claude_code/claude_code_kernel.dart';
+import 'package:baocode/kernel/mock/mock_kernels.dart';
 import 'package:baocode/theme/app_theme.dart';
+
+import '../kernel_test.dart' show FakeCli;
 
 class _Feed extends ChangeNotifier implements ChatFeed {
   _Feed(this.items);
@@ -254,5 +260,96 @@ void main() {
     expect(railTaps, 0);
     expect(find.byType(IdeFindWidget), findsNothing);
     expect(closed, 1);
+  });
+
+  testWidgets('finds and jumps to a match in unloaded earlier history via '
+      'the session index', (tester) async {
+    List<Map<String, Object?>> rawTurns(int from, int to) => [
+      for (var n = from; n <= to; n++) ...[
+        {
+          'type': 'user',
+          'uuid': 'u$n',
+          'timestamp': '2026-11-28T10:00:00.000Z',
+          'message': {
+            'role': 'user',
+            'content': n == 2 ? 'Unique obsidian prompt' : 'Question $n',
+          },
+        },
+        {
+          'type': 'assistant',
+          'uuid': 'a$n',
+          'timestamp': '2026-11-28T10:00:05.000Z',
+          'message': {
+            'id': 'm$n',
+            'role': 'assistant',
+            'content': [
+              {
+                'type': 'text',
+                'text': 'Answer $n.\n\n${'More of it. ' * 40}',
+              },
+            ],
+          },
+        },
+      ],
+    ];
+
+    String? jumpedUntil;
+    late final KernelDescriptor descriptor;
+    descriptor = KernelDescriptor(
+      id: 'claude-code',
+      label: 'Claude Code',
+      icon: Icons.auto_awesome_rounded,
+      description: '',
+      create: (context) => ClaudeCodeKernel(
+        descriptor,
+        context,
+        start: (_) async => FakeCli(),
+        readHistoryPage: (session, {required turns, before}) async =>
+            before == null
+            ? ClaudeHistoryPage(rawTurns(11, 15), earlier: 'u11')
+            : ClaudeHistoryPage(rawTurns(1, 10)),
+        readHistoryUntil: (session, {required turns, before, required until}) async {
+          jumpedUntil = until;
+          return ClaudeHistoryPage(rawTurns(2, 10), earlier: 'u2');
+        },
+        searchEarlierHistory:
+            (session, patternSource, {required caseSensitive, before}) async {
+              final re = RegExp(patternSource, caseSensitive: caseSensitive);
+              if (re.hasMatch('Unique obsidian prompt')) {
+                return const [IndexedTurnHit(promptUuid: 'u2', occurrences: 1)];
+              }
+              return const [];
+            },
+      ),
+    );
+    final session = ChatSession(
+      kernel: descriptor,
+      kernels: [descriptor, ...MockKernels.all.skip(1)],
+      kernelContext: KernelContext(
+        cwd: '/p',
+        resume: SessionRecord(
+          id: 's_find',
+          title: 'find',
+          updatedAt: DateTime(2026),
+          cwd: '/p',
+        ),
+      ),
+      historyCount: 0,
+    );
+    addTearDown(session.dispose);
+
+    await _pump(tester, session);
+    await tester.pump();
+    expect(session.hasEarlierHistory, isTrue);
+    expect(_text('Unique obsidian prompt'), findsNothing);
+
+    ChatHistoryView.find(_historyKey, query: 'obsidian');
+    await _settle(tester);
+
+    expect(jumpedUntil, 'u2');
+    expect(_inView(tester, _text('Unique obsidian prompt')), isTrue);
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 5));
   });
 }

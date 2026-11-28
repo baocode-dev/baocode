@@ -963,6 +963,14 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     _findReveals = _find.reveals;
     final match = _find.currentMatch;
     if (match == null) return;
+    if (match.isEarlier) {
+      final session = _session;
+      if (session != null && session.hasEarlierHistory) {
+        _find.expectingEarlier(match);
+        unawaited(session.loadUntil(match.promptUuid!));
+      }
+      return;
+    }
     final index = match.item;
     _setAnchored(false);
     if (_isHidden(index)) {
@@ -2712,6 +2720,17 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     _refold();
     // Once folded: what of them is hidden takes no room.
     if (moved > 0) {
+      // If prepending earlier history completed a split turn (or split quick
+      // step run) whose tail was already shown at index 0, keep that fold open
+      // so items the user was looking at do not suddenly collapse away.
+      if (moved < _feed.itemCount) {
+        if (_folds.workAt(moved) case final fold? when fold.start < moved) {
+          _foldOpen[fold.key] = true;
+        }
+        if (_folds.stepsAt(moved) case final fold? when fold.start < moved) {
+          _foldOpen[fold.key] = true;
+        }
+      }
       if (_keepAbove(moved)) {
         _held = null;
       } else if (_held case (:final index, :final above)) {
@@ -3938,7 +3957,10 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
 
   double _gapBetween(ChatItem? previous, ChatItem item) {
     if (previous == null) return 0;
-    if (item is UserMessageItem) return 32;
+    if (item is UserMessageItem) {
+      return previous is KernelSwitchItem ? 16 : 32;
+    }
+    if (item is KernelSwitchItem) return 22;
     if (previous is UserMessageItem) return 14;
     // Steps follow one another as a list.
     if (isStep(item) && isStep(previous)) return 0;

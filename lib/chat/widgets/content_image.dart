@@ -660,11 +660,26 @@ class MarkdownImage extends StatefulWidget {
   /// Past this an image is not read to be shown in a message.
   static const _maxBytes = 20 << 20;
 
-  static _Read _readOf(FileOpenScope files, String path) {
+  static _Read _readOf(
+    FileOpenScope files,
+    String path, {
+    bool force = false,
+  }) {
     final key = (files.readBytes, path);
-    if (_read.remove(key) case final read?) return _read[key] = read;
+    if (!force) {
+      final cached = _read[key];
+      // Reuse an in-flight read or a loaded image; retry a previously failed
+      // one (e.g. file was still being written).
+      if (cached != null && (!cached.done || cached.image != null)) {
+        _read.remove(key);
+        return _read[key] = cached;
+      }
+      if (cached != null) _read.remove(key);
+    } else {
+      _read.remove(key);
+    }
     if (_read.length >= 24) _read.remove(_read.keys.first);
-    return _read[key] = _Read(files.image(path, maxBytes: _maxBytes));
+    return _read[key] = _Read(files, path, maxBytes: _maxBytes);
   }
 
   @override
@@ -672,15 +687,57 @@ class MarkdownImage extends StatefulWidget {
 }
 
 class _MarkdownImageState extends State<MarkdownImage> {
-  late _Read _image = MarkdownImage._readOf(widget.files, widget.path);
+  late _Read _image;
+
+  @override
+  void initState() {
+    super.initState();
+    _image = MarkdownImage._readOf(widget.files, widget.path);
+    _refreshIfChanged();
+  }
 
   @override
   void didUpdateWidget(MarkdownImage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.path != oldWidget.path ||
-        widget.files.readBytes != oldWidget.files.readBytes) {
+        widget.files.readBytes != oldWidget.files.readBytes ||
+        widget.files.fileStamp != oldWidget.files.fileStamp) {
       _image = MarkdownImage._readOf(widget.files, widget.path);
+      _refreshIfChanged();
     }
+  }
+
+  /// Checks whether a cached image changed on disk (e.g. a screenshot
+  /// overwritten at the same path) and reloads it in place without flashing
+  /// a placeholder.
+  void _refreshIfChanged() {
+    final stampOf = widget.files.fileStamp;
+    final current = _image;
+    if (stampOf == null || !current.done || current.image == null) return;
+    final path = widget.path;
+    final files = widget.files;
+    unawaited(() async {
+      final latest = await stampOf(path).then((s) => s, onError: (_) => null);
+      if (!mounted ||
+          widget.path != path ||
+          widget.files.readBytes != files.readBytes) {
+        return;
+      }
+      if (latest == null || latest == current.stamp) return;
+      final key = (files.readBytes, path);
+      final cached = MarkdownImage._read[key];
+      final fresh = cached != null && !identical(cached, current)
+          ? cached
+          : MarkdownImage._readOf(files, path, force: true);
+      final updated = await fresh.future;
+      if (!mounted ||
+          widget.path != path ||
+          widget.files.readBytes != files.readBytes ||
+          updated == null) {
+        return;
+      }
+      setState(() => _image = fresh);
+    }());
   }
 
   ChatItemMenu _menu(String path, {bool previewing = false}) {
@@ -735,21 +792,35 @@ class _MarkdownImageState extends State<MarkdownImage> {
 }
 
 /// An image file being read, or read: [image] once it is (null where it
-/// could not be).
+/// could not be), with [stamp] captured when read so overwrites at the same
+/// path can be detected.
 class _Read {
-  _Read(this.future) {
-    future.then(
-      (image) {
-        this.image = image;
-        done = true;
-      },
-      onError: (Object _) {
-        done = true;
-      },
-    );
+  _Read(FileOpenScope files, String path, {required int maxBytes}) {
+    future = _load(files, path, maxBytes: maxBytes);
   }
 
-  final Future<ImageAttachment?> future;
+  late final Future<ImageAttachment?> future;
   ImageAttachment? image;
+  Object? stamp;
   bool done = false;
+
+  Future<ImageAttachment?> _load(
+    FileOpenScope files,
+    String path, {
+    required int maxBytes,
+  }) async {
+    final stampOf = files.fileStamp;
+    if (stampOf != null) {
+      try {
+        stamp = await stampOf(path);
+      } on Object {
+        // Ignore stat errors; the read itself will decide.
+      }
+    }
+    try {
+      return image = await files.image(path, maxBytes: maxBytes);
+    } finally {
+      done = true;
+    }
+  }
 }

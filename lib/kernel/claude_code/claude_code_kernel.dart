@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
-import 'package:bao_remote/claude.dart' show ClaudeHistoryPage;
+import 'package:bao_remote/claude.dart' show ClaudeHistoryPage, IndexedTurnHit;
 import 'package:bao_remote/client.dart' show SshCore;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -61,6 +61,22 @@ typedef ClaudeHistoryReader = Future<List<Map<String, Object?>>> Function(
 typedef ClaudeHistoryPager = Future<ClaudeHistoryPage> Function(
   SessionRecord session, {
   required int turns,
+  String? before,
+});
+
+/// Reads earlier turns of a kept session back at least through [until].
+typedef ClaudeHistoryUntilPager = Future<ClaudeHistoryPage> Function(
+  SessionRecord session, {
+  required int turns,
+  String? before,
+  required String until,
+});
+
+/// Searches unloaded earlier turns before [before] via the session index.
+typedef ClaudeEarlierSearcher = Future<List<IndexedTurnHit>> Function(
+  SessionRecord session,
+  String patternSource, {
+  required bool caseSensitive,
   String? before,
 });
 
@@ -135,6 +151,8 @@ class ClaudeCodeKernel
     required this._start,
     ClaudeHistoryReader? readHistory,
     ClaudeHistoryPager? readHistoryPage,
+    ClaudeHistoryUntilPager? readHistoryUntil,
+    ClaudeEarlierSearcher? searchEarlierHistory,
     this._readGoal,
     this._forkSession,
     ClaudeUsageSwitch? usageOffBy,
@@ -146,7 +164,9 @@ class ClaudeCodeKernel
   }) : _openLink = openLink ?? openExternal,
        _usageOffBy = usageOffBy ?? _usageOn,
        _providers = providers ?? ModelProviders.current,
-       _providerEnvironment = providerEnvironment ?? providerLaunchEnvironment {
+       _providerEnvironment = providerEnvironment ?? providerLaunchEnvironment,
+       _untilPager = readHistoryUntil,
+       _searchEarlier = searchEarlierHistory {
     _translator =
         ClaudeTranslator(
             emit: emit,
@@ -270,6 +290,9 @@ class ClaudeCodeKernel
   @override
   bool get loadingEarlier => _earlierLoad != null;
   ClaudeHistoryPager? _pager;
+  final ClaudeHistoryUntilPager? _untilPager;
+  final ClaudeEarlierSearcher? _searchEarlier;
+  final Set<String> _loadedEntryIds = {};
 
   /// What to read the turns before those read by, if there are some.
   String? _earlier;
@@ -279,6 +302,20 @@ class ClaudeCodeKernel
   /// cut so; see [ClaudeTranslator.head]): the turn the page before it ends
   /// with goes on past it, and is timed to where it ends.
   ({DateTime? until, bool stopped})? _readHead;
+
+  /// Ordered `(promptId, kernelId)` history of turns observed (replayed or
+  /// sent) in this conversation, oldest first: detects live kernel switches
+  /// and restores the prior kernel on rewind.
+  final List<({String promptId, String kernelId})> _turnKernels = [];
+
+  /// Fallback kernel when a replayed page had assistant entries before any
+  /// prompt (mid-turn page cut) and no prompt turns after them.
+  String? _initialKernel;
+
+  /// Earliest loaded prompt whose kernel is known (when that page began at a
+  /// turn boundary), so [loadEarlier] emits a [KernelSwitchItem] across page
+  /// boundaries.
+  ({String promptId, String kernelId})? _headKernel;
 
   /// Writes wait on this: for the process to be ready, and for a rewind to
   /// land before the message that follows it.
@@ -887,6 +924,11 @@ class ClaudeCodeKernel
         })
         .catchError((Object error) {
           if (_turn case final turn?) {
+            if (_transport == null &&
+                _turnKernels.isNotEmpty &&
+                _turnKernels.last.promptId == turn) {
+              _turnKernels.removeLast();
+            }
             emit(
               ItemUpserted(
                 nextSeq,
@@ -1073,6 +1115,18 @@ class ClaudeCodeKernel
     } else {
       // A context picked since it started: taken up now, while idle.
       _applyWindow();
+      final nextKernel = _activeKernelId;
+      final prevKernel = _turnKernels.lastOrNull?.kernelId ?? _initialKernel;
+      if (prevKernel != null && prevKernel != nextKernel) {
+        emit(
+          ItemUpserted(
+            nextSeq,
+            ClaudeTranslator.kernelSwitchItemId(turn.id),
+            KernelSwitchItem(fromKernel: prevKernel, toKernel: nextKernel),
+          ),
+        );
+      }
+      _turnKernels.add((promptId: turn.id, kernelId: nextKernel));
       _beginTurn(turn.id);
     }
     emit(ItemUpserted(nextSeq, turn.id, _sentItem(turn, queued: busy)));
@@ -1451,7 +1505,12 @@ class ClaudeCodeKernel
               '${response['error'] ?? response['reason'] ?? 'turned down'}',
             );
           }
+          final at = _turnKernels.indexWhere((t) => t.promptId == itemId);
+          if (at >= 0) _turnKernels.removeRange(at, _turnKernels.length);
           emit(Rewound(nextSeq, itemId: itemId, index: index));
+          emit(
+            ItemRemoved(nextSeq, ClaudeTranslator.kernelSwitchItemId(itemId)),
+          );
           // Its last request held what is rewound too.
           _usage?.clearContext();
           _toldContext = null;
@@ -3178,7 +3237,8 @@ class ClaudeCodeKernel
       _earlier = page.earlier;
       _translator
         ..replaying = true
-        ..keptTurns = kept;
+        ..keptTurns = kept
+        ..prepareReplayKernels(page.entries);
       var counted = false;
       var whole = page.earlier == null;
       String? agySessionId;
@@ -3260,6 +3320,14 @@ class ClaudeCodeKernel
       }
       _readHead = _translator.head;
       _translator.endReplay();
+      if (_translator.replayedTurns.isNotEmpty) {
+        _turnKernels.insertAll(0, _translator.replayedTurns);
+      } else if (_translator.lastKernel case final kernel?) {
+        _initialKernel = kernel;
+      }
+      _headKernel = _translator.hasHeadAssistant
+          ? null
+          : _translator.firstPromptKernel;
       if (counted) _reportStats();
       _reportContext();
     } on Object catch (error) {
@@ -3288,15 +3356,71 @@ class ClaudeCodeKernel
     });
   }
 
-  Future<void> _readEarlier() async {
+  @override
+  Future<List<({String promptUuid, int occurrences})>> searchEarlier(
+    RegExp pattern,
+  ) async {
+    final session = _context.resume;
+    final before = _earlier;
+    if (session == null || before == null || _disposed) return const [];
+    final searcher = _searchEarlier;
+    if (searcher == null) return const [];
+    try {
+      final hits = await searcher(
+        session,
+        pattern.pattern,
+        caseSensitive: pattern.isCaseSensitive,
+        before: before,
+      );
+      return [
+        for (final hit in hits)
+          (promptUuid: hit.promptUuid, occurrences: hit.occurrences),
+      ];
+    } on Object {
+      return const [];
+    }
+  }
+
+  @override
+  Future<void> loadUntil(String promptUuid) async {
+    while (_earlierLoad != null) {
+      await _earlierLoad;
+      if (_disposed) return;
+    }
+    if (_earlier == null || _disposed) return;
+    if (_loadedEntryIds.contains(promptUuid)) return;
+    if (_untilPager != null) {
+      await (_earlierLoad ??= _readEarlier(until: promptUuid).whenComplete(() {
+        _earlierLoad = null;
+        if (!_disposed) emitInfoChanged();
+      }));
+      return;
+    }
+    // Fallback for custom pagers without `until`: page back until the prompt
+    // arrives or history ends.
+    while (_earlier != null && !_disposed) {
+      final before = _earlier;
+      await loadEarlier();
+      if (_earlier == before || _loadedEntryIds.contains(promptUuid)) break;
+    }
+  }
+
+  Future<void> _readEarlier({String? until}) async {
     emitInfoChanged();
     try {
       final keptTurns = _keptTurns(_context.resume!);
-      final page = await _pager!(
-        _context.resume!,
-        turns: _earlierTurns,
-        before: _earlier,
-      );
+      final page = until != null && _untilPager != null
+          ? await _untilPager(
+              _context.resume!,
+              turns: _earlierTurns,
+              before: _earlier,
+              until: until,
+            )
+          : await _pager!(
+              _context.resume!,
+              turns: _earlierTurns,
+              before: _earlier,
+            );
       final kept = await keptTurns;
       if (_disposed) return;
       // Told apart from the live one: it only gathers the items, and its
@@ -3310,9 +3434,11 @@ class ClaudeCodeKernel
               ownModel: _ownModel,
             )
             ..replaying = true
-            ..keptTurns = kept;
+            ..keptTurns = kept
+            ..prepareReplayKernels(page.entries);
       var counted = false;
       for (final line in page.entries) {
+        if (line['uuid'] case final String id) _loadedEntryIds.add(id);
         if (line['type'] == 'assistant') {
           counted |= _countRequest(line, earlier: true);
         }
@@ -3322,7 +3448,24 @@ class ClaudeCodeKernel
       if (counted) _reportStats();
       _earlier = page.earlier;
       _readHead = translator.head;
-      emit(HistoryPrepended(nextSeq, [...items.liveItems]));
+      final prepended = [...items.liveItems];
+      final head = _headKernel;
+      final earlierLast = translator.lastKernel;
+      if (earlierLast != null && head != null && earlierLast != head.kernelId) {
+        prepended.add((
+          ClaudeTranslator.kernelSwitchItemId(head.promptId),
+          KernelSwitchItem(fromKernel: earlierLast, toKernel: head.kernelId),
+        ));
+      }
+      if (translator.replayedTurns.isNotEmpty) {
+        _turnKernels.insertAll(0, translator.replayedTurns);
+      } else if (_initialKernel == null && earlierLast != null) {
+        _initialKernel = earlierLast;
+      }
+      _headKernel = translator.hasHeadAssistant
+          ? null
+          : (translator.firstPromptKernel ?? _headKernel);
+      emit(HistoryPrepended(nextSeq, prepended));
     } on Object catch (error) {
       if (_disposed) return;
       emit(
@@ -3564,6 +3707,16 @@ class ClaudeCodeKernel
       provider.protocolOf(info) == ProviderProtocol.agy,
     null => false,
   };
+
+  /// The kernel endpoint id that [model] runs on.
+  String _kernelIdOf(String? model) => switch (_resolveCustom(model)) {
+    (final provider, final info)
+        when provider.protocolOf(info) == ProviderProtocol.agy =>
+      ClaudeTranslator.antigravityKernelId,
+    _ => ClaudeTranslator.claudeCodeKernelId,
+  };
+
+  String get _activeKernelId => _kernelIdOf(_model);
 
   /// Whether Antigravity's models are offered here: on both local and SSH
   /// projects, excluding unwatched bots.

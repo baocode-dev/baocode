@@ -19,6 +19,7 @@ void main() {
     InputLag.debugReset();
   });
   tearDown(() {
+    EventLog.current?.close();
     EventLog.current = null;
     folder.deleteSync(recursive: true);
   });

@@ -5186,6 +5186,12 @@ abstract class AppLocalizations {
   /// **'{before} → {after} tokens'**
   String noticeCompactedFromTo(String before, String after);
 
+  /// Shown on the inline divider when a conversation switches between kernels (e.g. Claude Code to Antigravity ACP or back).
+  ///
+  /// In en, this message translates to:
+  /// **'Context seamlessly handed off to {target}'**
+  String noticeKernelSwitch(String target);
+
   /// No description provided for @activityPlanning.
   ///
   /// In en, this message translates to:

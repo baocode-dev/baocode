@@ -19,6 +19,18 @@ class LocalIdeFileService extends LocalFiles implements IdeFileService {
 /// How many bytes the file at [path] takes.
 Future<int> fileByteSize(String path) => File(path).length();
 
+/// A lightweight version token for [path] (modified timestamp and byte size),
+/// or null when the file does not exist or cannot be stat'd.
+Future<Object?> fileStamp(String path) async {
+  try {
+    final stat = await File(path).stat();
+    if (stat.type == FileSystemEntityType.notFound) return null;
+    return (stat.modified.microsecondsSinceEpoch, stat.size);
+  } on Object {
+    return null;
+  }
+}
+
 /// The file at [path]'s size, and its bytes read [length] at a time as
 /// they are listened for (it opened only then).
 Future<({int size, Stream<Uint8List> bytes})> readFilePieces(

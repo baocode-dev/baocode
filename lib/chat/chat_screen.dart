@@ -1242,10 +1242,12 @@ class _ChatScreenState extends State<ChatScreen>
             folders: _folders,
             readBytes: links.readBytes,
             sizeOf: links.sizeOf,
+            fileStamp: links.fileStamp,
             inPanel: links.inPanel,
             onOpenInIde: links.openInIde,
             onOpenFolder: links.openFolder,
             roots: links.roots?.call() ?? const [],
+            shownRoots: links.shownRoots?.call() ?? const [],
             seen: _session.filesSeen,
             home: links.home?.call(),
             local: switch (_session.kernelContext.cwd) {

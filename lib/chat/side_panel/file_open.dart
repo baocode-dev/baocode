@@ -105,8 +105,10 @@ class FileLinkTarget {
     this.exists,
     this.readBytes,
     this.sizeOf,
+    this.fileStamp,
     this.paths,
     this.roots,
+    this.shownRoots,
     this.home,
     this.inPanel = false,
     this.openInIde,
@@ -151,9 +153,19 @@ class FileLinkTarget {
   /// host): an image too big to show small is not read for it.
   final Future<int> Function(String path)? sizeOf;
 
+  /// A lightweight version token for the file at an absolute path (modified
+  /// time and size, say): lets cached inline images detect on-disk overwrites
+  /// at the same path without re-reading unchanged files on scroll.
+  final Future<Object?> Function(String path)? fileStamp;
+
   /// A multi-folder workspace's folders as they are now: its files are
   /// theirs (see [FileOpenScope.roots]).
   final List<String> Function()? roots;
+
+  /// Additional managed folders whose images may be shown inline without a
+  /// click (see [FileOpenScope.shownRoots]): e.g. Antigravity's `brain/`
+  /// artifact directory and BaoCode's `images/` directory.
+  final List<String> Function()? shownRoots;
 
   /// Whether the file at an absolute path is there; inline code naming a
   /// file is a link only once it is known to be. None: never a link.
@@ -271,11 +283,13 @@ class FileOpenScope extends InheritedWidget {
     this.folders,
     this.paths,
     this.roots = const [],
+    this.shownRoots = const [],
     this.seen = const [],
     this.home,
     this.local = true,
     this.readBytes,
     this.sizeOf,
+    this.fileStamp,
     this.inPanel = false,
     this.onOpenInIde,
     this.onOpenFolder,
@@ -311,6 +325,9 @@ class FileOpenScope extends InheritedWidget {
   /// See [FileLinkTarget.sizeOf].
   final Future<int> Function(String path)? sizeOf;
 
+  /// See [FileLinkTarget.fileStamp].
+  final Future<Object?> Function(String path)? fileStamp;
+
   final String root;
 
   /// Whether the files are this machine's (not a remote project's): their
@@ -328,6 +345,12 @@ class FileOpenScope extends InheritedWidget {
   /// directory, only holds its settings): a relative path is looked for in
   /// each, in order.
   final List<String> roots;
+
+  /// Additional managed folders (e.g. Antigravity's `brain/` artifact folder,
+  /// BaoCode's `images/` folder) whose images may be displayed inline without
+  /// a click, even if created via a shell command rather than a tracked file
+  /// tool.
+  final List<String> shownRoots;
 
   /// The files the agent read or changed (absolute, wherever they are):
   /// the one a path names when that is not where the path says, as an
@@ -359,8 +382,8 @@ class FileOpenScope extends InheritedWidget {
   }
 
   /// [resolve]d, where it is read with no click asking for it (an image
-  /// the chat shows): in [root] or one of [roots], or a file the agent
-  /// saw; null elsewhere.
+  /// the chat shows): in [root], [roots], or [shownRoots], or a file the
+  /// agent saw; null elsewhere.
   String? resolveShown(String path) {
     final full = resolve(path);
     if (full == null) return null;
@@ -368,6 +391,7 @@ class FileOpenScope extends InheritedWidget {
     final inside = [
       ...roots,
       root,
+      ...shownRoots,
     ].any((folder) => folder == full || context.isWithin(folder, full));
     if (inside) return full;
     final seenFile = _seen(path);
@@ -732,10 +756,12 @@ class FileOpenScope extends InheritedWidget {
       local != oldWidget.local ||
       host != oldWidget.host ||
       readBytes != oldWidget.readBytes ||
+      fileStamp != oldWidget.fileStamp ||
       inPanel != oldWidget.inPanel ||
       onOpenInIde != oldWidget.onOpenInIde ||
       onOpenFolder != oldWidget.onOpenFolder ||
       !listEquals(roots, oldWidget.roots) ||
+      !listEquals(shownRoots, oldWidget.shownRoots) ||
       !listEquals(seen, oldWidget.seen);
 }
 

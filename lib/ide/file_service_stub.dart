@@ -45,6 +45,8 @@ Future<Uint8List> readFileBytes(String path) =>
 Future<int> fileByteSize(String path) =>
     Future.error(UnsupportedError('Local editing requires the desktop app'));
 
+Future<Object?> fileStamp(String path) async => null;
+
 Future<({int size, Stream<Uint8List> bytes})> readFilePieces(
   String path,
   int length,

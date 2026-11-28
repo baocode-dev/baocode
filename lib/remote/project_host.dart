@@ -10,6 +10,7 @@ import '../ide/lsp/catalog/standard_lsp.dart';
 import '../ide/lsp/language_features.dart';
 import '../ide/terminal/terminal_instance.dart';
 import '../platform/app_paths.dart';
+import '../platform/data_dir.dart';
 import 'remote_location.dart';
 import 'ssh_host.dart';
 
@@ -34,6 +35,10 @@ abstract interface class ProjectHost {
   /// The user's home folder there, where `~` goes; null while it is not
   /// known (a host not reached yet).
   String? get home;
+
+  /// BaoCode's data directory there (where managed agent state and generated
+  /// images live); null while it is not known.
+  String? get dataDir;
 
   /// [location]'s path there.
   String pathOf(String location);
@@ -66,6 +71,9 @@ class LocalHost implements ProjectHost {
 
   @override
   String? get home => AppPaths.home(Platform.environment);
+
+  @override
+  String? get dataDir => DataDirectory.current.path;
 
   @override
   String pathOf(String location) => location;

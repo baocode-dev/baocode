@@ -88,6 +88,10 @@ void main() {
     final mismatches = await _mismatches(tester, [
       for (var i = 0; i < 8; i++) MockConversation.itemAt(i),
       const NoticeItem(NoticeKind.error, 'Something went wrong.'),
+      const KernelSwitchItem(
+        fromKernel: 'claude-code',
+        toKernel: 'antigravity-acp',
+      ),
       const UserMessageItem(text: 'And `this` too?'),
       const AgentItem(
         description: 'Look around',

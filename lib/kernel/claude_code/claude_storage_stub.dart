@@ -1,4 +1,4 @@
-import 'package:bao_remote/claude.dart' show ClaudeHistoryPage;
+import 'package:bao_remote/claude.dart' show ClaudeHistoryPage, IndexedTurnHit;
 
 import '../agent_kernel.dart';
 
@@ -35,5 +35,13 @@ class ClaudeStorage implements SessionCatalog, MovesSessions {
     SessionRecord session, {
     required int turns,
     String? before,
+    String? until,
   }) async => const ClaudeHistoryPage([]);
+
+  static Future<List<IndexedTurnHit>> searchEarlier(
+    SessionRecord session,
+    String patternSource, {
+    required bool caseSensitive,
+    String? before,
+  }) async => const [];
 }

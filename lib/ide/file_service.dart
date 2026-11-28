@@ -121,6 +121,10 @@ Future<Uint8List> readFileBytes(String path) => platform.readFileBytes(path);
 /// How many bytes [path] takes, a file of this machine's.
 Future<int> fileByteSize(String path) => platform.fileByteSize(path);
 
+/// A lightweight version token for [path] on this machine (modified time and
+/// byte size), or null when it does not exist or cannot be stat'd.
+Future<Object?> fileStamp(String path) => platform.fileStamp(path);
+
 /// How many bytes [path] takes through [files], as [readBytesThrough]
 /// reads it; null where that cannot be told.
 Future<int>? byteSizeThrough(IdeFileService files, String path) =>

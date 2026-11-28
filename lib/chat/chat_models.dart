@@ -504,6 +504,28 @@ class NoticeItem extends ChatItem {
   final CompactionNote? compaction;
 }
 
+/// Shown between turns when the conversation hands off context from one
+/// kernel runtime to another (e.g. Claude Code ↔ Antigravity ACP).
+class KernelSwitchItem extends ChatItem {
+  const KernelSwitchItem({
+    required this.fromKernel,
+    required this.toKernel,
+    this.fromName,
+    this.toName,
+  });
+
+  /// Stable identifier of the kernel handing off (e.g. `'claude-code'`).
+  final String fromKernel;
+
+  /// Stable identifier of the kernel taking over (e.g. `'antigravity-acp'`).
+  final String toKernel;
+
+  /// Optional display names for custom or future kernels not in the built-in
+  /// endpoint registry.
+  final String? fromName;
+  final String? toName;
+}
+
 /// A compaction: why, and how far the context came down.
 class CompactionNote {
   const CompactionNote({

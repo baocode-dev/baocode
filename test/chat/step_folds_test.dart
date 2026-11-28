@@ -417,6 +417,19 @@ void main() {
       expect(folds.turnEndingAt(1), isNull);
       expect(folds.turnEndingAt(3), isNull);
     });
+
+    test('a kernel switch before the next turn leaves the prior turn intact', () {
+      const switched = KernelSwitchItem(
+        fromKernel: 'claude-code',
+        toKernel: 'antigravity-acp',
+      );
+      final items = [_prompt(), _read, _grep, _answer, switched, _prompt(), _answer];
+      final folds = _fold(items);
+      expect(folds.turnEndingAt(3), 0);
+      expect(folds.turnEndingAt(4), isNull);
+      expect(folds.workAt(1)?.end, 3);
+      expect(folds.workAt(4), isNull);
+    });
   });
 
   test("a turn's tokens are what it read and wrote", () {

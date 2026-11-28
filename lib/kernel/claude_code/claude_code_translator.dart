@@ -50,6 +50,38 @@ class ClaudeTranslator {
   /// Antigravity native `/swarm` workers as first-class subagents.
   static const swarmWorkerPrefix = 'swarm-worker:';
 
+  /// Stable kernel endpoint id for Claude Code (CLI and built-in engine).
+  static const claudeCodeKernelId = 'claude-code';
+
+  /// Stable kernel endpoint id for Antigravity ACP (`agy acp`).
+  static const antigravityKernelId = 'antigravity-acp';
+
+  /// Stable item id for the [KernelSwitchItem] shown right before [promptId].
+  static String kernelSwitchItemId(String promptId) =>
+      'kernel-switch:$promptId';
+
+  /// Infers which kernel produced a top-level assistant [entry].
+  ///
+  /// Returns null for non-assistant entries, subagent/sidechain entries, and
+  /// synthetic CLI replies. Honors an explicit `kernelId` field first so
+  /// future kernels work automatically without hardcoding message-id prefixes.
+  static String? kernelIdOf(Map<String, Object?> entry) {
+    if (entry['type'] != 'assistant') return null;
+    if (entry['parent_tool_use_id'] != null || entry['isSidechain'] == true) {
+      return null;
+    }
+    final body = _map(entry['message']);
+    if (body['model'] == '<synthetic>') return null;
+    if (_string(entry['kernelId']) case final explicit?
+        when explicit.isNotEmpty) {
+      return explicit;
+    }
+    final id = _string(body['id']) ?? '';
+    if (id.startsWith('msg_agy_')) return antigravityKernelId;
+    if (body['model'] == 'antigravity') return antigravityKernelId;
+    return claudeCodeKernelId;
+  }
+
   /// Whether [id] identifies a swarm worker's subagent card or task.
   static bool isSwarmWorkerId(String? id) =>
       id != null && id.startsWith(swarmWorkerPrefix);
@@ -90,6 +122,141 @@ class ClaudeTranslator {
   /// What the kept session's turns took and spent, as their footers showed
   /// it, by prompt: given to a turn replayed instead of its time guessed.
   Map<String, TurnRecord> keptTurns = const {};
+
+  // Kernel switch tracking during history replay.
+  final Map<String, String> _replayedTurnKernels = {};
+  final List<({String promptId, String kernelId})> _replayedTurns = [];
+  final Set<String> _emittedSwitchPrompts = {};
+  String? _lastKernel;
+  ({String promptId, String kernelId})? _firstPromptKernel;
+  bool _hasHeadAssistant = false;
+
+  /// Ordered `(promptId, kernelId)` pairs inferred for the replayed page.
+  List<({String promptId, String kernelId})> get replayedTurns =>
+      List.unmodifiable(_replayedTurns);
+
+  /// Kernel of the last turn (or explicit switch) seen in this page.
+  String? get lastKernel => _lastKernel;
+
+  /// First prompt with a known kernel in this page.
+  ({String promptId, String kernelId})? get firstPromptKernel =>
+      _firstPromptKernel;
+
+  /// Whether this page began mid-turn with assistant entries before its first
+  /// prompt (so any switch before the first prompt was already resolved here).
+  bool get hasHeadAssistant => _hasHeadAssistant;
+
+  /// Pre-scans [entries] of a history page so replay can emit a
+  /// [KernelSwitchItem] immediately before each prompt that switched kernels.
+  void prepareReplayKernels(List<Map<String, Object?>> entries) {
+    _replayedTurnKernels.clear();
+    _replayedTurns.clear();
+    _emittedSwitchPrompts.clear();
+    _lastKernel = null;
+    _firstPromptKernel = null;
+    _hasHeadAssistant = false;
+
+    String? currentPrompt;
+    String? headKernel;
+    for (final entry in entries) {
+      if (entry['type'] == 'user') {
+        if (_replayPromptUuid(entry) case final promptId?) {
+          currentPrompt = promptId;
+        }
+        continue;
+      }
+      if (kernelIdOf(entry) case final kernel?) {
+        if (currentPrompt == null) {
+          headKernel ??= kernel;
+        } else if (!_replayedTurnKernels.containsKey(currentPrompt)) {
+          _replayedTurnKernels[currentPrompt] = kernel;
+          _replayedTurns.add((promptId: currentPrompt, kernelId: kernel));
+        }
+      }
+    }
+    if (headKernel != null) {
+      _hasHeadAssistant = true;
+      _lastKernel = headKernel;
+    }
+  }
+
+  static String? _replayPromptUuid(Map<String, Object?> entry) {
+    if (entry['parent_tool_use_id'] != null ||
+        entry['isSidechain'] == true ||
+        entry['isMeta'] == true ||
+        entry['isSynthetic'] == true ||
+        entry['isCompactSummary'] == true ||
+        entry['isVisibleInTranscriptOnly'] == true ||
+        entry['toolUseResult'] != null ||
+        entry['tool_use_result'] != null) {
+      return null;
+    }
+    final id = entry['uuid'] as String?;
+    if (id == null || id.isEmpty) return null;
+    final content = _map(entry['message'])['content'];
+    if (content is String) {
+      return _isShownPromptText(content) ? id : null;
+    }
+    final blocks = [for (final raw in _list(content)) _map(raw)];
+    final texts = <String>[];
+    var hasImage = false;
+    for (final (index, block) in blocks.indexed) {
+      switch (block['type']) {
+        case 'text':
+          final text = block['text'] as String? ?? '';
+          if (text.trimLeft().startsWith('<system-reminder>')) continue;
+          if (imageReferencePattern.matchAsPrefix(text.trim()) case final match?
+              when match.end == text.trim().length &&
+                  index + 1 < blocks.length &&
+                  blocks[index + 1]['type'] == 'image') {
+            continue;
+          }
+          texts.add(text);
+        case 'image':
+          if (_map(block['source'])['type'] == 'base64') hasImage = true;
+      }
+    }
+    if (texts.isEmpty && !hasImage) return null;
+    return _isShownPromptText(texts.join('\n'), hasImages: hasImage)
+        ? id
+        : null;
+  }
+
+  static bool _isShownPromptText(String text, {bool hasImages = false}) {
+    if (text.startsWith(_goalFeedback)) return false;
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return hasImages;
+    if (trimmed.startsWith('<task-notification>') ||
+        trimmed.startsWith('<local-command-caveat>') ||
+        trimmed.startsWith('<system-reminder>') ||
+        trimmed.startsWith('[Request interrupted by user')) {
+      return false;
+    }
+    if (trimmed.contains('<command-name>')) {
+      final name = _tag(trimmed, 'command-name') ?? '';
+      final args = _tag(trimmed, 'command-args') ?? '';
+      final command = name.startsWith('/') ? name : '/$name';
+      return !(command == '/goal' && args.trim().isEmpty);
+    }
+    if (_tag(trimmed, 'local-command-stdout') != null) return false;
+    return true;
+  }
+
+  void _emitReplayedSwitchBefore(String promptId) {
+    final kernel = _replayedTurnKernels[promptId];
+    if (kernel == null) return;
+    _firstPromptKernel ??= (promptId: promptId, kernelId: kernel);
+    final previous = _lastKernel;
+    if (previous != null &&
+        previous != kernel &&
+        _emittedSwitchPrompts.add(promptId)) {
+      _put(
+        kernelSwitchItemId(promptId),
+        KernelSwitchItem(fromKernel: previous, toKernel: kernel),
+      );
+    }
+    _lastKernel = kernel;
+  }
 
   // Streamed blocks of the current message.
   String? _messageId;
@@ -1058,6 +1225,7 @@ class ClaudeTranslator {
         sentAt: _sentAt(message),
       );
       _answerPlan(feedback: item.text);
+      if (replaying) _emitReplayedSwitchBefore(id);
       _put(id, item);
       if (replaying) _replayPrompt(id, item, message);
       return;
@@ -1086,6 +1254,7 @@ class ClaudeTranslator {
         fromAgent: _agents[_agentCalls[from]]?.item.description ?? from,
         fromSession: session,
       );
+      if (replaying) _emitReplayedSwitchBefore(id);
       _put(id, item);
       if (replaying) _replayPrompt(id, item, message);
       return;
@@ -1097,6 +1266,7 @@ class ClaudeTranslator {
     );
     // Said with a plan awaiting: what should change in it.
     _answerPlan(feedback: trimmed);
+    if (replaying) _emitReplayedSwitchBefore(id);
     _put(id, item);
     if (replaying) _replayPrompt(id, item, message);
   }
@@ -2253,6 +2423,28 @@ class ClaudeTranslator {
       case 'local_command_output':
         if (_string(message['content']) case final text? when text.isNotEmpty) {
           _put(uuid, NoticeItem(NoticeKind.command, text));
+        }
+      case 'kernel_switch':
+        final from = _string(message['from']);
+        final to = _string(message['to']);
+        if (from != null &&
+            from.isNotEmpty &&
+            to != null &&
+            to.isNotEmpty &&
+            from != to) {
+          final promptId = _string(message['prompt_uuid']);
+          final id = promptId != null ? kernelSwitchItemId(promptId) : uuid;
+          if (promptId != null) _emittedSwitchPrompts.add(promptId);
+          _lastKernel = to;
+          _put(
+            id,
+            KernelSwitchItem(
+              fromKernel: from,
+              toKernel: to,
+              fromName: _string(message['from_name']),
+              toName: _string(message['to_name']),
+            ),
+          );
         }
       case 'permission_denied':
         final id = message['tool_use_id'] as String?;

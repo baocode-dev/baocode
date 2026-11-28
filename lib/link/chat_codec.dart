@@ -369,6 +369,13 @@ abstract final class ChatCodec {
           'window': ?compaction.window,
         },
     },
+    KernelSwitchItem() => {
+      't': 'kernel_switch',
+      'from': item.fromKernel,
+      'to': item.toKernel,
+      'fromName': ?item.fromName,
+      'toName': ?item.toName,
+    },
     PlanItem() => {
       't': 'plan',
       'path': item.path,
@@ -536,6 +543,12 @@ abstract final class ChatCodec {
           ),
           _ => null,
         },
+      ),
+      'kernel_switch' => KernelSwitchItem(
+        fromKernel: text('from'),
+        toKernel: text('to'),
+        fromName: optional('fromName'),
+        toName: optional('toName'),
       ),
       'plan' => PlanItem(
         path: text('path'),

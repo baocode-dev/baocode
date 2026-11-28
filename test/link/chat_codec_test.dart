@@ -154,6 +154,29 @@ void main() {
     expect((note.before, note.after, note.window), (253000, null, 500000));
   });
 
+  test('kernel switch items round-trip through codec', () {
+    final item =
+        ChatCodec.decode(
+              jsonDecode(
+                jsonEncode(
+                  ChatCodec.encode(
+                    const KernelSwitchItem(
+                      fromKernel: 'claude-code',
+                      toKernel: 'antigravity-acp',
+                      fromName: 'Claude Code',
+                      toName: 'Antigravity ACP',
+                    ),
+                  ),
+                ),
+              ),
+            )!
+            as KernelSwitchItem;
+    expect(item.fromKernel, 'claude-code');
+    expect(item.toKernel, 'antigravity-acp');
+    expect(item.fromName, 'Claude Code');
+    expect(item.toName, 'Antigravity ACP');
+  });
+
   test('conversations handed work go by the ids the phone knows', () {
     String phone(String id) => 'phone-$id';
     final step = ChatCodec.encode(

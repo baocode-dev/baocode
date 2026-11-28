@@ -61,9 +61,12 @@ import 'ide/file_service.dart'
         IdeHostFiles,
         ideIsImagePath,
         fileByteSize,
+        fileStamp,
+        isLocalFileService,
         localizedFileError,
         readBytesThrough,
         readFileBytes;
+import 'kernel/antigravity/agy_runtime.dart' show agyLocalBrainDir;
 import 'ide/ide_agent_edits.dart';
 import 'ide/ide_chat_history.dart';
 import 'ide/ide_chat_title.dart';
@@ -4591,14 +4594,36 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       readBytes: _projectByteReaders[thread.project.path] ??= (path) =>
           readBytesThrough(files, path),
       sizeOf: (path) async => await byteSizeThrough(files, path) ?? 0,
+      fileStamp: isLocalFileService(files) ? fileStamp : null,
       paths: paths,
       roots: () =>
           _workspace.multiRootAt(thread.project.path)?.folders ?? const [],
+      shownRoots: () => _shownImageRoots(thread.project.path, paths),
       home: () => ProjectHost.of(thread.project.path).home,
       existsHere: _existsHere,
       openOnHost: (host, path, range) =>
           unawaited(_openOnHost(thread, embedded, host, path, range)),
     );
+  }
+
+  /// Managed folders on [location]'s host whose images may render inline in
+  /// chat messages even when created by a shell command rather than a tracked
+  /// file tool (Antigravity's `brain/` artifact directory and BaoCode's
+  /// `images/` directory).
+  static List<String> _shownImageRoots(String location, p.Context paths) {
+    final host = ProjectHost.of(location);
+    if (host is LocalHost) {
+      return [
+        if (agyLocalBrainDir() case final brain? when brain.isNotEmpty) brain,
+        DataDirectory.current.imagesDir,
+      ];
+    }
+    final dataDir = host.dataDir;
+    if (dataDir == null || dataDir.isEmpty) return const [];
+    return [
+      paths.join(dataDir, 'antigravity', 'home', 'antigravity-cli', 'brain'),
+      paths.join(dataDir, 'images'),
+    ];
   }
 
   /// Opens [request] in the side panel of the agent shown, as a file its

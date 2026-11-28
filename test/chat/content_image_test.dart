@@ -517,6 +517,9 @@ void main() {
       WidgetTester tester,
       String markdown, {
       List<String> seen = const [],
+      List<String> shownRoots = const [],
+      Future<Object?> Function(String path)? fileStamp,
+      Future<Uint8List> Function(String path)? readBytes,
     }) async {
       read = [];
       final bytes = base64Decode(_pixel);
@@ -531,11 +534,15 @@ void main() {
               onOpen: (_) {},
               existence: existence,
               seen: seen,
-              readBytes: (path) async {
-                read.add(path);
-                return bytes;
-              },
-              child: MarkdownView(markdown),
+              shownRoots: shownRoots,
+              fileStamp: fileStamp,
+              readBytes:
+                  readBytes ??
+                  (path) async {
+                    read.add(path);
+                    return bytes;
+                  },
+              child: SingleChildScrollView(child: MarkdownView(markdown)),
             ),
           ),
         ),
@@ -614,6 +621,129 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('image-previous')));
       await tester.pumpAndSettle();
       expect(find.text('1 / 2'), findsOneWidget);
+    });
+
+    testWidgets(
+      'angle-bracketed spaced images under shownRoots render without being in seen',
+      (tester) async {
+        const brainDir =
+            '/Users/leokun/Library/Application Support/baocode/antigravity/home/antigravity-cli/brain';
+        const dark =
+            '$brainDir/737cda3c-a6f8-4c9c-9b28-b70646d10f87/scratch/shots/kernel-switch-inline-dark.png';
+        const light =
+            '$brainDir/737cda3c-a6f8-4c9c-9b28-b70646d10f87/scratch/shots/kernel-switch-inline-light.png';
+        const message =
+            '抱歉，刚才复用了同名文件路径，聊天窗口直接命中的是旧图缓存。换了新文件名展示新版极简效果：\n\n'
+            '**暗色主题（Bao Dark）**\n'
+            '![新版暗色主题预览](<$dark>)\n\n'
+            '**亮色主题（Bao Light）**\n'
+            '![新版亮色主题预览](<$light>)';
+        await pump(tester, message, shownRoots: const [brainDir]);
+        expect(read, [dark, light]);
+        expect(find.byType(ContentImage), findsNWidgets(2));
+      },
+    );
+
+    testWidgets(
+      'reloads a cached image when its file stamp changes on disk',
+      (tester) async {
+        final v1 = (await tester.runAsync(() => _png(100, 50)))!;
+        final v2 = (await tester.runAsync(() => _png(200, 50)))!;
+        var version = 1;
+        var reads = 0;
+        Future<Uint8List> readBytes(String path) async {
+          reads++;
+          return version == 1 ? v1 : v2;
+        }
+
+        Future<Object?> stamp(String path) async => version;
+
+        final existence = FileExistence((_) async => true);
+        addTearDown(existence.dispose);
+        Future<void> mount(Key key) async {
+          await tester.pumpWidget(
+            MaterialApp(
+              theme: buildAppTheme(),
+              home: Scaffold(
+                body: FileOpenScope(
+                  root: '/p',
+                  onOpen: (_) {},
+                  existence: existence,
+                  readBytes: readBytes,
+                  fileStamp: stamp,
+                  child: MarkdownView(key: key, '![shot](shots/same.png)'),
+                ),
+              ),
+            ),
+          );
+          await _decode(tester);
+          await _decode(tester);
+        }
+
+        await mount(const ValueKey('first'));
+        expect(reads, 1);
+        expect(
+          tester.widget<ContentImage>(find.byType(ContentImage)).image.bytes,
+          v1,
+        );
+
+        // Same stamp: reuses cache without re-reading.
+        await mount(const ValueKey('second'));
+        expect(reads, 1);
+        expect(
+          tester.widget<ContentImage>(find.byType(ContentImage)).image.bytes,
+          v1,
+        );
+
+        // Overwritten on disk: detects new stamp and reloads v2.
+        version = 2;
+        await mount(const ValueKey('third'));
+        expect(reads, 2);
+        expect(
+          tester.widget<ContentImage>(find.byType(ContentImage)).image.bytes,
+          v2,
+        );
+      },
+    );
+
+    testWidgets('retries a previously failed image read instead of caching null', (
+      tester,
+    ) async {
+      final bytes = base64Decode(_pixel);
+      var available = false;
+      Future<Uint8List> readBytes(String path) async {
+        if (!available) throw Exception('not ready yet');
+        return bytes;
+      }
+
+      final existence = FileExistence((_) async => true);
+      addTearDown(existence.dispose);
+      Future<void> mount(Key key) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: buildAppTheme(),
+            home: Scaffold(
+              body: FileOpenScope(
+                root: '/p',
+                onOpen: (_) {},
+                existence: existence,
+                readBytes: readBytes,
+                child: MarkdownView(key: key, '![later](shots/later.png)'),
+              ),
+            ),
+          ),
+        );
+        await _decode(tester);
+        await _decode(tester);
+      }
+
+      await mount(const ValueKey('missing'));
+      expect(find.byType(ContentImage), findsNothing);
+      expect(find.text('[later]'), findsOneWidget);
+
+      available = true;
+      await mount(const ValueKey('present'));
+      expect(find.byType(ContentImage), findsOneWidget);
     });
   });
 }

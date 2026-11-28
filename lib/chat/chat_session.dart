@@ -337,6 +337,22 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
     _ => Future.value(),
   };
 
+  /// Searches unloaded earlier turns for [pattern] via the session's turn
+  /// index. Returns matching turns oldest first, or empty when unavailable.
+  Future<List<({String promptUuid, int occurrences})>> searchEarlier(
+    RegExp pattern,
+  ) => switch (_kernel) {
+    final LoadsHistory kernel => kernel.searchEarlier(pattern),
+    _ => Future.value(const []),
+  };
+
+  /// Loads earlier history back at least through the turn starting at
+  /// [promptUuid].
+  Future<void> loadUntil(String promptUuid) => switch (_kernel) {
+    final LoadsHistory kernel => kernel.loadUntil(promptUuid),
+    _ => Future.value(),
+  };
+
   /// The id the kernel keeps this conversation under, once known.
   String? get sessionId => _kernel.sessionId;
 

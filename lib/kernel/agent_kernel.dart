@@ -373,6 +373,16 @@ abstract interface class LoadsHistory {
   /// Reads some more of it, before what was ([HistoryPrepended]). Asked
   /// again meanwhile, it is the same reading.
   Future<void> loadEarlier();
+
+  /// Searches unloaded earlier turns (before what is loaded) for [pattern]
+  /// using the session's turn index. Returns matching turns oldest first.
+  Future<List<({String promptUuid, int occurrences})>> searchEarlier(
+    RegExp pattern,
+  );
+
+  /// Loads earlier history back at least through the turn starting at
+  /// [promptUuid] (or all remaining history if not found).
+  Future<void> loadUntil(String promptUuid);
 }
 
 /// Uses MCP servers, and lets the user see and manage them.

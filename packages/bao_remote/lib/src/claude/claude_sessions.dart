@@ -11,6 +11,7 @@ import 'package:path/path.dart' as p;
 import '../platform/app_paths.dart';
 import 'claude_environment.dart';
 import 'claude_history_page.dart';
+import 'session_index.dart';
 
 /// A session Claude Code kept: its title, the folder it ran in, and when
 /// it was last talked in.
@@ -156,42 +157,90 @@ class ClaudeSessions {
   /// [ClaudeHistoryPage.earlier]). A long one is shown sooner so, from a
   /// remote project's host above all.
   ///
-  /// Fewer once they come to some [bytes]: a turn the agent worked long
-  /// at may be most of the session.
+  /// Whole-turn aligned: once at least one complete turn is in the page,
+  /// exceeding [bytes] stops cleanly at the already-completed turn boundary
+  /// rather than splitting an earlier turn in half. A single turn alone is
+  /// kept whole up to [maxSingleTurnBytes] so it arrives already folded
+  /// instead of unfolding and later collapsing on scroll-up.
+  ///
+  /// When [until] is given, extends the page back at least to the turn
+  /// starting at (or containing) [until] in one read (for ⌘F jump-to-match).
   static Future<ClaudeHistoryPage> readPage(
     String path, {
     required int turns,
     String? before,
+    String? until,
     int bytes = pageBytes,
+    int maxSingleTurnBytes = maxTurnBytes,
+    String? indexDir,
   }) async {
-    final kept = _linesKept[path];
-    final (lines, page) = await Isolate.run(() {
+    final kept = _indexKept[path];
+    final dir = indexDir ?? indexCacheDir;
+    final (index, page) = await Isolate.run(() {
+      final store = SessionIndexStore(cacheDir: dir);
+      final index = store.openSync(path, inMemory: kept);
       final file = File(path).openSync();
       try {
-        final lines =
-            (kept == null ? null : _Lines.readOn(file, kept)) ??
-            _Lines.readOn(file, null)!;
-        final branch = _Branch(file, lines);
+        final branch = _Branch(file, index);
         return (
-          lines,
-          _page(branch, turns: turns, before: before, bytes: bytes),
+          index,
+          _page(
+            branch,
+            turns: turns,
+            before: before,
+            until: until,
+            bytes: bytes,
+            maxSingleTurnBytes: maxSingleTurnBytes,
+          ),
         );
       } finally {
         file.closeSync();
       }
     });
-    _linesKept
-      ..remove(path)
-      ..[path] = lines;
-    if (_linesKept.length > 8) _linesKept.remove(_linesKept.keys.first);
+    _rememberIndex(path, index);
     return page;
   }
 
-  /// The lines of the sessions whose pages were read last (see [_Lines]).
-  static final _linesKept = <String, _Lines>{};
+  /// Searches turns on the active branch strictly before [before] (or all
+  /// turns when [before] is null) using the session's persisted
+  /// [SessionIndex], without re-reading `.jsonl` when unchanged.
+  static Future<List<IndexedTurnHit>> searchEarlier(
+    String path,
+    String patternSource, {
+    required bool caseSensitive,
+    String? before,
+    String? indexDir,
+  }) async {
+    final kept = _indexKept[path];
+    final dir = indexDir ?? indexCacheDir;
+    final (index, hits) = await Isolate.run(() {
+      final store = SessionIndexStore(cacheDir: dir);
+      final index = store.openSync(path, inMemory: kept);
+      final pattern = RegExp(patternSource, caseSensitive: caseSensitive);
+      return (index, index.searchTurns(pattern, beforeId: before));
+    });
+    _rememberIndex(path, index);
+    return hits;
+  }
+
+  static void _rememberIndex(String path, SessionIndex index) {
+    _indexKept
+      ..remove(path)
+      ..[path] = index;
+    if (_indexKept.length > 16) _indexKept.remove(_indexKept.keys.first);
+  }
+
+  /// Optional directory for persisted per-session `.idx.gz` sidecar files.
+  static String? indexCacheDir;
+
+  /// The indexes of the sessions whose pages were read or searched last.
+  static final _indexKept = <String, SessionIndex>{};
 
   /// How much a page of [readPage] comes to, about.
   static const pageBytes = 512 * 1024;
+
+  /// Safety cap for a single slimmed turn before forcing a mid-turn cut.
+  static const maxTurnBytes = 4 * 1024 * 1024;
 
   /// What the session [id] kept of its goal (`/goal`): its `goal_status`
   /// lines, as they are, in the order written. Empty with none, or no such
@@ -835,7 +884,7 @@ class _Summary {
     final said = ListQueue<(int, int)>();
     void line(Uint8List bytes, int start, int end) {
       if (prompt == null && _has(bytes, _userType)) {
-        if (_Lines._decode(bytes, 0, bytes.length) case final entry?) {
+        if (SessionIndex.decodeBytes(bytes) case final entry?) {
           cwd ??= entry['cwd'] as String?;
           if (entry['isSidechain'] != true && entry['isMeta'] != true) {
             if (_promptText(entry) case final typed?) {
@@ -898,7 +947,7 @@ class _Summary {
       final (start, end) = where;
       file.setPositionSync(start);
       final bytes = file.readSync(end - start);
-      return _Lines._decode(bytes, 0, bytes.length);
+      return SessionIndex.decodeBytes(bytes);
     }
 
     String? title((int, int)? where, String key) {
@@ -1148,7 +1197,9 @@ ClaudeHistoryPage _page(
   _Branch branch, {
   required int turns,
   required int bytes,
+  int maxSingleTurnBytes = ClaudeSessions.maxTurnBytes,
   String? before,
+  String? until,
 }) {
   var end = branch.length;
   if (before != null) {
@@ -1156,12 +1207,22 @@ ClaudeHistoryPage _page(
     end = branch.indexOfId(before);
     if (end < 0) return const ClaudeHistoryPage([]);
   }
+  var untilIndex = -1;
+  if (until != null) {
+    final at = branch.indexOfId(until);
+    if (at >= 0 && at < end) untilIndex = at;
+  }
   var start = 0;
   var seen = 0;
   var size = 0;
+  int? lastTurnBoundary;
   // Calls answered after the line at hand, made at or before it.
   final answered = <String>{};
   for (var i = end - 1; i >= 0; i--) {
+    if (untilIndex < 0 && seen > 0 && size >= bytes) {
+      start = lastTurnBoundary!;
+      break;
+    }
     final entry = branch[i] = _slim(branch[i]);
     size += jsonEncode(entry).length;
     for (final block in _blocks(entry)) {
@@ -1172,10 +1233,23 @@ ClaudeHistoryPage _page(
           answered.remove(id);
       }
     }
-    final cut = _isPrompt(entry)
-        ? ++seen >= turns || size >= bytes
-        : size >= bytes && answered.isEmpty && _beginsMessage(branch, i);
-    if (cut) {
+    if (branch.isPromptAt(i)) {
+      seen++;
+      lastTurnBoundary = i;
+      if (untilIndex >= 0) {
+        if (i <= untilIndex) {
+          start = i;
+          break;
+        }
+      } else if (seen >= turns || size >= bytes) {
+        start = i;
+        break;
+      }
+    } else if (untilIndex < 0 &&
+        seen == 0 &&
+        size >= maxSingleTurnBytes &&
+        answered.isEmpty &&
+        _beginsMessage(branch, i)) {
       start = i;
       break;
     }
@@ -1189,146 +1263,13 @@ ClaudeHistoryPage _page(
   ], earlier: start > 0 ? branch.idAt(start) : null);
 }
 
-/// A session file's lines as its pages are read (see
-/// [ClaudeSessions.readPage]): where each is, and what of it places it in
-/// the conversation. Kept between pages, and read on from [scanned] once
-/// the file has grown, as [_Summary] is: every page of a long session read
-/// the whole of it again (hundreds of MB, decoded line by line), to show a
-/// few hundred KB of it.
-class _Lines {
-  _Lines();
-
-  final starts = <int>[];
-  final ends = <int>[];
-
-  /// [_keptLine], [_sidechain], [_goal].
-  final kinds = <int>[];
-  final ids = <String?>[];
-
-  /// `parentUuid`, else `logicalParentUuid` (across a compaction).
-  final parents = <String?>[];
-
-  /// To the end of the last line read whole; [mark], the bytes before it
-  /// (see [_Summary.scanned]).
-  var scanned = 0;
-  var mark = Uint8List(0);
-
-  static const _keptLine = 1;
-  static const _sidechain = 2;
-  static const _goal = 4;
-
-  static final _json = utf8.decoder.fuse(json.decoder);
-
-  /// The line at [start] to [end] of [bytes]; null when it does not read.
-  static Map<String, Object?>? _decode(Uint8List bytes, int start, int end) {
-    if (end <= start) return null;
-    try {
-      final entry = _json.convert(Uint8List.sublistView(bytes, start, end));
-      return entry is Map ? entry.cast<String, Object?>() : null;
-    } on Object {
-      return null;
-    }
-  }
-
-  /// [kept] (changed), with the lines [file] has after it; all its lines
-  /// when null. Null when it was not only appended to since.
-  static _Lines? readOn(RandomAccessFile file, _Lines? kept) {
-    final mark = kept?.mark ?? Uint8List(0);
-    final scanned = kept?.scanned ?? 0;
-    final from = scanned - mark.length;
-    final length = file.lengthSync();
-    if (from < 0 || length < scanned) return null;
-    file.setPositionSync(from);
-    final bytes = file.readSync(length - from);
-    if (bytes.length < mark.length) return null;
-    for (var i = 0; i < mark.length; i++) {
-      if (bytes[i] != mark[i]) return null;
-    }
-    final lines = kept ?? _Lines();
-    var at = mark.length;
-    var done = at;
-    while (at < bytes.length) {
-      var end = bytes.indexOf(0x0a, at);
-      final whole = end >= 0;
-      if (!whole) end = bytes.length;
-      final entry = _decode(bytes, at, end);
-      // Written halfway: read next time, whole.
-      if (!whole && entry == null) break;
-      if (entry != null) {
-        final parent = entry['parentUuid'] ?? entry['logicalParentUuid'];
-        lines.starts.add(from + at);
-        lines.ends.add(from + end);
-        lines.ids.add(entry['uuid'] is String ? entry['uuid'] as String : null);
-        lines.parents.add(parent is String ? parent : null);
-        lines.kinds.add(
-          (_kept(entry) ? _keptLine : 0) |
-              (entry['isSidechain'] == true ? _sidechain : 0) |
-              (_kept(entry) && entry['type'] == 'attachment' ? _goal : 0),
-        );
-      }
-      at = done = whole ? end + 1 : end;
-    }
-    lines
-      ..scanned = from + done
-      ..mark = Uint8List.fromList(
-        Uint8List.sublistView(
-          bytes,
-          math.max(0, done - _Summary._markLength),
-          done,
-        ),
-      );
-    return lines;
-  }
-
-  /// The lines along the branch that ends with the last message, oldest
-  /// first, as [_branch] has them.
-  List<int> branch() {
-    final byId = <String, int>{for (var i = 0; i < ids.length; i++) ?ids[i]: i};
-    final rows = <int>[];
-    final seen = <String>{};
-    int? previousKept(int before) {
-      for (var i = before - 1; i >= 0; i--) {
-        if (kinds[i] & (_keptLine | _sidechain) == _keptLine &&
-            ids[i] != null &&
-            !seen.contains(ids[i])) {
-          return i;
-        }
-      }
-      return null;
-    }
-
-    for (var row = previousKept(kinds.length); row != null;) {
-      if (!seen.add(ids[row]!)) break;
-      rows.add(row);
-      row = switch (parents[row]) {
-        // The CLI sometimes writes a dangling `logicalParentUuid` (or
-        // `parentUuid`) whose target is missing from the file, e.g. at a
-        // compaction boundary: fall back to the nearest earlier kept line.
-        final parent? => byId[parent] ?? previousKept(row),
-        null => null,
-      };
-    }
-    return [
-      for (final row in rows.reversed)
-        if (kinds[row] & _keptLine != 0) row,
-    ];
-  }
-
-  /// Line [row], read from [file].
-  Map<String, Object?> entry(RandomAccessFile file, int row) {
-    file.setPositionSync(starts[row]);
-    final bytes = file.readSync(ends[row] - starts[row]);
-    return _decode(bytes, 0, bytes.length) ?? const {};
-  }
-}
-
-/// The conversation along the branch [_Lines.branch] gives, each line read
-/// only once asked for: a page is a few hundred of thousands.
+/// The conversation along the branch [SessionIndex.branch] gives, each line
+/// read only once asked for: a page is a few hundred of thousands.
 class _Branch extends ListBase<Map<String, Object?>> {
-  _Branch(this._file, this._lines) : _rows = _lines.branch();
+  _Branch(this._file, this._index) : _rows = _index.branch();
 
   final RandomAccessFile _file;
-  final _Lines _lines;
+  final SessionIndex _index;
   final List<int> _rows;
   final _read = <int, Map<String, Object?>>{};
 
@@ -1340,33 +1281,29 @@ class _Branch extends ListBase<Map<String, Object?>> {
 
   @override
   Map<String, Object?> operator [](int index) =>
-      _read[index] ??= _lines.entry(_file, _rows[index]);
+      _read[index] ??= _index.entry(_file, _rows[index]);
 
   @override
   void operator []=(int index, Map<String, Object?> entry) =>
       _read[index] = entry;
 
-  String? idAt(int index) => _lines.ids[_rows[index]];
+  String? idAt(int index) => _index.ids[_rows[index]];
 
   /// Whether line [index] is how the goal stood (see [_kept]).
-  bool isGoalAt(int index) => _lines.kinds[_rows[index]] & _Lines._goal != 0;
+  bool isGoalAt(int index) =>
+      _index.kinds[_rows[index]] & SessionIndex.flagGoal != 0;
+
+  /// Whether line [index] begins a user turn.
+  bool isPromptAt(int index) =>
+      _index.kinds[_rows[index]] & SessionIndex.flagPrompt != 0;
 
   int indexOfId(String id) {
     for (var i = 0; i < _rows.length; i++) {
-      if (_lines.ids[_rows[i]] == id) return i;
+      if (_index.ids[_rows[i]] == id) return i;
     }
     return -1;
   }
 }
-
-/// Whether [entry] is the user beginning a turn.
-bool _isPrompt(Map<String, Object?> entry) =>
-    entry['type'] == 'user' &&
-    entry['isSidechain'] != true &&
-    entry['isMeta'] != true &&
-    entry['isCompactSummary'] != true &&
-    entry['uuid'] is String &&
-    _promptText(entry) != null;
 
 /// [entry] without what is not shown of it, which may be most of it: a
 /// file read whole (kept twice, in the call's result for the model and in

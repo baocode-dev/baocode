@@ -79,15 +79,45 @@ class ClaudeStorage implements SessionCatalog, MovesSessions {
     return ClaudeSessions.read(path);
   }
 
+  /// Where per-session `.idx.gz` turn indexes are kept on this machine.
+  static String get indexCacheDir =>
+      p.join(DataDirectory.current.cacheDir, 'session-index');
+
   /// Some of it (see [ClaudeSessions.readPage]).
   static Future<ClaudeHistoryPage> readPage(
     SessionRecord session, {
     required int turns,
     String? before,
+    String? until,
   }) {
     final path = session.path;
     if (path == null) return Future.value(const ClaudeHistoryPage([]));
-    return ClaudeSessions.readPage(path, turns: turns, before: before);
+    return ClaudeSessions.readPage(
+      path,
+      turns: turns,
+      before: before,
+      until: until,
+      indexDir: indexCacheDir,
+    );
+  }
+
+  /// Searches unloaded turns of [session] before [before] using its persisted
+  /// [SessionIndex].
+  static Future<List<IndexedTurnHit>> searchEarlier(
+    SessionRecord session,
+    String patternSource, {
+    required bool caseSensitive,
+    String? before,
+  }) {
+    final path = session.path;
+    if (path == null) return Future.value(const []);
+    return ClaudeSessions.searchEarlier(
+      path,
+      patternSource,
+      caseSensitive: caseSensitive,
+      before: before,
+      indexDir: indexCacheDir,
+    );
   }
 
   /// [project] as the kernels list it, its folder and sessions' given by
