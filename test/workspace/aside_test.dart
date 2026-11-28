@@ -22,6 +22,8 @@ import 'package:baocode/kernel/claude_code/mock_claude_code_transport.dart';
 import 'package:baocode/l10n/l10n.dart';
 import 'package:baocode/main.dart';
 import 'package:baocode/sidebar/sidebar.dart';
+import 'package:baocode/workspace/chat_drag.dart';
+import 'package:baocode/workspace/chat_grid.dart';
 import 'package:baocode/workspace/preference_store.dart';
 import 'package:baocode/workspace/workspace.dart';
 import 'package:flutter/gestures.dart';
@@ -573,6 +575,65 @@ void main() {
     expect(workspace.current, same(fresh));
     expect(fresh.session.itemCount, 0);
     expect(_Catalog.forks, isEmpty);
+    await _stopAll(tester, workspace);
+  });
+
+  testWidgets('attached child (including cross-project) nests under parent, '
+      'shows its project name, and can split beside its parent', (
+    tester,
+  ) async {
+    final workspace = await _pumpLoaded(tester);
+    final kept = await _showKept(tester, workspace);
+    final other = workspace.projectAt('/tmp/mobile');
+
+    final child1 = workspace.startAgent(other);
+    workspace.rename(child1, 'Mobile worker');
+    workspace.attachChild(child1, kept);
+    child1.session.send(const ComposerMessage(text: 'check mobile'));
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pump();
+
+    expect(workspace.parentOf(child1), same(kept));
+    expect(workspace.asidesOf(kept), [same(child1)]);
+
+    // Indented under the parent, with its own project name displayed.
+    final parentRow = tester.getTopLeft(
+      _inSidebar(find.text(kept.localizedTitle(englishLocalizations))),
+    );
+    final childFinder = _inSidebar(find.textContaining('Mobile worker'));
+    expect(childFinder, findsOneWidget);
+    final childRow = tester.getTopLeft(childFinder);
+    expect(childRow.dy, greaterThan(parentRow.dy));
+    expect(childRow.dx, greaterThan(parentRow.dx));
+    expect(
+      _inSidebar(find.textContaining('mobile')),
+      findsAtLeastNWidgets(1),
+    );
+
+    // Child row is draggable (can be dragged out onto chat panes to split).
+    final dragSource = tester.widget<ChatDragSource>(
+      find.ancestor(of: childFinder, matching: find.byType(ChatDragSource)),
+    );
+    expect(dragSource.drag, isNotNull);
+
+    // Splitting beside its parent keeps both panes visible.
+    workspace.openBeside(child1, kept, PaneSide.right);
+    await tester.pump();
+    expect(workspace.grid.contains(kept), isTrue);
+    expect(workspace.grid.contains(child1), isTrue);
+
+    // Selecting a second sibling replaces the sibling pane, keeping parent open.
+    final child2 = workspace.startAgent(kept.project);
+    workspace.rename(child2, 'Second worker');
+    workspace.attachChild(child2, kept);
+    child2.session.send(const ComposerMessage(text: 'check docs'));
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    workspace.select(child2);
+    await tester.pump();
+    expect(workspace.grid.contains(kept), isTrue);
+    expect(workspace.grid.contains(child2), isTrue);
+    expect(workspace.grid.contains(child1), isFalse);
+
     await _stopAll(tester, workspace);
   });
 }

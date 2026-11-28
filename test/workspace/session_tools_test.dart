@@ -507,6 +507,60 @@ void main() {
       contains('That is this conversation.'),
     );
   });
+
+  test(
+    'session_new nests child under caller (same or cross-project, one level '
+    'deep) and persists once its id arrives',
+    () async {
+      final otherRoot = Directory.systemTemp
+          .createTempSync('session-tools-other')
+          .resolveSymbolicLinksSync();
+      addTearDown(() => Directory(otherRoot).deleteSync(recursive: true));
+      final otherDir = p.join(otherRoot, 'other');
+      Directory(otherDir).createSync();
+      await workspace.openFolder(otherDir);
+      final other = workspace.projectAt(otherDir);
+
+      final boss = await lead();
+      final childAnswer = await call('session_new', {
+        'text': 'child task (quick)',
+        'title': 'Child',
+      }, from: boss.id);
+      final child = started(childAnswer);
+      // Nested immediately, even before its session id is assigned.
+      expect(workspace.parentOf(child), same(boss));
+      expect(workspace.asidesOf(boss), contains(same(child)));
+      expect(workspace.asidesAt(boss), isEmpty);
+
+      await until(() => child.id != null);
+      expect(workspace.parentOf(child), same(boss));
+      expect(workspace.asidesByParent[boss], contains(same(child)));
+
+      // Cross-project child also nests under the same parent.
+      final crossAnswer = await call('session_new', {
+        'text': 'cross project task (quick)',
+        'project': 'other',
+        'title': 'Cross',
+      }, from: boss.id);
+      final cross = started(crossAnswer);
+      expect(cross.project, other);
+      expect(workspace.parentOf(cross), same(boss));
+
+      // Child started by a child stays one level deep under the root parent.
+      final grandAnswer = await call('session_new', {
+        'text': 'grandchild task (quick)',
+        'title': 'Grand',
+      }, from: child.id);
+      final grand = started(grandAnswer);
+      expect(workspace.parentOf(grand), same(boss));
+      expect(workspace.asidesOf(boss), [same(child), same(cross), same(grand)]);
+
+      // Detaching promotes it back to a top-level conversation.
+      workspace.detach(cross);
+      expect(workspace.parentOf(cross), isNull);
+      expect(workspace.asidesOf(boss), [same(child), same(grand)]);
+    },
+  );
 }
 
 /// The mock's, each launch under a session id of its own. A message with

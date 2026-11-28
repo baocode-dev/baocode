@@ -404,6 +404,9 @@ abstract final class SessionTools {
                 case final permission?) {
               _select(session.permissions, permission);
             }
+            if (caller != null && !workspace.isAppFolder(caller.project.path)) {
+              workspace.attachChild(thread, caller);
+            }
           }
           if (input['title'] case final String title
               when title.trim().isNotEmpty) {

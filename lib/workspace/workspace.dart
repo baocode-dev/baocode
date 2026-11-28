@@ -3429,6 +3429,8 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     if (_windowActive && isShown(thread)) thread._markSeen();
     // Pinned or archived before its first message gave it an id.
     if (thread.pinned || thread.archived) _keepMarks(thread);
+    // Attached under a parent before its first message gave it an id.
+    _keepAside(thread);
     final before = _snapshots[thread];
     final snapshot = thread._snapshot;
     if (snapshot == before) return;
@@ -3970,11 +3972,17 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
 
   // --- Asides (/btw) -----------------------------------------------------
 
-  /// The conversations asked beside others (`/btw`), by their session's
-  /// id: [parent] the one each is listed under, [from] the one it was
-  /// copied from (the parent, or another aside of it), [at] the id of the
-  /// last item of [from]'s it holds, where [from] shows it.
+  /// The conversations asked beside others (`/btw`) or started from another
+  /// conversation (`session_new`), by their session's id: [parent] the one
+  /// each is listed under, [from] the one it came from (the parent, or
+  /// another child of it), [at] the id of the last item of [from]'s it holds
+  /// (for `/btw` cards; null for delegated sub-conversations).
   final Map<String, ({String parent, String from, String? at})> _asides = {};
+
+  /// Sub-conversations attached before their session (or their parent's) had
+  /// an id, moved into [_asides] once both ids are known (see [_keepAside]).
+  final Map<AgentThread, ({AgentThread parent, AgentThread from})>
+  _pendingAsides = Map.identity();
 
   /// What an aside's agent is told with its first message.
   static const asideNote =
@@ -3986,24 +3994,42 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       'again before changing it, and do not undo or overwrite what it is '
       'changing.</system-reminder>';
 
-  /// The conversation [thread] was asked beside (see [askBeside]); null
-  /// for one that was not, or once that one is gone.
-  AgentThread? parentOf(AgentThread thread) => switch (_asides[thread.id]) {
-    (:final parent, from: _, at: _) => _threadWithId(parent),
-    null => null,
-  };
-
-  /// The conversations asked beside [thread], the first asked first.
-  List<AgentThread> asidesOf(AgentThread thread) {
-    final id = thread.id;
-    if (id == null) return const [];
-    return [
-      for (final MapEntry(key: aside, :value) in _asides.entries)
-        if (value.parent == id) ?_threadWithId(aside),
-    ];
+  /// The conversation [thread] is listed under (asked beside via [askBeside],
+  /// or started from via [attachChild]); null for one that is not, or once
+  /// that one is gone.
+  AgentThread? parentOf(AgentThread thread) {
+    if (_pendingAsides[thread] case (:final parent, from: _)) {
+      return _threads.contains(parent) ? parent : null;
+    }
+    return switch (_asides[thread.id]) {
+      (:final parent, from: _, at: _) => _threadWithId(parent),
+      null => null,
+    };
   }
 
-  /// The conversations each one has asked beside it, of those that have.
+  /// The sub-conversations listed under [thread], the first started first.
+  List<AgentThread> asidesOf(AgentThread thread) {
+    final result = <AgentThread>[];
+    final id = thread.id;
+    if (id != null) {
+      for (final MapEntry(key: aside, :value) in _asides.entries) {
+        if (value.parent == id) {
+          if (_threadWithId(aside) case final child?) result.add(child);
+        }
+      }
+    }
+    for (final MapEntry(key: child, :value) in _pendingAsides.entries) {
+      if (identical(value.parent, thread) &&
+          _threads.contains(child) &&
+          !result.contains(child)) {
+        result.add(child);
+      }
+    }
+    return result;
+  }
+
+  /// The sub-conversations each conversation has listed under it, of those
+  /// that have.
   Map<AgentThread, List<AgentThread>> get asidesByParent {
     final byId = {for (final thread in _threads) ?thread.id: thread};
     final asides = <AgentThread, List<AgentThread>>{};
@@ -4015,7 +4041,75 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
         asides.putIfAbsent(parent, () => []).add(child);
       }
     }
+    for (final MapEntry(key: child, :value) in _pendingAsides.entries) {
+      if (!_threads.contains(child) || !_threads.contains(value.parent)) {
+        continue;
+      }
+      final list = asides.putIfAbsent(value.parent, () => []);
+      if (!list.contains(child)) list.add(child);
+    }
     return asides;
+  }
+
+  /// Lists [child] as a second-level conversation under [from] (or [from]'s
+  /// parent, keeping nesting to one level), persisting once both have session
+  /// ids.
+  void attachChild(AgentThread child, AgentThread from) {
+    final parent = parentOf(from) ?? from;
+    if (identical(child, parent) ||
+        !_threads.contains(child) ||
+        !_threads.contains(parent)) {
+      return;
+    }
+    final (childId, parentId) = (child.id, parent.id);
+    if (childId != null && parentId != null) {
+      _pendingAsides.remove(child);
+      _asides[childId] = (
+        parent: parentId,
+        from: from.id ?? parentId,
+        at: null,
+      );
+      _save();
+    } else {
+      _pendingAsides[child] = (parent: parent, from: from);
+    }
+    notifyListeners();
+  }
+
+  /// Moves pending sub-conversation links involving [thread] into [_asides]
+  /// once session ids are available.
+  void _keepAside(AgentThread thread) {
+    if (_pendingAsides.isEmpty) return;
+    final id = thread.id;
+    if (id == null) return;
+    var saved = false;
+    if (_pendingAsides[thread] case (:final parent, :final from)) {
+      final root = parentOf(parent) ?? parent;
+      if (root.id case final parentId?) {
+        _pendingAsides.remove(thread);
+        _asides[id] = (parent: parentId, from: from.id ?? parentId, at: null);
+        saved = true;
+      }
+    }
+    for (final entry in [..._pendingAsides.entries]) {
+      final child = entry.key;
+      final childId = child.id;
+      if (childId == null) continue;
+      if (identical(entry.value.parent, thread) ||
+          identical(entry.value.from, thread)) {
+        final root = parentOf(entry.value.parent) ?? entry.value.parent;
+        if (root.id case final parentId?) {
+          _pendingAsides.remove(child);
+          _asides[childId] = (
+            parent: parentId,
+            from: entry.value.from.id ?? parentId,
+            at: null,
+          );
+          saved = true;
+        }
+      }
+    }
+    if (saved) _save();
   }
 
   /// The conversations asked beside [thread] where it shows them: after
@@ -4090,23 +4184,35 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   /// Makes [aside] a conversation of its own, no longer listed under the
   /// one it was asked beside, nor shown from it.
   void detach(AgentThread aside) {
+    final pending = _pendingAsides.remove(aside) != null;
     final id = aside.id;
-    if (id == null || _asides.remove(id) == null) return;
-    _save();
+    final stored = id != null && _asides.remove(id) != null;
+    if (!pending && !stored) return;
+    if (stored) _save();
     notifyListeners();
   }
 
-  /// [thread]'s and its asides' panes: where an aside of theirs shows in
-  /// place of the one shown (see [_focus]).
+  /// [thread]'s and its sub-conversations' panes: where a sub-conversation
+  /// shows in place of the one shown (see [_focus]). When a parent and a
+  /// sibling are split side by side, opening another sibling replaces the
+  /// sibling pane so the parent stays visible beside it.
   AgentThread? _familyPane(AgentThread thread) {
     final root = parentOf(thread) ?? thread;
-    return _grid.panes
+    final family = _grid.panes
         .where(
           (pane) =>
               !identical(pane, thread) &&
               (identical(pane, root) || identical(parentOf(pane), root)),
         )
-        .firstOrNull;
+        .toList();
+    if (family.isEmpty) return null;
+    if (!identical(thread, root)) {
+      if (family.where((pane) => !identical(pane, root)).firstOrNull
+          case final sibling?) {
+        return sibling;
+      }
+    }
+    return family.first;
   }
 
   /// Forgets the asides of sessions gone, and those whose parent is.
@@ -4128,6 +4234,8 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     if (listener != null) thread.session.removeListener(listener);
     _snapshots.remove(thread);
     if (_draftKeys.remove(thread) case final key?) _forgetDraft(key);
+    _pendingAsides.remove(thread);
+    _pendingAsides.removeWhere((_, value) => identical(value.parent, thread));
     _threads.remove(thread);
     _leave(thread);
     _closeIdeChats(thread);
@@ -4401,6 +4509,8 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     _threads.remove(thread);
     if (leave) _leave(thread);
     // Left: an aside no more (see [deleteAll] for those yet to leave).
+    _pendingAsides.remove(thread);
+    _pendingAsides.removeWhere((_, value) => identical(value.parent, thread));
     if (leave && id != null && _asides.remove(id) != null && save) _save();
     _closeIdeChats(thread, save: save);
     var stopped = Future<void>.value();

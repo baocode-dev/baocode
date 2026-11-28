@@ -1111,13 +1111,13 @@
   "@forkUnavailable": {
     "description": "Shown when /fork is sent in a conversation that cannot be copied (nothing sent yet, or its kernel cannot fork)."
   },
-  "sidebarFoldAsides": "Hide /btw Conversations",
+  "sidebarFoldAsides": "Hide Sub-conversations",
   "@sidebarFoldAsides": {
-    "description": "The arrow on a sidebar row with conversations asked beside it (/btw) listed under it: no longer lists them."
+    "description": "The arrow on a sidebar row with sub-conversations listed under it: no longer lists them."
   },
-  "sidebarUnfoldAsides": "{count, plural, =1{Show its /btw conversation} other{Show its {count} /btw conversations}}",
+  "sidebarUnfoldAsides": "{count, plural, =1{Show its sub-conversation} other{Show its {count} sub-conversations}}",
   "@sidebarUnfoldAsides": {
-    "description": "The arrow, or the tag, on a sidebar row whose conversations asked beside it (/btw) are hidden: lists them under it again.",
+    "description": "The arrow, or the tag, on a sidebar row whose sub-conversations are hidden: lists them under it again.",
     "placeholders": {
       "count": {
         "type": "int"

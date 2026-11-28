@@ -2025,11 +2025,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get forkUnavailable => '此对话暂不能 Fork：要先发过消息，且所用的智能体支持 Fork。';
 
   @override
-  String get sidebarFoldAsides => '收起 /btw 子对话';
+  String get sidebarFoldAsides => '收起子对话';
 
   @override
   String sidebarUnfoldAsides(int count) {
-    return '展开 $count 个 /btw 子对话';
+    return '展开 $count 个子对话';
   }
 
   @override

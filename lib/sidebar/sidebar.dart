@@ -932,9 +932,9 @@ class _SidebarState extends State<Sidebar>
             _workspace.listsInSidebar(thread))
           thread,
     ]..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-    // Asides under the one each was asked beside, where that one is
-    // listed with them (both archived, or neither): not in groups of
-    // their own.
+    // Sub-conversations (/btw asides and delegated child conversations)
+    // nested under their parent whenever the parent is listed with them
+    // (both archived, or neither), including cross-project children.
     final listed = threads.toSet();
     _asides = {
       for (final MapEntry(key: parent, value: asides)
@@ -942,7 +942,8 @@ class _SidebarState extends State<Sidebar>
         if (listed.contains(parent))
           parent: [
             for (final aside in asides)
-              if (listed.contains(aside) && aside.archived == parent.archived)
+              if (_workspace.listsInSidebar(aside) &&
+                  aside.archived == parent.archived)
                 aside,
           ],
     }..removeWhere((_, asides) => asides.isEmpty);
@@ -1999,8 +2000,11 @@ class _SidebarState extends State<Sidebar>
       onDeleteAll: _delete,
       dragThreads: () => _targetsFor(thread),
       drag: widget.drag,
-      // Archived ones are under a heading naming their folder.
-      showProject: group.project == null && group.archivedOf == null,
+      // Archived ones are under a heading naming their folder. Cross-project
+      // sub-conversations keep their project label beside the title.
+      showProject:
+          (group.project == null && group.archivedOf == null) ||
+          (aside && _workspace.parentOf(thread)?.project != thread.project),
       showTime: SidebarTimes.shown.value,
       projectIcon: switch (_workspace.iconOf(thread.project)) {
         null when _workspace.workspaceOf(thread.project) != null => Icon(
@@ -2315,6 +2319,7 @@ class _SidebarState extends State<Sidebar>
         (thread) =>
             _threadIndices.containsKey(thread) &&
             !thread.archived &&
+            _workspace.parentOf(thread) == null &&
             (group.pinned || group.project == thread.project),
       );
 
@@ -2344,7 +2349,11 @@ class _SidebarState extends State<Sidebar>
     if (index == null) return null;
     final row = _listRows[index];
     final group = row.group;
-    if (!_takes(group, threads) || row.kind == _ListRowKind.more) return null;
+    if (!_takes(group, threads) ||
+        row.kind == _ListRowKind.more ||
+        row.aside) {
+      return null;
+    }
     final thread = row.thread;
     if (thread == null) return _Spot(group);
     if (threads.contains(thread)) return null;
@@ -3728,7 +3737,7 @@ class _ThreadRow extends StatelessWidget {
     );
     // Dragged out onto the conversations, it shows beside them.
     return ChatDragSource(
-      drag: renaming || onDetach != null ? null : drag,
+      drag: renaming ? null : drag,
       thread: thread,
       threads: dragThreads,
       child: Semantics(selected: selected, child: row),

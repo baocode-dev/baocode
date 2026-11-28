@@ -2083,15 +2083,15 @@ class AppLocalizationsEn extends AppLocalizations {
       'This conversation can\'t be forked: it needs a message first, and its agent has to support forking.';
 
   @override
-  String get sidebarFoldAsides => 'Hide /btw Conversations';
+  String get sidebarFoldAsides => 'Hide Sub-conversations';
 
   @override
   String sidebarUnfoldAsides(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Show its $count /btw conversations',
-      one: 'Show its /btw conversation',
+      other: 'Show its $count sub-conversations',
+      one: 'Show its sub-conversation',
     );
     return '$_temp0';
   }

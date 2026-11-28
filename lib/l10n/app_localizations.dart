@@ -3734,16 +3734,16 @@ abstract class AppLocalizations {
   /// **'This conversation can\'t be forked: it needs a message first, and its agent has to support forking.'**
   String get forkUnavailable;
 
-  /// The arrow on a sidebar row with conversations asked beside it (/btw) listed under it: no longer lists them.
+  /// The arrow on a sidebar row with sub-conversations listed under it: no longer lists them.
   ///
   /// In en, this message translates to:
-  /// **'Hide /btw Conversations'**
+  /// **'Hide Sub-conversations'**
   String get sidebarFoldAsides;
 
-  /// The arrow, or the tag, on a sidebar row whose conversations asked beside it (/btw) are hidden: lists them under it again.
+  /// The arrow, or the tag, on a sidebar row whose sub-conversations are hidden: lists them under it again.
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =1{Show its /btw conversation} other{Show its {count} /btw conversations}}'**
+  /// **'{count, plural, =1{Show its sub-conversation} other{Show its {count} sub-conversations}}'**
   String sidebarUnfoldAsides(int count);
 
   /// No description provided for @sidebarShowMore.
