@@ -11,8 +11,11 @@ import 'package:baocode/chat/chat_screen.dart';
 import 'package:baocode/chat/chat_session.dart';
 import 'package:baocode/chat/composer/composer_controller.dart';
 import 'package:baocode/chat/composer/composer_picker.dart';
+import 'package:baocode/chat/composer/file_mentions.dart';
 import 'package:baocode/chat/composer/suggestion_menu.dart';
 import 'package:baocode/chat/panels/interaction_panel.dart';
+import 'package:baocode/ide/file_service.dart';
+import 'package:baocode/ide/ide_quick_open.dart';
 import 'package:baocode/kernel/agent_kernel.dart';
 import 'package:baocode/kernel/kernel_types.dart';
 import 'package:baocode/kernel/mock/mock_kernels.dart';
@@ -20,20 +23,29 @@ import 'package:baocode/keybindings/chat_keybindings.dart';
 import 'package:bao_editor/monaco/flutter/keybinding_entry.dart';
 import 'package:baocode/keybindings/keybinding_service.dart';
 import 'package:baocode/theme/app_theme.dart';
+import 'package:path/path.dart' as p;
+
+import '../ide/workbench/fake_files.dart';
 
 Future<ChatSession> pumpChat(
   WidgetTester tester, {
   KernelDescriptor? kernel,
+  KernelContext kernelContext = const KernelContext(),
   int historyCount = 16,
+  FileMentions? fileMentions,
 }) async {
   final session = kernel == null
-      ? ChatSession(historyCount: historyCount)
-      : ChatSession(kernel: kernel, historyCount: historyCount);
+      ? ChatSession(kernelContext: kernelContext, historyCount: historyCount)
+      : ChatSession(
+          kernel: kernel,
+          kernelContext: kernelContext,
+          historyCount: historyCount,
+        );
   addTearDown(session.dispose);
   await tester.pumpWidget(
     MaterialApp(
       theme: buildAppTheme(),
-      home: ChatScreen(session: session),
+      home: ChatScreen(session: session, fileMentions: fileMentions),
     ),
   );
   await tester.pump();
@@ -219,6 +231,65 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.byType(SuggestionMenu), findsNothing);
     expect(composerText(tester), '/');
+  });
+
+  testWidgets('Tab drills into a highlighted folder in the @ menu while Enter '
+      'accepts it', (tester) async {
+    final paths = p.Context(style: p.Style.posix);
+    final files = TreeFiles({
+      '/home/me/notes/sub/todo.md': '',
+      '/home/me/readme.md': '',
+    });
+    final index = IdeFileIndex(
+      files,
+      '/code/app',
+      pathContext: paths,
+      lister: (_, _) async => IdeFileListing(const []),
+    );
+    addTearDown(index.dispose);
+    final mentions = FileMentions(
+      files: files,
+      paths: paths,
+      index: index,
+      home: () => '/home/me',
+    );
+    await pumpChat(
+      tester,
+      kernelContext: const KernelContext(cwd: '/code/app'),
+      historyCount: 0,
+      fileMentions: mentions,
+    );
+
+    await typeText(tester, '@~/');
+    await tester.pump(const Duration(milliseconds: 300));
+    SuggestionMenu menu() => tester.widget(find.byType(SuggestionMenu));
+    expect(menu().matches.first.suggestion.label, 'notes');
+
+    await press(tester, LogicalKeyboardKey.tab);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byType(SuggestionMenu), findsOneWidget);
+    expect(composerText(tester), '@~/notes/');
+    expect(menu().matches.first.suggestion.label, 'sub');
+
+    await press(tester, LogicalKeyboardKey.tab);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(composerText(tester), '@~/notes/sub/');
+    expect(menu().matches.first.suggestion.label, 'todo.md');
+
+    // Tab on a file accepts it normally.
+    await press(tester, LogicalKeyboardKey.tab);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byType(SuggestionMenu), findsNothing);
+    expect(composerMessage(tester), '@/home/me/notes/sub/todo.md');
+
+    // Enter on a folder accepts the folder tag instead of drilling in.
+    composer(tester).clear();
+    await typeText(tester, '@~/');
+    await tester.pump(const Duration(milliseconds: 300));
+    await press(tester, LogicalKeyboardKey.enter);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byType(SuggestionMenu), findsNothing);
+    expect(composerMessage(tester), '@/home/me/notes/');
   });
 
   testWidgets('a / starting a word within the message opens the menu too; '

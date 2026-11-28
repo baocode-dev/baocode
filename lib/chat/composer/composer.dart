@@ -961,11 +961,15 @@ class ChatComposerState extends State<ChatComposer>
       return;
     }
     setState(() {
+      final slash = trigger.query.lastIndexOf(RegExp(r'[\\/]'));
+      final labelQuery = slash < 0
+          ? trigger.query
+          : trigger.query.substring(slash + 1);
       _matches = [
         for (final suggestion in files)
           SuggestionMatch(
             suggestion,
-            fuzzyMatch(suggestion.label, trigger.query)?.indexes ?? const [],
+            fuzzyMatch(suggestion.label, labelQuery)?.indexes ?? const [],
           ),
         ..._rankOthers(trigger.query),
       ];
@@ -1097,6 +1101,75 @@ class ChatComposerState extends State<ChatComposer>
     _focusNode.requestFocus();
   }
 
+  /// The `@` query that drills into [suggestion] if it is a folder, or null
+  /// when it should be accepted normally (not a folder, or its path contains
+  /// whitespace or atom delimiters that would end the `@` trigger).
+  static String? _expandedFolderQuery(Suggestion suggestion, String query) {
+    if (suggestion.kind != SuggestionKind.folder) return null;
+    final sep = query.contains(r'\') && !query.contains('/') ? r'\' : '/';
+    final browsingPath =
+        query.startsWith('/') ||
+        query.startsWith('~/') ||
+        query.startsWith(r'~\') ||
+        query.startsWith('./') ||
+        query.startsWith(r'.\') ||
+        query.startsWith('../') ||
+        query.startsWith(r'..\') ||
+        RegExp(r'^[A-Za-z]:[\\/]').hasMatch(query);
+    final String path;
+    if (browsingPath && suggestion.detail.isNotEmpty) {
+      final parent = suggestion.detail;
+      path = parent.endsWith('/') || parent.endsWith(r'\')
+          ? '$parent${suggestion.label}'
+          : '$parent$sep${suggestion.label}';
+    } else {
+      path = suggestion.value;
+    }
+    if (path.isEmpty) return null;
+    final expanded = path.endsWith('/') || path.endsWith(r'\')
+        ? path
+        : '$path$sep';
+    if (expanded.contains(RegExp(r'\s')) ||
+        expanded.contains(MdAtoms.open) ||
+        expanded.contains(MdAtoms.close)) {
+      return null;
+    }
+    return expanded;
+  }
+
+  /// Replaces the open `@query` with `@folder/` so the menu stays open and
+  /// lists the folder's contents. Returns false when [index] is not an
+  /// expandable folder.
+  bool _expandFolder(int index) {
+    final trigger = _trigger;
+    if (trigger == null ||
+        trigger.kind != SuggestionKind.file ||
+        index < 0 ||
+        index >= _matches.length) {
+      return false;
+    }
+    final expanded = _expandedFolderQuery(
+      _matches[index].suggestion,
+      trigger.query,
+    );
+    if (expanded == null) return false;
+    final caret = _controller.selection.baseOffset;
+    final replacement = '@$expanded';
+    _controller
+      ..breakUndo()
+      ..replace(
+        trigger.start,
+        caret,
+        replacement,
+        selection: TextSelection.collapsed(
+          offset: trigger.start + replacement.length,
+        ),
+      )
+      ..breakUndo();
+    _focusNode.requestFocus();
+    return true;
+  }
+
   // --- Keyboard ------------------------------------------------------------
 
   KeyEventResult _handleKey(KeyEvent event) {
@@ -1106,6 +1179,17 @@ class ChatComposerState extends State<ChatComposer>
     if (ChatKeys.isHandled(event)) return KeyEventResult.handled;
     // An open picker menu (or tooltip) takes arrows, Enter and Esc first.
     if (FloatingRegistry.handleKey(event) case final result?) return result;
+    // Tab on a highlighted folder drills into it instead of closing the menu.
+    if (_trigger != null &&
+        event.logicalKey == LogicalKeyboardKey.tab &&
+        !HardwareKeyboard.instance.isControlPressed &&
+        !HardwareKeyboard.instance.isMetaPressed &&
+        !HardwareKeyboard.instance.isAltPressed &&
+        !HardwareKeyboard.instance.isShiftPressed &&
+        _expandFolder(_highlighted)) {
+      ChatKeys.markHandled(event);
+      return KeyEventResult.handled;
+    }
     // Then the keybindings: Enter sends, the menu's keys…
     return ChatKeys.dispatch(event) ?? KeyEventResult.ignored;
   }

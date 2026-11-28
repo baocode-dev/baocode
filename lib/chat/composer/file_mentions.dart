@@ -30,8 +30,9 @@ class FileMentions {
   /// The project's listing.
   final IdeFileIndex index;
 
-  /// What `~` stands for; null where unknown (a remote host).
-  final String? home;
+  /// What `~` stands for; null while unknown (e.g. a remote host not yet
+  /// connected).
+  final String? Function()? home;
 
   static const _limit = 50;
 
@@ -50,8 +51,14 @@ class FileMentions {
     String? root,
     Future<List<FileSuggestion>> Function(String query)? kernel,
   }) async {
-    if (_absolute(query) case final absolute?) {
-      return _inDirectory(absolute.directory, absolute.prefix, query, root);
+    if (_directDirectory(query, root) case final direct?) {
+      return await _inDirectory(direct.directory, direct.prefix, query, root) ??
+          const [];
+    }
+    if (_relativeDirectory(query, root) case final dir?) {
+      if (await _inDirectory(dir, '', query, root) case final entries?) {
+        return entries;
+      }
     }
     final asked = _safely(
       Future(() => kernel?.call(query) ?? const <FileSuggestion>[]),
@@ -76,7 +83,15 @@ class FileMentions {
       _kernelWait,
       onTimeout: () => const [],
     );
-    return _merge(query, root, kernelFiles);
+    final merged = await _merge(query, root, kernelFiles);
+    if (merged.isNotEmpty) return merged;
+    if (_relativePrefix(query, root) case final rel?) {
+      if (await _inDirectory(rel.directory, rel.prefix, query, root)
+          case final entries?) {
+        return entries;
+      }
+    }
+    return merged;
   }
 
   /// The listing's matches, then the kernel's not among them.
@@ -168,31 +183,79 @@ class FileMentions {
     return key;
   }
 
-  /// [query] as a path from a root: the folder it is in, absolute, and the
-  /// start of the name typed after it; null for a path in the project.
-  ({String directory, String prefix})? _absolute(String query) {
+  bool _isSeparator(String char) =>
+      char == '/' || (paths.style == p.Style.windows && char == r'\');
+
+  int _lastSeparator(String query) => paths.style == p.Style.windows
+      ? query.lastIndexOf(RegExp(r'[\\/]'))
+      : query.lastIndexOf('/');
+
+  bool _isRooted(String query) {
     final windows = paths.style == p.Style.windows;
-    final rooted =
-        (!windows && query.startsWith('/')) ||
+    return (!windows && query.startsWith('/')) ||
         query.startsWith('~/') ||
         (windows && query.startsWith(r'~\')) ||
         (windows && RegExp(r'^[A-Za-z]:[\\/]').hasMatch(query));
-    if (!rooted) return null;
-    final cut = windows
-        ? query.lastIndexOf(RegExp(r'[\\/]'))
-        : query.lastIndexOf('/');
-    var directory = query.substring(0, cut + 1);
-    if (directory.startsWith('~')) {
-      final home = this.home;
-      if (home == null) return null;
-      directory = paths.join(home, directory.substring(2));
+  }
+
+  /// [query] as an explicit directory path (`/…`, `~/…`, `C:\…`, `./…`,
+  /// `../…`): the resolved folder and the name prefix typed after it; null
+  /// for a regular project query.
+  ({String directory, String prefix})? _directDirectory(
+    String query,
+    String? root,
+  ) {
+    if (_isRooted(query)) {
+      final cut = _lastSeparator(query);
+      var directory = query.substring(0, cut + 1);
+      if (directory.startsWith('~')) {
+        final home = this.home?.call();
+        if (home == null || home.isEmpty) return null;
+        directory = paths.join(home, directory.substring(2));
+      }
+      return (directory: directory, prefix: query.substring(cut + 1));
     }
+    if (root == null) return null;
+    final windows = paths.style == p.Style.windows;
+    final dotRelative =
+        query.startsWith('./') ||
+        query.startsWith('../') ||
+        (windows && (query.startsWith(r'.\') || query.startsWith(r'..\')));
+    if (!dotRelative) return null;
+    final cut = _lastSeparator(query);
+    final directory = paths.normalize(
+      paths.join(root, query.substring(0, cut + 1)),
+    );
     return (directory: directory, prefix: query.substring(cut + 1));
   }
 
+  /// A relative folder path ending in a separator (e.g. `lib/chat/`), resolved
+  /// from [root], to list its direct entries when browsing folders.
+  String? _relativeDirectory(String query, String? root) {
+    if (root == null || query.isEmpty || _isRooted(query)) return null;
+    if (!_isSeparator(query[query.length - 1])) return null;
+    return paths.normalize(paths.join(root, query));
+  }
+
+  /// A relative `dir/prefix` path resolved from [root], used as a fallback
+  /// when the project index finds nothing (e.g. hidden or unindexed files).
+  ({String directory, String prefix})? _relativePrefix(
+    String query,
+    String? root,
+  ) {
+    if (root == null || query.isEmpty || _isRooted(query)) return null;
+    final cut = _lastSeparator(query);
+    if (cut <= 0 || cut == query.length - 1) return null;
+    return (
+      directory: paths.normalize(paths.join(root, query.substring(0, cut + 1))),
+      prefix: query.substring(cut + 1),
+    );
+  }
+
   /// The entries of [directory] whose names match [prefix], those starting
-  /// with it first; hidden ones only when [prefix] starts with a dot.
-  Future<List<Suggestion>> _inDirectory(
+  /// with it first; hidden ones only when [prefix] starts with a dot. Returns
+  /// null if [directory] cannot be listed.
+  Future<List<Suggestion>?> _inDirectory(
     String directory,
     String prefix,
     String query,
@@ -202,7 +265,7 @@ class FileMentions {
     try {
       entries = await files.list(directory);
     } on Object {
-      return const [];
+      return null;
     }
     final lower = prefix.toLowerCase();
     final hidden = prefix.startsWith('.');
