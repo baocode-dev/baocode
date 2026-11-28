@@ -112,6 +112,18 @@ void main() {
       expect(back.text, 'ok');
       expect(back.suggestions, ['a', 'b']);
     });
+
+    test('cached parse returns identical results for long text with markers and repeated reads', () {
+      final body = '${'这是一段很长的回复内容，中间有 [1] 和 a < b。\n' * 300}结束。';
+      final raw = '$body\n\n12. ${_btn('继续优化')} ${_btn('查看 diff')}';
+      final item = AssistantTextItem(raw);
+
+      expect(item.text, body);
+      expect(item.suggestions, ['继续优化', '查看 diff']);
+      // Repeated reads hit the cache and return identical instances.
+      expect(identical(item.text, ReplySuggestions.strip(raw)), isTrue);
+      expect(identical(item.suggestions, ReplySuggestions.of(raw)), isTrue);
+    });
   });
 
   group('in the text (legacy XML tag compatibility)', () {
