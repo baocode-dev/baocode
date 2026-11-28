@@ -8,8 +8,10 @@ import 'package:baocode/kernel/agent_kernel.dart';
 import 'package:baocode/kernel/antigravity/agy_runtime.dart';
 import 'package:baocode/kernel/antigravity/agy_transport_io.dart';
 import 'package:baocode/kernel/claude_code/claude_code_kernel.dart';
+import 'package:baocode/kernel/claude_code/claude_code_translator.dart';
 import 'package:baocode/kernel/claude_code/claude_code_transport.dart';
 import 'package:baocode/kernel/claude_code/claude_environment.dart';
+import 'package:baocode/kernel/kernel_types.dart';
 import 'package:baocode/kernel/mock/mock_kernels.dart';
 import 'package:baocode/kernel/transcript.dart';
 import 'package:baocode/platform/data_dir.dart';
@@ -575,5 +577,328 @@ void main() {
       transport.close();
       expect(transport.activeSubagentWatchCount, 0);
     });
+
+    test(
+      'background commands, async subagents, child tool routing, and transcript fallback outputs integrate with ActivityStrip & ClaudeTranslator',
+      () async {
+        final origBgPoll = AgyTransport.bgTaskPollInterval;
+        AgyTransport.bgTaskPollInterval = const Duration(milliseconds: 20);
+        addTearDown(() => AgyTransport.bgTaskPollInterval = origBgPoll);
+
+        const mainSession = '2760c117-aa71-4fbd-9dad-4e41c1ffaa2b';
+        const subConvId = '954f1407-acca-4752-b1c4-0a5bdc04dda8';
+        final taskLogPath = p.join(
+          brainDir,
+          mainSession,
+          '.system_generated',
+          'tasks',
+          'task-4.log',
+        );
+        final taskLogUri = Uri.file(taskLogPath).toString();
+        final promptGate = Completer<void>();
+        final cancelledSessions = <String>[];
+
+        final runtime = _FakeAgyRuntime(
+          () => _FakeAcpAgent((agent, method, params) async {
+            switch (method) {
+              case 'initialize':
+                return {'protocolVersion': 1};
+              case 'session/new':
+                return {'sessionId': mainSession};
+              case 'session/set_config_option':
+                return {};
+              case 'session/cancel':
+                cancelledSessions.add('${params['sessionId']}');
+                return {};
+              case 'session/prompt':
+                final session = params['sessionId'] as String;
+                // 1. Background command (stays running until promptGate).
+                agent.say(session, {
+                  'sessionUpdate': 'tool_call',
+                  'toolCallId': 'cmd_bg',
+                  'name': 'run_command',
+                  'kind': 'execute',
+                  'status': 'in_progress',
+                  'rawInput': {
+                    'CommandLine': 'python3 -u -c "print(input())"',
+                    'toolSummary': 'Background interactive task B',
+                  },
+                });
+                // 2. Async subagent whose ACP update has empty content (convId in main transcript).
+                agent.say(session, {
+                  'sessionUpdate': 'tool_call',
+                  'toolCallId': 'sub_bg',
+                  'name': 'invoke_subagent',
+                  'kind': 'other',
+                  'status': 'in_progress',
+                  'rawInput': {
+                    'TypeName': 'research',
+                    'Role': 'Readonly File Inspector',
+                    'Prompt': 'Count lines of CLAUDE.md',
+                  },
+                });
+                agent.say(session, {
+                  'sessionUpdate': 'tool_call_update',
+                  'toolCallId': 'sub_bg',
+                  'status': 'completed',
+                });
+                // 3. ACP-forwarded child tool call prefixed with subagent convId.
+                agent.say(session, {
+                  'sessionUpdate': 'tool_call',
+                  'toolCallId': '${subConvId}_call_1488151158494786377',
+                  'name': 'run_command',
+                  'kind': 'execute',
+                  'status': 'in_progress',
+                  'rawInput': {
+                    'CommandLine': 'wc /p/CLAUDE.md',
+                    'toolSummary': 'Count lines of CLAUDE.md',
+                  },
+                });
+                agent.say(session, {
+                  'sessionUpdate': 'tool_call_update',
+                  'toolCallId': '${subConvId}_call_1488151158494786377',
+                  'status': 'completed',
+                  'rawOutput': {'output': '3 40 211 /p/CLAUDE.md', 'exit_code': 0},
+                });
+                // 4. manage_task(list) with empty ACP output (falls back to main transcript).
+                agent.say(session, {
+                  'sessionUpdate': 'tool_call',
+                  'toolCallId': 'mt_list',
+                  'name': 'manage_task',
+                  'kind': 'other',
+                  'status': 'in_progress',
+                  'rawInput': {'Action': 'list'},
+                });
+                agent.say(session, {
+                  'sessionUpdate': 'tool_call_update',
+                  'toolCallId': 'mt_list',
+                  'status': 'completed',
+                });
+
+                await promptGate.future;
+                // Complete background command cleanly.
+                agent.say(session, {
+                  'sessionUpdate': 'tool_call_update',
+                  'toolCallId': 'cmd_bg',
+                  'status': 'completed',
+                  'rawOutput': {'output': 'B got: edoCoaB', 'exit_code': 0},
+                });
+                return {'stopReason': 'end_turn'};
+            }
+            return {};
+          }),
+        );
+
+        // Prepare main session transcript with background task log, subagent convId, and manage_task output.
+        _transcriptFile(brainDir, mainSession).writeAsStringSync([
+          jsonEncode({
+            'step_index': 1,
+            'type': 'PLANNER_RESPONSE',
+            'status': 'DONE',
+            'tool_calls': [
+              {
+                'name': 'run_command',
+                'args': {'CommandLine': '"python3 -u -c \\"print(input())\\""'},
+              },
+              {
+                'name': 'invoke_subagent',
+                'args': {'Role': '"Readonly File Inspector"'},
+              },
+              {
+                'name': 'manage_task',
+                'args': {'Action': '"list"'},
+              },
+            ],
+          }),
+          jsonEncode({
+            'step_index': 2,
+            'type': 'GENERIC',
+            'status': 'RUNNING',
+            'content':
+                'Created At: 2026-11-28T22:34:56+08:00\n'
+                'Tool is running as a background task with task id: $mainSession/task-4\n'
+                'Task logs are available at: $taskLogUri',
+          }),
+          jsonEncode({
+            'step_index': 3,
+            'type': 'GENERIC',
+            'status': 'DONE',
+            'content':
+                'Created At: 2026-11-28T22:34:57+08:00\n'
+                'Completed At: 2026-11-28T22:35:03+08:00\n'
+                'Created the following subagent:\n'
+                '{"conversationId": "$subConvId"}',
+          }),
+          jsonEncode({
+            'step_index': 4,
+            'type': 'GENERIC',
+            'status': 'DONE',
+            'content':
+                'Created At: 2026-11-28T22:35:19+08:00\n'
+                'Completed At: 2026-11-28T22:35:20+08:00\n'
+                'You have 1 background task(s) currently running:\n'
+                '[{"taskId":"$mainSession/task-4"}]',
+          }),
+        ].join('\n'));
+
+        // Prepare in-progress subagent transcript so it stays running initially.
+        final subTranscript = _transcriptFile(brainDir, subConvId);
+        subTranscript.writeAsStringSync(
+          '${jsonEncode({
+            'step_index': 1,
+            'type': 'PLANNER_RESPONSE',
+            'status': 'DONE',
+            'tool_calls': [
+              {
+                'name': 'run_command',
+                'args': {'CommandLine': 'wc /p/CLAUDE.md'},
+              },
+            ],
+          })}\n',
+        );
+
+        final transport =
+            await AgyTransport.start(
+                  ClaudeLaunch(cwd: cwd, model: 'gemini-3.8-flash'),
+                  runtime: runtime,
+                  brainDir: brainDir,
+                )
+                as AgyTransport;
+        addTearDown(transport.close);
+
+        final transcript = Transcript();
+        var seq = 0;
+        final translator = ClaudeTranslator(
+          emit: transcript.apply,
+          nextSeq: () => ++seq,
+        );
+        final results = <Map<String, Object?>>[];
+        transport.messages.listen((m) {
+          if (m['type'] == 'system' && m['subtype'] == 'subagent_transcript') {
+            final steps = [
+              for (final raw in m['steps'] as List? ?? const [])
+                if (raw is Map<Object?, Object?>)
+                  SwarmWorkerStep.fromJson(raw.cast<String, Object?>()),
+            ];
+            translator.applySubagentTranscript('${m['tool_use_id']}', steps);
+          } else {
+            translator.translate(m);
+          }
+          if (m['type'] == 'result') results.add(m);
+        });
+
+        transport.write({
+          'type': 'user',
+          'uuid': 'u-bg',
+          'message': {
+            'role': 'user',
+            'content': [
+              {'type': 'text', 'text': 'run bg tasks'},
+            ],
+          },
+        });
+
+        // Wait until both background command and background subagent appear in ActivityStrip tasks.
+        final startDeadline = DateTime.now().add(const Duration(seconds: 3));
+        while (transcript.tasks.length < 2 &&
+            DateTime.now().isBefore(startDeadline)) {
+          await Future<void>.delayed(const Duration(milliseconds: 15));
+        }
+
+        // 1. Background command registered with real taskId and outputFile log path.
+        final bgCmdTask = transcript.tasks.firstWhere(
+          (t) => t.kind == KernelTaskKind.command,
+        );
+        expect(bgCmdTask.id, '$mainSession/task-4');
+        expect(bgCmdTask.background, isTrue);
+        expect(bgCmdTask.stoppable, isFalse);
+        expect(bgCmdTask.status, CommandStatus.running);
+        expect(bgCmdTask.outputFile, taskLogPath);
+
+        // 2. Async subagent registered as running background agent (NOT immediately green).
+        final bgAgentTask = transcript.tasks.firstWhere(
+          (t) => t.kind == KernelTaskKind.agent,
+        );
+        expect(bgAgentTask.id, 'toolu_agy_sub_bg');
+        expect(bgAgentTask.background, isTrue);
+        expect(bgAgentTask.stoppable, isTrue);
+        expect(bgAgentTask.status, CommandStatus.running);
+
+        final mainItems = [
+          for (var i = 0; i < transcript.length; i++) transcript.itemAt(i),
+        ];
+        final agentCard = mainItems.whereType<AgentItem>().single;
+        expect(agentCard.status, CommandStatus.running);
+        expect(agentCard.background, isTrue);
+
+        // 3. Child tool call routed into subagent card instead of leaking into main chat!
+        final mainTerminals = mainItems.whereType<TerminalItem>().toList();
+        expect(
+          mainTerminals.any((t) => t.command.contains('wc /p/CLAUDE.md')),
+          isFalse,
+        );
+        expect(
+          agentCard.children.whereType<TerminalItem>().any(
+            (t) => t.command == 'wc /p/CLAUDE.md',
+          ),
+          isTrue,
+        );
+
+        // 4. manage_task(list) recovered full output from main transcript (not "(no output)").
+        final mtListItem = mainItems.whereType<ToolCallItem>().firstWhere(
+          (t) => t.tool == 'ManageTask',
+        );
+        expect(
+          mtListItem.output,
+          contains('You have 1 background task(s) currently running'),
+        );
+        expect(mtListItem.output, isNot(contains('Created At:')));
+
+        // 5. Completing subagent transcript settles ActivityStrip task and marks AgentItem succeeded with summary.
+        subTranscript.writeAsStringSync(
+          '${jsonEncode({
+            'step_index': 2,
+            'type': 'PLANNER_RESPONSE',
+            'status': 'DONE',
+            'tool_calls': const <Object?>[],
+            'content': 'CLAUDE.md has 3 lines and 211 bytes.',
+          })}\n',
+          mode: FileMode.append,
+        );
+        final subDoneDeadline = DateTime.now().add(const Duration(seconds: 3));
+        while (transcript.tasks
+                    .firstWhere((t) => t.id == 'toolu_agy_sub_bg')
+                    .status ==
+                CommandStatus.running &&
+            DateTime.now().isBefore(subDoneDeadline)) {
+          await Future<void>.delayed(const Duration(milliseconds: 15));
+        }
+        expect(
+          transcript.tasks
+              .firstWhere((t) => t.id == 'toolu_agy_sub_bg')
+              .status,
+          CommandStatus.succeeded,
+        );
+        final settledAgent = [
+          for (var i = 0; i < transcript.length; i++) transcript.itemAt(i),
+        ].whereType<AgentItem>().single;
+        expect(settledAgent.status, CommandStatus.succeeded);
+        expect(settledAgent.result, 'CLAUDE.md has 3 lines and 211 bytes.');
+
+        // 6. Completing background command settles ActivityStrip command task cleanly.
+        promptGate.complete();
+        while (results.isEmpty) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+        await pumpEventQueue();
+        expect(
+          transcript.tasks
+              .firstWhere((t) => t.id == '$mainSession/task-4')
+              .status,
+          CommandStatus.succeeded,
+        );
+        expect(cancelledSessions, isEmpty);
+      },
+    );
   });
 }

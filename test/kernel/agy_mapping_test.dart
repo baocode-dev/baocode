@@ -617,6 +617,31 @@ void main() {
         'answers': {'Which?': 'b'},
       });
     });
+
+    test('extracts structured rawOutput and uses fallbackOutput when empty', () {
+      final mapCall = call({
+        'name': 'manage_task',
+        'status': 'completed',
+        'rawOutput': {'result': 'Input sent to task-1'},
+      });
+      expect(mapCall.output, 'Input sent to task-1');
+
+      final exitOnly = call({
+        'name': 'run_command',
+        'status': 'completed',
+        'rawOutput': {'exit_code': 0},
+      });
+      expect(exitOnly.output, isNull);
+
+      final empty = call({'name': 'manage_task', 'status': 'completed'});
+      final res = claudeToolResult(
+        empty,
+        'ManageTask',
+        fallbackOutput: 'You have 2 background task(s) currently running',
+      );
+      expect(res.content, 'You have 2 background task(s) currently running');
+      expect(res.isError, isFalse);
+    });
   });
 
   test('agy models: thinking levels as one model', () {

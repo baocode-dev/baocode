@@ -2310,6 +2310,7 @@ class ClaudeTranslator {
           toolUseId: card ?? call,
           // A workflow runs in the background, whatever it says.
           background: workflow || message['is_backgrounded'] == true,
+          stoppable: message['stoppable'] != false,
           outputFile: _string(message['output_file']) ?? _taskOutputs[taskId],
         );
         _reportTasks();

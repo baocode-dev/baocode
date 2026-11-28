@@ -63,6 +63,13 @@ class AgyTransport implements ClaudeCodeTransport {
       acp.AgyTransportCore.subagentMissingPollsToStop = value;
 
   @visibleForTesting
+  static Duration get bgTaskPollInterval =>
+      acp.AgyTransportCore.bgTaskPollInterval;
+  @visibleForTesting
+  static set bgTaskPollInterval(Duration value) =>
+      acp.AgyTransportCore.bgTaskPollInterval = value;
+
+  @visibleForTesting
   int get activeSubagentWatchCount => _core.activeSubagentWatchCount;
 
   static Future<void> forget(

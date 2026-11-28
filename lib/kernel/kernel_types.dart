@@ -555,6 +555,7 @@ class KernelTask {
     required this.startedAt,
     this.toolUseId,
     this.background = true,
+    this.stoppable = true,
     this.summary,
     this.outputFile,
   });
@@ -570,6 +571,9 @@ class KernelTask {
   final String? toolUseId;
   final bool background;
 
+  /// Whether the user can stop this task directly from the UI via `stop_task`.
+  final bool stoppable;
+
   /// Its last progress line, or how it ended.
   final String? summary;
 
@@ -580,6 +584,7 @@ class KernelTask {
     CommandStatus? status,
     String? summary,
     bool? background,
+    bool? stoppable,
     String? description,
     String? outputFile,
   }) => KernelTask(
@@ -590,6 +595,7 @@ class KernelTask {
     startedAt: startedAt,
     toolUseId: toolUseId,
     background: background ?? this.background,
+    stoppable: stoppable ?? this.stoppable,
     summary: summary ?? this.summary,
     outputFile: outputFile ?? this.outputFile,
   );

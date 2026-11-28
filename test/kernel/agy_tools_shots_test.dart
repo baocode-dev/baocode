@@ -10,10 +10,13 @@ import 'dart:ui' as ui;
 
 import 'package:baocode/chat/agent_view.dart';
 import 'package:baocode/chat/chat_models.dart';
+import 'package:baocode/chat/panels/activity_strip.dart';
+import 'package:baocode/chat/widgets/agent_step.dart';
 import 'package:baocode/chat/widgets/chat_item_view.dart';
 import 'package:baocode/chat/widgets/user_message_bubble.dart';
 import 'package:baocode/kernel/antigravity/acp_to_claude.dart';
 import 'package:baocode/kernel/claude_code/claude_code_translator.dart';
+import 'package:baocode/kernel/kernel_types.dart';
 import 'package:baocode/kernel/transcript.dart';
 import 'package:baocode/l10n/app_localizations.dart';
 import 'package:baocode/swarm/swarm_model.dart';
@@ -114,6 +117,7 @@ void _emitAcpTool(
   ClaudeTranslator translator, {
   required String id,
   required String acpName,
+  String? kind,
   required Map<String, Object?> rawInput,
   String? result,
   bool isError = false,
@@ -121,6 +125,7 @@ void _emitAcpTool(
   final call = AcpToolCall(id)
     ..merge({
       'name': acpName,
+      'kind': ?kind,
       'rawInput': rawInput,
       'status': result == null ? 'in_progress' : (isError ? 'failed' : 'completed'),
     });
@@ -479,6 +484,299 @@ void main() {
       '03_agy_tools_light',
       size: const Size(980, 780),
       child: _buildMainChatView(data.mainItems),
+      light: true,
+    );
+  });
+
+  ({List<({String? id, ChatItem item})> items, List<KernelTask> tasks, AgentItem agent})
+  buildBgActivityPipeline() {
+    final transcript = Transcript();
+    var seq = 0;
+    final translator = ClaudeTranslator(
+      emit: transcript.apply,
+      nextSeq: () => ++seq,
+    );
+
+    translator.translate({
+      'type': 'user',
+      'uuid': 'u-bg',
+      'message': {'content': '测试你操作多任务的能力（别有副作用）'},
+    });
+
+    // Background command A: already finished cleanly.
+    _emitAcpTool(
+      translator,
+      id: 'call_bg_a',
+      acpName: 'run_command',
+      kind: 'execute',
+      rawInput: {
+        'CommandLine': 'python3 -u -c "import time; print(\'A: start\'); time.sleep(2); print(\'A: finished\')"',
+        'toolSummary': 'Background timed task A',
+      },
+      result: 'A: start\nA: finished',
+    );
+
+    // Background command B: running in background + ActivityStrip task.
+    _emitAcpTool(
+      translator,
+      id: 'call_bg_b',
+      acpName: 'run_command',
+      kind: 'execute',
+      rawInput: {
+        'CommandLine': 'python3 -u -c "s = input(); print(\'B got:\', s[::-1])"',
+        'toolSummary': 'Background interactive task B',
+      },
+    );
+    translator.translate({
+      'type': 'system',
+      'subtype': 'task_started',
+      'task_id': '2760c117/task-4',
+      'tool_use_id': 'call_bg_b',
+      'task_type': 'local_bash',
+      'description': 'Background interactive task B',
+      'is_backgrounded': true,
+      'stoppable': false,
+      'output_file': '/brain/2760c117/.system_generated/tasks/task-4.log',
+    });
+
+    // Background command C: ticking in background + ActivityStrip task.
+    _emitAcpTool(
+      translator,
+      id: 'call_bg_c',
+      acpName: 'run_command',
+      kind: 'execute',
+      rawInput: {
+        'CommandLine': 'python3 -u -c "import time; [print(i) or time.sleep(1) for i in range(60)]"',
+        'toolSummary': 'Background ticking task C',
+      },
+    );
+    translator.translate({
+      'type': 'system',
+      'subtype': 'task_started',
+      'task_id': '2760c117/task-5',
+      'tool_use_id': 'call_bg_c',
+      'task_type': 'local_bash',
+      'description': 'Background ticking task C',
+      'is_backgrounded': true,
+      'stoppable': false,
+      'output_file': '/brain/2760c117/.system_generated/tasks/task-5.log',
+    });
+
+    // Async subagent launched in background (stays running, NOT prematurely green).
+    final subCall = AcpToolCall('call_sub_ro')
+      ..merge({
+        'name': 'invoke_subagent',
+        'rawInput': {
+          'TypeName': 'research',
+          'Role': 'Readonly File Inspector',
+          'Prompt': '读取 CLAUDE.md 并统计行数和字符数',
+        },
+        'status': 'completed',
+      });
+    final subMapped = claudeToolUse(subCall);
+    translator.translate({
+      'type': 'assistant',
+      'message': {
+        'id': 'msg-sub-ro',
+        'content': [
+          {
+            'type': 'tool_use',
+            'id': 'call_sub_ro',
+            'name': subMapped.name,
+            'input': subMapped.input,
+          },
+        ],
+      },
+    });
+    translator.translate({
+      'type': 'user',
+      'message': {
+        'content': [
+          {
+            'type': 'tool_result',
+            'tool_use_id': 'call_sub_ro',
+            'content': '{"conversationId": "954f1407-acca-4752-b1c4-0a5bdc04dda8"}',
+          },
+        ],
+      },
+      'tool_use_result': {
+        'status': 'async_launched',
+        'agentId': '954f1407-acca-4752-b1c4-0a5bdc04dda8',
+      },
+    });
+    translator.translate({
+      'type': 'system',
+      'subtype': 'task_started',
+      'task_id': 'call_sub_ro',
+      'tool_use_id': 'call_sub_ro',
+      'task_type': 'local_agent',
+      'description': 'Readonly File Inspector',
+      'is_backgrounded': true,
+    });
+    // Child command routed into subagent via parent_tool_use_id (does NOT leak to main chat!).
+    translator.translate({
+      'type': 'assistant',
+      'parent_tool_use_id': 'call_sub_ro',
+      'message': {
+        'id': 'msg-sub-cmd',
+        'content': [
+          {
+            'type': 'tool_use',
+            'id': 'call_sub_wc',
+            'name': 'Bash',
+            'input': {
+              'command': 'wc /Users/leokun/Documents/kun6687/monad/CLAUDE.md',
+              'description': 'Count lines and characters of CLAUDE.md',
+            },
+          },
+        ],
+      },
+    });
+    translator.translate({
+      'type': 'user',
+      'parent_tool_use_id': 'call_sub_ro',
+      'message': {
+        'content': [
+          {
+            'type': 'tool_result',
+            'tool_use_id': 'call_sub_wc',
+            'content': '3 40 211 CLAUDE.md',
+          },
+        ],
+      },
+    });
+
+    // manage_task(list) with real recovered output (no longer "(no output)").
+    _emitAcpTool(
+      translator,
+      id: 'call_mt_bg_list',
+      acpName: 'manage_task',
+      rawInput: {'Action': 'list'},
+      result:
+          'You have 2 background task(s) currently running:\n'
+          'task-4 · Background interactive task B (RUNNING)\n'
+          'task-5 · Background ticking task C (RUNNING)',
+    );
+
+    final all = [
+      for (var i = 0; i < transcript.length; i++)
+        (id: transcript.idAt(i), item: transcript.itemAt(i)),
+    ];
+    final agent = all
+        .map((e) => e.item)
+        .whereType<AgentItem>()
+        .single;
+    return (items: all, tasks: transcript.tasks, agent: agent);
+  }
+
+  Widget buildBgActivityScreen(
+    BuildContext? _, {
+    required List<({String? id, ChatItem item})> items,
+    required List<KernelTask> tasks,
+    required AgentItem agent,
+  }) {
+    return Builder(
+      builder: (context) => Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760),
+          child: Column(
+            children: [
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(24, 18, 24, 12),
+                  children: [
+                    for (final entry in items) ...[
+                      ChatItemView(
+                        item: entry.item,
+                        expanded: entry.id == 'call_mt_bg_list',
+                        onToggle: () {},
+                        onOpen: entry.item is AgentItem ? () {} : null,
+                      ),
+                      const SizedBox(height: 6),
+                    ],
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+                child: ActivityStrip(
+                  tasks: tasks,
+                  changes: const [],
+                  onKeep: () {},
+                  onOpenTask: (_) {},
+                  canOpenTask: (_) => true,
+                  onStopTask: (_) {},
+                  canStopTask: (t) => t.stoppable,
+                  detailOf: (t) => t.kind == KernelTaskKind.agent
+                      ? AgentStep.latest(agent, l10n: AppLocalizations.of(context))
+                      : null,
+                ),
+              ),
+              Container(
+                margin: const EdgeInsets.fromLTRB(24, 0, 24, 14),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.bubbleFill,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.bubbleBorder()),
+                ),
+                child: Row(
+                  children: [
+                    Text(
+                      '规划、搜索、构建任何内容…',
+                      style: TextStyle(color: AppColors.textFaint, fontSize: 13),
+                    ),
+                    const Spacer(),
+                    Text(
+                      'Gemini 4 Neon · High',
+                      style: TextStyle(color: AppColors.textMuted, fontSize: 11.5),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  testWidgets('06 Background Tasks & Subagent ActivityStrip (dark)', (
+    tester,
+  ) async {
+    await _loadFonts(tester);
+    final data = buildBgActivityPipeline();
+    expect(data.tasks, hasLength(3));
+    expect(data.agent.status, CommandStatus.running);
+    expect(data.agent.children, hasLength(1));
+    await _capture(
+      tester,
+      '08_agy_bg_activity_dark',
+      size: const Size(980, 560),
+      child: buildBgActivityScreen(
+        null,
+        items: data.items,
+        tasks: data.tasks,
+        agent: data.agent,
+      ),
+    );
+  });
+
+  testWidgets('07 Background Tasks & Subagent ActivityStrip (light)', (
+    tester,
+  ) async {
+    await _loadFonts(tester);
+    final data = buildBgActivityPipeline();
+    await _capture(
+      tester,
+      '09_agy_bg_activity_light',
+      size: const Size(980, 560),
+      child: buildBgActivityScreen(
+        null,
+        items: data.items,
+        tasks: data.tasks,
+        agent: data.agent,
+      ),
       light: true,
     );
   });

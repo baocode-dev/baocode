@@ -944,7 +944,7 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
   };
 
   /// Whether [task] can be stopped directly by the user from the UI.
-  bool canStopTask(KernelTask task) => true;
+  bool canStopTask(KernelTask task) => task.stoppable;
 
   KernelTask? _runningTask(String? toolUseId) => toolUseId == null
       ? null

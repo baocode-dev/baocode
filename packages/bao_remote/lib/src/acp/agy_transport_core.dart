@@ -1198,7 +1198,8 @@ class AgyTransportCore {
       'task_type': 'local_bash',
       'description': desc,
       'is_backgrounded': true,
-      if (logPath != null) 'output_file': logPath,
+      'stoppable': false,
+      'output_file': ?logPath,
     });
   }
 
@@ -1297,7 +1298,7 @@ class AgyTransportCore {
               'task_id': toolUseId,
               'tool_use_id': toolUseId,
               'description': last.title,
-              if (last.toolName != null) 'last_tool_name': last.toolName,
+              'last_tool_name': ?last.toolName,
               'usage': {'total_tokens': tokens, 'tool_uses': toolUses},
             });
           } else {
@@ -2171,7 +2172,7 @@ class AgyTransportCore {
     final entry = _store.append({
       'type': 'assistant',
       'message': _message(id, content),
-      if (parentToolUseId != null) 'parent_tool_use_id': parentToolUseId,
+      'parent_tool_use_id': ?parentToolUseId,
     });
     _emit({
       'type': 'assistant',
@@ -2370,7 +2371,7 @@ class AgyTransportCore {
           },
         ],
       },
-      if (parentToolUseId != null) 'parent_tool_use_id': parentToolUseId,
+      'parent_tool_use_id': ?parentToolUseId,
       'toolUseResult': ?structured,
     });
     _emit({
