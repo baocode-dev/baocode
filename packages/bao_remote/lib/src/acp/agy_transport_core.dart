@@ -164,6 +164,7 @@ class AgyTransportCore {
     String? brainDir,
   }) : _brainDir = brainDir ?? options.brainDir {
     _mode = options.permissionMode ?? 'default';
+    if (_mode != 'plan') _modeBeforePlan = _mode;
     _model = options.model;
     _effort = options.effort;
     _sdkServers = [...options.sdkServers];
@@ -297,6 +298,10 @@ class AgyTransportCore {
   late final ControlChannel _kernel = ControlChannel(_emit);
 
   late String _mode;
+  String? _modeBeforePlan;
+  String? _currentAcpMode;
+  String? _pendingAcpMode;
+  Future<void>? _modeSync;
   String? _model;
   String? _effort;
   List<String> _sdkServers = const [];
@@ -368,7 +373,11 @@ class AgyTransportCore {
           'applied': {'model': _model, 'effort': _effort},
         });
       case 'set_permission_mode':
-        _mode = request['mode'] as String? ?? _mode;
+        final nextMode = request['mode'] as String? ?? _mode;
+        _setLocalMode(nextMode);
+        if (_open && _connection != null && _agySession != null) {
+          await _applyAcpMode();
+        }
         _respond(id, {'mode': _mode});
       case 'interrupt':
         _respond(id);
@@ -442,11 +451,16 @@ class AgyTransportCore {
           .toList();
 
   /// The user's message [uuid] kept, and told as taken up.
-  void _takeUp(String uuid, List<Map<String, Object?>> content) {
+  void _takeUp(
+    String uuid,
+    List<Map<String, Object?>> content, {
+    bool localOnly = false,
+  }) {
     final entry = _store.append({
       'type': 'user',
       'message': {'role': 'user', 'content': content},
       'uuid': uuid,
+      if (localOnly) 'agyLocalOnly': true,
     });
     _emit({
       'type': 'user',
@@ -504,9 +518,10 @@ class AgyTransportCore {
     }
     final uuid = message['uuid'] as String? ?? newUuid();
     final content = _contentOf(message);
-    // Never steer `/compact` into an active turn: it needs its own turn so
-    // compacting status, usage tracking, and compact_boundary emit cleanly.
-    if (_slashCommandIn(content)?.name == 'compact') {
+    // Never steer `/compact` or `/plan` into an active turn: they need their
+    // own turn so mode switches, compacting status, and boundaries emit cleanly.
+    final slashName = _slashCommandIn(content)?.name;
+    if (slashName == 'compact' || slashName == 'plan') {
       return false;
     }
     _closeOpen();
@@ -537,7 +552,15 @@ class AgyTransportCore {
     final content = _contentOf(message);
     final slash = _slashCommandIn(content);
     final isCompact = slash?.name == 'compact';
+    final isPlanSlash = slash?.name == 'plan';
+    final hasImages = content.any((block) => block['type'] == 'image');
+    final isBarePlan = isPlanSlash && slash!.args.isEmpty && !hasImages;
     turn.compacting = isCompact;
+    turn.startedWithPlanSlash = isPlanSlash;
+    final enteredPlanBySlash = isPlanSlash && _mode != 'plan';
+    if (enteredPlanBySlash) {
+      _setLocalMode('plan');
+    }
     final preCompactUsed = _used;
     _emit({
       'type': 'system',
@@ -553,9 +576,48 @@ class AgyTransportCore {
       'subtype': 'session_state_changed',
       'state': 'running',
     });
-    // What agy has not seen: the conversation as it was before this.
-    final before = [..._store.chain];
-    _takeUp(uuid, content);
+    // What agy has not seen: the conversation as it was before this,
+    // excluding local-only commands (such as bare `/plan`).
+    final before = [
+      for (final entry in _store.chain)
+        if (entry['agyLocalOnly'] != true) entry,
+    ];
+    _takeUp(uuid, content, localOnly: isBarePlan);
+    if (enteredPlanBySlash || isBarePlan) {
+      _emit({'type': 'system', 'subtype': 'status', 'permissionMode': 'plan'});
+    }
+    if (isBarePlan) {
+      if (_open && _connection != null && _agySession != null) {
+        await _applyAcpMode();
+      }
+      _turn = null;
+      final size = _size;
+      _emit({
+        'type': 'result',
+        'subtype': 'success',
+        'is_error': false,
+        'duration_ms': DateTime.now().difference(turn.begun).inMilliseconds,
+        'usage': const {
+          'input_tokens': 0,
+          'output_tokens': 0,
+          'cache_read_input_tokens': 0,
+          'cache_creation_input_tokens': 0,
+          'reasoning_tokens': 0,
+        },
+        if (_model case final model?)
+          'modelUsage': {
+            model: {'contextWindow': ?size},
+          },
+      });
+      _emit({
+        'type': 'system',
+        'subtype': 'session_state_changed',
+        'state': 'idle',
+      });
+      _idleSoon();
+      _next();
+      return;
+    }
     if (isCompact) {
       _emit({'type': 'system', 'subtype': 'status', 'status': 'compacting'});
     }
@@ -579,6 +641,7 @@ class AgyTransportCore {
     });
     try {
       final session = await _session();
+      await _applyAcpMode();
       preCheckpoints = _readMainCheckpoints().length;
       final transcriptFile = _writeHandoffTranscript(session, before);
       final sessionFile = switch (_store.file) {
@@ -630,6 +693,7 @@ class AgyTransportCore {
     }
     var compacted = false;
     if (error == null && !interrupted) {
+      await _presentPlan(turn);
       final postCheckpoints = _readMainCheckpoints();
       final newCheckpoint = postCheckpoints.length > preCheckpoints
           ? postCheckpoints.last
@@ -732,12 +796,7 @@ class AgyTransportCore {
       if (_isSystemReminderText(trimmed)) continue;
       final parsed = _parseSlashCommand(trimmed);
       if (parsed == null) return null;
-      return (
-        index: i,
-        name: parsed.name,
-        args: parsed.args,
-        text: trimmed,
-      );
+      return (index: i, name: parsed.name, args: parsed.args, text: trimmed);
     }
     return null;
   }
@@ -871,10 +930,8 @@ class AgyTransportCore {
       } on FormatException {
         continue;
       }
-      if (decoded case {
-        'type': 'CHECKPOINT',
-        'content': final String text,
-      } when text.trim().isNotEmpty) {
+      if (decoded case {'type': 'CHECKPOINT', 'content': final String text}
+          when text.trim().isNotEmpty) {
         summaries.add(text);
       }
     }
@@ -894,11 +951,13 @@ class AgyTransportCore {
       final categories = breakdown['categories'] as List? ?? const [];
       var base = 0;
       for (final category in categories) {
-        if (category case {
-          'kind': 'used',
-          'name': final String name,
-          'tokens': final int tokens,
-        } when name != 'Messages') {
+        if (category
+            case {
+              'kind': 'used',
+              'name': final String name,
+              'tokens': final int tokens,
+            }
+            when name != 'Messages') {
           base += tokens;
         }
       }
@@ -1248,8 +1307,9 @@ class AgyTransportCore {
         final expected =
             '${call.acp.input['CommandLine'] ?? call.acp.input['command'] ?? ''}'
                 .trim();
-        final actual = '${entry.args['CommandLine'] ?? entry.args['command'] ?? ''}'
-            .trim();
+        final actual =
+            '${entry.args['CommandLine'] ?? entry.args['command'] ?? ''}'
+                .trim();
         if (expected.isNotEmpty && actual.isNotEmpty) {
           return expected == actual;
         }
@@ -1257,12 +1317,16 @@ class AgyTransportCore {
       case 'manage_task':
         final action = '${call.acp.input['Action'] ?? ''}'.trim();
         final entryAction = '${entry.args['Action'] ?? ''}'.trim();
-        if (action.isNotEmpty && entryAction.isNotEmpty && action != entryAction) {
+        if (action.isNotEmpty &&
+            entryAction.isNotEmpty &&
+            action != entryAction) {
           return false;
         }
         final taskId = '${call.acp.input['TaskId'] ?? ''}'.trim();
         final entryTaskId = '${entry.args['TaskId'] ?? ''}'.trim();
-        if (taskId.isNotEmpty && entryTaskId.isNotEmpty && taskId != entryTaskId) {
+        if (taskId.isNotEmpty &&
+            entryTaskId.isNotEmpty &&
+            taskId != entryTaskId) {
           return false;
         }
         return true;
@@ -1387,7 +1451,8 @@ class AgyTransportCore {
     _subagentConvIds[call.claudeId] = convId;
     _convToSubagentToolUseId[convId] = call.claudeId;
     if (!call.acp.failed && !_activeSubagentTasks.containsKey(call.claudeId)) {
-      final desc = '${call.input['description'] ?? call.acp.summary ?? 'Subagent'}';
+      final desc =
+          '${call.input['description'] ?? call.acp.summary ?? 'Subagent'}';
       _activeSubagentTasks[call.claudeId] = _SubagentTaskState(
         toolUseId: call.claudeId,
         convId: convId,
@@ -1492,11 +1557,7 @@ class AgyTransportCore {
     }
   }
 
-  void _registerBgCommand(
-    _Call call, {
-    String? agyTaskId,
-    String? logPath,
-  }) {
+  void _registerBgCommand(_Call call, {String? agyTaskId, String? logPath}) {
     final existing = _bgCommands[call.claudeId];
     if (existing != null) {
       if (agyTaskId != null && existing.agyTaskId == null) {
@@ -1697,9 +1758,7 @@ class AgyTransportCore {
     for (final m in swarm.members) {
       if (m.role == SwarmMemberRole.coordinator || !m.isWorking) continue;
       if (m.conversationId.isNotEmpty) {
-        _connection?.notify('session/cancel', {
-          'sessionId': m.conversationId,
-        });
+        _connection?.notify('session/cancel', {'sessionId': m.conversationId});
       }
       _swarmWatcher?.markStopped(m.name);
       any = true;
@@ -1810,6 +1869,7 @@ class AgyTransportCore {
         'additionalDirectories': options.directories,
     };
     var resumed = false;
+    Map<String, Object?>? sessionInfo;
     if ((_agySession, _synced) case (final id?, final synced?)
         when _onChain(synced)) {
       try {
@@ -1817,6 +1877,7 @@ class AgyTransportCore {
           ...base,
           'sessionId': id,
         });
+        sessionInfo = resumedInfo;
         _updateCommands(resumedInfo);
         resumed = true;
       } on AcpError catch (error) {
@@ -1833,6 +1894,7 @@ class AgyTransportCore {
           },
         },
       });
+      sessionInfo = started;
       _agySession = started['sessionId'] as String?;
       _synced = null;
       _handedOff = 0;
@@ -1842,10 +1904,13 @@ class AgyTransportCore {
         throw const AcpError(-32603, 'Antigravity started no session');
       }
     }
+    _currentAcpMode =
+        _acpModeFromSession(sessionInfo) ?? _currentAcpMode ?? 'default';
     _open = true;
     _watchSwarm();
     await _applyOption('model', _model);
     await _applyOption('thought_level', _effort);
+    await _applyAcpMode();
     return _agySession!;
   }
 
@@ -1908,6 +1973,70 @@ class AgyTransportCore {
       );
     } on Object {
       return const ForeignBrief();
+    }
+  }
+
+  static String _acpModeFor(String claudeMode) =>
+      claudeMode == 'plan' ? 'plan' : 'default';
+
+  static String? _acpModeFromSession(Map<String, Object?>? info) =>
+      switch (info) {
+        {'modes': {'currentModeId': final String modeId}}
+            when modeId.isNotEmpty =>
+          modeId,
+        _ => null,
+      };
+
+  void _setLocalMode(String nextMode) {
+    if (nextMode == 'plan') {
+      if (_mode != 'plan') _modeBeforePlan = _mode;
+    } else {
+      _modeBeforePlan = nextMode;
+    }
+    _mode = nextMode;
+  }
+
+  Future<void> _applyAcpMode() {
+    final previous = _modeSync ?? Future<void>.value();
+    late final Future<void> current;
+    current = previous.then((_) => _syncAcpMode()).whenComplete(() {
+      if (identical(_modeSync, current)) _modeSync = null;
+    });
+    return _modeSync = current;
+  }
+
+  Future<void> _syncAcpMode() async {
+    final connection = _connection;
+    final session = _agySession;
+    if (connection == null || session == null || !_open) return;
+    final target = _acpModeFor(_mode);
+    if (target == _currentAcpMode) return;
+    _pendingAcpMode = target;
+    try {
+      await connection.request('session/set_mode', {
+        'sessionId': session,
+        'modeId': target,
+      });
+      if (identical(_connection, connection) && _agySession == session) {
+        _currentAcpMode = target;
+      }
+    } on AcpError {
+      // Older agy builds or unsupported mode: keep local mode without failing.
+    } finally {
+      if (_pendingAcpMode == target) _pendingAcpMode = null;
+    }
+  }
+
+  void _handleModeUpdate(String modeId) {
+    _currentAcpMode = modeId;
+    if (!_open || _pendingAcpMode == modeId) return;
+    if (modeId == 'plan' && _mode != 'plan') {
+      _modeBeforePlan = _mode;
+      _mode = 'plan';
+      _emit({'type': 'system', 'subtype': 'status', 'permissionMode': 'plan'});
+    } else if (modeId != 'plan' && _mode == 'plan') {
+      _mode = _modeBeforePlan ?? 'default';
+      _emit({'type': 'system', 'subtype': 'status', 'permissionMode': _mode});
     }
   }
 
@@ -2005,6 +2134,8 @@ class AgyTransportCore {
     final connection = _connection;
     _connection = null;
     _open = false;
+    _currentAcpMode = null;
+    _pendingAcpMode = null;
     _bgPollTimer?.cancel();
     _bgPollTimer = null;
     for (final watch in _subagentWatches.values) {
@@ -2111,8 +2242,9 @@ class AgyTransportCore {
     _tell(call);
     final allowed = await _allows(call);
     if (!allowed) return selected(reject);
-    // An edit allowed: the edit watch told before it lands.
-    if (call.edits && !call.preHooked) {
+    // An edit allowed: the edit watch told before it lands (skipping brain
+    // artifact files, which are not workspace edits).
+    if (call.edits && !call.preHooked && !_isBrainArtifact(call)) {
       call.preHooked = true;
       await _hook('PreToolUse', call);
     }
@@ -2122,10 +2254,19 @@ class AgyTransportCore {
   /// Whether [call] may go ahead: as the mode says, else as the user does.
   Future<bool> _allows(_Call call) async {
     final input = call.input;
-    if (_mode == 'bypassPermissions') return true;
+    if (call.edits && _isBrainArtifact(call)) return true;
     if (call.edits && _isAutoMemory(call)) return true;
-    if (call.edits && (_mode == 'acceptEdits' || _mode == 'auto')) return true;
-    if (call.acp.kind case 'read' || 'search' || 'fetch') return true;
+    if (_mode == 'plan') {
+      if (call.mutatesFiles) return false;
+    } else {
+      if (_mode == 'bypassPermissions') return true;
+      if (call.edits && (_mode == 'acceptEdits' || _mode == 'auto')) {
+        return true;
+      }
+    }
+    if (call.acp.kind case 'read' || 'search' || 'fetch' || 'think') {
+      return true;
+    }
     final command = input['command'] as String?;
     for (final rule in _allowed) {
       if (rule.tool != call.name) continue;
@@ -2157,14 +2298,19 @@ class AgyTransportCore {
       ],
     });
     if (answer == null || answer['behavior'] != 'allow') {
-      if (call.edits) await _hook('PermissionDenied', call);
+      if (call.edits && !_isBrainArtifact(call)) {
+        await _hook('PermissionDenied', call);
+      }
       return false;
     }
     for (final raw in answer['updatedPermissions'] as List? ?? const []) {
       if (raw is! Map) continue;
       switch (raw['type']) {
         case 'setMode':
-          if (raw['mode'] case final String mode) _mode = mode;
+          if (raw['mode'] case final String mode) {
+            _setLocalMode(mode);
+            unawaited(_applyAcpMode());
+          }
         case 'addRules' || 'replaceRules' when raw['behavior'] == 'allow':
           for (final rule in raw['rules'] as List? ?? const []) {
             if (rule case {'toolName': final String tool}) {
@@ -2179,20 +2325,78 @@ class AgyTransportCore {
     return true;
   }
 
+  static final _brainArtifactPattern = RegExp(
+    r'[/\\]antigravity-cli[/\\]brain[/\\]([^/\\]+)[/\\](.+)$',
+  );
+
+  String? _targetPathOf(_Call call) {
+    final raw =
+        call.input['file_path'] as String? ??
+        call.acp.diff?.path ??
+        call.acp.path;
+    if (raw == null || raw.isEmpty) return null;
+    return p.normalize(p.isAbsolute(raw) ? raw : p.join(options.cwd, raw));
+  }
+
+  /// Relative path of [normalizedPath] inside the active session's brain
+  /// directory (or a matching `antigravity-cli/brain/<id>/` directory), or
+  /// null if [normalizedPath] is outside.
+  String? _brainRelativePath(String? normalizedPath) {
+    if (normalizedPath == null || normalizedPath.isEmpty) return null;
+    final brainDir = _brainDir;
+    final session = _agySession;
+    if (brainDir != null &&
+        brainDir.isNotEmpty &&
+        session != null &&
+        session.isNotEmpty) {
+      final sessionDir = p.normalize(p.join(brainDir, session));
+      if (p.isWithin(sessionDir, normalizedPath)) {
+        return p.relative(normalizedPath, from: sessionDir);
+      }
+      final realSessionDir = _realPath(sessionDir);
+      final realTarget = _realPath(normalizedPath);
+      if (p.isWithin(realSessionDir, realTarget)) {
+        return p.relative(realTarget, from: realSessionDir);
+      }
+    }
+    final match = _brainArtifactPattern.firstMatch(normalizedPath);
+    if (match != null) return match.group(2);
+    return null;
+  }
+
+  bool _isBrainArtifactPath(String? normalizedPath) =>
+      _brainRelativePath(normalizedPath) != null;
+
+  bool _isBrainArtifact(_Call call) =>
+      _isBrainArtifactPath(_targetPathOf(call));
+
+  bool _isPlanArtifactPath(String? normalizedPath) {
+    final rel = _brainRelativePath(normalizedPath);
+    if (rel == null || rel.isEmpty) return false;
+    if (rel.contains('/') || rel.contains('\\')) return false;
+    final lower = rel.toLowerCase();
+    if (lower.length <= 3 || !lower.endsWith('.md')) return false;
+    if (lower == 'walkthrough.md' || lower == 'task.md') return false;
+    return true;
+  }
+
+  static bool _requestsFeedback(AcpToolCall call) =>
+      switch (call.input['ArtifactMetadata']) {
+        {'RequestFeedback': true} => true,
+        _ => false,
+      };
+
+  static String? _nonEmptyString(Object? value) =>
+      value is String && value.isNotEmpty ? value : null;
+
   /// Whether [call] writes inside the project's auto memory folder, which
   /// the agent may always update without prompting.
   bool _isAutoMemory(_Call call) {
     final dir = (_toldBrief ??= _brief(prepareAutoMemory: false)).autoMemoryDir;
     if (dir == null) return false;
-    final target =
-        call.input['file_path'] as String? ??
-        call.acp.diff?.path ??
-        call.acp.path;
-    if (target == null || target.isEmpty) return false;
+    final normalizedTarget = _targetPathOf(call);
+    if (normalizedTarget == null) return false;
     final normalizedDir = p.normalize(dir);
-    final normalizedTarget = p.normalize(
-      p.isAbsolute(target) ? target : p.join(options.cwd, target),
-    );
     if (p.isWithin(normalizedDir, normalizedTarget)) return true;
     return p.isWithin(_realPath(normalizedDir), _realPath(normalizedTarget));
   }
@@ -2325,6 +2529,11 @@ class AgyTransportCore {
       case 'plan':
         _closeOpen();
         _todos(update);
+      case 'current_mode_update':
+        final modeId = (update['currentModeId'] ?? update['modeId']) as String?;
+        if (modeId != null && modeId.isNotEmpty) {
+          _handleModeUpdate(modeId);
+        }
       case 'usage_update':
         _usageOf(update);
       case 'session_info_update':
@@ -2457,7 +2666,8 @@ class AgyTransportCore {
     },
     {
       'name': 'boost',
-      'description': 'Deep planning, multiple perspectives, and rigorous checks',
+      'description':
+          'Deep planning, multiple perspectives, and rigorous checks',
     },
   ];
 
@@ -2518,7 +2728,8 @@ class AgyTransportCore {
     if (raw is! List<Object?>) return;
     final parsed = [
       for (final command in raw)
-        if (command case {'name': final String _}) command.cast<String, Object?>(),
+        if (command case {'name': final String _})
+          command.cast<String, Object?>(),
     ];
     if (parsed.isEmpty) return;
     final before = jsonEncode(_commandList);
@@ -2526,11 +2737,7 @@ class AgyTransportCore {
     _cachedCommands = parsed;
     final after = _commandList;
     if (jsonEncode(after) == before) return;
-    _emit({
-      'type': 'system',
-      'subtype': 'commands_changed',
-      'commands': after,
-    });
+    _emit({'type': 'system', 'subtype': 'commands_changed', 'commands': after});
   }
 
   // --- Text and thoughts ----------------------------------------------------------
@@ -2623,6 +2830,7 @@ class AgyTransportCore {
     String id,
     List<Map<String, Object?>> content, {
     String? parentToolUseId,
+    bool? planArtifact,
   }) {
     final message = _message(id, content);
     if (parentToolUseId != null) {
@@ -2634,18 +2842,21 @@ class AgyTransportCore {
         'message': message,
         'parent_tool_use_id': parentToolUseId,
         'uuid': newUuid(),
+        'planArtifact': ?planArtifact,
       });
       return;
     }
     final entry = _store.append({
       'type': 'assistant',
       'message': message,
+      'planArtifact': ?planArtifact,
     });
     _emit({
       'type': 'assistant',
       'message': entry['message'],
       'parent_tool_use_id': null,
       'uuid': entry['uuid'],
+      'planArtifact': ?planArtifact,
     });
   }
 
@@ -2669,6 +2880,7 @@ class AgyTransportCore {
     _turn?.calls.add(id);
     final call = _calls.putIfAbsent(id, () => _Call(AcpToolCall(id)));
     call.acp.merge(update);
+    if (_requestsFeedback(call.acp)) call.requestsFeedback = true;
     return call;
   }
 
@@ -2720,6 +2932,11 @@ class AgyTransportCore {
         },
       });
     }
+    final suppressedPlanArtifact =
+        call.edits &&
+        parentToolUseId == null &&
+        _isPlanArtifactPath(_targetPathOf(call)) &&
+        !_shouldPresentPlan(call);
     _assistant(
       _messageId(),
       [
@@ -2731,16 +2948,21 @@ class AgyTransportCore {
         },
       ],
       parentToolUseId: parentToolUseId,
+      planArtifact: suppressedPlanArtifact ? false : null,
     );
   }
 
   void _finish(_Call call) {
     call.done = true;
+    final targetPath = _targetPathOf(call);
+    final isBrainArtifact = _isBrainArtifactPath(targetPath);
+    final isPlanArtifact = _isPlanArtifactPath(targetPath);
     String? fileText;
     final diff = call.edits ? call.acp.diff : null;
-    if (diff != null) {
+    final readPath = call.edits && isPlanArtifact ? targetPath : diff?.path;
+    if (readPath != null) {
       try {
-        fileText = File(diff.path).readAsStringSync();
+        fileText = File(readPath).readAsStringSync();
       } on Object {
         // Gone, or not text: the patch numbered from its start.
       }
@@ -2803,7 +3025,8 @@ class AgyTransportCore {
           _subagentWatches[toolUseId]?.markStopped();
           _settleSubagentTask(toolUseId, status: 'stopped');
         }
-      } else if (action == 'kill' && call.acp.input['ConversationIds'] is List) {
+      } else if (action == 'kill' &&
+          call.acp.input['ConversationIds'] is List) {
         for (final rawId in call.acp.input['ConversationIds'] as List) {
           final convId = '$rawId'.trim();
           if (_convToSubagentToolUseId[convId] case final toolUseId?) {
@@ -2813,12 +3036,95 @@ class AgyTransportCore {
         }
       }
     }
-    if (call.edits) {
+    if (call.edits && !isBrainArtifact) {
       unawaited(
         _hook(call.acp.failed ? 'PostToolUseFailure' : 'PostToolUse', call),
       );
     }
+    if (call.edits &&
+        !call.acp.failed &&
+        call.parentToolUseId == null &&
+        isPlanArtifact &&
+        targetPath != null) {
+      _notePlanArtifact(call, targetPath, fileText);
+    }
     _drainSteerableQueued();
+  }
+
+  bool _shouldPresentPlan(_Call call) {
+    final turn = _turn;
+    return call.requestsFeedback ||
+        _requestsFeedback(call.acp) ||
+        _mode == 'plan' ||
+        (turn?.startedWithPlanSlash ?? false);
+  }
+
+  void _notePlanArtifact(_Call call, String path, String? fileText) {
+    final turn = _turn;
+    if (turn == null || !_shouldPresentPlan(call)) return;
+    turn.planPath = path;
+    var content =
+        _nonEmptyString(fileText) ??
+        _nonEmptyString(call.acp.input['Content']) ??
+        _nonEmptyString(call.acp.input['CodeContent']) ??
+        _nonEmptyString(call.acp.diff?.newText);
+    if (content == null && turn.planContent != null) {
+      final oldText =
+          _nonEmptyString(call.acp.input['Target']) ??
+          _nonEmptyString(call.acp.input['TargetContent']);
+      if (oldText != null && turn.planContent!.contains(oldText)) {
+        final replacement =
+            '${call.acp.input['Replacement'] ?? call.acp.input['ReplacementContent'] ?? ''}';
+        content = turn.planContent!.replaceFirst(oldText, replacement);
+      }
+    }
+    if (content != null) {
+      turn.planContent = content;
+    }
+  }
+
+  static const _planPresentedFallback =
+      'Your plan is now shown to the user, who will start it or say what '
+      'should change in their next message. End your turn here without '
+      'repeating the plan: do not start implementing it, and do not call '
+      'ExitPlanMode again. Approval does not go through this tool: the user '
+      'starts the plan in the app, and their message then tells you plan '
+      'mode is over.';
+
+  int _exitPlans = 0;
+
+  Future<void> _presentPlan(_Turn turn) async {
+    final planPath = turn.planPath;
+    if (planPath == null) return;
+    final planContent = turn.planContent;
+    final input = <String, Object?>{
+      'planFilePath': planPath,
+      if (planContent != null && planContent.isNotEmpty) 'plan': planContent,
+    };
+    final call = _Call(AcpToolCall('exit_plan_${++_exitPlans}'))
+      ..told = true
+      ..done = true
+      ..name = 'ExitPlanMode'
+      ..input = input;
+    _assistant(_messageId(), [
+      {
+        'type': 'tool_use',
+        'id': call.claudeId,
+        'name': 'ExitPlanMode',
+        'input': input,
+      },
+    ]);
+    final reply = await _canUseTool({
+      'tool_name': 'ExitPlanMode',
+      'input': input,
+      'tool_use_id': call.claudeId,
+      'permission_suggestions': const [],
+    });
+    final message = switch (reply?['message']) {
+      final String text when text.trim().isNotEmpty => text,
+      _ => _planPresentedFallback,
+    };
+    _result(call, message, isError: true);
   }
 
   /// [content] is text, or Claude's blocks (an MCP tool's image).
@@ -2957,6 +3263,9 @@ class _Turn {
   bool compacting = false;
   int? compactingPreUsed;
   bool emittedText = false;
+  bool startedWithPlanSlash = false;
+  String? planPath;
+  String? planContent;
 
   /// The prompt it waits on: the last sent.
   Future<Map<String, Object?>>? prompt;
@@ -2991,6 +3300,7 @@ class _Call {
   bool told = false;
   bool done = false;
   bool preHooked = false;
+  bool requestsFeedback = false;
   String name = '';
   Map<String, Object?> input = const {};
   String? parentToolUseId;
@@ -3003,6 +3313,9 @@ class _Call {
 
   /// Whether it changes a file.
   bool get edits => acp.kind == 'edit' || name == 'Edit' || name == 'Write';
+
+  /// Whether it edits, deletes, or moves a file.
+  bool get mutatesFiles => edits || acp.kind == 'delete' || acp.kind == 'move';
 }
 
 class _MainTranscriptEntry {

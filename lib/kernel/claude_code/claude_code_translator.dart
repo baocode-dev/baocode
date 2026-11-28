@@ -363,10 +363,29 @@ class ClaudeTranslator {
   /// The plan file the agent last wrote, in plan mode (see [isPlanPath]).
   String? _planPath;
 
-  /// Whether [path] is a plan file: one in a `plans` folder, where Claude
-  /// Code keeps them (`~/.claude/plans/`, or the `plansDirectory` set).
-  static bool isPlanPath(String path) =>
-      path.split(RegExp(r'[/\\]')).contains('plans');
+  static final _pathSeparators = RegExp(r'[/\\]');
+  static const _nonPlanBrainArtifacts = {'walkthrough.md', 'task.md'};
+
+  /// Whether [path] is a plan file: one in a `plans` folder (where Claude
+  /// Code keeps them: `~/.claude/plans/`, or the `plansDirectory` set), or a
+  /// direct markdown plan artifact under Antigravity's
+  /// `antigravity-cli/brain/<sessionId>/<name>.md` (excluding `walkthrough.md`
+  /// and `task.md`).
+  static bool isPlanPath(String path) {
+    final segments = path.split(_pathSeparators);
+    if (segments.contains('plans')) return true;
+    final length = segments.length;
+    if (length < 4 ||
+        segments[length - 4] != 'antigravity-cli' ||
+        segments[length - 3] != 'brain' ||
+        segments[length - 2].isEmpty) {
+      return false;
+    }
+    final file = segments[length - 1].toLowerCase();
+    return file.endsWith('.md') &&
+        file.length > 3 &&
+        !_nonPlanBrainArtifacts.contains(file);
+  }
 
   /// The round of planning under way: the id its card is at. Over once
   /// the plan is put to the user.
@@ -1043,6 +1062,7 @@ class ClaudeTranslator {
             block['name'] as String,
             _map(block['input']),
             parent,
+            allowPlan: message['planArtifact'] != false,
           );
       }
     }
@@ -1277,8 +1297,9 @@ class ClaudeTranslator {
     String id,
     String name,
     Map<String, Object?> input,
-    String? parent,
-  ) {
+    String? parent, {
+    bool allowPlan = true,
+  }) {
     final known = _tools[id];
     // The streamed start has no input yet; the whole message fills it in.
     final tool = _Tool(
@@ -1289,7 +1310,7 @@ class ClaudeTranslator {
       known?.startedAt,
     );
     _tools[id] = tool;
-    if (tool.parent == null && _isPlanCall(name, input)) {
+    if (allowPlan && tool.parent == null && _isPlanCall(name, input)) {
       return _planCall(id, name, input);
     }
     if (known == null && !replaying) _unanswered.add(id);
@@ -1641,7 +1662,11 @@ class ClaudeTranslator {
         target: '',
         status: status,
       ),
-      'ManageTask' => _manageTaskToolItem(input, status: status, output: output),
+      'ManageTask' => _manageTaskToolItem(
+        input,
+        status: status,
+        output: output,
+      ),
       'Schedule' => _scheduleToolItem(input, status: status, output: output),
       'ManageSubagents' => _manageSubagentsToolItem(
         input,
@@ -1659,7 +1684,11 @@ class ClaudeTranslator {
         output: output,
       ),
       'Swarm' => _swarmToolItem(input, status: status, output: output),
-      'SwarmBoard' => _swarmBoardToolItem(input, status: status, output: output),
+      'SwarmBoard' => _swarmBoardToolItem(
+        input,
+        status: status,
+        output: output,
+      ),
       _ => ToolCallItem(
         kind: ToolKind.other,
         label: name,
@@ -1697,12 +1726,14 @@ class ClaudeTranslator {
       'add' => [
         if (name != null) '@$name',
         if (input['n'] case final num n when n > 1) '×${n.toInt()}',
-        if (input['tasks'] case final List t when t.isNotEmpty)
-          '(${t.length})',
+        if (input['tasks'] case final List t when t.isNotEmpty) '(${t.length})',
         if (model != null) '· $model',
       ].join(' '),
       'kill' => name != null ? '@$name' : '',
-      'model' => [if (name != null) '@$name', if (model != null) '→ $model'].join(' '),
+      'model' => [
+        if (name != null) '@$name',
+        if (model != null) '→ $model',
+      ].join(' '),
       'channel' => [
         ?_string(input['op']),
         if (_string(input['channel']) case final ch?) '#$ch',
@@ -1755,11 +1786,12 @@ class ClaudeTranslator {
     final running = status == ToolStatus.running;
     final action = _string(input['action']) ?? '';
     final taskId = _string(input['task_id'])?.trim();
-    final sent = _string(
-      input['input'],
-    )?.trim().replaceAll(RegExp(r'\s+'), ' ');
+    final sent = _string(input['input'])
+        ?.trim()
+        .replaceAll(RegExp(r'\s+'), ' ');
     final label = switch (action) {
-      'list' => running ? 'Listing background tasks' : 'Listed background tasks',
+      'list' =>
+        running ? 'Listing background tasks' : 'Listed background tasks',
       'send_input' => running ? 'Sending input to task' : 'Sent input to task',
       _ => running ? 'Managing task' : 'Managed task',
     };
@@ -2761,8 +2793,8 @@ class ClaudeTranslator {
           CommandStatus.failed,
         _ => CommandStatus.succeeded,
       };
-      final startedAt =
-          _swarmStartedAt[workerId] ??= existing?.item.startedAt ?? now;
+      final startedAt = _swarmStartedAt[workerId] ??=
+          existing?.item.startedAt ?? now;
       final duration = status == CommandStatus.running
           ? null
           : existing?.item.duration ??

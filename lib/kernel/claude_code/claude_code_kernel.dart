@@ -4222,7 +4222,7 @@ class ClaudeCodeKernel
 
   /// The CLI's permission mode for what is picked: the approvals, but in
   /// Plan.
-  String get _mode => _work == 'plan' && !_onAgy ? 'plan' : _cliApproval;
+  String get _mode => _work == 'plan' ? 'plan' : _cliApproval;
 
   /// The CLI's mode for the approvals picked. Full access is not the
   /// CLI's bypassPermissions, which it refuses as root and cannot switch
@@ -4279,8 +4279,12 @@ class ClaudeCodeKernel
       _work = 'plan';
     } else {
       if (_work == 'plan') _work = 'agent';
-      _approval = mode;
-      _applyPlanReview();
+      final keepApproval =
+          mode == _cliApproval || (_onAgy && mode == 'default');
+      if (!keepApproval) {
+        _approval = mode;
+        _applyPlanReview();
+      }
     }
     emitInfoChanged();
   }
@@ -4301,11 +4305,7 @@ class ClaudeCodeKernel
 
   @override
   late final KernelChoiceSource mode = _Choice(
-    // No Plan on Antigravity's models yet.
-    options: () => [
-      for (final option in _works)
-        if (option.id != 'plan' || !_onAgy) option,
-    ],
+    options: () => _works,
     selected: () => _work,
     select: (id) {
       _work = id;
