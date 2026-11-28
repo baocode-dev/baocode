@@ -457,6 +457,7 @@ Future<void> main(List<String> arguments) async {
               locale.setting ??
               switch (WidgetsBinding.instance.platformDispatcher.locale) {
                 Locale(languageCode: 'zh') => AppLocale.simplifiedChinese,
+                Locale(languageCode: 'vi') => AppLocale.vietnamese,
                 _ => AppLocale.english,
               },
         );

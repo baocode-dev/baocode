@@ -105,21 +105,33 @@ final AppLocalizations _zh = AppLocalizationsZh();
 
 void main() {
   group('ARB files', () {
-    test('en and zh have the same keys', () {
+    test('all translations have the same keys as English', () {
       final en = _messages(_arb('app_en.arb'));
-      final zh = _messages(_arb('app_zh.arb'));
-      expect(zh.difference(en), isEmpty, reason: 'only in zh');
-      expect(en.difference(zh), isEmpty, reason: 'only in en');
+      for (final lang in ['zh', 'vi']) {
+        final translated = _messages(_arb('app_$lang.arb'));
+        expect(translated.difference(en), isEmpty, reason: 'only in $lang');
+        expect(en.difference(translated), isEmpty, reason: 'missing in $lang');
+      }
     });
 
-    test('every zh message is translated', () {
+    test('every translated message is nonempty', () {
       final en = _arb('app_en.arb');
-      final zh = _arb('app_zh.arb');
-      for (final key in _messages(en)) {
-        final value = zh[key];
-        expect(value, isA<String>(), reason: key);
-        expect((value! as String).trim(), isNotEmpty, reason: key);
+      for (final lang in ['zh', 'vi']) {
+        final translated = _arb('app_$lang.arb');
+        for (final key in _messages(en)) {
+          final value = translated[key];
+          expect(value, isA<String>(), reason: '$lang: $key');
+          expect((value! as String).trim(), isNotEmpty, reason: '$lang: $key');
+        }
       }
+    });
+
+    test('Vietnamese has curated common and language-setting strings', () {
+      final vi = _arb('app_vi.arb');
+      expect(vi['@@locale'], 'vi');
+      expect(vi['commonCancel'], 'Hủy');
+      expect(vi['languageSettingsDisplayLanguage'], 'Ngôn ngữ hiển thị');
+      expect(vi['cmdCategoryTerminal'], 'Terminal');
     });
   });
 
@@ -137,6 +149,9 @@ void main() {
       expect(AppLocale.normalize('zh-CN'), 'zh-cn');
       expect(AppLocale.normalize('zh_Hans'), 'zh-cn');
       expect(AppLocale.normalize('EN-us'), 'en');
+      expect(AppLocale.normalize('vi'), 'vi');
+      expect(AppLocale.normalize('vi-VN'), 'vi');
+      expect(AppLocale.normalize('VI_vn'), 'vi');
       expect(AppLocale.normalize('fr'), isNull);
       expect(AppLocale.normalize('  '), isNull);
       expect(AppLocale.normalize(null), isNull);
@@ -188,6 +203,10 @@ void main() {
       expect(
         AppLocale.systemLocale(const [Locale('fr'), Locale('zh')]),
         const Locale('zh', 'CN'),
+      );
+      expect(
+        AppLocale.systemLocale(const [Locale('vi', 'VN')]),
+        const Locale('vi'),
       );
       expect(AppLocale.systemLocale(const [Locale('fr')]), const Locale('en'));
     });
@@ -241,10 +260,19 @@ void main() {
 
       await tester.tap(find.text('简体中文'));
       await tester.pumpAndSettle();
+      await tester.tap(find.text('Tiếng Việt'));
+      await tester.pumpAndSettle();
+      expect(locale.setting, AppLocale.vietnamese);
+      expect(locale.locale, const Locale('vi'));
+      expect(find.text('Ngôn ngữ hiển thị'), findsOneWidget);
+      expect(storage.writes, ['zh-cn', 'vi']);
+
+      await tester.tap(find.text('Tiếng Việt'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('English'));
       await tester.pumpAndSettle();
       expect(find.text('Region & Language'), findsOneWidget);
-      expect(storage.writes, ['zh-cn', 'en']);
+      expect(storage.writes, ['zh-cn', 'vi', 'en']);
     });
 
     testWidgets('the app follows the setting without restarting', (
