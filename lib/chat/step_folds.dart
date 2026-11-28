@@ -130,8 +130,7 @@ class StepFolds {
       if (worked == null) continue;
       var last = t + 1 < prompts.length ? prompts[t + 1] - 1 : count - 1;
       while (last > prompt &&
-          (items[last] is UserMessageItem ||
-              items[last] is KernelSwitchItem)) {
+          (items[last] is UserMessageItem || _isDivider(items[last]))) {
         last--;
       }
       // Ending in thoughts, it ends at the row they show in.
@@ -290,11 +289,18 @@ bool isQuickStep(ChatItem item) => switch (item) {
   _ => false,
 };
 
+/// Whether [item] is a conversation divider (a kernel handoff or compaction
+/// boundary) rather than part of a turn's output.
+bool _isDivider(ChatItem item) => switch (item) {
+  KernelSwitchItem() || NoticeItem(kind: NoticeKind.compaction) => true,
+  _ => false,
+};
+
 /// Whether [item] shows though its turn's work is folded: pictures an
 /// image model made, which are what the user asked for; questions the user
 /// answered, and what they said.
 bool standsOutOfWork(ChatItem item) => switch (item) {
-  KernelSwitchItem() => true,
+  KernelSwitchItem() || NoticeItem(kind: NoticeKind.compaction) => true,
   ToolCallItem(kind: ToolKind.image, :final status, :final images) =>
     status == ToolStatus.succeeded && images.isNotEmpty,
   ToolCallItem(kind: ToolKind.question, :final status) =>

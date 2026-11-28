@@ -628,6 +628,7 @@ class AgyTransportCore {
     if (interrupted) {
       _appendUser('[Request interrupted by user]');
     }
+    var compacted = false;
     if (error == null && !interrupted) {
       final postCheckpoints = _readMainCheckpoints();
       final newCheckpoint = postCheckpoints.length > preCheckpoints
@@ -635,9 +636,10 @@ class AgyTransportCore {
           : null;
       if (newCheckpoint != null ||
           (isCompact && (_brainDir == null || !turn.emittedText))) {
+        compacted = true;
         _recordCompaction(
           trigger: isCompact ? 'manual' : 'auto',
-          beforeUsed: preCompactUsed,
+          beforeUsed: preCompactUsed ?? turn.compactingPreUsed,
           summary: newCheckpoint,
         );
       }
@@ -655,6 +657,7 @@ class AgyTransportCore {
     }
     _turn = null;
     final size = _size;
+    final compactedOnly = isCompact && compacted && !turn.emittedText;
     _emit({
       'type': 'result',
       'subtype': interrupted || error != null
@@ -663,13 +666,21 @@ class AgyTransportCore {
       'is_error': error != null,
       'result': ?error,
       'duration_ms': DateTime.now().difference(turn.begun).inMilliseconds,
-      'usage': {
-        'input_tokens': turn.inputTokens ?? _used ?? 0,
-        'output_tokens': turn.outputTokens ?? 0,
-        'cache_read_input_tokens': turn.cacheRead,
-        'cache_creation_input_tokens': turn.cacheWrite,
-        'reasoning_tokens': turn.thought,
-      },
+      'usage': compactedOnly
+          ? const {
+              'input_tokens': 0,
+              'output_tokens': 0,
+              'cache_read_input_tokens': 0,
+              'cache_creation_input_tokens': 0,
+              'reasoning_tokens': 0,
+            }
+          : {
+              'input_tokens': turn.inputTokens ?? _used ?? 0,
+              'output_tokens': turn.outputTokens ?? 0,
+              'cache_read_input_tokens': turn.cacheRead,
+              'cache_creation_input_tokens': turn.cacheWrite,
+              'reasoning_tokens': turn.thought,
+            },
       if (_model case final model?)
         'modelUsage': {
           model: {'contextWindow': ?size},
@@ -879,7 +890,7 @@ class AgyTransportCore {
   }) {
     final int? afterUsed;
     if (beforeUsed != null && beforeUsed > 0 && summary != null) {
-      final breakdown = _contextUsage();
+      final breakdown = _contextUsage(used: beforeUsed);
       final categories = breakdown['categories'] as List? ?? const [];
       var base = 0;
       for (final category in categories) {
@@ -2318,8 +2329,8 @@ class AgyTransportCore {
   int? _used;
   int? _size;
 
-  Map<String, Object?> _contextUsage() => agyContextUsage(
-    used: _used ?? 0,
+  Map<String, Object?> _contextUsage({int? used}) => agyContextUsage(
+    used: used ?? _used ?? 0,
     size: _size ?? options.autocompact ?? 0,
     brief: _toldBrief ??= _brief(prepareAutoMemory: false),
     chain: _store.chain,
@@ -2333,9 +2344,13 @@ class AgyTransportCore {
     final compacting = _turn?.compacting == true;
     if (usage['used'] case final num used when used > 0 || _used == null) {
       final value = used.toInt();
-      // During `/compact`, agy's usage_update reflects the compaction prompt
-      // itself (larger than the pre-compaction context); don't inflate `_used`.
-      if (!compacting || _used == null || value < _used!) {
+      if (compacting) {
+        // During `/compact`, agy's usage_update reflects the compaction prompt
+        // itself (pre-compaction context + prompt), never the compacted size.
+        // Keep it only as a fallback pre-compaction count when `_used` was
+        // unknown (e.g. right after restart), without overwriting `_used`.
+        if (value > 0) _turn!.compactingPreUsed = value;
+      } else {
         _used = value;
       }
     }
@@ -2892,6 +2907,7 @@ class _Turn {
   bool cancelled = false;
   bool stalled = false;
   bool compacting = false;
+  int? compactingPreUsed;
   bool emittedText = false;
 
   /// The prompt it waits on: the last sent.

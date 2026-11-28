@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../l10n/l10n.dart';
@@ -24,25 +26,45 @@ class NoticeRow extends StatelessWidget {
       case NoticeKind.compaction:
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Row(
-            children: [
-              Expanded(child: Divider(color: AppColors.partBorder)),
-              const SizedBox(width: 10),
-              Icon(
-                Icons.compress_rounded,
-                size: 13,
-                color: AppColors.textFaint,
-              ),
-              const SizedBox(width: 6),
-              Flexible(
-                child: Text(
-                  text,
-                  style: TextStyle(color: AppColors.textFaint, fontSize: 12),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(child: Divider(color: AppColors.partBorder)),
-            ],
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              // Keep the label non-flex so both Expanded dividers split all
+              // remaining width evenly instead of sharing flex with a loose
+              // Flexible (which leaves unused space on the right).
+              const fixedWidth = 10 + 13 + 6 + 10;
+              final minDivider = constraints.maxWidth >= 160 ? 24.0 : 8.0;
+              final maxLabelWidth = constraints.maxWidth.isFinite
+                  ? math.max(
+                      0.0,
+                      constraints.maxWidth - fixedWidth - minDivider * 2,
+                    )
+                  : double.infinity;
+              return Row(
+                children: [
+                  Expanded(child: Divider(color: AppColors.partBorder)),
+                  const SizedBox(width: 10),
+                  Icon(
+                    Icons.compress_rounded,
+                    size: 13,
+                    color: AppColors.textFaint,
+                  ),
+                  const SizedBox(width: 6),
+                  ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: maxLabelWidth),
+                    child: Text(
+                      text,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: AppColors.textFaint,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(child: Divider(color: AppColors.partBorder)),
+                ],
+              );
+            },
           ),
         );
       case NoticeKind.command:

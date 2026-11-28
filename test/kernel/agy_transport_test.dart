@@ -1611,6 +1611,13 @@ void main() {
       expect(meta['post_tokens'], isA<int>());
       expect(meta['post_tokens'] as int, lessThan(50000));
 
+      // 2b. Result for a silent /compact reports zero turn tokens (matching
+      // bao_agent's local command result) so compaction call tokens are not
+      // attributed as a normal turn's usage.
+      final compactResult = kernel.seen.lastWhere((m) => m['type'] == 'result');
+      expect((compactResult['usage'] as Map)['input_tokens'], 0);
+      expect((compactResult['usage'] as Map)['output_tokens'], 0);
+
       // 3. Session jsonl persists both compact_boundary and hidden summary.
       final saved = lines(sessionId);
       expect(
@@ -1626,6 +1633,79 @@ void main() {
         ((summaryEntry['message'] as Map)['content'] as String),
         contains('Compact summary.'),
       );
+      transport.close();
+    },
+  );
+
+  test(
+    '/compact with unknown prior usage uses compaction usage_update as pre_tokens without poisoning _used',
+    () async {
+      final brainDir = '${home.path}/brain';
+      final runtime = FakeRuntime(
+        () => FakeAgent((agent, method, params) async {
+          switch (method) {
+            case 'initialize':
+              return {'protocolVersion': 1};
+            case 'session/new':
+              return {'sessionId': 'agy-compact-cold'};
+            case 'session/set_config_option':
+              return {};
+            case 'session/prompt':
+              final session = params['sessionId'] as String;
+              final prompt = (params['prompt'] as List).cast<Map>();
+              final text = '${prompt.first['text']}';
+              if (text != '/compact') {
+                // First turn intentionally emits no usage_update (simulating a
+                // restarted session where `_used` is still null).
+                agent.say(session, {
+                  'sessionUpdate': 'agent_message_chunk',
+                  'content': {
+                    'type': 'text',
+                    'text': 'Long history reply. ' * 2000,
+                  },
+                });
+                return {'stopReason': 'end_turn'};
+              }
+              final tlog = File(
+                '$brainDir/agy-compact-cold/.system_generated/logs/transcript.jsonl',
+              )..parent.createSync(recursive: true);
+              tlog.writeAsStringSync(
+                '${jsonEncode({'step_index': 2, 'source': 'SYSTEM', 'type': 'CHECKPOINT', 'status': 'DONE', 'content': '# Resuming from a compaction\n\nShort summary.'})}\n',
+              );
+              agent.say(session, {
+                'sessionUpdate': 'usage_update',
+                'used': 220926,
+                'size': 1048576,
+              });
+              return {'stopReason': 'end_turn'};
+          }
+          return {};
+        }),
+      );
+
+      final transport = await AgyTransport.start(
+        ClaudeLaunch(cwd: cwd, model: 'gemini-4-neon'),
+        runtime: runtime,
+        brainDir: brainDir,
+      );
+      final kernel = Kernel(transport);
+
+      await kernel.send('first turn', uuid: 'u1');
+      final sessionId = kernel.seen.first['session_id']! as String;
+      await kernel.send('/compact', uuid: 'u2');
+
+      final boundary = kernel.seen.lastWhere(
+        (m) => m['type'] == 'system' && m['subtype'] == 'compact_boundary',
+      );
+      final meta = (boundary['compact_metadata'] as Map).cast<String, Object?>();
+      expect(meta['pre_tokens'], 220926);
+      expect(meta['post_tokens'], isA<int>());
+      expect(meta['post_tokens'] as int, lessThan(220926));
+
+      final sync = lines(
+        sessionId,
+      ).lastWhere((l) => l['type'] == AgyTransport.syncType);
+      expect(sync['used'], meta['post_tokens']);
       transport.close();
     },
   );

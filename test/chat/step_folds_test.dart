@@ -430,6 +430,33 @@ void main() {
       expect(folds.workAt(1)?.end, 3);
       expect(folds.workAt(4), isNull);
     });
+
+    test('a compaction divider has no turn footer and leaves prior turns intact', () {
+      const compacted = NoticeItem(
+        NoticeKind.compaction,
+        'Conversation compacted',
+      );
+      // Pure /compact turn: no footer under the compaction divider.
+      final manual = _fold([_prompt(), compacted]);
+      expect(manual.turnEndingAt(0), isNull);
+      expect(manual.turnEndingAt(1), isNull);
+
+      // Auto-compaction appended after a turn's answer: footer stays on answer.
+      final auto = _fold([
+        _prompt(),
+        _read,
+        _grep,
+        _answer,
+        compacted,
+        _prompt(),
+        _answer,
+      ]);
+      expect(auto.turnEndingAt(3), 0);
+      expect(auto.turnEndingAt(4), isNull);
+      expect(auto.workAt(1)?.end, 3);
+      expect(auto.workAt(4), isNull);
+      expect(standsOutOfWork(compacted), isTrue);
+    });
   });
 
   test("a turn's tokens are what it read and wrote", () {
