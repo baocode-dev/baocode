@@ -952,6 +952,9 @@ class _BaoCodeAppState extends State<BaoCodeApp>
       // The remote hosts' servers end, and all they run with them.
       await SshHosts.instance.closeAll();
       appExit(updating ? 'quit to update' : 'quit');
+      // The line that says how the run ended, on the disk before it goes:
+      // the next run reads it to tell a quit from a kill.
+      EventLog.current?.flush();
       return AppExitResponse.exit;
     },
   );

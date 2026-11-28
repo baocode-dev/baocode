@@ -327,6 +327,12 @@ LRESULT
 ViewWindow::MessageHandler(HWND hwnd, UINT const message,
                            WPARAM const wparam,
                            LPARAM const lparam) noexcept {
+  // Work the window channel did in the background, to finish on this thread.
+  if (message == WindowChannel::kRunMessage) {
+    WindowChannel::Run(lparam, window_channel_.get());
+    return 0;
+  }
+
   // What each part of the window is, and what it is around what the app
   // paints, are this window's own answers (the header is Flutter's; see
   // lib/workspace/window_header/), and they come before the engine, which

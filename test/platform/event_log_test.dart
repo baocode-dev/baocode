@@ -10,17 +10,28 @@ import 'package:baocode/update/version.dart';
 
 void main() {
   late Directory folder;
+  // The logs made, closed before the folder goes: an open file cannot be
+  // deleted on Windows.
+  final opened = <EventLog>[];
   setUp(() => folder = Directory.systemTemp.createTempSync('event_log'));
   tearDown(() {
+    for (final events in opened) {
+      events.close();
+    }
+    opened.clear();
     EventLog.current = null;
     folder.deleteSync(recursive: true);
   });
 
-  EventLog log({int maxBytes = 1024 * 1024}) => EventLog(
-    '${folder.path}/logs',
-    maxBytes: maxBytes,
-    clock: () => DateTime(2026, 10, 16, 12, 33, 19),
-  );
+  EventLog log({int maxBytes = 1024 * 1024}) {
+    final events = EventLog(
+      '${folder.path}/logs',
+      maxBytes: maxBytes,
+      clock: () => DateTime(2026, 10, 16, 12, 33, 19),
+    );
+    opened.add(events);
+    return events;
+  }
 
   test('a run starts with the version and the system, each event timed '
       'under its category', () {
@@ -98,14 +109,16 @@ void main() {
   test("with the crash report the system kept, where there is one", () {
     log().record('app', 'started');
     DateTime? asked;
-    EventLog(
+    final next = EventLog(
       '${folder.path}/logs',
       clock: () => DateTime(2026, 10, 16, 12, 40),
       crashSince: (since) {
         asked = since;
         return 'BaoCode-2026-10-16-123320.ips: EXC_BAD_ACCESS (SIGSEGV)';
       },
-    ).record('app', 'started again');
+    );
+    opened.add(next);
+    next.record('app', 'started again');
 
     expect(asked, DateTime(2026, 10, 16, 12, 33, 19));
     expect(
@@ -153,6 +166,41 @@ void main() {
   test('without an event log, nothing is written', () {
     appEvent('app', 'nowhere');
     expect(Directory('${folder.path}/logs').existsSync(), isFalse);
+  });
+
+  test('close releases the file and later events reopen and append without '
+      'repeating the header', () {
+    final events = log()..record('app', 'before close');
+    events.close();
+    // Safe to call again while closed.
+    events.flush();
+    events.close();
+
+    events.record('app', 'after reopen');
+    events.flush();
+
+    final text = File(events.path).readAsStringSync();
+    expect(RegExp('--- BaoCode').allMatches(text), hasLength(1));
+    expect(text, contains('[app] before close\n'));
+    expect(text, contains('[app] after reopen\n'));
+  });
+
+  test('flush before the first event is a no-op', () {
+    final events = log();
+    expect(() => events.flush(), returnsNormally);
+    expect(File(events.path).existsSync(), isFalse);
+  });
+
+  test('rotation counts UTF-8 bytes rather than UTF-16 code units', () {
+    final events = log(maxBytes: 240);
+    for (var i = 0; i < 6; i++) {
+      events.record('app', '中文事件日志内容 $i');
+    }
+
+    expect(File(events.previousPath).existsSync(), isTrue);
+    expect(File(events.path).lengthSync(), lessThanOrEqualTo(240));
+    expect(File(events.previousPath).lengthSync(), lessThanOrEqualTo(240));
+    expect(File(events.path).readAsStringSync(), contains('中文事件日志内容 5'));
   });
 
   testWidgets('the views are told as drawn: their size and what their last '

@@ -588,7 +588,13 @@ abstract final class WindowControls {
         // A host without the channel (tests).
       }
     }
-    return (await Clipboard.getData(Clipboard.kTextPlain))?.text;
+    try {
+      return (await Clipboard.getData(Clipboard.kTextPlain))?.text;
+    } on PlatformException {
+      // On Windows, another app holding the clipboard open makes OpenClipboard
+      // fail with ERROR_ACCESS_DENIED (5).
+      return null;
+    }
   }
 
   /// The clipboard's HTML (a web page's, a document's copied), where the

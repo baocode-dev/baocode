@@ -16,6 +16,7 @@ void main() {
     KeyWatch.debugReset();
   });
   tearDown(() {
+    EventLog.current?.close();
     EventLog.current = null;
     folder.deleteSync(recursive: true);
   });

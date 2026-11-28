@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cwchar>
+#include <deque>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -469,7 +470,288 @@ std::optional<std::string> PickDirectory(HWND window) {
   return picked;
 }
 
+struct OpenCompletion {
+  uint64_t request_id = 0;
+  bool worked = false;
+};
+
+// Runs the blocking work of `open`: looks up |app| on PATH and starts it
+// without a console, falling back to ShellExecuteW when that does not apply
+// (and COM is ready in this apartment).
+bool ExecuteOpen(const std::wstring& target, const std::wstring& app,
+                 const std::vector<std::wstring>& extras, bool com_ready) {
+  std::vector<std::wstring> quoted;
+  if (!app.empty()) {
+    if (extras.empty()) {
+      quoted.push_back(Quoted(target));
+    } else {
+      for (const std::wstring& extra : extras) {
+        quoted.push_back(Quoted(extra));
+      }
+    }
+    const std::wstring found = FindOnPath(app);
+    if (!found.empty() && StartWithoutConsole(found, quoted)) {
+      return true;
+    }
+  }
+  if (!com_ready) {
+    return false;
+  }
+  const std::wstring& file = app.empty() ? target : app;
+  std::wstring parameters;
+  for (const std::wstring& argument : quoted) {
+    if (!parameters.empty()) {
+      parameters += L' ';
+    }
+    parameters += argument;
+  }
+  const HINSTANCE opened =
+      ::ShellExecuteW(nullptr, L"open", file.c_str(),
+                      parameters.empty() ? nullptr : parameters.c_str(),
+                      nullptr, SW_SHOWNORMAL);
+  // ShellExecute answers a value above 32 when it worked, or an error code
+  // under it (33 and up are the codes it means).
+  return reinterpret_cast<INT_PTR>(opened) > 32;
+}
+
 }  // namespace
+
+// Dedicated STA worker thread for blocking Shell APIs (`revealInFinder` and
+// `open`): lazily started, bounded queue, and non-blocking Stop() on window
+// teardown so stalling shell extensions or antivirus scans never freeze the
+// window's message loop or pile up unbounded detached threads.
+class WindowChannel::ShellWorker
+    : public std::enable_shared_from_this<WindowChannel::ShellWorker> {
+ public:
+  ShellWorker() = default;
+  ~ShellWorker() {
+    if (wake_event_ != nullptr) {
+      ::CloseHandle(wake_event_);
+    }
+  }
+
+  ShellWorker(const ShellWorker&) = delete;
+  ShellWorker& operator=(const ShellWorker&) = delete;
+
+  void EnqueueReveal(std::wstring path) {
+    if (path.empty()) {
+      return;
+    }
+    HANDLE event = nullptr;
+    ::AcquireSRWLockExclusive(&lock_);
+    if (stopping_) {
+      ::ReleaseSRWLockExclusive(&lock_);
+      return;
+    }
+    for (const Task& queued : queue_) {
+      if (queued.kind == Task::Kind::kReveal && queued.target == path) {
+        ::ReleaseSRWLockExclusive(&lock_);
+        return;
+      }
+    }
+    if (queue_.size() >= kMaxPendingTasks) {
+      // Drop the oldest queued reveal rather than an `open` whose Dart Future
+      // awaits an answer.
+      auto oldest_reveal = std::find_if(
+          queue_.begin(), queue_.end(),
+          [](const Task& item) { return item.kind == Task::Kind::kReveal; });
+      if (oldest_reveal == queue_.end()) {
+        ::ReleaseSRWLockExclusive(&lock_);
+        return;
+      }
+      queue_.erase(oldest_reveal);
+    }
+    Task task;
+    task.kind = Task::Kind::kReveal;
+    task.target = std::move(path);
+    queue_.push_back(std::move(task));
+    if (EnsureStartedLocked()) {
+      event = wake_event_;
+    } else {
+      queue_.pop_back();
+    }
+    ::ReleaseSRWLockExclusive(&lock_);
+    if (event != nullptr) {
+      ::SetEvent(event);
+    }
+  }
+
+  bool EnqueueOpen(uint64_t request_id, HWND owner, std::wstring target,
+                   std::wstring app, std::vector<std::wstring> extras) {
+    HANDLE event = nullptr;
+    bool accepted = false;
+    ::AcquireSRWLockExclusive(&lock_);
+    if (!stopping_ && queue_.size() < kMaxPendingTasks) {
+      Task task;
+      task.kind = Task::Kind::kOpen;
+      task.request_id = request_id;
+      task.owner = owner;
+      task.target = std::move(target);
+      task.app = std::move(app);
+      task.extras = std::move(extras);
+      queue_.push_back(std::move(task));
+      if (EnsureStartedLocked()) {
+        event = wake_event_;
+        accepted = true;
+      } else {
+        queue_.pop_back();
+      }
+    }
+    ::ReleaseSRWLockExclusive(&lock_);
+    if (event != nullptr) {
+      ::SetEvent(event);
+    }
+    return accepted;
+  }
+
+  // Tells the worker to drop queued work and exit without blocking the window
+  // thread (which would stall closing if a shell extension is stuck).
+  void Stop() {
+    HANDLE event = nullptr;
+    ::AcquireSRWLockExclusive(&lock_);
+    stopping_ = true;
+    queue_.clear();
+    event = wake_event_;
+    ::ReleaseSRWLockExclusive(&lock_);
+    if (event != nullptr) {
+      ::SetEvent(event);
+    }
+  }
+
+ private:
+  static constexpr size_t kMaxPendingTasks = 16;
+
+  struct Task {
+    enum class Kind { kReveal, kOpen };
+    Kind kind = Kind::kReveal;
+    uint64_t request_id = 0;
+    HWND owner = nullptr;
+    std::wstring target;
+    std::wstring app;
+    std::vector<std::wstring> extras;
+  };
+
+  bool EnsureStartedLocked() {
+    if (started_) {
+      return true;
+    }
+    if (wake_event_ == nullptr) {
+      wake_event_ = ::CreateEventW(nullptr, FALSE, FALSE, nullptr);
+      if (wake_event_ == nullptr) {
+        return false;
+      }
+    }
+    auto* self = new std::shared_ptr<ShellWorker>(shared_from_this());
+    const HANDLE thread =
+        ::CreateThread(nullptr, 0, &ShellWorker::ThreadEntry, self, 0, nullptr);
+    if (thread == nullptr) {
+      delete self;
+      return false;
+    }
+    started_ = true;
+    ::CloseHandle(thread);
+    return true;
+  }
+
+  static DWORD WINAPI ThreadEntry(LPVOID param) {
+    std::unique_ptr<std::shared_ptr<ShellWorker>> holder(
+        static_cast<std::shared_ptr<ShellWorker>*>(param));
+    (*holder)->Run();
+    return 0;
+  }
+
+  void Run() {
+    const HRESULT com = ::CoInitializeEx(
+        nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+    const bool com_ready = SUCCEEDED(com) || com == RPC_E_CHANGED_MODE;
+
+    while (true) {
+      Task task;
+      bool has_task = false;
+      bool stop = false;
+      ::AcquireSRWLockExclusive(&lock_);
+      if (stopping_) {
+        stop = true;
+      } else if (!queue_.empty()) {
+        task = std::move(queue_.front());
+        queue_.pop_front();
+        has_task = true;
+      }
+      ::ReleaseSRWLockExclusive(&lock_);
+
+      if (stop) {
+        break;
+      }
+      if (has_task) {
+        Execute(task, com_ready);
+        continue;
+      }
+
+      const DWORD waited = ::MsgWaitForMultipleObjects(
+          1, &wake_event_, FALSE, INFINITE, QS_ALLINPUT);
+      if (waited == WAIT_OBJECT_0 + 1) {
+        MSG msg = {};
+        while (::PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {
+          ::TranslateMessage(&msg);
+          ::DispatchMessageW(&msg);
+        }
+      } else if (waited != WAIT_OBJECT_0) {
+        break;
+      }
+    }
+
+    if (SUCCEEDED(com)) {
+      ::CoUninitialize();
+    }
+  }
+
+  void Execute(const Task& task, bool com_ready) {
+    if (task.kind == Task::Kind::kReveal) {
+      if (!com_ready || task.target.empty()) {
+        return;
+      }
+      PIDLIST_ABSOLUTE item = nullptr;
+      if (SUCCEEDED(::SHParseDisplayName(task.target.c_str(), nullptr, &item, 0,
+                                         nullptr))) {
+        ::SHOpenFolderAndSelectItems(item, 0, nullptr, 0);
+        ::CoTaskMemFree(item);
+      }
+      return;
+    }
+
+    const bool worked =
+        ExecuteOpen(task.target, task.app, task.extras, com_ready);
+    auto* completion = new OpenCompletion{task.request_id, worked};
+    if (!::PostMessageW(task.owner, WindowChannel::kRunMessage, 0,
+                        reinterpret_cast<LPARAM>(completion))) {
+      delete completion;
+    }
+  }
+
+  SRWLOCK lock_ = SRWLOCK_INIT;
+  HANDLE wake_event_ = nullptr;
+  bool started_ = false;
+  bool stopping_ = false;
+  std::deque<Task> queue_;
+};
+
+void WindowChannel::Run(LPARAM completion, WindowChannel* channel) {
+  std::unique_ptr<OpenCompletion> done(
+      reinterpret_cast<OpenCompletion*>(completion));
+  if (channel != nullptr && done != nullptr) {
+    channel->CompleteOpen(done->request_id, done->worked);
+  }
+}
+
+void WindowChannel::CompleteOpen(uint64_t request_id, bool worked) {
+  const auto found = pending_open_results_.find(request_id);
+  if (found == pending_open_results_.end()) {
+    return;
+  }
+  auto result = std::move(found->second);
+  pending_open_results_.erase(found);
+  result->Success(flutter::EncodableValue(worked));
+}
 
 WindowChannel::WindowChannel(flutter::BinaryMessenger* messenger, HWND window,
                              HWND view, const std::string& name)
@@ -477,7 +759,8 @@ WindowChannel::WindowChannel(flutter::BinaryMessenger* messenger, HWND window,
       view_(view),
       channel_(std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
           messenger, name,
-          &flutter::StandardMethodCodec::GetInstance())) {
+          &flutter::StandardMethodCodec::GetInstance())),
+      shell_worker_(std::make_shared<ShellWorker>()) {
   channel_->SetMethodCallHandler(
       [this](const flutter::MethodCall<flutter::EncodableValue>& call,
              std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>
@@ -487,6 +770,9 @@ WindowChannel::WindowChannel(flutter::BinaryMessenger* messenger, HWND window,
 // The engine outlives an IDE window's channel: its handler goes with it.
 WindowChannel::~WindowChannel() {
   channel_->SetMethodCallHandler(nullptr);
+  if (shell_worker_ != nullptr) {
+    shell_worker_->Stop();
+  }
 }
 
 void WindowChannel::HandleMethodCall(
@@ -725,22 +1011,24 @@ void WindowChannel::HandleMethodCall(
 
   if (method == "revealInFinder") {
     // The folder opened in File Explorer with the item selected, as
-    // Electron's shell.showItemInFolder does it (COM is up: OleInitialize,
-    // see main.cpp).
+    // Electron's shell.showItemInFolder does it.
+    //
+    // Answered at once, then run on the channel's STA shell worker: the
+    // shell's extensions are loaded into this process as it parses the path
+    // and calls File Explorer, and one that stalls (a cloud folder's, a
+    // drive's) holds whoever asked for seconds on end without answering a
+    // message — a Windows report shows 14 s in SHOpenFolderAndSelectItems.
+    // The windows' thread is Flutter's, and runs the app's Dart code too.
     const auto* path = call.arguments() == nullptr
                            ? nullptr
                            : std::get_if<std::string>(call.arguments());
-    bool revealed = false;
-    if (path != nullptr && !path->empty()) {
-      PIDLIST_ABSOLUTE item = nullptr;
-      if (SUCCEEDED(::SHParseDisplayName(Utf16FromUtf8(*path).c_str(), nullptr,
-                                         &item, 0, nullptr))) {
-        revealed =
-            SUCCEEDED(::SHOpenFolderAndSelectItems(item, 0, nullptr, 0));
-        ::CoTaskMemFree(item);
-      }
+    const std::wstring wide =
+        path == nullptr ? std::wstring() : Utf16FromUtf8(*path);
+    const bool asked = !wide.empty();
+    result->Success(flutter::EncodableValue(asked));
+    if (asked) {
+      shell_worker_->EnqueueReveal(wide);
     }
-    result->Success(flutter::EncodableValue(revealed));
     return;
   }
 
@@ -926,7 +1214,7 @@ void WindowChannel::ReportMaximized(bool maximized) {
 void WindowChannel::Open(
     const flutter::EncodableMap& arguments,
     std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
-  const std::string target = String(arguments, "target");
+  const std::wstring target = Utf16FromUtf8(String(arguments, "target"));
   if (target.empty()) {
     result->Success(flutter::EncodableValue(false));
     return;
@@ -938,38 +1226,19 @@ void WindowChannel::Open(
   // what the app is given (e.g. `wt -d folder`); otherwise the target is
   // what it opens. Without an app, the target itself is what opens, in
   // whatever the system opens it with (a URL, a folder, a file).
-  const std::string app = String(arguments, "app");
-  const std::vector<std::string> extras = Strings(arguments, "arguments");
-  std::vector<std::wstring> quoted;
-  if (!app.empty()) {
-    if (extras.empty()) {
-      quoted.push_back(Quoted(Utf16FromUtf8(target)));
-    } else {
-      for (const std::string& extra : extras) {
-        quoted.push_back(Quoted(Utf16FromUtf8(extra)));
-      }
-    }
-    const std::wstring found = FindOnPath(Utf16FromUtf8(app));
-    if (!found.empty() && StartWithoutConsole(found, quoted)) {
-      result->Success(flutter::EncodableValue(true));
-      return;
-    }
+  //
+  // Run on the channel's STA shell worker so PATH scans, CreateProcessW, or
+  // ShellExecuteW never block Flutter's UI/message thread; the boolean result
+  // is posted back and answered on this thread.
+  const std::wstring app = Utf16FromUtf8(String(arguments, "app"));
+  std::vector<std::wstring> extras;
+  for (const std::string& extra : Strings(arguments, "arguments")) {
+    extras.push_back(Utf16FromUtf8(extra));
   }
-
-  const std::wstring file = Utf16FromUtf8(app.empty() ? target : app);
-  std::wstring parameters;
-  for (const std::wstring& argument : quoted) {
-    if (!parameters.empty()) {
-      parameters += L' ';
-    }
-    parameters += argument;
+  const uint64_t request_id = ++next_open_id_;
+  pending_open_results_.emplace(request_id, std::move(result));
+  if (!shell_worker_->EnqueueOpen(request_id, window_, target, app,
+                                  std::move(extras))) {
+    CompleteOpen(request_id, false);
   }
-  const HINSTANCE opened =
-      ::ShellExecuteW(nullptr, L"open", file.c_str(),
-                      parameters.empty() ? nullptr : parameters.c_str(),
-                      nullptr, SW_SHOWNORMAL);
-  // ShellExecute answers a value above 32 when it worked, or an error code
-  // under it (33 and up are the codes it means).
-  const bool worked = reinterpret_cast<INT_PTR>(opened) > 32;
-  result->Success(flutter::EncodableValue(worked));
 }

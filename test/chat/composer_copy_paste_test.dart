@@ -13,6 +13,7 @@ import 'package:baocode/chat/widgets/user_message_bubble.dart';
 import 'package:baocode/l10n/l10n.dart';
 import 'package:baocode/platform/native_md_clipboard.dart';
 import 'package:baocode/theme/app_theme.dart';
+import 'package:baocode/workspace/window_controls.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -706,4 +707,24 @@ void main() {
     expect(sent.single.images.single.bytes, _pngA);
     expect(sent.single.text, contains('int foo() => 1;'));
   }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
+
+  testWidgets('WindowControls.readPasteboardText returns null when the '
+      'system clipboard is locked by another app', (tester) async {
+    final messenger = tester.binding.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.getData') {
+        throw PlatformException(
+          code: 'Clipboard error',
+          message: 'Unable to open clipboard',
+          details: 5,
+        );
+      }
+      return null;
+    });
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+
+    expect(await WindowControls.readPasteboardText(), isNull);
+  });
 }

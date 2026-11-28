@@ -24,6 +24,14 @@ import '../update/version.dart';
 ///
 /// Past [maxBytes], the file becomes `events.1.log` and a new one starts,
 /// so the latest events are always kept.
+///
+/// The file is opened once a run and kept open, and a line is written into
+/// it without flushing: opening and closing (and flushing past the
+/// system's cache) for every line is what stalls an app on a busy volume
+/// or behind a filter driver — on a Windows machine the windows' thread
+/// sat 58 s in CreateFileW, its Flutter and Dart with it, with the file
+/// opened and flushed once a line. [flush] is the one place that makes it
+/// all reach the disk.
 class EventLog {
   EventLog(
     this.directory, {
@@ -61,6 +69,7 @@ class EventLog {
 
   bool _started = false;
   int _size = 0;
+  RandomAccessFile? _file;
 
   /// Writes [message] under [category] (`window`, `theme`…), timed.
   void record(String category, String message) {
@@ -71,22 +80,70 @@ class EventLog {
     }
   }
 
-  void _write(String line) {
-    if (!_started) {
-      _started = true;
-      Directory(directory).createSync(recursive: true);
-      final file = File(path);
-      _size = file.existsSync() ? file.lengthSync() : 0;
-      final before = _runBefore(file);
-      _rollIfFull(0);
-      _append(
-        '--- BaoCode $appVersionString · ${Platform.operatingSystem} '
-        '${Platform.operatingSystemVersion} · pid $pid ---\n',
-      );
-      if (before != null) _append(_unannounced(before));
+  /// Puts what was written past the system's cache, on the disk: the quit's
+  /// last line, and the logs a diagnostics upload reads.
+  void flush() {
+    try {
+      _file?.flushSync();
+    } catch (_) {
+      // Already gone.
     }
-    _rollIfFull(line.length);
-    _append(line);
+  }
+
+  /// Flushes and releases the file: a test's, and the end's. What is
+  /// recorded after it opens the file again.
+  void close() {
+    flush();
+    _dropFile();
+  }
+
+  void _dropFile() {
+    final file = _file;
+    _file = null;
+    if (file == null) return;
+    try {
+      file.closeSync();
+    } catch (_) {
+      // Already gone.
+    }
+  }
+
+  void _write(String text) {
+    if (!_started) {
+      _start();
+      _started = true;
+    }
+    _append(text);
+  }
+
+  /// The file's header, and how the run before ended: read before the first
+  /// line, once a run.
+  void _start() {
+    Directory(directory).createSync(recursive: true);
+    final file = File(path);
+    _size = file.existsSync() ? file.lengthSync() : 0;
+    final before = _runBefore(file);
+    _rollIfFull(0);
+    _append(
+      '--- BaoCode $appVersionString · ${Platform.operatingSystem} '
+      '${Platform.operatingSystemVersion} · pid $pid ---\n'
+      '${before == null ? '' : _unannounced(before)}',
+    );
+  }
+
+  /// [text] onto the end of the file, which is opened if it is not open.
+  void _append(String text) {
+    final bytes = utf8.encode(text);
+    _rollIfFull(bytes.length);
+    final file = _file ??= File(path).openSync(mode: FileMode.append);
+    try {
+      file.writeFromSync(bytes);
+    } catch (_) {
+      // Release a broken handle so the next event can reopen the file.
+      _dropFile();
+      rethrow;
+    }
+    _size += bytes.length;
   }
 
   /// The run before's, from the end of [file], if it ended without a word:
@@ -139,17 +196,15 @@ class EventLog {
     }
   }
 
+  /// The file moved aside where [adding] would take it past [maxBytes], and
+  /// a new one started in its place.
   void _rollIfFull(int adding) {
     if (_size == 0 || _size + adding <= maxBytes) return;
+    close();
     final previous = File(previousPath);
     if (previous.existsSync()) previous.deleteSync();
     File(path).renameSync(previousPath);
     _size = 0;
-  }
-
-  void _append(String text) {
-    File(path).writeAsStringSync(text, mode: FileMode.append, flush: true);
-    _size += text.length;
   }
 }
 

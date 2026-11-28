@@ -8,9 +8,11 @@
 #include <flutter/method_result.h>
 #include <windows.h>
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "caption_areas.h"
@@ -58,6 +60,13 @@ class WindowChannel {
   WindowChannel(const WindowChannel&) = delete;
   WindowChannel& operator=(const WindowChannel&) = delete;
 
+  // Posted to the window to answer a background `open` on the platform thread.
+  static constexpr UINT kRunMessage = WM_APP + 0x47;
+
+  // Runs a kRunMessage's completion on the window's thread when |channel| is
+  // still alive, or frees it otherwise.
+  static void Run(LPARAM completion, WindowChannel* channel);
+
   // What the window hit-tests its header with (see CaptionAreas), at the
   // dpi it has now.
   std::optional<LRESULT> ButtonAt(POINT point) const {
@@ -87,6 +96,10 @@ class WindowChannel {
             std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>
                 result);
 
+  void CompleteOpen(uint64_t request_id, bool worked);
+
+  class ShellWorker;
+
   // The `growWindow` method: |width| and |height| more, in Flutter's pixels,
   // as far as the monitor's work area goes.
   void Grow(double width, double height);
@@ -110,6 +123,19 @@ class WindowChannel {
   bool maximized_ = false;
 
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> channel_;
+
+  // Runs blocking shell calls (`revealInFinder`, `open`) on a dedicated STA
+  // worker thread so shell extensions or process creation never freeze the
+  // window's message loop.
+  std::shared_ptr<ShellWorker> shell_worker_;
+
+  // Pending `open` method results, owned and answered only on the window's
+  // thread.
+  uint64_t next_open_id_ = 0;
+  std::unordered_map<
+      uint64_t,
+      std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>>
+      pending_open_results_;
 };
 
 #endif  // RUNNER_WINDOW_CHANNEL_H_

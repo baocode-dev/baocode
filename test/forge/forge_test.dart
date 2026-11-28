@@ -141,12 +141,17 @@ void main() {
       );
       expect(ForgeRef.parse('https://github.com/o/r/blob/main/a.dart'), isNull);
       expect(ForgeRef.parse('not a link'), isNull);
+      // Malformed / truncated percent-encoded UTF-8 sequences in URLs must
+      // return null instead of throwing FormatException from pathSegments.
+      expect(ForgeRef.parse('https://example.com/foo%E4%B8'), isNull);
+      expect(ForgeRef.parse('https://github.com/o/r/issues/1/%E4'), isNull);
     });
 
     test('every one a text links to, once each', () {
       final refs = ForgeRef.allIn(
         'Opened https://github.com/o/r/pull/7. See '
-        '(https://github.com/o/r/issues/3) and https://github.com/o/r/pull/7',
+        '(https://github.com/o/r/issues/3), https://example.com/bad%E4%B8 '
+        'and https://github.com/o/r/pull/7',
       );
       expect(refs.map((ref) => ref.fullTag), ['o/r#7', 'o/r#3']);
     });

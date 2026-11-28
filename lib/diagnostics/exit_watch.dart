@@ -27,6 +27,8 @@ void watchExitSignals() {
     try {
       signal.watch().listen((_) {
         appExit(signal.name);
+        // On the disk before the process goes, as the quit's line is.
+        EventLog.current?.flush();
         exit(128 + signal.signalNumber);
       });
     } on Object {

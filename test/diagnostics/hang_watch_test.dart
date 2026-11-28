@@ -10,6 +10,7 @@ void main() {
   late Directory folder;
   setUp(() => folder = Directory.systemTemp.createTempSync('hang_watch'));
   tearDown(() {
+    EventLog.current?.close();
     EventLog.current = null;
     folder.deleteSync(recursive: true);
   });

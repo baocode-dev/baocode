@@ -213,7 +213,15 @@ class ForgeRef {
     if (uri.host.isEmpty) return null;
     final host = forgeAuthority(uri);
     final scheme = uri.isScheme('http') ? 'http' : 'https';
-    final parts = uri.pathSegments.where((part) => part.isNotEmpty).toList();
+    // `Uri.tryParse` accepts malformed percent-escapes and decodes them lazily
+    // when `pathSegments` is read (e.g. a truncated UTF-8 sequence in a pasted
+    // or streamed URL).
+    final List<String> parts;
+    try {
+      parts = uri.pathSegments.where((part) => part.isNotEmpty).toList();
+    } on FormatException {
+      return null;
+    }
     final known = kindOf?.call(host) ?? publicForgeKind(host);
     // GitLab: <path>/-/(issues|merge_requests)/<n>, on any host but
     // GitHub's and Gitee's.
