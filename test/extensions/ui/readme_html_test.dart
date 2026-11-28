@@ -36,8 +36,11 @@ void main() {
 
   test('inline HTML in a paragraph', () {
     expect(
-      _html('Press <kbd>Ctrl</kbd> or <img src="k.png" alt="key">.'),
-      '<p>Press Ctrl or <img src="k.png" alt="key" />.</p>',
+      _html(
+        'Press <kbd>Ctrl</kbd>, <span>plain</span> or '
+        '<img src="k.png" alt="key">.',
+      ),
+      '<p>Press <kbd>Ctrl</kbd>, plain or <img src="k.png" alt="key" />.</p>',
     );
   });
 

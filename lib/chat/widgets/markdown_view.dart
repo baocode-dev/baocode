@@ -4,11 +4,13 @@ import 'package:markdown/markdown.dart' as md;
 import 'package:path/path.dart' as p;
 
 import '../../ide/ide_hover.dart';
+import '../../ide/ide_quick_input.dart' show IdeKeycap;
 import '../../theme/app_theme.dart';
 import '../../theme/codicons.dart';
 import '../../theme/material_file_icons.dart';
 import '../../theme/workbench_theme.dart' show WorkbenchThemeScope, themeColors;
 import '../../workspace/editor_launcher.dart';
+import '../selection/chat_selection.dart' show ChatUnselectable;
 import '../side_panel/file_link.dart';
 import '../side_panel/file_link_menu.dart';
 import '../composer/composer_embeds.dart' show FileImageChip;
@@ -19,9 +21,11 @@ import 'hover_scrollbar.dart';
 import 'inline_code.dart';
 import 'lazy_segment.dart';
 import 'markdown_cjk.dart';
+import 'markdown_html.dart';
 import 'markdown_math.dart';
 import 'markdown_tags.dart';
 import 'mermaid_code_block.dart';
+import 'selectable_token.dart';
 import 'table_selection.dart';
 import 'will_change_paint.dart';
 
@@ -51,6 +55,7 @@ class MarkdownView extends StatefulWidget {
   ];
   static List<md.InlineSyntax> get inlineSyntaxes => [
     InlineMathSyntax(),
+    InlineHtmlElementSyntax(),
     CjkEmphasisSyntax(),
     _SpacedLocalImageSyntax(),
     _SpacedLocalLinkSyntax(),
@@ -1061,10 +1066,13 @@ TextSpan _inlines(
   MarkdownOptions options,
 ) => TextSpan(
   style: style,
-  children: [for (final node in nodes) _inline(node, options)],
+  children: [for (final node in nodes) _inline(node, style, options)],
 );
 
-InlineSpan _inline(md.Node node, MarkdownOptions options) {
+Color get _markBackground =>
+    themeColors.dark ? const Color(0x4DEAB308) : const Color(0x66FDE047);
+
+InlineSpan _inline(md.Node node, TextStyle style, MarkdownOptions options) {
   if (node is md.Text) {
     // A comment is the writer's note, not shown (as HTML has it); the
     // parser joins it to the text after it.
@@ -1075,8 +1083,8 @@ InlineSpan _inline(md.Node node, MarkdownOptions options) {
   }
   if (node is! md.Element) return const TextSpan();
   final children = node.children ?? const <md.Node>[];
-  List<InlineSpan> inner() => [
-    for (final child in children) _inline(child, options),
+  List<InlineSpan> inner([TextStyle? next]) => [
+    for (final child in children) _inline(child, next ?? style, options),
   ];
   if (node.tag == 'a') {
     final href = node.attributes['href'];
@@ -1091,15 +1099,37 @@ InlineSpan _inline(md.Node node, MarkdownOptions options) {
         fontWeight: FontWeight.w600,
         color: AppColors.textPrimary,
       ),
-      children: inner(),
+      children: inner(
+        style.copyWith(fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+      ),
     ),
     'em' || 'i' => TextSpan(
       style: const TextStyle(fontStyle: FontStyle.italic),
+      children: inner(style.copyWith(fontStyle: FontStyle.italic)),
+    ),
+    'del' || 's' || 'strike' => TextSpan(
+      style: const TextStyle(decoration: TextDecoration.lineThrough),
+      children: inner(style.copyWith(decoration: TextDecoration.lineThrough)),
+    ),
+    'u' || 'ins' => TextSpan(
+      style: const TextStyle(decoration: TextDecoration.underline),
+      children: inner(style.copyWith(decoration: TextDecoration.underline)),
+    ),
+    'mark' => InlineCodeSpan(
+      background: _markBackground,
+      horizontalPadding: 2,
       children: inner(),
     ),
-    'del' => TextSpan(
-      style: const TextStyle(decoration: TextDecoration.lineThrough),
-      children: inner(),
+    'kbd' => _kbdSpan(_unescape(node.textContent)),
+    'sub' || 'sup' => _scriptSpan(
+      children,
+      style,
+      options,
+      superScript: node.tag == 'sup',
+      footnote:
+          node.tag == 'sup' &&
+          (node.attributes['class'] == 'footnote-ref' ||
+              node.attributes.containsKey('id')),
     ),
     'code' => switch (options.code?.call(_unescape(node.textContent))) {
       // A file's: in the link's color, its icon first in the background.
@@ -1133,12 +1163,13 @@ InlineSpan _inline(md.Node node, MarkdownOptions options) {
         children: [
           if (options.linkIcon?.call(node.attributes['href']) case final icon?)
             _linkIcon(icon, recognizer, const EdgeInsets.only(right: 3)),
-          for (final span in inner()) _linked(span, recognizer),
+          for (final span in inner(style.copyWith(color: AppColors.accent)))
+            _linked(span, recognizer),
         ],
       ),
       null => TextSpan(
         style: TextStyle(color: AppColors.accent),
-        children: inner(),
+        children: inner(style.copyWith(color: AppColors.accent)),
       ),
     },
     'math' => WidgetSpan(
@@ -1163,6 +1194,45 @@ InlineSpan _inline(md.Node node, MarkdownOptions options) {
     },
     _ => TextSpan(children: inner()),
   };
+}
+
+WidgetSpan _kbdSpan(String label) => WidgetSpan(
+  alignment: PlaceholderAlignment.middle,
+  child: SelectableToken(
+    text: label,
+    child: ChatUnselectable(child: IdeKeycap(label)),
+  ),
+);
+
+InlineSpan _scriptSpan(
+  List<md.Node> children,
+  TextStyle style,
+  MarkdownOptions options, {
+  required bool superScript,
+  bool footnote = false,
+}) {
+  if (children.isEmpty) return const TextSpan();
+  final baseSize = style.fontSize ?? MarkdownView.baseStyle.fontSize!;
+  final scriptStyle = style.copyWith(
+    fontSize: baseSize * 0.75,
+    height: 1.0,
+    color: footnote ? AppColors.accent : null,
+  );
+  final dy = superScript ? -baseSize * 0.35 : baseSize * 0.2;
+  final plain = _unescape(children.map((c) => c.textContent).join());
+  return WidgetSpan(
+    alignment: PlaceholderAlignment.baseline,
+    baseline: TextBaseline.alphabetic,
+    child: Transform.translate(
+      offset: Offset(0, dy),
+      child: SelectableToken(
+        text: plain,
+        child: ChatUnselectable(
+          child: InlineCodeText(_inlines(children, scriptStyle, options)),
+        ),
+      ),
+    ),
+  );
 }
 
 /// Opens [href] in the default browser (or mail app). Only web and mail
@@ -1224,18 +1294,32 @@ WidgetSpan _linkIcon(
 /// innermost span, which does not inherit its parent's recognizer.
 InlineSpan _linked(InlineSpan span, GestureRecognizer recognizer) =>
     switch (span) {
-      // Code in a link keeps its background, and goes where the link does.
-      InlineCodeSpan(:final text, :final style) => InlineCodeSpan(
-        text: text,
-        style: style,
-        recognizer: recognizer,
-        mouseCursor: SystemMouseCursors.click,
-      ),
-      // An image in a link (`[![alt](src)](href)`).
-      WidgetSpan(:final child, :final alignment)
+      // Code (or mark) in a link keeps its background, and goes where the link
+      // does.
+      InlineCodeSpan(
+        :final text,
+        :final style,
+        :final children,
+        :final background,
+        :final horizontalPadding,
+      ) =>
+        InlineCodeSpan(
+          text: text,
+          style: style,
+          background: background,
+          horizontalPadding: horizontalPadding,
+          recognizer: recognizer,
+          mouseCursor: SystemMouseCursors.click,
+          children: children == null
+              ? null
+              : [for (final child in children) _linked(child, recognizer)],
+        ),
+      // An image or token in a link (`[![alt](src)](href)`).
+      WidgetSpan(:final child, :final alignment, :final baseline)
           when recognizer is TapGestureRecognizer =>
         WidgetSpan(
           alignment: alignment,
+          baseline: baseline,
           child: MouseRegion(
             cursor: SystemMouseCursors.click,
             child: GestureDetector(onTap: recognizer.onTap, child: child),

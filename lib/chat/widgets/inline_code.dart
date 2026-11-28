@@ -4,7 +4,8 @@ import 'package:flutter/widgets.dart';
 import '../../theme/app_theme.dart';
 import '../chat_find.dart' show ChatFindMarks;
 
-/// Inline code: its text, on `textPreformat.background` painted by the
+/// Inline code (or another inline highlight such as `<mark>`): its text, on
+/// `textPreformat.background` (or [background]) painted by the
 /// [InlineCodeText] it is in.
 class InlineCodeSpan extends TextSpan {
   const InlineCodeSpan({
@@ -13,7 +14,16 @@ class InlineCodeSpan extends TextSpan {
     super.children,
     super.recognizer,
     super.mouseCursor,
+    this.background,
+    this.horizontalPadding = 0,
   });
+
+  /// Overrides [InlineCodeText]'s default code background when non-null.
+  final Color? background;
+
+  /// Extra horizontal backdrop padding on each side, for highlights without
+  /// space padding (such as `<mark>`).
+  final double horizontalPadding;
 }
 
 /// [span] as [Text.rich] does, its [InlineCodeSpan]s on their background.
@@ -87,17 +97,41 @@ class RenderInlineCodeBackdrop extends RenderProxyBox {
   }
 
   /// Where in [span]'s text each [InlineCodeSpan] is.
-  static List<TextSelection> codeRanges(InlineSpan span) {
-    final ranges = <TextSelection>[];
+  static List<TextSelection> codeRanges(InlineSpan span) => [
+    for (final entry in _backdropRanges(span)) entry.range,
+  ];
+
+  static List<
+    ({TextSelection range, Color? color, double horizontalPadding})
+  >
+  _backdropRanges(InlineSpan span) {
+    final ranges =
+        <({TextSelection range, Color? color, double horizontalPadding})>[];
     var at = 0;
     void walk(InlineSpan span) {
       switch (span) {
         case TextSpan(:final text, :final children):
           final start = at;
+          final slot = span is InlineCodeSpan ? ranges.length : -1;
+          if (span is InlineCodeSpan) {
+            ranges.add((
+              range: const TextSelection.collapsed(offset: 0),
+              color: span.background,
+              horizontalPadding: span.horizontalPadding,
+            ));
+          }
           at += text?.length ?? 0;
           children?.forEach(walk);
-          if (span is InlineCodeSpan && at > start) {
-            ranges.add(TextSelection(baseOffset: start, extentOffset: at));
+          if (slot != -1) {
+            if (at > start) {
+              ranges[slot] = (
+                range: TextSelection(baseOffset: start, extentOffset: at),
+                color: ranges[slot].color,
+                horizontalPadding: ranges[slot].horizontalPadding,
+              );
+            } else {
+              ranges.removeAt(slot);
+            }
           }
         case PlaceholderSpan():
           // Its object replacement character.
@@ -122,15 +156,47 @@ class RenderInlineCodeBackdrop extends RenderProxyBox {
     return TextSelection(baseOffset: start, extentOffset: end);
   }
 
+  /// Whether [a] and [b] lie on the same line: their vertical overlap covers
+  /// more than half of the shorter box, so touching lines with tall fallback
+  /// glyphs stay separate.
+  static bool _sameLine(Rect a, Rect b) {
+    final overlap =
+        (a.bottom < b.bottom ? a.bottom : b.bottom) -
+        (a.top > b.top ? a.top : b.top);
+    if (overlap <= 0) return false;
+    final shorter = a.height < b.height ? a.height : b.height;
+    return overlap > shorter * 0.5;
+  }
+
+  /// Merges [rects] on the same line (such as runs split across monospace and
+  /// CJK fallback fonts, or an inline icon) into one bounding box per line.
+  @visibleForTesting
+  static List<Rect> mergeLineRects(Iterable<Rect> rects) {
+    final merged = <Rect>[];
+    for (final rect in rects) {
+      if (rect.isEmpty) continue;
+      final index = merged.indexWhere((line) => _sameLine(line, rect));
+      if (index == -1) {
+        merged.add(rect);
+      } else {
+        merged[index] = merged[index].expandToInclude(rect);
+      }
+    }
+    return merged;
+  }
+
   @override
   void paint(PaintingContext context, Offset offset) {
-    if (_paragraph case final paragraph? when _color.a > 0) {
-      final ranges = codeRanges(paragraph.text);
+    if (_paragraph case final paragraph?) {
+      final ranges = _backdropRanges(paragraph.text);
       if (ranges.isNotEmpty) {
         final transform = paragraph.getTransformTo(this);
-        final paint = Paint()..color = _color;
         final text = paragraph.text.toPlainText(includeSemanticsLabels: false);
-        for (final range in ranges) {
+        for (final entry in ranges) {
+          final color = entry.color ?? _color;
+          if (color.a <= 0) continue;
+          final paint = Paint()..color = color;
+          final range = entry.range;
           // A line may break after the code's leading space: that space alone
           // at the end of the line above is no code, so it gets no background.
           final lines = [
@@ -139,12 +205,23 @@ class RenderInlineCodeBackdrop extends RenderProxyBox {
             ))
               box.toRect(),
           ];
-          bool onCodeLine(Rect rect) => lines.any(
-            (line) => line.top < rect.bottom && rect.top < line.bottom,
-          );
-          for (final box in paragraph.getBoxesForSelection(range)) {
-            if (!onCodeLine(box.toRect())) continue;
-            final rect = MatrixUtils.transformRect(transform, box.toRect());
+          bool onCodeLine(Rect rect) =>
+              lines.any((line) => _sameLine(line, rect));
+          final boxes = [
+            for (final box in paragraph.getBoxesForSelection(range))
+              if (onCodeLine(box.toRect())) box.toRect(),
+          ];
+          final pad = entry.horizontalPadding;
+          for (final box in mergeLineRects(boxes)) {
+            var rect = MatrixUtils.transformRect(transform, box);
+            if (pad > 0) {
+              rect = Rect.fromLTRB(
+                rect.left - pad,
+                rect.top,
+                rect.right + pad,
+                rect.bottom,
+              );
+            }
             context.canvas.drawRRect(
               RRect.fromRectAndRadius(rect.shift(offset), radius),
               paint,

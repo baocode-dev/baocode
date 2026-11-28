@@ -6,7 +6,9 @@ import 'package:markdown/markdown.dart' as md;
 import 'package:baocode/chat/chat_find.dart';
 import 'package:baocode/chat/side_panel/file_link_menu.dart';
 import 'package:baocode/chat/side_panel/file_open.dart';
+import 'package:baocode/chat/widgets/inline_code.dart';
 import 'package:baocode/chat/widgets/markdown_view.dart';
+import 'package:baocode/ide/ide_quick_input.dart' show IdeKeycap;
 import 'package:baocode/theme/material_file_icons.dart';
 
 Future<void> pumpMarkdown(WidgetTester tester, String data) =>
@@ -809,6 +811,73 @@ void main() {
       );
       expect(segmented, whole);
       expect(high, moreOrLessEquals(wholeHigh, epsilon: 0.01));
+    });
+  });
+
+  group('inline HTML', () {
+    testWidgets('renders kbd, sub, sup and mark without raw tags', (
+      tester,
+    ) async {
+      await pumpMarkdown(
+        tester,
+        '- 行内 HTML 混合：<kbd>Cmd</kbd> + <kbd>K</kbd>，'
+        '<sub>下标</sub> 与 <sup>上标</sup>，<mark>高亮</mark>',
+      );
+      expect(find.textContaining('<kbd>', findRichText: true), findsNothing);
+      expect(find.textContaining('<sub>', findRichText: true), findsNothing);
+      expect(find.textContaining('<sup>', findRichText: true), findsNothing);
+      expect(find.textContaining('<mark>', findRichText: true), findsNothing);
+
+      final keycaps = tester.widgetList<IdeKeycap>(find.byType(IdeKeycap));
+      expect(keycaps.map((k) => k.label).toList(), ['Cmd', 'K']);
+      expect(find.text('下标', findRichText: true), findsOneWidget);
+      expect(find.text('上标', findRichText: true), findsOneWidget);
+      expect(find.textContaining('高亮', findRichText: true), findsOneWidget);
+
+      // `<mark>` paints as an InlineCodeSpan with its own highlight color.
+      final marks = <InlineCodeSpan>[];
+      void collect(InlineSpan span) {
+        if (span is InlineCodeSpan && span.background != null) {
+          marks.add(span);
+        }
+        if (span is TextSpan) span.children?.forEach(collect);
+      }
+
+      for (final text in tester.widgetList<RichText>(find.byType(RichText))) {
+        collect(text.text);
+      }
+      expect(marks, hasLength(1));
+      expect(marks.single.toPlainText(), '高亮');
+      final markParagraph = tester.widget<RichText>(
+        find.textContaining('高亮', findRichText: true),
+      );
+      expect(RenderInlineCodeBackdrop.codeRanges(markParagraph.text), [
+        isA<TextSelection>(),
+      ]);
+    });
+
+    test('leaves autolinks, unclosed tags and code-wrapped tags alone', () {
+      final doc = MarkdownView.document(tags: true);
+      final html = md.renderToHtml(
+        doc.parse(
+          '<https://baocode.dev> `a <kbd>x</kbd>` <sub>open '
+          '<mark>`</mark>` ok</mark>',
+        ),
+      );
+      expect(html, contains('<a href="https://baocode.dev">'));
+      expect(html, contains('<code>a <kbd>x</kbd></code>'));
+      expect(html, contains('<sub>open '));
+      expect(html, contains('<mark><code></mark></code> ok</mark>'));
+    });
+
+    test('copyText strips inline HTML tags and preserves text', () {
+      expect(
+        MarkdownView.copyText(
+          '<kbd>Cmd</kbd> + <kbd>K</kbd>，<sub>下标</sub> 与 <sup>上标</sup>，'
+          '<mark>高亮</mark>',
+        ),
+        'Cmd + K，下标 与 上标，高亮',
+      );
     });
   });
 }

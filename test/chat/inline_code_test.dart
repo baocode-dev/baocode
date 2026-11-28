@@ -127,4 +127,71 @@ void main() {
     // The code, on the second.
     expect(at(30, 30), isNot(0));
   });
+
+  test('mergeLineRects merges runs on the same line and keeps lines separate', () {
+    // Leading monospace space, taller CJK fallback run, trailing monospace space
+    // on line 1, plus a wrapped run on line 2 whose top slightly touches line 1.
+    final merged = RenderInlineCodeBackdrop.mergeLineRects(const [
+      Rect.fromLTRB(10, 2, 18, 16),
+      Rect.fromLTRB(18, 0, 44, 18),
+      Rect.fromLTRB(44, 2, 52, 16),
+      Rect.fromLTRB(0, 17, 30, 35),
+      Rect.fromLTRB(30, 19, 38, 33),
+    ]);
+    expect(merged, const [
+      Rect.fromLTRB(10, 0, 52, 18),
+      Rect.fromLTRB(0, 17, 38, 35),
+    ]);
+  });
+
+  testWidgets('mixed-size runs inside one InlineCodeSpan paint one unified '
+      'rectangle with uniform height', (tester) async {
+    final key = GlobalKey();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Align(
+          alignment: Alignment.topLeft,
+          child: RepaintBoundary(
+            key: key,
+            child: const InlineCodeText(
+              TextSpan(
+                style: TextStyle(color: _hidden, fontSize: 20),
+                children: [
+                  InlineCodeSpan(
+                    children: [
+                      TextSpan(text: ' ', style: TextStyle(fontSize: 12)),
+                      TextSpan(text: 'ab', style: TextStyle(fontSize: 24)),
+                      TextSpan(text: ' ', style: TextStyle(fontSize: 12)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final boundary =
+        key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+    final data = (await tester.runAsync(() async {
+      final image = await boundary.toImage();
+      return image.toByteData();
+    }))!;
+    final width = boundary.size.width.round();
+    final height = boundary.size.height.round();
+    int alphaAt(int x, int y) => data.getUint8((y * width + x) * 4 + 3);
+
+    // Top row of the merged box (where the taller middle run reaches, well
+    // above the shorter 12px leading/trailing spaces): should be painted over
+    // the leading and trailing space columns too, not indented into 3 pills.
+    final paintedRows = <int>[
+      for (var y = 0; y < height; y++)
+        if (alphaAt(width ~/ 2, y) > 0) y,
+    ];
+    expect(paintedRows, isNotEmpty);
+    final nearTop = paintedRows.first + 4;
+    expect(alphaAt(4, nearTop), greaterThan(0));
+    expect(alphaAt(width - 5, nearTop), greaterThan(0));
+  });
 }
