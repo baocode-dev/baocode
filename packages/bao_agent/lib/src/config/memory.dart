@@ -3,8 +3,10 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../tools/glob_pattern.dart';
+import '../util/json.dart';
 import 'frontmatter.dart';
 import 'paths.dart';
+import 'settings.dart';
 
 /// Whose a memory file is.
 enum MemoryType { managed, user, project, local, auto }
@@ -50,6 +52,33 @@ class MemoryLoader {
 
   /// The lines of the agent's memory index read, at most.
   static const maxAutoMemoryLines = 200;
+
+  /// The folder the agent's own memory of [cwd] is kept in; null when
+  /// turned off (`autoMemoryEnabled`, `CLAUDE_CODE_DISABLE_AUTO_MEMORY`).
+  static String? autoMemoryDir({
+    required AgentPaths paths,
+    required AgentSettings settings,
+    required Map<String, String> environment,
+    required String cwd,
+  }) {
+    if (settings['autoMemoryEnabled'] == false) return null;
+    final off =
+        settings.env['CLAUDE_CODE_DISABLE_AUTO_MEMORY'] ??
+        environment['CLAUDE_CODE_DISABLE_AUTO_MEMORY'];
+    if (off != null && off.isNotEmpty && off != '0' && off != 'false') {
+      return null;
+    }
+    if (asText(settings['autoMemoryDirectory']) case final dir?) {
+      return p.normalize(paths.expandHome(dir));
+    }
+    String realCwd;
+    try {
+      realCwd = Directory(cwd).resolveSymbolicLinksSync();
+    } on FileSystemException {
+      realCwd = cwd;
+    }
+    return p.join(paths.projectDir(realCwd), 'memory');
+  }
 
   /// The files for [cwd] and the [additional] folders (whose own files are
   /// read when [readAdditional]), and the agent's memory index at

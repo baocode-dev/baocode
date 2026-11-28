@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:bao_agent/bao_agent.dart'
     show AgentPaths, ForeignBrief, SessionStore, newUuid;
 import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:path/path.dart' as p;
 
 import '../acp/acp_connection.dart';
 import '../acp/mcp_endpoint.dart';
@@ -670,7 +671,7 @@ class AgyTransport implements ClaudeCodeTransport {
 
   /// What agy is told past its own prompt, as the session starts: how the
   /// chat cites code and draws Markdown, the workspace's instructions, and
-  /// the user's rules and skills as Claude Code has them.
+  /// the user's rules, auto memory, and skills as Claude Code has them.
   String _appendedPrompt() => [
     ClaudeLaunch.appendedSystemPrompt,
     if (launch.instructions case final text? when text.isNotEmpty) text,
@@ -681,7 +682,7 @@ class AgyTransport implements ClaudeCodeTransport {
         'conversation with another model while you were not in it.',
   ].join('\n\n');
 
-  ForeignBrief _brief() {
+  ForeignBrief _brief({bool prepareAutoMemory = true}) {
     try {
       return ForeignBrief.of(
         environment: _environment,
@@ -689,6 +690,7 @@ class AgyTransport implements ClaudeCodeTransport {
         additional: launch.directories,
         readAdditional: launch.folderInstructions,
         flagSettings: launch.settings,
+        prepareAutoMemory: prepareAutoMemory,
       );
     } on Object {
       return const ForeignBrief();
@@ -898,6 +900,7 @@ class AgyTransport implements ClaudeCodeTransport {
   Future<bool> _allows(_Call call) async {
     final input = call.input;
     if (_mode == 'bypassPermissions') return true;
+    if (call.edits && _isAutoMemory(call)) return true;
     if (call.edits && (_mode == 'acceptEdits' || _mode == 'auto')) return true;
     if (call.acp.kind case 'read' || 'search' || 'fetch') return true;
     final command = input['command'] as String?;
@@ -951,6 +954,37 @@ class AgyTransport implements ClaudeCodeTransport {
       }
     }
     return true;
+  }
+
+  /// Whether [call] writes inside the project's auto memory folder, which
+  /// the agent may always update without prompting.
+  bool _isAutoMemory(_Call call) {
+    final dir = (_toldBrief ??= _brief(prepareAutoMemory: false)).autoMemoryDir;
+    if (dir == null) return false;
+    final target =
+        call.input['file_path'] as String? ??
+        call.acp.diff?.path ??
+        call.acp.path;
+    if (target == null || target.isEmpty) return false;
+    final normalizedDir = p.normalize(dir);
+    final normalizedTarget = p.normalize(
+      p.isAbsolute(target) ? target : p.join(launch.cwd, target),
+    );
+    if (p.isWithin(normalizedDir, normalizedTarget)) return true;
+    return p.isWithin(_realPath(normalizedDir), _realPath(normalizedTarget));
+  }
+
+  static String _realPath(String path) {
+    try {
+      return File(path).resolveSymbolicLinksSync();
+    } on FileSystemException {
+      try {
+        final parent = Directory(p.dirname(path)).resolveSymbolicLinksSync();
+        return p.join(parent, p.basename(path));
+      } on FileSystemException {
+        return path;
+      }
+    }
   }
 
   int _requests = 0;
@@ -1100,7 +1134,7 @@ class AgyTransport implements ClaudeCodeTransport {
   Map<String, Object?> _contextUsage() => agyContextUsage(
     used: _used ?? 0,
     size: _size ?? launch.autocompact ?? 0,
-    brief: _toldBrief ??= _brief(),
+    brief: _toldBrief ??= _brief(prepareAutoMemory: false),
     chain: _store.chain,
     handedOff: _handedOff,
   );

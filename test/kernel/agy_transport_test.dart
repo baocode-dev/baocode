@@ -1103,4 +1103,159 @@ void main() {
       second.close();
     },
   );
+
+  test(
+    'auto memory: MEMORY.md and instructions injected, memory edits auto-allowed',
+    () async {
+      final realCwd = Directory(cwd).resolveSymbolicLinksSync();
+      final projectDirName = realCwd.replaceAll(RegExp('[^a-zA-Z0-9]'), '-');
+      final memoryDir =
+          '${home.path}/.claude/projects/$projectDirName/memory';
+      final memoryIndex = File('$memoryDir/MEMORY.md');
+      memoryIndex.parent.createSync(recursive: true);
+      memoryIndex.writeAsStringSync('- [Prefs](prefs.md) — reply in Chinese\n');
+
+      final memoryEditFile = '$memoryDir/prefs.md';
+      final projectEditFile = '$cwd/app.dart';
+
+      Future<Object?> agent(FakeAgent agent, String method, Map params) async {
+        switch (method) {
+          case 'initialize':
+            return {'protocolVersion': 1};
+          case 'session/new':
+            return {'sessionId': 'agy-mem'};
+          case 'session/set_config_option':
+            return {};
+          case 'session/prompt':
+            final session = params['sessionId'] as String;
+            agent.say(session, {
+              'sessionUpdate': 'usage_update',
+              'used': 5000,
+              'size': 200000,
+            });
+            // 1. Writing inside autoMemoryDir: allowed without asking the user.
+            agent.say(session, {
+              'sessionUpdate': 'tool_call',
+              'toolCallId': 'mem-edit',
+              'name': 'write_file',
+              'kind': 'edit',
+              'status': 'pending',
+              'rawInput': {
+                'Path': memoryEditFile,
+                'Content': 'remember this',
+              },
+            });
+            final memAnswer = await agent.ask('session/request_permission', {
+              'sessionId': session,
+              'toolCall': {'toolCallId': 'mem-edit'},
+              'options': [
+                {'optionId': 'allow', 'kind': 'allow_once', 'name': 'Allow'},
+                {'optionId': 'deny', 'kind': 'reject_once', 'name': 'Deny'},
+              ],
+            });
+            expect(
+              ((memAnswer! as Map)['outcome'] as Map)['optionId'],
+              'allow',
+            );
+            agent.say(session, {
+              'sessionUpdate': 'tool_call_update',
+              'toolCallId': 'mem-edit',
+              'status': 'completed',
+            });
+            // 2. Writing outside autoMemoryDir: still prompts in default mode.
+            agent.say(session, {
+              'sessionUpdate': 'tool_call',
+              'toolCallId': 'proj-edit',
+              'name': 'write_file',
+              'kind': 'edit',
+              'status': 'pending',
+              'rawInput': {
+                'Path': projectEditFile,
+                'Content': 'void main() {}',
+              },
+            });
+            await agent.ask('session/request_permission', {
+              'sessionId': session,
+              'toolCall': {'toolCallId': 'proj-edit'},
+              'options': [
+                {'optionId': 'allow', 'kind': 'allow_once', 'name': 'Allow'},
+                {'optionId': 'deny', 'kind': 'reject_once', 'name': 'Deny'},
+              ],
+            });
+            agent.say(session, {
+              'sessionUpdate': 'tool_call_update',
+              'toolCallId': 'proj-edit',
+              'status': 'completed',
+            });
+            agent.say(session, {
+              'sessionUpdate': 'agent_message_chunk',
+              'content': {'type': 'text', 'text': 'Saved.'},
+            });
+            return {'stopReason': 'end_turn'};
+        }
+        return {};
+      }
+
+      final runtime = FakeRuntime(() => FakeAgent(agent));
+      final transport = await AgyTransport.start(
+        ClaudeLaunch(
+          cwd: cwd,
+          model: 'gemini-4-neon',
+          permissionMode: 'default',
+        ),
+        runtime: runtime,
+      );
+      final kernel = Kernel(transport);
+      await kernel.send('remember my preference');
+
+      // System prompt carries both MEMORY.md and # Memory write instructions.
+      final created = runtime.started.single.requests
+          .firstWhere((r) => r.$1 == 'session/new')
+          .$2;
+      final appended =
+          (((created['_meta'] as Map)['antigravity'] as Map)['systemPrompt']
+                  as Map)['append']
+              as String;
+      expect(appended, contains('reply in Chinese'));
+      expect(appended, contains('# Memory'));
+      expect(appended, contains(memoryDir));
+
+      // Context usage lists MEMORY.md as an auto memory file.
+      transport.write({
+        'type': 'control_request',
+        'request_id': 'ctx-mem',
+        'request': {'subtype': 'get_context_usage'},
+      });
+      while (!kernel.seen.any(
+        (m) =>
+            m['type'] == 'control_response' &&
+            (m['response'] as Map?)?['request_id'] == 'ctx-mem',
+      )) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      final ctxResponse = kernel.seen.lastWhere(
+        (m) =>
+            m['type'] == 'control_response' &&
+            (m['response'] as Map?)?['request_id'] == 'ctx-mem',
+      );
+      final usage =
+          ((ctxResponse['response'] as Map)['response'] as Map)
+              .cast<String, Object?>();
+      final memoryFiles = (usage['memoryFiles'] as List).cast<Map>();
+      expect(
+        memoryFiles.any(
+          (f) => f['type'] == 'auto' && f['path'] == memoryIndex.path,
+        ),
+        isTrue,
+      );
+
+      // Only the project edit prompted can_use_tool; the memory edit did not.
+      final asked = kernel.asked
+          .where((r) => r['subtype'] == 'can_use_tool')
+          .toList();
+      expect(asked, hasLength(1));
+      expect((asked.single['input'] as Map)['file_path'], projectEditFile);
+      transport.close();
+    },
+  );
 }

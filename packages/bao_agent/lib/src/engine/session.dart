@@ -296,17 +296,12 @@ class AgentSession {
   /// The folder the agent's own memory of this project is kept in; null
   /// when that is turned off (`autoMemoryEnabled`,
   /// `CLAUDE_CODE_DISABLE_AUTO_MEMORY`).
-  String? get autoMemoryDir {
-    if (settings['autoMemoryEnabled'] == false) return null;
-    final off = environment['CLAUDE_CODE_DISABLE_AUTO_MEMORY'];
-    if (off != null && off.isNotEmpty && off != '0' && off != 'false') {
-      return null;
-    }
-    if (asText(settings['autoMemoryDirectory']) case final dir?) {
-      return p.normalize(paths.expandHome(dir));
-    }
-    return p.join(paths.projectDir(_realCwd), 'memory');
-  }
+  String? get autoMemoryDir => MemoryLoader.autoMemoryDir(
+    paths: paths,
+    settings: settings,
+    environment: environment,
+    cwd: _realCwd,
+  );
 
   /// [cwd] with its links followed, as the memory folder is named after.
   late final String _realCwd = () {

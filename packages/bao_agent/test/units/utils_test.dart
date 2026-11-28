@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:bao_agent/src/config/foreign_brief.dart';
 import 'package:bao_agent/src/config/frontmatter.dart';
 import 'package:bao_agent/src/config/memory.dart';
 import 'package:bao_agent/src/config/paths.dart';
@@ -242,6 +243,78 @@ void main() {
         'Rule Z.',
       ]);
       expect(MemoryLoader(paths).nested(p.join(cwd, 'lib'), {}), isEmpty);
+    });
+
+    test('ForeignBrief includes auto memory index, instructions, and toggles', () {
+      final cwd = p.join(root.path, 'work', 'app');
+      Directory(cwd).createSync(recursive: true);
+      final env = {
+        'HOME': paths.home,
+        'CLAUDE_CONFIG_DIR': paths.configDir,
+      };
+      final realCwd = Directory(cwd).resolveSymbolicLinksSync();
+      final expectedDir = p.join(paths.projectDir(realCwd), 'memory');
+
+      // prepareAutoMemory: false does not create the folder yet.
+      final dry = ForeignBrief.of(
+        environment: env,
+        cwd: cwd,
+        prepareAutoMemory: false,
+      );
+      expect(dry.autoMemoryDir, expectedDir);
+      expect(Directory(expectedDir).existsSync(), isFalse);
+      expect(dry.text, allOf(contains('# Memory'), contains(expectedDir)));
+
+      // Default prepares the folder and includes # Memory instructions.
+      final fresh = ForeignBrief.of(environment: env, cwd: cwd);
+      expect(Directory(expectedDir).existsSync(), isTrue);
+      expect(fresh.text, allOf(contains('# Memory'), contains(expectedDir)));
+      expect(fresh.files, isEmpty);
+
+      // Existing MEMORY.md is loaded as an auto memory file.
+      final indexFile = File(p.join(expectedDir, 'MEMORY.md'));
+      indexFile.writeAsStringSync('- [Prefs](prefs.md) — speak Chinese\n');
+      final loaded = ForeignBrief.of(environment: env, cwd: cwd);
+      expect(
+        loaded.files.any(
+          (f) => f.type == 'auto' && f.path == indexFile.path,
+        ),
+        isTrue,
+      );
+      expect(
+        loaded.text,
+        allOf(contains('speak Chinese'), contains('# Memory')),
+      );
+
+      // Disabled via flagSettings.autoMemoryEnabled = false.
+      final offBySetting = ForeignBrief.of(
+        environment: env,
+        cwd: cwd,
+        flagSettings: const {'autoMemoryEnabled': false},
+      );
+      expect(offBySetting.autoMemoryDir, isNull);
+      expect(offBySetting.files, isEmpty);
+      expect(offBySetting.text, isNull);
+
+      // Disabled via CLAUDE_CODE_DISABLE_AUTO_MEMORY env var.
+      final offByEnv = ForeignBrief.of(
+        environment: {...env, 'CLAUDE_CODE_DISABLE_AUTO_MEMORY': '1'},
+        cwd: cwd,
+      );
+      expect(offByEnv.autoMemoryDir, isNull);
+      expect(offByEnv.text, isNull);
+
+      // Custom autoMemoryDirectory setting.
+      final customDir = p.join(root.path, 'custom-mem');
+      Directory(customDir).createSync(recursive: true);
+      File(p.join(customDir, 'MEMORY.md')).writeAsStringSync('- [X](x.md)\n');
+      final custom = ForeignBrief.of(
+        environment: env,
+        cwd: cwd,
+        flagSettings: {'autoMemoryDirectory': customDir},
+      );
+      expect(custom.autoMemoryDir, p.normalize(customDir));
+      expect(custom.text, allOf(contains('- [X](x.md)'), contains(customDir)));
     });
   });
 

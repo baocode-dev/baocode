@@ -1,3 +1,8 @@
+import 'dart:io';
+
+import 'package:path/path.dart' as p;
+
+import '../prompts/system_prompt.dart';
 import 'extensions.dart';
 import 'memory.dart';
 import 'paths.dart';
@@ -5,25 +10,28 @@ import 'settings.dart';
 
 /// What an agent other than this one, working on a session of [cwd]'s (the
 /// Antigravity CLI's), is told of the user's setup, as this agent would
-/// have it: the instructions (CLAUDE.md files and rules) in full, and the
-/// skills by name, what each is for, and its file, for it to read when
-/// one fits. Null when there is none of either.
+/// have it: the instructions (CLAUDE.md files, rules, and auto memory index)
+/// in full, how to keep auto memory when enabled, and the skills by name,
+/// what each is for, and its file, for it to read when one fits. Null when
+/// there is none of any of them.
 ///
-/// [flagSettings] are the session's own (its `skillOverrides`); the
-/// instructions of the [additional] folders are read when
-/// [readAdditional].
+/// [flagSettings] are the session's own (its `skillOverrides`,
+/// `autoMemoryEnabled`, …); the instructions of the [additional] folders are
+/// read when [readAdditional].
 String? foreignAgentBrief({
   required Map<String, String> environment,
   required String cwd,
   List<String> additional = const [],
   bool readAdditional = false,
   Map<String, Object?> flagSettings = const {},
+  bool prepareAutoMemory = true,
 }) => ForeignBrief.of(
   environment: environment,
   cwd: cwd,
   additional: additional,
   readAdditional: readAdditional,
   flagSettings: flagSettings,
+  prepareAutoMemory: prepareAutoMemory,
 ).text;
 
 /// [foreignAgentBrief]'s, and what it is made of: each instructions file's
@@ -34,6 +42,7 @@ class ForeignBrief {
     this.text,
     this.files = const [],
     this.skills = const [],
+    this.autoMemoryDir,
   });
 
   /// As [foreignAgentBrief] has it, with its arguments.
@@ -43,11 +52,35 @@ class ForeignBrief {
     List<String> additional = const [],
     bool readAdditional = false,
     Map<String, Object?> flagSettings = const {},
+    bool prepareAutoMemory = true,
   }) {
     final paths = AgentPaths.from(environment);
     final settings = AgentSettings(paths: paths, cwd: cwd, flag: flagSettings);
-    final memory = MemoryLoader(paths)
-        .load(cwd, additional: additional, readAdditional: readAdditional);
+    final autoMemoryDir = MemoryLoader.autoMemoryDir(
+      paths: paths,
+      settings: settings,
+      environment: environment,
+      cwd: cwd,
+    );
+    final memory = MemoryLoader(paths).load(
+      cwd,
+      additional: additional,
+      readAdditional: readAdditional,
+      autoMemory: autoMemoryDir == null
+          ? null
+          : p.join(autoMemoryDir, 'MEMORY.md'),
+    );
+    String? memoryInstructions;
+    if (autoMemoryDir != null) {
+      try {
+        if (prepareAutoMemory) {
+          Directory(autoMemoryDir).createSync(recursive: true);
+        }
+        memoryInstructions = autoMemorySection('$autoMemoryDir${p.separator}');
+      } on FileSystemException {
+        // Left out when the memory folder cannot be made.
+      }
+    }
     final overrides = settings.skillOverrides;
     final skills = [
       for (final command in loadPromptCommands(
@@ -86,11 +119,12 @@ class ForeignBrief {
       if (files.isNotEmpty)
         [
           "# The user's instructions",
-          "The user's and the project's instructions follow (CLAUDE.md files "
-              'and rules). Follow them as written: where they differ from how '
-              'you would work otherwise, they win.',
+          "The user's and the project's instructions follow (CLAUDE.md files, "
+              "rules, and your own memory). Follow them as written: where they "
+              'differ from how you would work otherwise, they win.',
           for (final file in files) file.text,
         ].join('\n\n'),
+      ?memoryInstructions,
       if (listed.isNotEmpty)
         [
           '# Skills',
@@ -105,6 +139,7 @@ class ForeignBrief {
       text: parts.isEmpty ? null : parts.join('\n\n'),
       files: files,
       skills: listed,
+      autoMemoryDir: autoMemoryDir,
     );
   }
 
@@ -117,4 +152,8 @@ class ForeignBrief {
 
   /// Each skill's line.
   final List<({String name, String text})> skills;
+
+  /// The folder the agent's own memory of this project is kept in; null when
+  /// auto memory is turned off.
+  final String? autoMemoryDir;
 }
