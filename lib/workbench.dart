@@ -1485,7 +1485,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       ),
       paths: RemoteLocation.pathsOf(location),
       index: index,
-      home: project.host == null ? homeDirectory : null,
+      home: () => host.home,
     );
   }
 

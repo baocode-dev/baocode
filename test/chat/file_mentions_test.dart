@@ -23,7 +23,11 @@ void main() {
     '/home/me/Notebook.txt': '',
   });
 
-  FileMentions mentions({List<String>? roots, String root = app}) {
+  FileMentions mentions({
+    List<String>? roots,
+    String root = app,
+    String? Function()? home,
+  }) {
     final index = IdeFileIndex(
       files,
       root,
@@ -41,7 +45,7 @@ void main() {
       files: files,
       paths: paths,
       index: index,
-      home: '/home/me',
+      home: home ?? () => '/home/me',
     );
   }
 
@@ -82,8 +86,11 @@ void main() {
     );
     // The project's own folder is not one of them.
     expect(
-      (await mentions().suggest('app', root: app, kernel: (_) async => []))
-          .where((s) => s.kind == SuggestionKind.folder),
+      (await mentions().suggest(
+        'app',
+        root: app,
+        kernel: (_) async => [],
+      )).where((s) => s.kind == SuggestionKind.folder),
       isEmpty,
     );
   });
@@ -152,5 +159,43 @@ void main() {
       (await mention.suggest('~/notes/.h', root: app)).map((s) => s.value),
       ['/home/me/notes/.hidden'],
     );
+  });
+
+  test('resolves ~ dynamically once a remote host learns its home', () async {
+    String? remoteHome;
+    final mention = mentions(home: () => remoteHome);
+    expect(await mention.suggest('~/', root: app), isEmpty);
+
+    remoteHome = '/home/me';
+    final found = await mention.suggest('~/', root: app);
+    expect(found.map((s) => (s.kind, s.label, s.detail)), [
+      (SuggestionKind.folder, 'notes', '~'),
+      (SuggestionKind.file, 'Notebook.txt', '~'),
+    ]);
+  });
+
+  test('lists direct entries for relative directory paths', () async {
+    final mention = mentions();
+    final pages = await mention.suggest('pages/', root: app);
+    expect(pages.map((s) => (s.kind, s.label, s.value)), [
+      (SuggestionKind.folder, 'order', 'pages/order'),
+    ]);
+
+    final order = await mention.suggest('pages/order/', root: app);
+    expect(order.map((s) => s.value), [
+      'pages/order/fridge-confirm.vue',
+      'pages/order/list.vue',
+    ]);
+
+    final dot = await mention.suggest('./', root: app);
+    expect(dot.map((s) => (s.kind, s.label, s.detail)), [
+      (SuggestionKind.folder, 'pages', '.'),
+    ]);
+
+    final parent = await mention.suggest('../', root: app);
+    expect(parent.map((s) => (s.kind, s.label, s.detail)), [
+      (SuggestionKind.folder, 'app', '..'),
+      (SuggestionKind.folder, 'lib', '..'),
+    ]);
   });
 }
