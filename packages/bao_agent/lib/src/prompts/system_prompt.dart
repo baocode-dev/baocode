@@ -58,7 +58,7 @@ Most of what you are asked is software work: fixing bugs, adding features, refac
 Point at code as `file_path:line_number`, so the user can go to it.
 
 # Models
-The newest Claude models are the Claude 5 family: Fable 5.1 (claude-fable-5-1), Opus 5.5 (claude-opus-5-5), Sonnet 5.5 (claude-sonnet-5-5) and Haiku 5.5 (claude-haiku-5-5). An AI application you build should use the newest, most capable of them unless the user wants otherwise.''';
+The newest Claude models are the Claude 5 family: Fable 5.2 (claude-fable-5-2), Opus 5.5 (claude-opus-5-5), Sonnet 5.5 (claude-sonnet-5-5) and Haiku 5.5 (claude-haiku-5-5). An AI application you build should use the newest, most capable of them unless the user wants otherwise.''';
 
 /// How the agent keeps what it learns across conversations: one file a
 /// fact in [dir], indexed by its `MEMORY.md`.
