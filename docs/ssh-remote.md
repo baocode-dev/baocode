@@ -386,7 +386,7 @@ Haiku 起标题和提交信息**不会**触发自动安装：内核是“自动�
 
 - `VERSION` = 应用版本 + 两个二进制合起来的 sha256 前 12 位。所以同一个应用版本、源码不同的构建，也会是不同的目录。开发时从源码编译的版本叫 `dev-<源码哈希>`。
 - **应用和服务端严格一一对应**：应用只用自己构建时生成的那份服务端（`VERSION` 完全相同），不做跨版本兼容。协议是内部协议，几乎每次提交都会变，`protocol` 版本号不保证跟着改；严格对应能保证主机上不会跑着过期的服务端。代价是每个发出去的构建，它的服务端都必须已经上传（见 9.3）。
-- 旧版本的 `<VERSION>/` 目录目前**不会自动清理**（见第 15 节）。
+- 服务端启动时会自动清理旧的 `<VERSION>/` 目录：保留当前运行的版本，以及其余版本中服务端二进制修改时间最新的两个，共保留最多 3 个。断线重连不会重复清理，`data/` 和 `run/` 不受影响。
 - Windows 主机上是 `%USERPROFILE%\.baocode-server\`，结构相同，二进制叫 `baocode-server.exe`，另有 `run\`（每个会话的 `<id>.port` 和 `<id>.log`），终端里的 `code` 是 `remote-cli\code.cmd`。
 - 想彻底清掉：在远端 `rm -rf ~/.baocode-server`（Windows 主机上删掉 `%USERPROFILE%\.baocode-server`）。下次连接会重新上传，影子仓库和 BaoCode 装的 claude 也会一起没掉。
 
@@ -605,7 +605,7 @@ flutter analyze
 
 1. **Windows 客户端打开远程项目可能有路径问题**：IDE 里很多地方直接调用 `package:path` 的顶层函数，在 Windows 上会按反斜杠和盘符处理远端的 POSIX 路径。目前只有 LSP 处理了 POSIX 路径；文件树、标签页、搜索、Git 需要逐个改成用 `ProjectHost.paths`。
 2. **服务端只支持 glibc**：`dart compile exe` 编出的 Linux 二进制在 Alpine 这类 musl 系统上跑不了。Claude Code 本身有 musl 版本，已经能正确选择。
-3. **旧版本服务端不会自动清理**：`~/.baocode-server/<旧VERSION>/` 会一直留着，每个约几十 MB。可以在连接成功后删掉其他版本的目录。
+3. **被占用的旧版本可能暂时保留**：例如 Windows 不允许删除运行中的二进制。清理失败不会影响启动，服务端下次启动时会再试。
 4. **Haiku 不会触发 Claude 自动安装**：远端没有 claude 时，标题和提交信息会失败，等到第一次对话装好后才正常。
 5. **自动安装只在内核选 CLI 时发生**：选“自动”或“内置”都不会往远端装 claude。
 6. **Windows 客户端的密码登录还没在 Windows 上实测**：`askpass.cmd` 经 PowerShell 回传密码，依赖 Win32-OpenSSH 8.4 及以上按 `SSH_ASKPASS_REQUIRE=force` 调用它；系统的低于 8.4 时用安装包自带的 OpenSSH。要确认的有：能否运行 `.cmd`、用户名带空格的临时目录、运行时是否闪出控制台窗口、自带 ssh 的跳板机 `ProxyCommand`（带引号的路径）能否运行。
