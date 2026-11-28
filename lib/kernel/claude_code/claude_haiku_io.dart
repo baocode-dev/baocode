@@ -143,7 +143,16 @@ Future<(String, int)> _run(
       onStart: onStart,
     );
   }
+  var cancelled = false;
+  Process? started;
+  unawaited(
+    cancel?.then((_) {
+      cancelled = true;
+      started?.kill();
+    }),
+  );
   final cli = await LocalClaude.locate(install: false);
+  if (cancelled) throw const ClaudeHaikuCancelled();
   // In a file: it may hold a provider's key, and a shell (Windows') would
   // mangle it on the command line. Disable commit/PR attribution so auxiliary
   // calls (such as Generate Commit Message) never pick up agent signatures.
@@ -159,6 +168,10 @@ Future<(String, int)> _run(
   final proxy = await NetworkProxy.instance.environment();
   // The machine's own certificates, as the app's requests trust them.
   final certificates = await nodeCertificatesEnvironment(cli.environment);
+  if (cancelled) {
+    await ClaudeSettingsFile.delete(settingsFile);
+    throw const ClaudeHaikuCancelled();
+  }
   final Process process;
   try {
     process = await Process.start(
@@ -193,17 +206,18 @@ Future<(String, int)> _run(
     await ClaudeSettingsFile.delete(settingsFile);
     throw ClaudeHaikuException('Claude Code could not start: ${error.message}');
   }
-  onStart?.call();
+  started = process;
   unawaited(
     process.exitCode.then((_) => ClaudeSettingsFile.delete(settingsFile)),
   );
-  var cancelled = false;
-  unawaited(
-    cancel?.then((_) {
-      cancelled = true;
-      process.kill();
-    }),
-  );
+  if (cancelled) {
+    process.kill();
+    unawaited(process.stdin.close().catchError((Object _) {}));
+    unawaited(process.stdout.drain<void>().catchError((Object _) {}));
+    unawaited(process.stderr.drain<void>().catchError((Object _) {}));
+    throw const ClaudeHaikuCancelled();
+  }
+  onStart?.call();
   final stdout = process.stdout
       .transform(const Utf8Decoder(allowMalformed: true))
       .transform(const LineSplitter())
@@ -242,8 +256,17 @@ Future<(String, int)> _runBuiltin(
   required void Function(String line) onLine,
   void Function()? onStart,
 }) async {
+  var cancelled = false;
+  final ended = Completer<int>();
+  unawaited(
+    cancel?.then((_) {
+      cancelled = true;
+      if (!ended.isCompleted) ended.complete(130);
+    }),
+  );
   final base = await ClaudeEnvironment.of();
   final proxy = await NetworkProxy.instance.environment();
+  if (cancelled) throw const ClaudeHaikuCancelled();
   final environment = <String, String>{...base, ...proxy};
   if (env != null) {
     for (final name in ClaudeModelVariables.inherited) {
@@ -281,8 +304,11 @@ Future<(String, int)> _runBuiltin(
   } on Object catch (error) {
     throw ClaudeHaikuException('The built-in core could not start: $error');
   }
+  if (cancelled) {
+    agent.close();
+    throw const ClaudeHaikuCancelled();
+  }
   onStart?.call();
-  final ended = Completer<int>();
   final subscription = agent.messages.listen(
     (line) {
       final isResult = line['type'] == 'result';
@@ -294,13 +320,6 @@ Future<(String, int)> _runBuiltin(
     onDone: () {
       if (!ended.isCompleted) ended.complete(1);
     },
-  );
-  var cancelled = false;
-  unawaited(
-    cancel?.then((_) {
-      cancelled = true;
-      if (!ended.isCompleted) ended.complete(130);
-    }),
   );
   agent.write(
     message

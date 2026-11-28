@@ -15747,6 +15747,12 @@ abstract class AppLocalizations {
   /// **'Polishing…'**
   String get stashPolishing;
 
+  /// No description provided for @stashCancelPolish.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop polishing'**
+  String get stashCancelPolish;
+
   /// No description provided for @stashPolishHint.
   ///
   /// In en, this message translates to:
@@ -15764,6 +15770,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Enhancing…'**
   String get composerPolishing;
+
+  /// No description provided for @composerCancelPolish.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop enhancing'**
+  String get composerCancelPolish;
 
   /// No description provided for @composerPolishHint.
   ///

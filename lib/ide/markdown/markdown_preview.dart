@@ -599,7 +599,8 @@ class IdeMarkdownPreviewState extends State<IdeMarkdownPreview> {
               focusNode: _focus,
               editorKey: _editorKey,
               readOnly: widget.readOnly,
-              onPolish: (text) => polishStashText(text, note: _controller.text),
+              onPolish: (text, {cancel}) =>
+                  polishStashText(text, note: _controller.text, cancel: cancel),
               onOpenLink: _openHref,
               contextMenu: _contextMenu,
               child: editor,

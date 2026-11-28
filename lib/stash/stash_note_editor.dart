@@ -207,7 +207,8 @@ class StashNoteEditorState extends State<StashNoteEditor> {
       focusNode: widget.focusNode,
       refs: widget.refs,
       scrollController: widget.scrollController,
-      onPolish: (text) => polishStashText(text, note: markdown),
+      onPolish: (text, {cancel}) =>
+          polishStashText(text, note: markdown, cancel: cancel),
     );
     if (!widget.attachments) return editor;
     return Column(

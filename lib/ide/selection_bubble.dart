@@ -100,6 +100,7 @@ class SelectionBubbleButton extends StatelessWidget {
     super.key,
     required this.icon,
     required this.onTap,
+    this.leading,
     this.tooltip,
     this.label,
     this.active = false,
@@ -109,8 +110,9 @@ class SelectionBubbleButton extends StatelessWidget {
   });
 
   final IconData icon;
+  final Widget? leading;
   final String? tooltip;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final String? label;
   final bool active;
   final bool busy;
@@ -123,12 +125,13 @@ class SelectionBubbleButton extends StatelessWidget {
         ? AppColors.textPrimary
         : this.color ?? AppColors.textMuted;
     final hover = this.hover ?? themeColors['toolbar.hoverBackground'];
+    final interactive = onTap != null;
     final button = HoverBuilder(
-      cursor: SystemMouseCursors.click,
+      cursor: interactive ? SystemMouseCursors.click : SystemMouseCursors.basic,
       builder: (context, hovered) => GestureDetector(
         // Keeps the editor's focus (and selection).
         onTapDown: (_) {},
-        onTap: busy ? null : onTap,
+        onTap: onTap,
         behavior: HitTestBehavior.opaque,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 90),
@@ -139,13 +142,13 @@ class SelectionBubbleButton extends StatelessWidget {
           decoration: BoxDecoration(
             color: active
                 ? themeColors['toolbar.activeBackground']
-                : hovered
+                : interactive && hovered
                 ? hover
                 : hover.withValues(alpha: 0),
             borderRadius: BorderRadius.circular(5),
           ),
           alignment: Alignment.center,
-          child: label != null && icon == Icons.title
+          child: leading == null && label != null && icon == Icons.title
               ? Text(
                   label!,
                   style: TextStyle(
@@ -157,11 +160,12 @@ class SelectionBubbleButton extends StatelessWidget {
               : Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    AppIcon(
-                      icon,
-                      size: 15,
-                      color: busy ? AppColors.accent : color,
-                    ),
+                    leading ??
+                        AppIcon(
+                          icon,
+                          size: 15,
+                          color: busy ? AppColors.accent : color,
+                        ),
                     if (label case final label?) ...[
                       const SizedBox(width: 4),
                       Text(label, style: TextStyle(color: color, fontSize: 12)),

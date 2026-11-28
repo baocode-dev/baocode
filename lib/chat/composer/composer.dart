@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:bao_markdown/bao_markdown.dart';
 
 import '../../kernel/agent_kernel.dart';
+import '../../kernel/claude_code/claude_haiku.dart' show ClaudeHaikuCancelled;
 import '../../kernel/kernel_types.dart';
 import '../../keybindings/chat_keybindings.dart';
 import '../../l10n/l10n.dart';
@@ -176,8 +177,11 @@ class ChatComposerState extends State<ChatComposer>
 
   bool _hasContent = false;
 
-  /// Polish asked, its answer awaited (see [_polish]).
-  bool _polishing = false;
+  /// Polish asked, its answer awaited (see [_polish]); completing it stops
+  /// the request.
+  Completer<void>? _polishCancel;
+
+  bool get _polishing => _polishCancel != null;
 
   /// Every image put in, by number, kept until sent: the text's references
   /// pick which go (see [_images]), so one taken out and brought back by
@@ -375,6 +379,9 @@ class ChatComposerState extends State<ChatComposer>
   @override
   void didUpdateWidget(covariant ChatComposer oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.session, widget.session)) {
+      _stopPolish();
+    }
     if (!identical(oldWidget.draft, widget.draft)) {
       oldWidget.draft?.removeListener(_handleDraftChanged);
       widget.draft?.addListener(_handleDraftChanged);
@@ -388,6 +395,7 @@ class ChatComposerState extends State<ChatComposer>
 
   @override
   void dispose() {
+    _stopPolish();
     widget.draft?.removeListener(_handleDraftChanged);
     ComposerPolishSetting.changes?.removeListener(_handleSettingsChanged);
     FloatingRegistry.closePopover(_menuOwner);
@@ -1403,6 +1411,21 @@ class ChatComposerState extends State<ChatComposer>
   /// The text as the model is given it to polish (see [composerPolishText]).
   ComposerPolishText _polishText() => composerPolishText(_controller.text);
 
+  /// Stops an in-flight polish request without scheduling a rebuild.
+  void _stopPolish() {
+    final cancel = _polishCancel;
+    if (cancel == null) return;
+    _polishCancel = null;
+    if (!cancel.isCompleted) cancel.complete();
+  }
+
+  /// Stops an in-flight polish request at once so a new one may start.
+  void _cancelPolish() {
+    if (!_polishing) return;
+    _stopPolish();
+    if (mounted) setState(() {});
+  }
+
   /// Has the auxiliary model polish the text into a clearer, more specific
   /// prompt (Enhance prompt), its tags, images, code and links kept as they
   /// are, the agent's last turn told to know what it answers; put in its place as one change (⌘Z takes it back), unless the
@@ -1414,7 +1437,9 @@ class ChatComposerState extends State<ChatComposer>
     final before = _controller.text;
     final notifications = IdeNotificationsScope.maybeOf(context);
     final l10n = context.l10n;
-    setState(() => _polishing = true);
+    final cancel = Completer<void>();
+    bool current() => identical(_polishCancel, cancel);
+    setState(() => _polishCancel = cancel);
     try {
       final String polished;
       try {
@@ -1423,15 +1448,20 @@ class ChatComposerState extends State<ChatComposer>
           reply: widget.session.lastTurnReply,
           model: widget.session.selected(KernelChoiceKind.model),
           location: widget.session.kernelContext.cwd,
+          cancel: cancel.future,
         );
+      } on ClaudeHaikuCancelled {
+        return;
       } on ComposerPolishException catch (error) {
-        notifications?.notify(
-          IdeSeverity.error,
-          l10n.composerPolishFailed(error.message ?? l10n.stashAiNoAnswer),
-        );
+        if (current()) {
+          notifications?.notify(
+            IdeSeverity.error,
+            l10n.composerPolishFailed(error.message ?? l10n.stashAiNoAnswer),
+          );
+        }
         return;
       }
-      if (!mounted || _controller.text != before) return;
+      if (!mounted || !current() || _controller.text != before) return;
       // One change of its own to undo: not merged with what was typed just
       // before it, nor with what is typed next.
       _controller
@@ -1445,7 +1475,10 @@ class ChatComposerState extends State<ChatComposer>
         ..breakUndo();
       _focusNode.requestFocus();
     } finally {
-      if (mounted) setState(() => _polishing = false);
+      if (current()) {
+        _polishCancel = null;
+        if (mounted) setState(() {});
+      }
     }
   }
 
@@ -1501,6 +1534,7 @@ class ChatComposerState extends State<ChatComposer>
   /// Emptied: what was in it sent from elsewhere (a suggested reply put
   /// in at a click, sent at a second).
   void clear() {
+    _cancelPolish();
     _pool = {};
     _controller.clear();
     _leaveHistory();
@@ -1520,6 +1554,7 @@ class ChatComposerState extends State<ChatComposer>
     if (_showsStop) return;
     final message = _buildMessage();
     if (message.text.isEmpty && message.images.isEmpty) return;
+    _cancelPolish();
     if (widget.onIntercept case final intercept? when intercept(message)) {
       _pool = {};
       _controller.clear();
@@ -2016,7 +2051,7 @@ class ChatComposerState extends State<ChatComposer>
             _PolishButton(
               busy: _polishing,
               enabled: _polishing || _shownBuilt!.polishable,
-              onTap: () => unawaited(_polish()),
+              onTap: _polishing ? _cancelPolish : () => unawaited(_polish()),
             ),
             const SizedBox(width: 2),
           ],
@@ -2047,7 +2082,8 @@ class ChatComposerState extends State<ChatComposer>
 }
 
 /// Polish, Enhance prompt as it says (see [ChatComposerState._polish]): a
-/// sparkle, spinning while the model answers; faint with no words to polish.
+/// sparkle, turning into a clickable stop spinner while the model answers;
+/// faint with no words to polish.
 class _PolishButton extends StatelessWidget {
   const _PolishButton({
     required this.busy,
@@ -2063,14 +2099,9 @@ class _PolishButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final colors = themeColors;
-    final active = enabled && !busy;
-    final icon = Icon(
-      busy ? Codicons.loading : Codicons.sparkle,
-      size: 14,
-      color: enabled ? colors['icon.foreground'] : AppColors.textFaint,
-    );
+    final active = busy || enabled;
     return IdeHover(
-      message: busy ? l10n.composerPolishing : l10n.composerPolishHint,
+      message: busy ? l10n.composerCancelPolish : l10n.composerPolishHint,
       child: HoverBuilder(
         cursor: active ? SystemMouseCursors.click : SystemMouseCursors.basic,
         builder: (context, hovered) => GestureDetector(
@@ -2088,7 +2119,20 @@ class _PolishButton extends StatelessWidget {
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(5),
             ),
-            child: busy ? IdeSpinning(icon) : icon,
+            child: busy
+                ? IdeStopSpinner(
+                    size: 16,
+                    color: hovered
+                        ? AppColors.textPrimary
+                        : colors['icon.foreground'],
+                  )
+                : Icon(
+                    Codicons.sparkle,
+                    size: 14,
+                    color: enabled
+                        ? colors['icon.foreground']
+                        : AppColors.textFaint,
+                  ),
           ),
         ),
       ),

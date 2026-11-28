@@ -9704,6 +9704,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get stashPolishing => 'Polishing…';
 
   @override
+  String get stashCancelPolish => 'Stop polishing';
+
+  @override
   String get stashPolishHint =>
       'Has AI make the selection clearer, in your words, without adding structure';
 
@@ -9712,6 +9715,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get composerPolishing => 'Enhancing…';
+
+  @override
+  String get composerCancelPolish => 'Stop enhancing';
 
   @override
   String get composerPolishHint =>
