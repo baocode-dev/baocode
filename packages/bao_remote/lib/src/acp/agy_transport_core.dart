@@ -580,7 +580,17 @@ class AgyTransportCore {
     try {
       final session = await _session();
       preCheckpoints = _readMainCheckpoints().length;
-      final handoff = handoffReminder(before, syncedUuid: _synced);
+      final transcriptFile = _writeHandoffTranscript(session, before);
+      final sessionFile = switch (_store.file) {
+        final path? when File(path).existsSync() => path,
+        _ => null,
+      };
+      final handoff = handoffReminder(
+        before,
+        syncedUuid: _synced,
+        transcriptFile: transcriptFile,
+        sessionFile: sessionFile,
+      );
       if (handoff != null) _handedOff += agyTokens(handoff);
       turn.prompt = _connection!.request('session/prompt', {
         'sessionId': session,
@@ -789,6 +799,34 @@ class AgyTransportCore {
       }
     }
     return out;
+  }
+
+  /// Writes a lossless Markdown transcript of the unseen active-branch history
+  /// into `<brainDir>/<agySessionId>/scratch/handoff-<n>.md` so Antigravity
+  /// can read any complete tool call input, tool result, or omitted turn on
+  /// demand without extra permissions. Returns the written path, or null when
+  /// there is nothing to hand off or `_brainDir` is unavailable.
+  String? _writeHandoffTranscript(
+    String agySessionId,
+    List<Map<String, Object?>> before,
+  ) {
+    final brainDir = _brainDir;
+    if (brainDir == null || brainDir.isEmpty) return null;
+    final markdown = handoffTranscript(before, syncedUuid: _synced);
+    if (markdown == null) return null;
+    try {
+      final scratch = Directory(p.join(brainDir, agySessionId, 'scratch'));
+      scratch.createSync(recursive: true);
+      var index = 1;
+      while (File(p.join(scratch.path, 'handoff-$index.md')).existsSync()) {
+        index++;
+      }
+      final file = File(p.join(scratch.path, 'handoff-$index.md'));
+      file.writeAsStringSync(markdown);
+      return file.path;
+    } on FileSystemException {
+      return null;
+    }
   }
 
   /// All `CHECKPOINT` compaction summaries written by `agy` in the current

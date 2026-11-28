@@ -1,2 +1,7 @@
 export 'package:bao_remote/acp.dart'
-    show handoffBudget, handoffReminder, slimMessages, withoutReminders;
+    show
+        handoffBudget,
+        handoffReminder,
+        handoffTranscript,
+        slimMessages,
+        withoutReminders;

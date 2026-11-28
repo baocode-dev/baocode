@@ -1761,4 +1761,126 @@ void main() {
       transport.close();
     },
   );
+
+  test(
+    'handoff writes lossless transcript file into brain scratch dir and links it in prompt',
+    () async {
+      final brainDir = Directory.systemTemp.createTempSync('agy-handoff-brain');
+      addTearDown(() => brainDir.deleteSync(recursive: true));
+
+      // Seed a conversation with an unseen Claude turn that includes tool_use + tool_result.
+      final firstRuntime = FakeRuntime(() => FakeAgent(agentSaying('One.')));
+      final first = await AgyTransport.start(
+        ClaudeLaunch(cwd: cwd, model: 'gemini-4-neon'),
+        runtime: firstRuntime,
+        brainDir: brainDir.path,
+      );
+      final firstKernel = Kernel(first);
+      await firstKernel.send('initial question');
+      final sessionId = firstKernel.seen.first['session_id']! as String;
+      first.close();
+
+      final projects = Directory('${home.path}/.claude/projects');
+      final sessionFile = projects
+          .listSync()
+          .whereType<Directory>()
+          .map((dir) => File('${dir.path}/$sessionId.jsonl'))
+          .firstWhere((file) => file.existsSync());
+      final priorLines = sessionFile.readAsLinesSync();
+      final lastUuid = (jsonDecode(priorLines.lastWhere(
+        (l) => (jsonDecode(l) as Map)['uuid'] != null,
+      )) as Map)['uuid'];
+      sessionFile.writeAsStringSync(
+        '${jsonEncode({'type': 'user', 'uuid': 'c-u1', 'parentUuid': lastUuid, 'message': {'role': 'user', 'content': 'inspect logs'}})}\n'
+        '${jsonEncode({'type': 'assistant', 'uuid': 'c-a1', 'parentUuid': 'c-u1', 'message': {'role': 'assistant', 'content': [{'type': 'tool_use', 'id': 'tu_1', 'name': 'Read', 'input': {'file_path': '/tmp/crash.log'}}]}})}\n'
+        '${jsonEncode({'type': 'user', 'uuid': 'c-tr1', 'parentUuid': 'c-a1', 'message': {'role': 'user', 'content': [{'type': 'tool_result', 'tool_use_id': 'tu_1', 'content': 'FATAL: CreateFileW blocked 58s'}]}})}\n'
+        '${jsonEncode({'type': 'assistant', 'uuid': 'c-a2', 'parentUuid': 'c-tr1', 'message': {'role': 'assistant', 'content': [{'type': 'text', 'text': 'Found 58s CreateFileW hang.'}]}})}\n',
+        mode: FileMode.append,
+      );
+
+      final receivedPrompts = <List<Map<String, Object?>>>[];
+      final runtime = FakeRuntime(
+        () => FakeAgent((agent, method, params) async {
+          switch (method) {
+            case 'initialize':
+              return {'protocolVersion': 1};
+            case 'session/resume':
+              return {'sessionId': 'agy-handoff-sess'};
+            case 'session/set_config_option':
+              return {};
+            case 'session/prompt':
+              final session = params['sessionId'] as String;
+              receivedPrompts.add(
+                (params['prompt'] as List)
+                    .cast<Map<Object?, Object?>>()
+                    .map((b) => b.cast<String, Object?>())
+                    .toList(),
+              );
+              agent.say(session, {
+                'sessionUpdate': 'agent_message_chunk',
+                'content': {'type': 'text', 'text': 'Got it.'},
+              });
+              return {'stopReason': 'end_turn'};
+          }
+          return {};
+        }),
+      );
+
+      final transport = await AgyTransport.start(
+        ClaudeLaunch(cwd: cwd, model: 'gemini-4-neon', resume: sessionId),
+        runtime: runtime,
+        brainDir: brainDir.path,
+      );
+      final kernel = Kernel(transport);
+      await kernel.send('continue please');
+
+      final handoffText = receivedPrompts.single.first['text'] as String;
+      final expectedFile = '${brainDir.path}/agy-1/scratch/handoff-1.md';
+      expect(handoffText, contains(expectedFile));
+      expect(handoffText, contains(sessionFile.path));
+      expect(handoffText, contains('Found 58s CreateFileW hang.'));
+
+      final exported = File(expectedFile);
+      expect(exported.existsSync(), isTrue);
+      final md = exported.readAsStringSync();
+      expect(md, contains('inspect logs'));
+      expect(md, contains('### Tool Call: Read (tu_1)'));
+      expect(md, contains('FATAL: CreateFileW blocked 58s'));
+      expect(md, contains('Found 58s CreateFileW hang.'));
+
+      transport.close();
+
+      // A subsequent handoff on the same agy session increments to handoff-2.md
+      // without overwriting handoff-1.md.
+      final afterFirstLines = sessionFile.readAsLinesSync();
+      final secondLastUuid = (jsonDecode(afterFirstLines.lastWhere(
+        (l) => (jsonDecode(l) as Map)['uuid'] != null,
+      )) as Map)['uuid'];
+      sessionFile.writeAsStringSync(
+        '${jsonEncode({'type': 'user', 'uuid': 'c-u2', 'parentUuid': secondLastUuid, 'message': {'role': 'user', 'content': 'second claude turn'}})}\n'
+        '${jsonEncode({'type': 'assistant', 'uuid': 'c-a3', 'parentUuid': 'c-u2', 'message': {'role': 'assistant', 'content': [{'type': 'text', 'text': 'second claude answer'}]}})}\n',
+        mode: FileMode.append,
+      );
+
+      final transport2 = await AgyTransport.start(
+        ClaudeLaunch(cwd: cwd, model: 'gemini-4-neon', resume: sessionId),
+        runtime: runtime,
+        brainDir: brainDir.path,
+      );
+      final kernel2 = Kernel(transport2);
+      await kernel2.send('back again');
+
+      final secondHandoffText = receivedPrompts[1].first['text'] as String;
+      final expectedFile2 = '${brainDir.path}/agy-1/scratch/handoff-2.md';
+      expect(secondHandoffText, contains(expectedFile2));
+      expect(File(expectedFile).existsSync(), isTrue);
+      expect(File(expectedFile2).existsSync(), isTrue);
+      expect(
+        File(expectedFile2).readAsStringSync(),
+        contains('second claude answer'),
+      );
+
+      transport2.close();
+    },
+  );
 }

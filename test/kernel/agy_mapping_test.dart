@@ -214,6 +214,111 @@ void main() {
       expect(told, isNot(contains('message 20 ')));
       expect(told, contains('earlier messages left out'));
     });
+
+    test('compacts verbose tool inputs before dropping conversation text', () {
+      final chain = [
+        user('u0', '调查一下 9WDGB9VW 崩溃'),
+        answer('a0', [
+          for (var i = 0; i < 40; i++)
+            {
+              'type': 'tool_use',
+              'id': 't0_$i',
+              'name': 'Read',
+              'input': {'file_path': '/repo/file_$i.dart', 'note': 'a' * 300},
+            },
+          {'type': 'text', 'text': '第一轮结论：找到 EventLog 和 revealInFinder 卡死'},
+        ]),
+        user('u1', '先把这两处修掉并补测试'),
+        answer('a1', [
+          for (var i = 0; i < 40; i++)
+            {
+              'type': 'tool_use',
+              'id': 't1_$i',
+              'name': 'Bash',
+              'input': {'command': 'echo step_$i && ${'y' * 300}'},
+            },
+          {'type': 'text', 'text': '最新一轮结论：三件事都已检查并处理完毕'},
+        ]),
+      ];
+
+      // Even with a tight 8KB budget where each raw assistant turn is >15KB,
+      // compacting tools keeps 100% of conversation turns intact.
+      final told = handoffReminder(
+        chain,
+        budget: 8000,
+        transcriptFile: '/brain/s1/scratch/handoff-1.md',
+        sessionFile: '/claude/sess.jsonl',
+      )!;
+      expect(told, contains('调查一下 9WDGB9VW 崩溃'));
+      expect(told, contains('第一轮结论：找到 EventLog 和 revealInFinder 卡死'));
+      expect(told, contains('先把这两处修掉并补测试'));
+      expect(told, contains('最新一轮结论：三件事都已检查并处理完毕'));
+      expect(told, contains('"tools_summary"'));
+      expect(told, isNot(contains('earlier messages left out')));
+      expect(told, contains('/brain/s1/scratch/handoff-1.md'));
+      expect(told, contains('/claude/sess.jsonl'));
+    });
+
+    test('oversized latest message is truncated instead of dropped empty', () {
+      final chain = [
+        user('u0', '开场问题'),
+        answer('a0', [
+          {'type': 'text', 'text': '中间回复 ' * 200},
+        ]),
+        user('u1', '最后一个问题'),
+        answer('a1', [
+          {'type': 'text', 'text': '${'铺垫内容 ' * 500}最终核心结论：完全够用，可以收尾。'},
+        ]),
+      ];
+      final told = handoffReminder(chain, budget: 1200)!;
+      expect(told, contains('开场问题'));
+      expect(told, contains('最终核心结论：完全够用，可以收尾。'));
+    });
+
+    test('handoffTranscript exports lossless active-branch markdown', () {
+      final chain = [
+        user('u0', 'already seen'),
+        user('u1', 'check crash <system-reminder>ignore</system-reminder>'),
+        answer('a1', [
+          {'type': 'thinking', 'thinking': 'internal thought'},
+          {
+            'type': 'tool_use',
+            'id': 'call_1',
+            'name': 'Bash',
+            'input': {'command': 'git status'},
+          },
+        ]),
+        {
+          'type': 'user',
+          'uuid': 'tr1',
+          'message': {
+            'role': 'user',
+            'content': [
+              {
+                'type': 'tool_result',
+                'tool_use_id': 'call_1',
+                'is_error': true,
+                'content': 'exit 1: boom full output',
+              },
+            ],
+          },
+        },
+        answer('a2', [
+          {'type': 'text', 'text': 'Fixed both bugs completely.'},
+        ]),
+      ];
+      final md = handoffTranscript(chain, syncedUuid: 'u0')!;
+      expect(md, isNot(contains('already seen')));
+      expect(md, isNot(contains('ignore')));
+      expect(md, isNot(contains('internal thought')));
+      expect(md, contains('check crash'));
+      expect(md, contains('### Tool Call: Bash (call_1)'));
+      expect(md, contains('git status'));
+      expect(md, contains('### Tool Result: Bash (call_1) [ERROR]'));
+      expect(md, contains('exit 1: boom full output'));
+      expect(md, contains('Fixed both bugs completely.'));
+      expect(handoffTranscript(chain, syncedUuid: 'a2'), isNull);
+    });
   });
 
   group('agy\'s own', () {
