@@ -953,8 +953,9 @@ void main() {
           }),
         );
 
+        late _FakeAcpAgent liveAgent;
         final runtime = _FakeAgyRuntime(
-          () => _FakeAcpAgent((agent, method, params) async {
+          () => liveAgent = _FakeAcpAgent((agent, method, params) async {
             switch (method) {
               case 'initialize':
                 return {'protocolVersion': 1};
@@ -1026,6 +1027,7 @@ void main() {
                     'status': 'pending',
                     'rawInput': {
                       'CommandLine': 'git log -n 3',
+                      'IsDaemon': true,
                       'toolSummary': 'Mobile recent git log with stats',
                     },
                   },
@@ -1146,6 +1148,32 @@ void main() {
         final persisted = sessionFile.readAsStringSync();
         expect(persisted, isNot(contains('call_1001')));
         expect(persisted, isNot(contains('call_2002')));
+
+        // 5. Child daemon Bash did not leak into main ActivityStrip tasks.
+        expect(
+          transcript.tasks.where((t) => t.kind == KernelTaskKind.command),
+          isEmpty,
+        );
+
+        // 6. After coordinator turn finishes (`_turn == null`), a background
+        // swarm worker's permission request is still approved, not cancelled.
+        final permAfterTurn = await liveAgent.ask('session/request_permission', {
+          'sessionId': mainSession,
+          'toolCall': {
+            'toolCallId': '$uiWorkerConv:call_3003',
+            'name': 'run_command',
+            'kind': 'execute',
+            'status': 'pending',
+            'rawInput': {
+              'CommandLine': 'git status',
+              'toolSummary': 'Check git status after coordinator idle',
+            },
+          },
+          'options': [
+            {'optionId': 'allow', 'kind': 'allow_once', 'name': 'Allow'},
+          ],
+        });
+        expect((permAfterTurn['outcome'] as Map)['optionId'], 'allow');
       },
     );
   });

@@ -1498,7 +1498,7 @@ class AgyTransportCore {
 
   void _ensureBgCommandPolling() {
     final hasRunningBash = _calls.values.any(
-      (c) => c.told && !c.done && c.name == 'Bash',
+      (c) => c.told && !c.done && c.parentToolUseId == null && c.name == 'Bash',
     );
     if (!hasRunningBash && _bgCommands.isEmpty) {
       _bgPollTimer?.cancel();
@@ -1519,7 +1519,8 @@ class AgyTransportCore {
     }
     final runningBash = [
       for (final c in _calls.values)
-        if (c.told && !c.done && c.name == 'Bash') c,
+        if (c.told && !c.done && c.parentToolUseId == null && c.name == 'Bash')
+          c,
     ];
     if (runningBash.isEmpty) {
       _bgPollTimer?.cancel();
@@ -2122,7 +2123,13 @@ class AgyTransportCore {
       if (conversation != null && conversation != _agySession) return;
       final name = 'mcp__${server}__${params['name']}';
       final call = _calls.values
-          .where((c) => c.told && !c.done && c.mcpResult == null)
+          .where(
+            (c) =>
+                c.told &&
+                !c.done &&
+                c.parentToolUseId == null &&
+                c.mcpResult == null,
+          )
           .where((c) => c.name == name)
           .firstOrNull;
       call?.mcpResult = result.cast();
@@ -2235,10 +2242,17 @@ class AgyTransportCore {
       return selected(labels[picked]);
     }
     final call = update == null ? null : _toolCall(update);
-    if (call == null || _turn?.cancelled != false) return selected(null);
+    if (call == null) return selected(null);
+    final isChild = _isChildCallId(call.acp.id);
+    // Background swarm workers and subagents keep running after the coordinator
+    // turn finishes (`_turn == null`): only cancel their permissions when the
+    // transport is closed or the user actively cancelled the turn.
+    if (_closed || (isChild ? _turn?.cancelled == true : _turn?.cancelled != false)) {
+      return selected(null);
+    }
     // Child calls (swarm workers / subagents) run concurrently with the
     // coordinator and must not split its currently streaming text block.
-    if (!_isChildCallId(call.acp.id)) _closeOpen();
+    if (!isChild) _closeOpen();
     _tell(call);
     final allowed = await _allows(call);
     if (!allowed) return selected(reject);
@@ -2447,11 +2461,9 @@ class AgyTransportCore {
     final form = AgyQuestionForm.of(params['requestedSchema']);
     if (_turn?.cancelled != false) return const {'action': 'cancel'};
     if (form == null) return const {'action': 'decline'};
-    _closeOpen();
-    final call = switch (params['toolCallId']) {
-      final String id => _calls[id],
-      _ => null,
-    };
+    final toolCallId = params['toolCallId'] as String?;
+    if (!_isChildCallId(toolCallId)) _closeOpen();
+    final call = toolCallId == null ? null : _calls[toolCallId];
     if (call != null) _tell(call);
     final answer = await _canUseTool({
       'tool_name': 'AskUserQuestion',
@@ -2891,8 +2903,9 @@ class AgyTransportCore {
         (!call.edits || call.acp.diff != null || !call.acp.running)) {
       _tell(call);
     }
-    if (call.acp.name == 'invoke_subagent' ||
-        call.acp.name == 'start_subagent') {
+    if (call.parentToolUseId == null &&
+        (call.acp.name == 'invoke_subagent' ||
+            call.acp.name == 'start_subagent')) {
       final convId = _extractSubagentConvId(call);
       if (convId != null) _bindSubagentConv(call, convId);
     }
@@ -2967,11 +2980,13 @@ class AgyTransportCore {
         // Gone, or not text: the patch numbered from its start.
       }
     }
-    final fallbackOutput = (call.acp.output ?? '').isEmpty
+    final isMain = call.parentToolUseId == null;
+    final fallbackOutput = isMain && (call.acp.output ?? '').isEmpty
         ? _fallbackOutputFromMainTranscript(call)
         : null;
-    if (call.acp.name == 'invoke_subagent' ||
-        call.acp.name == 'start_subagent') {
+    if (isMain &&
+        (call.acp.name == 'invoke_subagent' ||
+            call.acp.name == 'start_subagent')) {
       final convId =
           _subagentConvIds[call.claudeId] ??
           _extractSubagentConvId(call) ??
@@ -2987,7 +3002,8 @@ class AgyTransportCore {
       fallbackOutput: fallbackOutput,
     );
     var structured = result.structured;
-    if ((call.acp.name == 'invoke_subagent' ||
+    if (isMain &&
+        (call.acp.name == 'invoke_subagent' ||
             call.acp.name == 'start_subagent') &&
         !result.isError) {
       if (_subagentConvIds[call.claudeId] case final convId?) {
@@ -3005,20 +3021,21 @@ class AgyTransportCore {
       isError: result.isError,
       structured: structured,
     );
-    if (call.parentToolUseId == null && call.name == 'Bash') {
+    if (isMain && call.name == 'Bash') {
       _settleBgCommand(
         call.claudeId,
         status: result.isError ? 'failed' : 'completed',
         summary: result.content is String ? result.content as String : null,
       );
       _ensureBgCommandPolling();
-    } else if (call.acp.name == 'manage_task' &&
+    } else if (isMain &&
+        call.acp.name == 'manage_task' &&
         call.acp.input['Action'] == 'kill') {
       final killedId = '${call.acp.input['TaskId'] ?? ''}'.trim();
       if (_agyBgTaskIdToCall[killedId] case final targetToolUseId?) {
         _settleBgCommand(targetToolUseId, status: 'stopped');
       }
-    } else if (call.acp.name == 'manage_subagents') {
+    } else if (isMain && call.acp.name == 'manage_subagents') {
       final action = '${call.acp.input['Action'] ?? ''}';
       if (action == 'kill_all') {
         for (final toolUseId in [..._activeSubagentTasks.keys]) {
