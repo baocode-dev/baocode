@@ -791,7 +791,7 @@ class WorkspaceBridge {
           return null;
         }
         final task = _task(session, params['task']);
-        if (task != null) session.stopTask(task);
+        if (task != null && session.canStopTask(task)) session.stopTask(task);
         return null;
       case LinkMethods.output:
         final text = await _outputOf(params['session'], params['task']);
@@ -1961,6 +1961,7 @@ class _Follow {
               : null,
           summary: task.summary,
           output: task.outputFile != null,
+          stoppable: session.canStopTask(task),
         ),
     ];
   }

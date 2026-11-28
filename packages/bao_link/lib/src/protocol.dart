@@ -374,6 +374,7 @@ class LinkTask {
     this.command,
     this.summary,
     this.output = false,
+    this.stoppable = true,
   });
 
   factory LinkTask.fromJson(Map<String, Object?> json) => LinkTask(
@@ -388,6 +389,7 @@ class LinkTask {
     command: json['command'] as String?,
     summary: json['summary'] as String?,
     output: json['output'] == true,
+    stoppable: json['stoppable'] != false,
   );
 
   final String id;
@@ -412,6 +414,9 @@ class LinkTask {
   /// It has output to ask for ([LinkMethods.output]).
   final bool output;
 
+  /// Whether the user can stop this task directly via [LinkMethods.stopTask].
+  final bool stoppable;
+
   Map<String, Object?> toJson() => {
     'id': id,
     'kind': kind,
@@ -422,6 +427,7 @@ class LinkTask {
     'command': ?command,
     'summary': ?summary,
     if (output) 'output': true,
+    if (!stoppable) 'stoppable': false,
   };
 }
 

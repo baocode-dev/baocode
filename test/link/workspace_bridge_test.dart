@@ -1205,6 +1205,77 @@ void main() {
       );
     },
   );
+
+  test(
+    'background tasks propagate stoppable: false and stopTask RPC refuses them',
+    () async {
+      await open();
+      await bridge.handle(LinkMethods.send, {'session': id, 'text': 'run bg'});
+      await settle();
+
+      cli.push({
+        'type': 'system',
+        'subtype': 'task_started',
+        'task_id': 'bg-unstoppable',
+        'task_type': 'local_bash',
+        'description': 'acp server',
+        'is_backgrounded': true,
+        'stoppable': false,
+      });
+      cli.push({
+        'type': 'system',
+        'subtype': 'task_started',
+        'task_id': 'bg-stoppable',
+        'task_type': 'local_bash',
+        'description': 'claude watcher',
+        'is_backgrounded': true,
+      });
+      await settle();
+
+      final tasks = updates.last.tasks;
+      final unstoppable = tasks.firstWhere((t) => t.id == 'bg-unstoppable');
+      final stoppable = tasks.firstWhere((t) => t.id == 'bg-stoppable');
+      expect(unstoppable.stoppable, isFalse);
+      expect(unstoppable.toJson()['stoppable'], isFalse);
+      expect(LinkTask.fromJson(unstoppable.toJson()).stoppable, isFalse);
+
+      expect(stoppable.stoppable, isTrue);
+      expect(stoppable.toJson().containsKey('stoppable'), isFalse);
+      expect(LinkTask.fromJson(stoppable.toJson()).stoppable, isTrue);
+
+      // stopTask RPC must be a no-op for non-stoppable tasks.
+      cli.written.clear();
+      await bridge.handle(LinkMethods.stopTask, {
+        'session': id,
+        'task': 'bg-unstoppable',
+      });
+      await settle();
+      expect(
+        cli.written.where(
+          (m) =>
+              m['type'] == 'control_request' &&
+              (m['request'] as Map?)?['subtype'] == 'stop_task',
+        ),
+        isEmpty,
+      );
+
+      // stopTask RPC still forwards stop_task for stoppable tasks.
+      await bridge.handle(LinkMethods.stopTask, {
+        'session': id,
+        'task': 'bg-stoppable',
+      });
+      await settle();
+      expect(
+        cli.written.any(
+          (m) =>
+              m['type'] == 'control_request' &&
+              (m['request'] as Map?)?['subtype'] == 'stop_task' &&
+              (m['request'] as Map?)?['task_id'] == 'bg-stoppable',
+        ),
+        isTrue,
+      );
+    },
+  );
 }
 
 /// A phone's end and a desktop's, connected.
