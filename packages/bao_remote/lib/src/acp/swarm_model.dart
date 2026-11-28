@@ -15,6 +15,23 @@ enum SwarmMemberStatus {
   };
 }
 
+final _narratorNamePattern = RegExp(r'^narrator(-\d+)?$');
+final _monitorNamePattern = RegExp(r'^monitor(-\d+)?$');
+final _donePrefixPattern = RegExp(
+  r'^(?:@[A-Za-z0-9_#-]+\s+)*\[done\](?:\s|$)',
+  caseSensitive: false,
+);
+final _stallPrefixPattern = RegExp(
+  r'^(?:@[A-Za-z0-9_#-]+\s+)*\[stall\](?:\s|$)',
+  caseSensitive: false,
+);
+final _shardGroupPattern = RegExp(r'^(.+)-\d+$');
+final _quotaErrorPattern = RegExp(
+  r'RESOURCE_EXHAUSTED|429|quota|rate.?limit',
+  caseSensitive: false,
+);
+final _pathSepPattern = RegExp(r'[/\\]');
+
 /// Functional role of a swarm member.
 enum SwarmMemberRole {
   coordinator,
@@ -33,19 +50,19 @@ enum SwarmMemberRole {
       case 'monitor':
         return SwarmMemberRole.monitor;
       case 'worker':
-        if (RegExp(r'^narrator(-\d+)?$').hasMatch(name)) {
+        if (_narratorNamePattern.hasMatch(name)) {
           return SwarmMemberRole.narrator;
         }
-        if (RegExp(r'^monitor(-\d+)?$').hasMatch(name)) {
+        if (_monitorNamePattern.hasMatch(name)) {
           return SwarmMemberRole.monitor;
         }
         return SwarmMemberRole.worker;
     }
     if (name == 'coordinator') return SwarmMemberRole.coordinator;
-    if (RegExp(r'^narrator(-\d+)?$').hasMatch(name)) {
+    if (_narratorNamePattern.hasMatch(name)) {
       return SwarmMemberRole.narrator;
     }
-    if (RegExp(r'^monitor(-\d+)?$').hasMatch(name)) {
+    if (_monitorNamePattern.hasMatch(name)) {
       return SwarmMemberRole.monitor;
     }
     return SwarmMemberRole.worker;
@@ -136,9 +153,7 @@ class SwarmMember {
       status: SwarmMemberStatus.parse(json['status'] as String?),
       model: json['model'] as String?,
       workspaceMode: json['workspaceMode'] as String? ?? 'inherit',
-      channels: [
-        for (final c in json['channels'] as List? ?? const []) '$c',
-      ],
+      channels: [for (final c in json['channels'] as List? ?? const []) '$c'],
       wakeMode: json['wakeMode'] as String?,
       waitSince: (json['waitSince'] as num?)?.toInt() ?? 0,
       lastReadSeq: (json['lastReadSeq'] as num?)?.toInt() ?? 0,
@@ -187,18 +202,8 @@ class SwarmMessage {
   final bool isAll;
 
   bool get isBrief => kind == 'brief';
-  bool get isDone =>
-      !isBrief &&
-      RegExp(
-        r'^(?:@[A-Za-z0-9_#-]+\s+)*\[done\](?:\s|$)',
-        caseSensitive: false,
-      ).hasMatch(text.trim());
-  bool get isStall =>
-      !isBrief &&
-      RegExp(
-        r'^(?:@[A-Za-z0-9_#-]+\s+)*\[stall\](?:\s|$)',
-        caseSensitive: false,
-      ).hasMatch(text.trim());
+  bool get isDone => !isBrief && _donePrefixPattern.hasMatch(text.trim());
+  bool get isStall => !isBrief && _stallPrefixPattern.hasMatch(text.trim());
 
   Map<String, Object?> toJson() => {
     'seq': seq,
@@ -343,8 +348,7 @@ class SwarmPlan {
         if (goalLine != null) 'line': goalLine,
       },
     if (tasks.isNotEmpty) 'tasks': tasks,
-    if (threads.isNotEmpty)
-      'threads': [for (final t in threads) t.toJson()],
+    if (threads.isNotEmpty) 'threads': [for (final t in threads) t.toJson()],
   };
 
   factory SwarmPlan.fromJson(Map<String, Object?> json) {
@@ -377,7 +381,8 @@ class SwarmAttention {
   });
 
   final String id;
-  final String kind; // decision | failure | review | stuck | quota | error | fyi
+  final String
+  kind; // decision | failure | review | stuck | quota | error | fyi
   final String severity; // high | med | low
   final String title;
   final String? why;
@@ -633,9 +638,8 @@ class SwarmSnapshot {
   int get killedCount =>
       primaryMembers.where((m) => m.status == SwarmMemberStatus.killed).length;
 
-  bool get hasActiveWorkers => members.any(
-    (m) => m.role != SwarmMemberRole.coordinator && m.isWorking,
-  );
+  bool get hasActiveWorkers =>
+      members.any((m) => m.role != SwarmMemberRole.coordinator && m.isWorking);
 
   bool get isCompleted {
     if (messages.isEmpty) return false;
@@ -659,9 +663,7 @@ class SwarmSnapshot {
             id: 'sys-${m.name}',
             kind: m.failureIsQuota ? 'quota' : 'error',
             severity: 'high',
-            title: m.failureIsQuota
-                ? '${m.name} 额度耗尽，需切换模型'
-                : '${m.name} 执行出错',
+            title: m.failureIsQuota ? '${m.name} 额度耗尽，需切换模型' : '${m.name} 执行出错',
             why: failure,
             member: m.name,
           ),
@@ -687,8 +689,7 @@ class SwarmSnapshot {
     if (brainDir != null) 'brainDir': brainDir,
     'members': [for (final m in members) m.toJson()],
     'messages': [for (final m in messages) m.toJson()],
-    if (channels.isNotEmpty)
-      'channels': [for (final c in channels) c.toJson()],
+    if (channels.isNotEmpty) 'channels': [for (final c in channels) c.toJson()],
     'edges': [for (final e in edges) e.toJson()],
     if (plan != null) 'plan': plan!.toJson(),
     if (overview != null) 'overview': overview!.toJson(),
@@ -737,53 +738,78 @@ DateTime? parseBoardTime(String? raw) {
   return DateTime.tryParse(raw.trim().replaceFirst(' ', 'T'));
 }
 
-final _mentionPattern = RegExp(r'(?:^|[^\w-])@([A-Za-z0-9][A-Za-z0-9_-]{0,23})(?![\w-])');
+final _mentionPattern = RegExp(
+  r'(?:^|[^\w-])@([A-Za-z0-9][A-Za-z0-9_-]{0,23})(?![\w-])',
+);
 final _channelMentionPattern = RegExp(
   r'(?:^|[^\w-])@#([a-z][a-z0-9-]{0,23})(?![\w-])',
   caseSensitive: false,
 );
 
+/// Precomputed lookup tables for extracting `@name` mentions against a fixed
+/// roster without rebuilding maps/regexes per message.
+class RosterMentionIndex {
+  RosterMentionIndex(Set<String> rosterNames)
+    : _lowerToCanonical = {
+        for (final name in rosterNames) name.toLowerCase(): name,
+      },
+      _groups = _buildGroups(rosterNames);
+
+  final Map<String, String> _lowerToCanonical;
+  final Map<String, List<String>> _groups;
+
+  static Map<String, List<String>> _buildGroups(Set<String> rosterNames) {
+    final groups = <String, List<String>>{};
+    for (final name in rosterNames) {
+      final match = _shardGroupPattern.firstMatch(name);
+      if (match != null) {
+        groups.putIfAbsent(match.group(1)!.toLowerCase(), () => []).add(name);
+      }
+    }
+    return groups;
+  }
+
+  ({List<String> mentions, List<String> channels, bool isAll}) parse(
+    String text,
+  ) {
+    if (!text.contains('@')) {
+      return const (mentions: [], channels: [], isAll: false);
+    }
+    final mentions = <String>[];
+    final seen = <String>{};
+    var isAll = false;
+    for (final match in _mentionPattern.allMatches(text)) {
+      final token = match.group(1)!;
+      final lower = token.toLowerCase();
+      if (lower == 'all') {
+        isAll = true;
+        continue;
+      }
+      if (_lowerToCanonical[lower] case final canonical?) {
+        if (seen.add(canonical)) mentions.add(canonical);
+      } else if (_groups[lower] case final shards?) {
+        for (final shard in shards) {
+          if (seen.add(shard)) mentions.add(shard);
+        }
+      }
+    }
+    final channels = <String>[];
+    if (text.contains('@#')) {
+      final seenChannels = <String>{};
+      for (final match in _channelMentionPattern.allMatches(text)) {
+        final ch = match.group(1)!.toLowerCase();
+        if (seenChannels.add(ch)) channels.add(ch);
+      }
+    }
+    return (mentions: mentions, channels: channels, isAll: isAll);
+  }
+}
+
 /// Extracts `@name`, `@all`, and `@#channel` references from a board message.
 ({List<String> mentions, List<String> channels, bool isAll}) parseMentions(
   String text,
   Set<String> rosterNames,
-) {
-  final lowerToCanonical = {
-    for (final name in rosterNames) name.toLowerCase(): name,
-  };
-  final groups = <String, List<String>>{};
-  for (final name in rosterNames) {
-    final match = RegExp(r'^(.+)-\d+$').firstMatch(name);
-    if (match != null) {
-      groups.putIfAbsent(match.group(1)!.toLowerCase(), () => []).add(name);
-    }
-  }
-  final mentions = <String>[];
-  final seen = <String>{};
-  var isAll = false;
-  for (final match in _mentionPattern.allMatches(text)) {
-    final token = match.group(1)!;
-    final lower = token.toLowerCase();
-    if (lower == 'all') {
-      isAll = true;
-      continue;
-    }
-    if (lowerToCanonical[lower] case final canonical?) {
-      if (seen.add(canonical)) mentions.add(canonical);
-    } else if (groups[lower] case final shards?) {
-      for (final shard in shards) {
-        if (seen.add(shard)) mentions.add(shard);
-      }
-    }
-  }
-  final channels = <String>[];
-  final seenChannels = <String>{};
-  for (final match in _channelMentionPattern.allMatches(text)) {
-    final ch = match.group(1)!.toLowerCase();
-    if (seenChannels.add(ch)) channels.add(ch);
-  }
-  return (mentions: mentions, channels: channels, isAll: isAll);
-}
+) => RosterMentionIndex(rosterNames).parse(text);
 
 /// Computes directed communication edges between non-auxiliary swarm members.
 List<SwarmEdge> computeSwarmEdges(
@@ -863,97 +889,320 @@ class MemberTranscriptSummary {
   final List<SwarmWorkerStep> steps;
 }
 
+/// Single-pass incremental parser & summarizer for a worker's `transcript.jsonl`.
+///
+/// Decodes each JSONL line once, accumulates token totals and planner/step state,
+/// and keeps only a bounded recent window of [SwarmWorkerStep] entries so long
+/// transcripts do not grow memory without bound.
+class WorkerTranscriptAccumulator {
+  static const int maxRecentSteps = 120;
+  static const int _compactThreshold = maxRecentSteps * 2;
+
+  final List<SwarmWorkerStep> _steps = [];
+  final List<int> _pendingTools = [];
+  int _totalStepsAdded = 0;
+  int _totalTokens = 0;
+  int _plannerSteps = 0;
+
+  bool _hasLastStep = false;
+  String _lastType = '';
+  String _lastStatus = '';
+  bool _lastHasToolCalls = false;
+  String? _lastFailure;
+  bool _lastFailureIsQuota = false;
+
+  bool _hasLastPlanner = false;
+  bool _lastPlannerCalledWait = false;
+  String? _lastPlannerActivity;
+
+  void reset() {
+    _steps.clear();
+    _pendingTools.clear();
+    _totalStepsAdded = 0;
+    _totalTokens = 0;
+    _plannerSteps = 0;
+    _hasLastStep = false;
+    _lastType = '';
+    _lastStatus = '';
+    _lastHasToolCalls = false;
+    _lastFailure = null;
+    _lastFailureIsQuota = false;
+    _hasLastPlanner = false;
+    _lastPlannerCalledWait = false;
+    _lastPlannerActivity = null;
+  }
+
+  /// Parses and ingests all lines in [content].
+  void addContent(String content) {
+    if (content.isEmpty) return;
+    for (final line in const LineSplitter().convert(content)) {
+      addLine(line);
+    }
+  }
+
+  /// Parses and ingests a single JSONL line; ignores blank or malformed lines.
+  void addLine(String line) {
+    final trimmed = line.trim();
+    if (trimmed.isEmpty) return;
+    try {
+      final decoded = jsonDecode(trimmed);
+      if (decoded is! Map) return;
+      _ingestMap(decoded.cast<String, Object?>());
+    } on FormatException {
+      // Partial trailing line while being written.
+    }
+  }
+
+  void _ingestMap(Map<String, Object?> map) {
+    final type = '${map['type'] ?? ''}';
+    final status = '${map['status'] ?? ''}';
+    _hasLastStep = true;
+    _lastType = type;
+    _lastStatus = status;
+
+    final calls = map['tool_calls'] as List? ?? const [];
+    _lastHasToolCalls = calls.isNotEmpty;
+
+    if (type == 'ERROR_MESSAGE' || status == 'ERROR') {
+      final failure = '${map['content'] ?? map['error'] ?? 'Turn failed'}';
+      _lastFailure = failure;
+      _lastFailureIsQuota = _quotaErrorPattern.hasMatch(failure);
+    } else {
+      _lastFailure = null;
+      _lastFailureIsQuota = false;
+    }
+
+    if (type == 'PLANNER_RESPONSE') {
+      _plannerSteps++;
+      _hasLastPlanner = true;
+      _lastPlannerCalledWait = calls.any(
+        (c) => c is Map && c['name'] == 'swarm_wait',
+      );
+      if (calls.isNotEmpty && calls.last is Map) {
+        _lastPlannerActivity = _describeToolCall(
+          (calls.last as Map).cast<String, Object?>(),
+        );
+      } else {
+        _lastPlannerActivity = null;
+      }
+    }
+
+    final idx = (map['step_index'] as num?)?.toInt() ?? _totalStepsAdded;
+    final time = map['created_at'] as String?;
+    final model = map['model'] as String?;
+    final inputTokens = (map['input_tokens'] as num?)?.toInt() ?? 0;
+    final outputTokens = (map['output_tokens'] as num?)?.toInt() ?? 0;
+
+    switch (type) {
+      case 'PLANNER_RESPONSE':
+        _pendingTools.clear();
+        final thinking = (map['thinking'] as String?)?.trim() ?? '';
+        if (thinking.isNotEmpty) {
+          _appendStep(
+            SwarmWorkerStep(
+              index: idx,
+              kind: 'thought',
+              title: thinking.split('\n').first,
+              detail: thinking,
+              time: time,
+              model: model,
+            ),
+          );
+        }
+        for (final (i, c) in calls.indexed) {
+          if (c is! Map) continue;
+          final step = _stepFromToolCall(
+            c.cast<String, Object?>(),
+            index: idx,
+            time: time,
+            model: model,
+            // Attach turn token counts once on the first call of the batch.
+            inputTokens: i == 0 ? inputTokens : 0,
+            outputTokens: i == 0 ? outputTokens : 0,
+          );
+          _pendingTools.add(_steps.length);
+          _appendStep(step);
+        }
+        if (map['content'] case final String text when text.trim().isNotEmpty) {
+          final trimmedText = text.trim();
+          _appendStep(
+            SwarmWorkerStep(
+              index: idx,
+              kind: 'reply',
+              title: trimmedText.split('\n').first,
+              detail: trimmedText,
+              time: time,
+              model: model,
+              inputTokens: calls.isEmpty ? inputTokens : 0,
+              outputTokens: calls.isEmpty ? outputTokens : 0,
+            ),
+          );
+        }
+      case 'ERROR_MESSAGE':
+        _pendingTools.clear();
+        _appendStep(
+          SwarmWorkerStep(
+            index: idx,
+            kind: 'error',
+            title: 'Execution error',
+            detail: '${map['content'] ?? map['error'] ?? ''}',
+            time: time,
+            isError: true,
+          ),
+        );
+      case 'GENERIC':
+        final text = '${map['content'] ?? ''}'.trim();
+        final targetIdx = _pendingTools.isNotEmpty
+            ? _pendingTools.removeAt(0)
+            : (_steps.isNotEmpty && _steps.last.kind == 'tool'
+                  ? _steps.length - 1
+                  : -1);
+        if (targetIdx >= 0 && targetIdx < _steps.length && text.isNotEmpty) {
+          _steps[targetIdx] = _applyGenericOutput(
+            _steps[targetIdx],
+            text,
+            isError: status == 'ERROR',
+          );
+        }
+    }
+    _compactIfNeeded();
+  }
+
+  void _appendStep(SwarmWorkerStep step) {
+    _steps.add(step);
+    _totalStepsAdded++;
+    _totalTokens += step.inputTokens + step.outputTokens;
+  }
+
+  void _compactIfNeeded() {
+    if (_steps.length <= _compactThreshold) return;
+    var dropCount = _steps.length - maxRecentSteps;
+    if (_pendingTools.isNotEmpty) {
+      var minPending = _pendingTools.first;
+      for (final p in _pendingTools) {
+        if (p < minPending) minPending = p;
+      }
+      if (minPending < dropCount) dropCount = minPending;
+    }
+    if (dropCount <= 0) return;
+    _steps.removeRange(0, dropCount);
+    for (var i = 0; i < _pendingTools.length; i++) {
+      _pendingTools[i] -= dropCount;
+    }
+  }
+
+  /// Creates a lightweight snapshot copy so an unterminated trailing line can
+  /// be evaluated without mutating the committed accumulator state.
+  WorkerTranscriptAccumulator _clone() {
+    final copy = WorkerTranscriptAccumulator()
+      .._totalStepsAdded = _totalStepsAdded
+      .._totalTokens = _totalTokens
+      .._plannerSteps = _plannerSteps
+      .._hasLastStep = _hasLastStep
+      .._lastType = _lastType
+      .._lastStatus = _lastStatus
+      .._lastHasToolCalls = _lastHasToolCalls
+      .._lastFailure = _lastFailure
+      .._lastFailureIsQuota = _lastFailureIsQuota
+      .._hasLastPlanner = _hasLastPlanner
+      .._lastPlannerCalledWait = _lastPlannerCalledWait
+      .._lastPlannerActivity = _lastPlannerActivity;
+    copy._steps.addAll(_steps);
+    copy._pendingTools.addAll(_pendingTools);
+    return copy;
+  }
+
+  /// Builds a [MemberTranscriptSummary], optionally evaluating an uncommitted
+  /// [trailingLine] (a complete JSON line without a trailing newline yet).
+  MemberTranscriptSummary buildSummary({
+    bool stale = false,
+    String? trailingLine,
+  }) {
+    if (trailingLine != null && trailingLine.trim().isNotEmpty) {
+      final copy = _clone()..addLine(trailingLine);
+      return copy.buildSummary(stale: stale);
+    }
+    if (_steps.isEmpty || !_hasLastStep) {
+      return const MemberTranscriptSummary();
+    }
+
+    var working = !stale;
+    if (_lastFailure != null) {
+      working = false;
+    } else if (_lastType == 'PLANNER_RESPONSE' &&
+        _lastStatus == 'DONE' &&
+        !_lastHasToolCalls) {
+      working = false;
+    } else if (_hasLastPlanner &&
+        _lastPlannerCalledWait &&
+        _lastStatus == 'DONE') {
+      working = false;
+    }
+
+    final activity = working ? _lastPlannerActivity : null;
+    final recentSteps = _steps.length > maxRecentSteps
+        ? List<SwarmWorkerStep>.unmodifiable(
+            _steps.sublist(_steps.length - maxRecentSteps),
+          )
+        : List<SwarmWorkerStep>.unmodifiable(_steps);
+
+    return MemberTranscriptSummary(
+      stepsCount: _plannerSteps,
+      isWorking: working,
+      hasTranscript: true,
+      stale: stale,
+      currentActivity: activity,
+      failure: _lastFailure,
+      failureIsQuota: _lastFailureIsQuota,
+      totalTokens: _totalTokens,
+      steps: recentSteps,
+    );
+  }
+}
+
+SwarmWorkerStep _applyGenericOutput(
+  SwarmWorkerStep prev,
+  String text, {
+  required bool isError,
+}) {
+  final cleaned = text
+      .split('\n')
+      .where(
+        (l) => !l.startsWith('Created At: ') && !l.startsWith('Completed At: '),
+      )
+      .join('\n')
+      .trim();
+  final preview = cleaned.length > 1200
+      ? '${cleaned.substring(0, 1200)}…'
+      : cleaned;
+  final keepPrevDetail =
+      prev.toolName == 'post_message' || prev.toolName == 'send_message';
+  return SwarmWorkerStep(
+    index: prev.index,
+    kind: prev.kind,
+    title: prev.title,
+    detail: keepPrevDetail || preview.isEmpty ? prev.detail : preview,
+    time: prev.time,
+    model: prev.model,
+    toolName: prev.toolName,
+    path: prev.path,
+    target: prev.target,
+    range: prev.range,
+    isError: isError,
+    inputTokens: prev.inputTokens,
+    outputTokens: prev.outputTokens,
+  );
+}
+
 /// Parses a member's `transcript.jsonl` into live status + activity summary.
 /// When [stale] is true, the member is never reported as still working.
 MemberTranscriptSummary summarizeWorkerTranscript(
   String content, {
   bool stale = false,
 }) {
-  final steps = parseWorkerTranscriptSteps(content);
-  if (steps.isEmpty) return const MemberTranscriptSummary();
-  final lines = const LineSplitter().convert(content);
-  Map<String, Object?>? lastStep;
-  Map<String, Object?>? lastPlanner;
-  var plannerSteps = 0;
-  for (final line in lines) {
-    final trimmed = line.trim();
-    if (trimmed.isEmpty) continue;
-    try {
-      final decoded = jsonDecode(trimmed);
-      if (decoded is! Map) continue;
-      final map = decoded.cast<String, Object?>();
-      lastStep = map;
-      if (map['type'] == 'PLANNER_RESPONSE') {
-        plannerSteps++;
-        lastPlanner = map;
-      }
-    } on FormatException {
-      // Partial trailing line while being written.
-    }
-  }
-  if (lastStep == null) return const MemberTranscriptSummary();
-
-  // Failure detection (quota / model error).
-  String? failure;
-  var failureIsQuota = false;
-  final lastType = '${lastStep['type'] ?? ''}';
-  final lastStatus = '${lastStep['status'] ?? ''}';
-  if (lastType == 'ERROR_MESSAGE' || lastStatus == 'ERROR') {
-    failure = '${lastStep['content'] ?? lastStep['error'] ?? 'Turn failed'}';
-    failureIsQuota = RegExp(
-      r'RESOURCE_EXHAUSTED|429|quota|rate.?limit',
-      caseSensitive: false,
-    ).hasMatch(failure);
-  }
-
-  // Working vs waiting (follows swarm_board/README.md rules).
-  var working = !stale;
-  if (failure != null) {
-    working = false;
-  } else if (lastType == 'PLANNER_RESPONSE' &&
-      lastStatus == 'DONE' &&
-      (lastStep['tool_calls'] as List? ?? const []).isEmpty) {
-    working = false;
-  } else if (lastPlanner != null) {
-    final calls = lastPlanner['tool_calls'] as List? ?? const [];
-    final calledWait = calls.any(
-      (c) => c is Map && c['name'] == 'swarm_wait',
-    );
-    if (calledWait && lastStatus == 'DONE') {
-      working = false;
-    }
-  }
-
-  // Current activity from latest planner tool call when working.
-  String? activity;
-  if (working && lastPlanner != null) {
-    final calls = lastPlanner['tool_calls'] as List? ?? const [];
-    if (calls.isNotEmpty && calls.last is Map) {
-      final call = (calls.last as Map).cast<String, Object?>();
-      activity = _describeToolCall(call);
-    }
-  }
-
-  var totalTokens = 0;
-  for (final s in steps) {
-    totalTokens += s.inputTokens + s.outputTokens;
-  }
-  const maxSteps = 120;
-  final recentSteps = steps.length > maxSteps
-      ? steps.sublist(steps.length - maxSteps)
-      : steps;
-
-  return MemberTranscriptSummary(
-    stepsCount: plannerSteps,
-    isWorking: working,
-    hasTranscript: true,
-    stale: stale,
-    currentActivity: activity,
-    failure: failure,
-    failureIsQuota: failureIsQuota,
-    totalTokens: totalTokens,
-    steps: recentSteps,
-  );
+  if (content.isEmpty) return const MemberTranscriptSummary();
+  final acc = WorkerTranscriptAccumulator()..addContent(content);
+  return acc.buildSummary(stale: stale);
 }
 
 String _unquoteArg(Object? v) {
@@ -1037,7 +1286,7 @@ SwarmWorkerStep _stepFromToolCall(
       final rawPath = _unquoteArg(args['Path']);
       if (rawPath.isNotEmpty) {
         path = rawPath;
-        target = rawPath.split(RegExp(r'[/\\]')).last;
+        target = rawPath.split(_pathSepPattern).last;
       }
       final start = int.tryParse(_unquoteArg(args['StartLine']));
       final end = int.tryParse(_unquoteArg(args['EndLine']));
@@ -1048,7 +1297,7 @@ SwarmWorkerStep _stepFromToolCall(
       final rawPath = _unquoteArg(args['Path']);
       if (rawPath.isNotEmpty) {
         path = rawPath;
-        target = rawPath.split(RegExp(r'[/\\]')).last;
+        target = rawPath.split(_pathSepPattern).last;
       }
     case 'run_command':
       final cmd = _unquoteArg(args['CommandLine']);
@@ -1067,7 +1316,7 @@ SwarmWorkerStep _stepFromToolCall(
       final dir = _unquoteArg(args['DirectoryPath']);
       if (dir.isNotEmpty) {
         path = dir;
-        target = dir.split(RegExp(r'[/\\]')).last;
+        target = dir.split(_pathSepPattern).last;
       }
     case 'post_message' || 'send_message':
       final msg = _unquoteArg(args['text'] ?? args['Message']);
@@ -1177,36 +1426,10 @@ List<SwarmWorkerStep> parseWorkerTranscriptSteps(String content) {
                     ? result.length - 1
                     : -1);
           if (targetIdx >= 0 && text.isNotEmpty) {
-            final prev = result[targetIdx];
-            final cleaned = text
-                .split('\n')
-                .where(
-                  (l) =>
-                      !l.startsWith('Created At: ') &&
-                      !l.startsWith('Completed At: '),
-                )
-                .join('\n')
-                .trim();
-            final preview = cleaned.length > 1200
-                ? '${cleaned.substring(0, 1200)}…'
-                : cleaned;
-            final keepPrevDetail =
-                prev.toolName == 'post_message' ||
-                prev.toolName == 'send_message';
-            result[targetIdx] = SwarmWorkerStep(
-              index: prev.index,
-              kind: prev.kind,
-              title: prev.title,
-              detail: keepPrevDetail || preview.isEmpty ? prev.detail : preview,
-              time: prev.time,
-              model: prev.model,
-              toolName: prev.toolName,
-              path: prev.path,
-              target: prev.target,
-              range: prev.range,
+            result[targetIdx] = _applyGenericOutput(
+              result[targetIdx],
+              text,
               isError: map['status'] == 'ERROR',
-              inputTokens: prev.inputTokens,
-              outputTokens: prev.outputTokens,
             );
           }
       }
@@ -1217,48 +1440,38 @@ List<SwarmWorkerStep> parseWorkerTranscriptSteps(String content) {
   return result;
 }
 
-/// Builds a [SwarmSnapshot] from raw file strings on disk (`members.json`,
-/// `board.jsonl`, optional `plan.json` and `view.json`, plus per-member
-/// transcript summaries).
-SwarmSnapshot? buildSwarmSnapshot({
-  required String swarmId,
-  required String membersJson,
-  required String boardJsonl,
-  String? brainDir,
-  String? planJson,
-  String? viewJson,
-  Map<String, MemberTranscriptSummary> transcripts = const {},
-  Set<String> stoppedMembers = const {},
-  bool allowUnwrittenWorking = true,
-}) {
-  Map<String, Object?> parsedMembers;
-  try {
-    final raw = jsonDecode(membersJson);
-    if (raw is! Map) return null;
-    parsedMembers = raw.cast<String, Object?>();
-  } on FormatException {
-    return null;
+/// Incremental parser & state holder for append-only `board.jsonl`.
+class SwarmBoardAccumulator {
+  final List<SwarmMessage> messages = [];
+  final Map<String, int> postCount = {};
+  final Map<String, int> lastPostSeq = {};
+  final Map<String, String> lastPostTime = {};
+  final Map<String, String> briefs = {};
+  final Map<String, ({String? topic, bool archived, int count})> channelMap =
+      {};
+
+  void reset() {
+    messages.clear();
+    postCount.clear();
+    lastPostSeq.clear();
+    lastPostTime.clear();
+    briefs.clear();
+    channelMap.clear();
   }
 
-  final title = '${parsedMembers['title'] ?? ''}'.trim();
-  final rawRoster = (parsedMembers['members'] as Map? ?? const {})
-      .cast<String, Object?>();
-  final rosterNames = rawRoster.keys.toSet();
+  void addContent(String content, RosterMentionIndex mentionIndex) {
+    if (content.isEmpty) return;
+    for (final line in const LineSplitter().convert(content)) {
+      addLine(line, mentionIndex);
+    }
+  }
 
-  // Parse board.jsonl messages.
-  final messages = <SwarmMessage>[];
-  final postCount = <String, int>{};
-  final lastPostSeq = <String, int>{};
-  final lastPostTime = <String, String>{};
-  final briefs = <String, String>{};
-  final channelMap = <String, ({String? topic, bool archived, int count})>{};
-
-  for (final line in const LineSplitter().convert(boardJsonl)) {
+  void addLine(String line, RosterMentionIndex mentionIndex) {
     final trimmed = line.trim();
-    if (trimmed.isEmpty) continue;
+    if (trimmed.isEmpty) return;
     try {
       final raw = jsonDecode(trimmed);
-      if (raw is! Map) continue;
+      if (raw is! Map) return;
       final map = raw.cast<String, Object?>();
       final seq = (map['seq'] as num?)?.toInt() ?? (messages.length + 1);
       final agent = '${map['agent'] ?? ''}';
@@ -1266,7 +1479,7 @@ SwarmSnapshot? buildSwarmSnapshot({
       final time = map['time'] as String?;
       final kind = map['kind'] as String?;
       final channel = '${map['channel'] ?? 'main'}';
-      final refs = parseMentions(text, rosterNames);
+      final refs = mentionIndex.parse(text);
       final msg = SwarmMessage(
         seq: seq,
         agent: agent,
@@ -1299,6 +1512,53 @@ SwarmSnapshot? buildSwarmSnapshot({
     }
   }
 
+  SwarmBoardAccumulator cloneWithTrailingLine(
+    String? trailingLine,
+    RosterMentionIndex mentionIndex,
+  ) {
+    if (trailingLine == null || trailingLine.trim().isEmpty) return this;
+    final copy = SwarmBoardAccumulator();
+    copy.messages.addAll(messages);
+    copy.postCount.addAll(postCount);
+    copy.lastPostSeq.addAll(lastPostSeq);
+    copy.lastPostTime.addAll(lastPostTime);
+    copy.briefs.addAll(briefs);
+    copy.channelMap.addAll(channelMap);
+    copy.addLine(trailingLine, mentionIndex);
+    return copy;
+  }
+
+  List<SwarmChannel> buildChannels() =>
+      [
+        for (final MapEntry(:key, :value) in channelMap.entries)
+          SwarmChannel(
+            name: key,
+            topic: value.topic,
+            archived: value.archived,
+            postCount: value.count,
+          ),
+      ]..sort((a, b) {
+        if (a.name == 'main') return -1;
+        if (b.name == 'main') return 1;
+        return a.name.compareTo(b.name);
+      });
+}
+
+/// Builds a [SwarmSnapshot] from already-parsed components (used by
+/// [SwarmWatcher] to avoid re-decoding unchanged files).
+SwarmSnapshot buildSwarmSnapshotFromParsed({
+  required String swarmId,
+  required String title,
+  required Map<String, Object?> rawRoster,
+  required SwarmBoardAccumulator board,
+  String? brainDir,
+  SwarmPlan? plan,
+  SwarmOverviewData? overview,
+  Map<String, MemberTranscriptSummary> transcripts = const {},
+  Set<String> stoppedMembers = const {},
+  bool allowUnwrittenWorking = true,
+}) {
+  final messages = List<SwarmMessage>.unmodifiable(board.messages);
   final headSeq = messages.isEmpty ? 0 : messages.last.seq;
 
   // Build sorted member list: active first, then waiting, stopped, killed;
@@ -1352,17 +1612,17 @@ SwarmSnapshot? buildSwarmSnapshot({
         wakeMode: m['wake_mode'] as String?,
         waitSince: (m['wait_since'] as num?)?.toInt() ?? 0,
         lastReadSeq: lastRead,
-        postsCount: postCount[key] ?? 0,
+        postsCount: board.postCount[key] ?? 0,
         unreadCount: unread,
         stepsCount: summary?.stepsCount ?? 0,
         currentActivity: status == SwarmMemberStatus.working
             ? summary?.currentActivity
             : null,
-        lastPostSeq: lastPostSeq[key],
-        lastPostTime: lastPostTime[key],
+        lastPostSeq: board.lastPostSeq[key],
+        lastPostTime: board.lastPostTime[key],
         failure: summary?.failure,
         failureIsQuota: summary?.failureIsQuota ?? false,
-        brief: briefs[key],
+        brief: board.briefs[key],
         totalTokens: summary?.totalTokens ?? 0,
         steps: summary?.steps ?? const [],
       ),
@@ -1386,6 +1646,49 @@ SwarmSnapshot? buildSwarmSnapshot({
     return a.name.compareTo(b.name);
   });
 
+  return SwarmSnapshot(
+    swarmId: swarmId,
+    title: title.isEmpty ? (plan?.goalTitle ?? 'Swarm') : title,
+    brainDir: brainDir,
+    members: members,
+    messages: messages,
+    channels: board.buildChannels(),
+    edges: computeSwarmEdges(messages, members),
+    plan: plan,
+    overview: overview,
+    updatedAt: DateTime.now(),
+  );
+}
+
+/// Builds a [SwarmSnapshot] from raw file strings on disk (`members.json`,
+/// `board.jsonl`, optional `plan.json` and `view.json`, plus per-member
+/// transcript summaries).
+SwarmSnapshot? buildSwarmSnapshot({
+  required String swarmId,
+  required String membersJson,
+  required String boardJsonl,
+  String? brainDir,
+  String? planJson,
+  String? viewJson,
+  Map<String, MemberTranscriptSummary> transcripts = const {},
+  Set<String> stoppedMembers = const {},
+  bool allowUnwrittenWorking = true,
+}) {
+  Map<String, Object?> parsedMembers;
+  try {
+    final raw = jsonDecode(membersJson);
+    if (raw is! Map) return null;
+    parsedMembers = raw.cast<String, Object?>();
+  } on FormatException {
+    return null;
+  }
+
+  final title = '${parsedMembers['title'] ?? ''}'.trim();
+  final rawRoster = (parsedMembers['members'] as Map? ?? const {})
+      .cast<String, Object?>();
+  final mentionIndex = RosterMentionIndex(rawRoster.keys.toSet());
+  final board = SwarmBoardAccumulator()..addContent(boardJsonl, mentionIndex);
+
   SwarmPlan? plan;
   if (planJson != null && planJson.trim().isNotEmpty) {
     try {
@@ -1408,30 +1711,16 @@ SwarmSnapshot? buildSwarmSnapshot({
     }
   }
 
-  final channels = [
-    for (final MapEntry(:key, :value) in channelMap.entries)
-      SwarmChannel(
-        name: key,
-        topic: value.topic,
-        archived: value.archived,
-        postCount: value.count,
-      ),
-  ]..sort((a, b) {
-      if (a.name == 'main') return -1;
-      if (b.name == 'main') return 1;
-      return a.name.compareTo(b.name);
-    });
-
-  return SwarmSnapshot(
+  return buildSwarmSnapshotFromParsed(
     swarmId: swarmId,
-    title: title.isEmpty ? (plan?.goalTitle ?? 'Swarm') : title,
+    title: title,
+    rawRoster: rawRoster,
+    board: board,
     brainDir: brainDir,
-    members: members,
-    messages: messages,
-    channels: channels,
-    edges: computeSwarmEdges(messages, members),
     plan: plan,
     overview: overview,
-    updatedAt: DateTime.now(),
+    transcripts: transcripts,
+    stoppedMembers: stoppedMembers,
+    allowUnwrittenWorking: allowUnwrittenWorking,
   );
 }

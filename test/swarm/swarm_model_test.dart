@@ -148,7 +148,10 @@ void main() {
       expect(snap.members.length, 4);
       expect(snap.activeCount, 1); // parser is actively working
       expect(snap.killedCount, 1);
-      expect(snap.memberNamed('parser')!.currentActivity, 'Editing parser.dart');
+      expect(
+        snap.memberNamed('parser')!.currentActivity,
+        'Editing parser.dart',
+      );
       expect(snap.memberNamed('parser')!.workspaceMode, 'share');
       expect(snap.memberNamed('verifier')!.unreadCount, 2);
       expect(snap.plan?.goalTitle, 'Refactor parser safely');
@@ -243,6 +246,192 @@ void main() {
       expect(received, isNotEmpty);
       expect(received.last.title, 'Live Watch Swarm');
       expect(received.last.messages.length, 1);
+    });
+
+    test('SwarmWatcher incrementally parses appended transcripts, partial lines, truncation, and state overrides', () async {
+      final tmp = await Directory.systemTemp.createTemp('swarm-inc-test-');
+      addTearDown(() => tmp.delete(recursive: true));
+      const swarmId = 'swarm-inc-coord';
+      const workerConvId = 'swarm-inc-worker-1';
+
+      final swarmDir = Directory(
+        p.join(tmp.path, swarmId, '.system_generated', 'swarm'),
+      )..createSync(recursive: true);
+      final workerLogsDir = Directory(
+        p.join(tmp.path, workerConvId, '.system_generated', 'logs'),
+      )..createSync(recursive: true);
+
+      final membersFile = File(p.join(swarmDir.path, 'members.json'));
+      final boardFile = File(p.join(swarmDir.path, 'board.jsonl'));
+      final transcriptFile = File(
+        p.join(workerLogsDir.path, 'transcript.jsonl'),
+      );
+
+      membersFile.writeAsStringSync(
+        jsonEncode({
+          'title': 'Incremental Swarm',
+          'members': {
+            'coordinator': {
+              'conversation_id': swarmId,
+              'role': 'coordinator',
+              'phase': 'RUNNING',
+              'wake_mode': 'mentions',
+              'killed': false,
+            },
+            'worker-1': {
+              'conversation_id': workerConvId,
+              'role': 'worker',
+              'phase': 'RUNNING',
+              'wake_mode': 'working',
+              'killed': false,
+            },
+          },
+        }),
+      );
+      boardFile.writeAsStringSync(
+        '${jsonEncode({'seq': 1, 'agent': 'coordinator', 'text': '@worker-1 start', 'kind': 'brief'})}\n',
+      );
+
+      final step1 = jsonEncode({
+        'step_index': 1,
+        'type': 'PLANNER_RESPONSE',
+        'status': 'DONE',
+        'input_tokens': 100,
+        'output_tokens': 25,
+        'tool_calls': [
+          {
+            'name': 'read_file',
+            'args': {'Path': '"/repo/a.dart"'},
+          },
+        ],
+      });
+      final step2 = jsonEncode({
+        'step_index': 2,
+        'type': 'GENERIC',
+        'status': 'DONE',
+        'content': 'file body ok',
+      });
+      final step3 = jsonEncode({
+        'step_index': 3,
+        'type': 'PLANNER_RESPONSE',
+        'status': 'DONE',
+        'input_tokens': 200,
+        'output_tokens': 50,
+        'content': 'All done!',
+        'tool_calls': const <Object>[],
+      });
+
+      // Write step 1 + a half-written step 2 (no trailing newline yet).
+      transcriptFile.writeAsStringSync('$step1\n${step2.substring(0, 15)}');
+
+      final received = <SwarmSnapshot>[];
+      final watcher = SwarmWatcher(
+        brainDir: tmp.path,
+        swarmId: swarmId,
+        pollInterval: const Duration(hours: 1),
+        onSnapshot: received.add,
+      )..start();
+      addTearDown(watcher.dispose);
+
+      expect(received, hasLength(1));
+      var w1 = received.last.memberNamed('worker-1')!;
+      expect(w1.status, SwarmMemberStatus.working);
+      expect(w1.stepsCount, 1);
+      expect(w1.totalTokens, 125);
+      expect(w1.steps, hasLength(1));
+      expect(w1.steps.single.detail, isNull);
+
+      // Idle checkNow() with no disk changes must short-circuit with no emit.
+      watcher.checkNow();
+      expect(received, hasLength(1));
+
+      // Finish writing step 2 (still without trailing newline) -> visible immediately.
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      transcriptFile.writeAsStringSync(
+        step2.substring(15),
+        mode: FileMode.append,
+      );
+      watcher.checkNow();
+      expect(received, hasLength(2));
+      w1 = received.last.memberNamed('worker-1')!;
+      expect(w1.steps, hasLength(1));
+      expect(w1.steps.single.detail, 'file body ok');
+
+      // Append newline + step 3 + a new board message.
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      transcriptFile.writeAsStringSync('\n$step3\n', mode: FileMode.append);
+      boardFile.writeAsStringSync(
+        '${jsonEncode({'seq': 2, 'agent': 'worker-1', 'text': '@coordinator [done] finished'})}\n',
+        mode: FileMode.append,
+      );
+      watcher.checkNow();
+      expect(received, hasLength(3));
+      w1 = received.last.memberNamed('worker-1')!;
+      expect(w1.status, SwarmMemberStatus.waiting);
+      expect(w1.stepsCount, 2);
+      expect(w1.totalTokens, 375);
+      expect(w1.steps, hasLength(2));
+      expect(w1.steps.last.kind, 'reply');
+      expect(received.last.messages, hasLength(2));
+
+      // markStopped transitions immediately without disk change.
+      watcher.markStopped('worker-1', const Duration(seconds: 5));
+      watcher.checkNow();
+      expect(received, hasLength(4));
+      expect(
+        received.last.memberNamed('worker-1')!.status,
+        SwarmMemberStatus.stopped,
+      );
+
+      // Truncate/rewrite transcript smaller -> resets accumulator cleanly.
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      transcriptFile.writeAsStringSync('$step1\n');
+      watcher.updateActiveSince(
+        DateTime.now().subtract(const Duration(minutes: 1)),
+      );
+      watcher.checkNow();
+      expect(received, hasLength(5));
+      w1 = received.last.memberNamed('worker-1')!;
+      expect(w1.stepsCount, 1);
+      expect(w1.totalTokens, 125);
+    });
+
+    test('summarizeWorkerTranscript compacts long transcripts while keeping exact token totals and recent 120 steps', () {
+      final lines = <String>[];
+      for (var i = 1; i <= 260; i++) {
+        lines.add(
+          jsonEncode({
+            'step_index': i,
+            'type': 'PLANNER_RESPONSE',
+            'status': 'DONE',
+            'input_tokens': 10,
+            'output_tokens': 5,
+            'tool_calls': [
+              {
+                'name': 'read_file',
+                'args': {'Path': '"/repo/file_$i.dart"'},
+              },
+            ],
+          }),
+        );
+        lines.add(
+          jsonEncode({
+            'step_index': i * 1000,
+            'type': 'GENERIC',
+            'status': 'DONE',
+            'content': 'output $i',
+          }),
+        );
+      }
+      final summary = summarizeWorkerTranscript(lines.join('\n'));
+      expect(summary.hasTranscript, isTrue);
+      expect(summary.isWorking, isTrue);
+      expect(summary.stepsCount, 260);
+      expect(summary.totalTokens, 260 * 15);
+      expect(summary.steps, hasLength(120));
+      expect(summary.steps.first.index, 141);
+      expect(summary.steps.last.index, 260);
+      expect(summary.steps.last.detail, 'output 260');
     });
 
     test('ClaudeTranslator projects swarm workers into native AgentItem, KernelTask, and AgentMessageCard bubbles', () {
@@ -373,7 +562,9 @@ void main() {
           if (transcript.itemAt(i) case final AgentItem a) a,
       ];
       expect(agents, hasLength(2));
-      final modelAgent = agents.firstWhere((a) => a.description == '@model-auditor');
+      final modelAgent = agents.firstWhere(
+        (a) => a.description == '@model-auditor',
+      );
       final uiAgent = agents.firstWhere((a) => a.description == '@ui-auditor');
       expect(modelAgent.status, CommandStatus.running);
       expect(modelAgent.activity, 'Reading swarm_model.dart');
@@ -428,7 +619,8 @@ void main() {
             {
               'name': 'run_command',
               'args': {
-                'CommandLine': '"flutter test test/swarm/swarm_model_test.dart"',
+                'CommandLine':
+                    '"flutter test test/swarm/swarm_model_test.dart"',
                 'toolSummary': '"Run swarm tests"',
               },
             },
@@ -553,16 +745,28 @@ void main() {
       addTearDown(() => tmp.delete(recursive: true));
       final ws = Directory(p.join(tmp.path, 'ws'))..createSync();
       File(p.join(ws.path, 'one.txt')).writeAsStringSync('Module One: auth\n');
-      File(p.join(ws.path, 'two.txt')).writeAsStringSync('Module Two: billing\n');
+      File(p.join(ws.path, 'two.txt'))
+          .writeAsStringSync('Module Two: billing\n');
 
       // Reuse installed antigravity binary from BaoCode's data dir, with a
       // temp home so we don't pollute user conversations.
       final homeDir = Platform.environment['HOME'] ?? '';
-      final realRoot = Platform.environment['AGY_ROOT'] ??
-          p.join(homeDir, 'Library', 'Application Support', 'baocode', 'antigravity');
+      final realRoot =
+          Platform.environment['AGY_ROOT'] ??
+          p.join(
+            homeDir,
+            'Library',
+            'Application Support',
+            'baocode',
+            'antigravity',
+          );
       final realRuntime = LocalAgyRuntime(root: realRoot);
       final ver = await realRuntime.version();
-      expect(ver, isNotNull, reason: 'Antigravity CLI must be installed at $realRoot');
+      expect(
+        ver,
+        isNotNull,
+        reason: 'Antigravity CLI must be installed at $realRoot',
+      );
       final binDir = Directory(p.join(tmp.path, 'bin', ver!))
         ..createSync(recursive: true);
       await File(p.join(tmp.path, 'bin', 'current')).writeAsString(ver);
@@ -587,13 +791,22 @@ void main() {
       final turnDone = Completer<void>();
 
       final sub = transport.messages.listen((msg) {
-        if (msg case {'type': 'system', 'subtype': 'swarm_update', 'swarm': final Map raw}) {
+        if (msg case {
+          'type': 'system',
+          'subtype': 'swarm_update',
+          'swarm': final Map raw,
+        }) {
           swarmUpdates.add(SwarmSnapshot.fromJson(raw.cast<String, Object?>()));
         }
-        if (msg case {'type': 'assistant', 'message': {'content': final List blocks}}) {
+        if (msg case {
+          'type': 'assistant',
+          'message': {'content': final List blocks},
+        }) {
           for (final b in blocks) {
             if (b case {'type': 'tool_use', 'name': final String name}) {
-              if (name == 'Swarm' || name == 'SendMessage' || name == 'SwarmBoard') {
+              if (name == 'Swarm' ||
+                  name == 'SendMessage' ||
+                  name == 'SwarmBoard') {
                 swarmTools.add(name);
               }
             }
@@ -620,8 +833,7 @@ void main() {
           'content': [
             {
               'type': 'text',
-              'text':
-                  '/swarm Read one.txt and two.txt with two workers (one-reader and two-reader), have each post a 1-sentence summary to the board, then summarize both and finish.',
+              'text': '/swarm Read one.txt and two.txt with two workers (one-reader and two-reader), have each post a 1-sentence summary to the board, then summarize both and finish.',
             },
           ],
         },
