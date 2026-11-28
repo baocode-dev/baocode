@@ -25,6 +25,7 @@ import '../floating/floating_placement.dart';
 import '../floating/floating_registry.dart';
 import '../../diagnostics/input_lag.dart';
 import '../../workspace/window_controls.dart';
+import '../panels/plugin_slot_bar.dart';
 import '../widgets/context_meter.dart';
 import '../widgets/hover_builder.dart';
 import 'composer_caret.dart';
@@ -2094,6 +2095,7 @@ class ChatComposerState extends State<ChatComposer>
             ),
           ),
           const SizedBox(width: 8),
+          if (widget.onSubmit == null) PluginSlotBar(project: session.root),
           if (ComposerPolishSetting.current()) ...[
             _PolishButton(
               busy: _polishing,

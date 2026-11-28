@@ -41,6 +41,8 @@ class CustomizationStore {
 
   Future<String> config() async => configDir ?? await _files.configDir();
 
+  Future<String?> home() async => homeDir ?? await _files.homeDir();
+
   /// Where the CLI keeps its state and the user's MCP servers: beside the
   /// default config folder, inside one moved elsewhere.
   Future<String> _claudeJson() async {
