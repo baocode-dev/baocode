@@ -10,7 +10,7 @@ void main() {
     const cases = {
       'claude-sonnet-4-5': 'claude',
       'anthropic/claude-opus-4.1': 'claude',
-      'claude-fable-5-1-reversed': 'claude',
+      'claude-fable-5-2-reversed': 'claude',
       'gpt-5': 'openai',
       'gpt-6-luna': 'openai',
       'openai/gpt-oss-120b': 'openai',

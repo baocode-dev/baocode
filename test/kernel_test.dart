@@ -5882,7 +5882,7 @@ void main() {
               },
               model('opus', 'claude-opus-4-6', ['low', 'high']),
               model('opus[1m]', 'claude-opus-4-6[1m]', ['low', 'high']),
-              model('fable[1m]', 'claude-fable-5-1', ['low', 'max']),
+              model('fable[1m]', 'claude-fable-5-2', ['low', 'max']),
               model('haiku', 'claude-haiku-4-5'),
             ],
           },
