@@ -15,7 +15,10 @@ import '../side_panel/file_open.dart';
 import 'content_image.dart';
 import 'hover_builder.dart';
 import 'step_header.dart';
+import 'todo_step_icons.dart';
 import 'web_step_icons.dart';
+
+export 'todo_step_icons.dart' show StepTodoIcons, TodoStepLeading, todoInitial;
 
 /// A message to another agent's icon (Remix Icon's speak-ai-line).
 const speakIcon = 'assets/icons/speak-ai-line.svg';
@@ -98,7 +101,10 @@ class ToolCallRow extends StatelessWidget {
 
   bool get _opens =>
       _answered == null &&
-      (results.isNotEmpty || _shown != null || images.isNotEmpty);
+      (_todos != null ||
+          results.isNotEmpty ||
+          _shown != null ||
+          images.isNotEmpty);
 
   /// The questions asked and what the user answered, once they have
   /// (AskUserQuestion): shown under it as they are, not folded in what it
@@ -240,11 +246,7 @@ class ToolCallRow extends StatelessWidget {
               colorFilter: ColorFilter.mode(_amber, BlendMode.srcIn),
             ),
             ToolKind.goal => Icon(Icons.flag_outlined, size: 15, color: _amber),
-            ToolKind.todo => Icon(
-              Icons.checklist_rounded,
-              size: 15,
-              color: AppColors.textMuted,
-            ),
+            ToolKind.todo => TodoStepLeading(todos: _todos, expanded: expanded),
             ToolKind.web => webSearchGlobe(),
             // Claude Code's ToolSearch loads tools' definitions, MCP tools'
             // mostly: it wears their mark too.

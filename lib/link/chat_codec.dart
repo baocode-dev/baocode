@@ -308,6 +308,16 @@ abstract final class ChatCodec {
           'action': ?(item.input['action'] as String?),
           if (item.input['url'] != null) 'url': true,
         },
+      // Todo items written by TodoWrite, for the phone's badges and list.
+      if (item.kind == ToolKind.todo && item.input['todos'] is List)
+        'todos': [
+          for (final todo in item.input['todos'] as List)
+            if (todo is Map)
+              {
+                'content': '${todo['content'] ?? ''}',
+                'status': '${todo['status'] ?? 'pending'}',
+              },
+        ],
       // The pictures it returned (an image model's, a file read), but for
       // a failed call's.
       if (item.images.isNotEmpty && item.status != ToolStatus.failed)
@@ -463,6 +473,16 @@ abstract final class ChatCodec {
         tool: optional('tool'),
         images: _decodeImages(json['images']),
         input: switch ((json['making'], json['browse'])) {
+          _ when json['todos'] is List => {
+            'todos': [
+              for (final todo in json['todos'] as List)
+                if (todo is Map)
+                  {
+                    'content': '${todo['content'] ?? ''}',
+                    'status': '${todo['status'] ?? 'pending'}',
+                  },
+            ],
+          },
           _ when json['sticker'] is String => {'sticker': json['sticker']},
           _ when json['url'] is String => {'url': json['url']},
           _ when json['sent'] is String => {
